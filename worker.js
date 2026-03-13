@@ -109,7 +109,17 @@ const worker = new Worker(
     }
 
     // Run Ralph
-    const report = await runRalph(gameId, specPath, buildId);
+    let report;
+    try {
+      report = await runRalph(gameId, specPath, buildId);
+    } catch (err) {
+      // Record metrics even on failure
+      const buildDuration = (Date.now() - buildStartTime) / 1000;
+      metrics.recordBuildCompleted(gameId, 'CRASHED', buildDuration, 0);
+      transaction.setStatus && transaction.setStatus('error');
+      transaction.finish && transaction.finish();
+      throw err;
+    }
 
     // Update DB: build completed
     if (buildId) {
@@ -118,7 +128,7 @@ const worker = new Worker(
 
     // Record metrics
     const buildDuration = (Date.now() - buildStartTime) / 1000;
-    metrics.recordBuildCompleted(gameId, report.status, buildDuration, report.iterations);
+    metrics.recordBuildCompleted(gameId, report.status, buildDuration, report.iterations || 0);
     transaction.setStatus && transaction.setStatus(report.status === 'APPROVED' ? 'ok' : 'error');
     transaction.finish && transaction.finish();
 
@@ -127,7 +137,7 @@ const worker = new Worker(
 
     logger.info(`${gameId}: ${report.status}`, {
       gameId, buildId, status: report.status,
-      iterations: report.iterations, duration_s: report.total_time_s,
+      iterations: report.iterations || 0, duration_s: report.total_time_s,
       event: 'build_complete',
     });
 

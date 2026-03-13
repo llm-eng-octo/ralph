@@ -119,6 +119,7 @@ function getNextMidnight(timezone) {
 
 // ─── GitHub webhook endpoint ────────────────────────────────────────────────
 app.post('/webhook/github', verifyGitHubSignature, async (req, res) => {
+  try {
   const event = req.headers['x-github-event'];
 
   if (event !== 'push') {
@@ -161,10 +162,16 @@ app.post('/webhook/github', verifyGitHubSignature, async (req, res) => {
 
   logger.info(`${changedSpecs.size} games queued for immediate build`, { event: 'immediate_queue' });
   return res.json({ queued: changedSpecs.size, scheduled: 'immediate' });
+  } catch (err) {
+    logger.error(`Webhook error: ${err.message}`, { event: 'webhook_error' });
+    sentry.captureException(err, { step: 'webhook' });
+    return res.status(500).json({ error: 'Internal error processing webhook' });
+  }
 });
 
 // ─── Manual build trigger ───────────────────────────────────────────────────
 app.post('/api/build', async (req, res) => {
+  try {
   const { gameId, all, specPath } = req.body;
 
   if (all) {
@@ -188,6 +195,11 @@ app.post('/api/build', async (req, res) => {
 
   logger.info(`Build queued for ${gameId}`, { gameId, buildId, event: 'manual_build' });
   return res.json({ queued: true, buildId, gameId });
+  } catch (err) {
+    logger.error(`Build API error: ${err.message}`, { event: 'api_error' });
+    sentry.captureException(err, { step: 'api_build' });
+    return res.status(500).json({ error: 'Internal error queuing build' });
+  }
 });
 
 // ─── Build status and history ───────────────────────────────────────────────
@@ -204,8 +216,8 @@ app.get('/api/builds/:id', (req, res) => {
     return res.status(404).json({ error: 'Build not found' });
   }
   // Parse JSON fields for response
-  if (build.test_results) build.test_results = JSON.parse(build.test_results);
-  if (build.models) build.models = JSON.parse(build.models);
+  try { if (build.test_results) build.test_results = JSON.parse(build.test_results); } catch { /* keep raw */ }
+  try { if (build.models) build.models = JSON.parse(build.models); } catch { /* keep raw */ }
   res.json(build);
 });
 
@@ -227,15 +239,15 @@ app.get('/api/metrics', (req, res) => {
 app.get('/health', async (req, res) => {
   const stats = db.getBuildStats();
   let redisOk = false;
+  let queueCounts = {};
   try {
     await connection.ping();
     redisOk = true;
-  } catch { /* ignore */ }
-
-  const queueCounts = await queue.getJobCounts('waiting', 'active', 'completed', 'failed');
+    queueCounts = await queue.getJobCounts('waiting', 'active', 'completed', 'failed');
+  } catch { /* Redis down — report degraded */ }
 
   res.json({
-    status: 'ok',
+    status: redisOk ? 'ok' : 'degraded',
     redis: redisOk,
     queue: queueCounts,
     builds: stats,
@@ -246,7 +258,7 @@ app.get('/health', async (req, res) => {
 app.use(sentry.expressErrorHandler());
 
 // ─── Start server ───────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[ralph-server] Listening on port ${PORT}`);
   console.log(`[ralph-server] Webhook: POST /webhook/github`);
   console.log(`[ralph-server] API:     POST /api/build`);
@@ -255,18 +267,14 @@ app.listen(PORT, () => {
 });
 
 // ─── Graceful shutdown ──────────────────────────────────────────────────────
-process.on('SIGTERM', async () => {
+async function shutdown() {
   console.log('[ralph-server] Shutting down...');
+  server.close();
   await queue.close();
   await connection.quit();
   db.close();
   process.exit(0);
-});
+}
 
-process.on('SIGINT', async () => {
-  console.log('[ralph-server] Shutting down...');
-  await queue.close();
-  await connection.quit();
-  db.close();
-  process.exit(0);
-});
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
