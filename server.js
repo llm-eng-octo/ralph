@@ -54,7 +54,9 @@ function verifyGitHubSignature(req, res, next) {
     .update(req.body)
     .digest('hex');
 
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
     return res.status(401).json({ error: 'Invalid signature' });
   }
 
@@ -92,17 +94,23 @@ function extractChangedSpecs(payload) {
 
 // ─── Get next midnight in timezone for overnight scheduling ─────────────────
 function getNextMidnight(timezone) {
+  // Get current date parts in the target timezone
   const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-US', {
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
-    hour: 'numeric',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
     hour12: false,
-  });
-  const currentHour = parseInt(formatter.format(now), 10);
+  }).formatToParts(now);
 
-  // If before midnight, schedule for tonight; else tomorrow
-  const hoursUntilMidnight = (24 - currentHour) % 24 || 24;
-  return now.getTime() + hoursUntilMidnight * 60 * 60 * 1000;
+  const get = (type) => parseInt(parts.find(p => p.type === type).value, 10);
+  const h = get('hour'), m = get('minute'), s = get('second');
+
+  // Milliseconds remaining until midnight in that timezone
+  const msUntilMidnight = ((23 - h) * 3600 + (59 - m) * 60 + (60 - s)) * 1000;
+
+  // If we're within 1 minute of midnight, schedule for tomorrow midnight instead
+  return now.getTime() + (msUntilMidnight < 60000 ? msUntilMidnight + 86400000 : msUntilMidnight);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
