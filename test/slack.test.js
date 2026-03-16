@@ -59,7 +59,7 @@ describe('slack', () => {
     }
   });
 
-  it('notifyBuildResult formats APPROVED correctly', async () => {
+  it('notifyBuildResult formats APPROVED correctly with call count', async () => {
     delete process.env.SLACK_WEBHOOK_URL;
     delete require.cache[require.resolve('../lib/slack')];
     slack = require('../lib/slack');
@@ -72,6 +72,7 @@ describe('slack', () => {
       status: 'APPROVED',
       iterations: 2,
       total_time_s: 47,
+      llm_calls: 5,
       models: { generation: 'claude-opus-4-6' },
     }, 'abc1234567');
 
@@ -79,6 +80,8 @@ describe('slack', () => {
     assert.ok(sentMessage.includes('doubles'));
     assert.ok(sentMessage.includes('APPROVED'));
     assert.ok(sentMessage.includes('2 iterations'));
+    assert.ok(sentMessage.includes('5 calls'));
+    assert.ok(!sentMessage.includes('gen='), 'Should show call count, not model name');
   });
 
   it('notifyBuildResult formats FAILED correctly', async () => {

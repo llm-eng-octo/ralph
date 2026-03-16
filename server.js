@@ -20,6 +20,12 @@ const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const BULK_THRESHOLD = parseInt(process.env.RALPH_BULK_THRESHOLD || '5', 10);
 
+// ─── Enforce webhook secret in production ───────────────────────────────────
+if (!GITHUB_WEBHOOK_SECRET && process.env.NODE_ENV === 'production') {
+  console.error('[FATAL] GITHUB_WEBHOOK_SECRET must be set in production. Refusing to start.');
+  process.exit(1);
+}
+
 // ─── Redis + Queue ──────────────────────────────────────────────────────────
 const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
 const queue = new Queue('ralph-builds', { connection });
@@ -79,6 +85,7 @@ function extractChangedSpecs(payload) {
     const files = [
       ...(commit.added || []),
       ...(commit.modified || []),
+      ...(commit.removed || []),
     ];
     for (const file of files) {
       // Match game-spec/templates/{game-id}/spec.md
@@ -175,11 +182,37 @@ app.post('/api/build', async (req, res) => {
   const { gameId, all, specPath } = req.body;
 
   if (all) {
-    // Queue all templates — schedule overnight if many
-    // Caller should provide a list or we discover from filesystem
-    return res.status(501).json({
-      error: 'Bulk rebuild not yet implemented via API. Use webhook or provide individual gameId.',
+    // Discover all template game IDs from the filesystem
+    const fs = require('fs');
+    const path = require('path');
+    const repoDir = process.env.RALPH_REPO_DIR || path.join(__dirname, 'repo');
+    const templatesDir = path.join(repoDir, 'game-spec', 'templates');
+
+    if (!fs.existsSync(templatesDir)) {
+      return res.status(400).json({ error: `Templates directory not found: ${templatesDir}` });
+    }
+
+    const gameIds = fs.readdirSync(templatesDir).filter(d => {
+      const specFile = path.join(templatesDir, d, 'spec.md');
+      return fs.statSync(path.join(templatesDir, d)).isDirectory() && fs.existsSync(specFile);
     });
+
+    if (gameIds.length === 0) {
+      return res.json({ queued: 0, reason: 'no templates with spec.md found' });
+    }
+
+    // Schedule overnight for bulk
+    const midnight = getNextMidnight('Asia/Kolkata');
+    const delay = midnight - Date.now();
+
+    for (const gId of gameIds) {
+      const buildId = db.createBuild(gId, null);
+      await queue.add('build-game', { gameId: gId, buildId }, { delay });
+    }
+
+    await slack.notifyBulkQueued(gameIds.length);
+    logger.info(`${gameIds.length} games queued for overnight rebuild (all:true)`, { event: 'bulk_rebuild' });
+    return res.json({ queued: gameIds.length, scheduled: 'overnight', gameIds });
   }
 
   if (!gameId) {

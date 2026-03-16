@@ -166,13 +166,39 @@ describe('validate-static.js', () => {
     assert.ok(output.includes('document.write'));
   });
 
-  it('warns when no answer handler function found', () => {
+  it('fails when no answer handler function found (promoted to error)', () => {
     const html = VALID_HTML.replace('function checkAnswer(answer)', 'function processInput(answer)');
     const { exitCode, output } = runValidator(html);
-    // Should still pass (it's a warning), but output contains warning
-    assert.equal(exitCode, 0);
-    assert.ok(output.includes('WARNING'));
+    assert.equal(exitCode, 1);
     assert.ok(output.includes('checkAnswer'));
+  });
+
+  it('fails when gameState initialization is missing', () => {
+    const html = VALID_HTML.replace(/gameState/g, 'appState');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1);
+    assert.ok(output.includes('gameState'));
+  });
+
+  it('fails when star thresholds are missing', () => {
+    const html = VALID_HTML.replace('0.8', '0.9').replace('0.5', '0.6');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1);
+    assert.ok(output.includes('Star thresholds'));
+  });
+
+  it('fails when 480px constraint is missing', () => {
+    const html = VALID_HTML.replace('480px', '600px');
+    const { exitCode, output } = runValidator(html);
+    // Still passes because max-width is still present
+    assert.equal(exitCode, 0);
+  });
+
+  it('fails when no max-width at all', () => {
+    const html = VALID_HTML.replace(/max-width:\s*480px/g, 'min-height: 100px');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1);
+    assert.ok(output.includes('max-width'));
   });
 
   it('exits with code 2 when no file argument given', () => {

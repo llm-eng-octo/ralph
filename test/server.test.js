@@ -18,6 +18,7 @@ function extractChangedSpecs(payload) {
     const files = [
       ...(commit.added || []),
       ...(commit.modified || []),
+      ...(commit.removed || []),
     ];
     for (const file of files) {
       const match = file.match(/game-spec\/templates\/([^/]+)\/spec\.md$/);
@@ -130,6 +131,16 @@ describe('extractChangedSpecs', () => {
       commits: [{}],
     });
     assert.equal(result.size, 0);
+  });
+
+  it('detects removed spec files', () => {
+    const result = extractChangedSpecs({
+      commits: [
+        { added: [], modified: [], removed: ['game-spec/templates/old-game/spec.md'] },
+      ],
+    });
+    assert.equal(result.size, 1);
+    assert.ok(result.has('old-game'));
   });
 });
 
