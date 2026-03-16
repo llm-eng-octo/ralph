@@ -193,6 +193,79 @@ call_llm() {
   fi
 }
 
+# ─── Spec checksum cache (E6) ────────────────────────────────────────────────
+SPEC_CACHE_DIR="${RALPH_CACHE_DIR:-$HOME/.ralph-cache}"
+ENABLE_CACHE="${RALPH_ENABLE_CACHE:-0}"
+
+check_cache() {
+  [ "$ENABLE_CACHE" != "1" ] && return 1
+
+  mkdir -p "$SPEC_CACHE_DIR"
+  local SPEC_HASH
+  SPEC_HASH=$(sha256sum "$SPEC_PATH" | cut -d' ' -f1)
+  local CACHE_FILE="$SPEC_CACHE_DIR/${GAME_ID}.sha256"
+  local CACHED_HTML="$SPEC_CACHE_DIR/${GAME_ID}.html"
+
+  if [ -f "$CACHE_FILE" ] && [ -f "$CACHED_HTML" ]; then
+    local CACHED_HASH
+    CACHED_HASH=$(cat "$CACHE_FILE")
+    if [ "$SPEC_HASH" = "$CACHED_HASH" ]; then
+      log "  ✓ Cache hit — spec unchanged, reusing cached artifact"
+      cp "$CACHED_HTML" "$HTML_FILE"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+update_cache() {
+  [ "$ENABLE_CACHE" != "1" ] && return 0
+
+  mkdir -p "$SPEC_CACHE_DIR"
+  sha256sum "$SPEC_PATH" | cut -d' ' -f1 > "$SPEC_CACHE_DIR/${GAME_ID}.sha256"
+  if [ -f "$HTML_FILE" ]; then
+    cp "$HTML_FILE" "$SPEC_CACHE_DIR/${GAME_ID}.html"
+  fi
+}
+
+# ─── Warehouse spec validation (E9) ─────────────────────────────────────────
+WAREHOUSE_DIR="${RALPH_WAREHOUSE_DIR:-}"
+
+validate_spec_against_warehouse() {
+  [ -z "$WAREHOUSE_DIR" ] && return 0  # Skip if no warehouse configured
+
+  log "Validating spec against warehouse schemas..."
+
+  # Check for referenced parts in spec
+  local MISSING_PARTS=""
+  local PARTS_DIR="$WAREHOUSE_DIR/parts"
+
+  if [ -d "$PARTS_DIR" ]; then
+    # Extract part references from spec (e.g., {{part:timer}}, {{part:scoring}})
+    local REFS
+    REFS=$(grep -oP '\{\{part:([^}]+)\}\}' "$SPEC_PATH" 2>/dev/null | sed 's/{{part://;s/}}//' || true)
+
+    for ref in $REFS; do
+      if [ ! -f "$PARTS_DIR/$ref.md" ] && [ ! -f "$PARTS_DIR/$ref.json" ]; then
+        MISSING_PARTS="$MISSING_PARTS $ref"
+      fi
+    done
+  fi
+
+  if [ -n "$MISSING_PARTS" ]; then
+    err "Spec references missing warehouse parts:$MISSING_PARTS"
+    return 1
+  fi
+
+  # Validate spec has required metadata for warehouse integration
+  if ! grep -q "^## 1\." "$SPEC_PATH" 2>/dev/null; then
+    warn "Spec missing section 1 header (warehouse convention)"
+  fi
+
+  log "  ✓ Warehouse validation passed"
+  return 0
+}
+
 # ─── Spec validation (T9) ───────────────────────────────────────────────────
 validate_spec() {
   log "Validating spec structure..."
@@ -236,19 +309,27 @@ run_static_validation() {
     return 1
   fi
 
-  # Run the Node.js static validator
+  # Run the Node.js static validator (T1)
   if [ -f "$SCRIPT_DIR/lib/validate-static.js" ]; then
-    if node "$SCRIPT_DIR/lib/validate-static.js" "$HTML_FILE" 2>>"$LOG_FILE"; then
-      log "  ✓ Static validation passed"
-      return 0
-    else
+    if ! node "$SCRIPT_DIR/lib/validate-static.js" "$HTML_FILE" 2>>"$LOG_FILE"; then
       err "Static validation failed"
       return 1
     fi
+    log "  ✓ Static validation passed"
   else
     warn "Static validator not found, skipping"
-    return 0
   fi
+
+  # Run contract validation (T2)
+  if [ -f "$SCRIPT_DIR/lib/validate-contract.js" ]; then
+    if ! node "$SCRIPT_DIR/lib/validate-contract.js" "$HTML_FILE" 2>>"$LOG_FILE"; then
+      warn "Contract validation found issues (non-blocking)"
+    else
+      log "  ✓ Contract validation passed"
+    fi
+  fi
+
+  return 0
 }
 
 # ─── Web server lifecycle (T3) ──────────────────────────────────────────────
@@ -348,15 +429,31 @@ validate_spec || {
   exit 1
 }
 
+# ─── Step 0b: Warehouse validation (E9) ─────────────────────────────────────
+validate_spec_against_warehouse || {
+  REPORT_STATUS="FAILED"
+  REPORT_ERRORS='["Spec references missing warehouse parts"]'
+  write_report
+  exit 1
+}
+
 # Read spec content
 SPEC_CONTENT=$(cat "$SPEC_PATH")
+
+# ─── Step 0c: Cache check (E6) ──────────────────────────────────────────────
+CACHE_HIT=0
+if check_cache; then
+  CACHE_HIT=1
+  log "Skipping generation — using cached artifact"
+fi
 
 # ─── Step 1: Generate HTML ──────────────────────────────────────────────────
 log ""
 log "Step 1: Generate HTML"
 GEN_START=$(date +%s)
 
-GEN_PROMPT="You are an expert HTML game developer. Generate a complete, single-file HTML game based on the following specification.
+if [ "$CACHE_HIT" -eq 0 ]; then
+  GEN_PROMPT="You are an expert HTML game developer. Generate a complete, single-file HTML game based on the following specification.
 
 REQUIREMENTS:
 - Output ONLY the complete HTML file content, wrapped in a \`\`\`html code block
@@ -371,28 +468,33 @@ REQUIREMENTS:
 SPECIFICATION:
 $SPEC_CONTENT"
 
-call_llm "generate-html" "$GEN_PROMPT" "$GEN_MODEL" || {
-  err "HTML generation failed"
-  REPORT_STATUS="FAILED"
-  REPORT_ERRORS='["HTML generation LLM call failed"]'
-  write_report
-  exit 1
-}
+  call_llm "generate-html" "$GEN_PROMPT" "$GEN_MODEL" || {
+    err "HTML generation failed"
+    REPORT_STATUS="FAILED"
+    REPORT_ERRORS='["HTML generation LLM call failed"]'
+    write_report
+    exit 1
+  }
 
-GEN_END=$(date +%s)
-REPORT_GEN_TIME=$(( GEN_END - GEN_START ))
+  GEN_END=$(date +%s)
+  REPORT_GEN_TIME=$(( GEN_END - GEN_START ))
 
-# Extract and save HTML
-EXTRACTED_HTML=$(extract_html "$LLM_OUTPUT") || {
-  err "Could not extract HTML from LLM output"
-  REPORT_STATUS="FAILED"
-  REPORT_ERRORS='["Could not extract HTML from generation output"]'
-  write_report
-  exit 1
-}
+  # Extract and save HTML
+  EXTRACTED_HTML=$(extract_html "$LLM_OUTPUT") || {
+    err "Could not extract HTML from LLM output"
+    REPORT_STATUS="FAILED"
+    REPORT_ERRORS='["Could not extract HTML from generation output"]'
+    write_report
+    exit 1
+  }
 
-printf '%s\n' "$EXTRACTED_HTML" > "$HTML_FILE"
-log "  ✓ HTML saved to $HTML_FILE ($(wc -c < "$HTML_FILE") bytes)"
+  printf '%s\n' "$EXTRACTED_HTML" > "$HTML_FILE"
+  log "  ✓ HTML saved to $HTML_FILE ($(wc -c < "$HTML_FILE") bytes)"
+else
+  GEN_END=$(date +%s)
+  REPORT_GEN_TIME=$(( GEN_END - GEN_START ))
+  log "  ✓ Using cached HTML ($(wc -c < "$HTML_FILE") bytes)"
+fi
 
 # ─── Step 1b: Static validation (T1) ────────────────────────────────────────
 log ""
@@ -442,12 +544,15 @@ Write tests covering these 8 MANDATORY categories:
 7. Responsive layout — fits within 480px width
 8. Edge cases — empty inputs, rapid clicks, boundary values
 
+9. postMessage event validation (E5) — verify gameOver event contains: type='gameOver', score (number), stars (0-3), total (number >= 1)
+
 IMPORTANT:
 - Use \`@playwright/test\` imports
 - Base URL is http://localhost:8787
 - Tests run against index.html served at the root
 - Use page.goto('/') to load the game
 - Wait for game initialization before testing
+- Include a test that listens for postMessage events and validates the gameOver payload schema
 - Output ONLY the test code wrapped in a \`\`\`javascript code block
 
 SPECIFICATION:
@@ -570,6 +675,22 @@ Please diagnose the ROOT CAUSE of the persistent failures before attempting a fi
     FIX_STRATEGY="Fix the failing tests by modifying the HTML. Do NOT modify the tests."
   fi
 
+  # E8: Diff-based fix prompts — send only relevant sections instead of full context
+  # when the HTML is large and failures are localized
+  HTML_SIZE=$(wc -c < "$HTML_FILE")
+  if [ "$HTML_SIZE" -gt 20000 ] && [ "$ITERATION" -ge 2 ]; then
+    # Extract only the <script> section for focused fix
+    SCRIPT_SECTION=$(sed -n '/<script>/,/<\/script>/p' "$HTML_FILE")
+    CONTEXT_HTML="[HTML truncated for focus — showing <script> section only]
+
+$SCRIPT_SECTION
+
+[Full HTML is ${HTML_SIZE} bytes. Only the script section is shown above to focus on logic fixes.]"
+    log "  (E8: Using diff-based prompt — ${HTML_SIZE} bytes → script section only)"
+  else
+    CONTEXT_HTML="$(cat "$HTML_FILE")"
+  fi
+
   FIX_PROMPT="The following HTML game has test failures that need fixing.
 
 $FIX_STRATEGY
@@ -581,7 +702,7 @@ TEST OUTPUT (summary):
 $(echo "$TEST_OUTPUT" | head -100)
 
 CURRENT HTML:
-$(cat "$HTML_FILE")
+$CONTEXT_HTML
 
 SPECIFICATION (for reference):
 $SPEC_CONTENT
@@ -666,6 +787,116 @@ REPORT_REVIEW_RESULT="$REVIEW_RESULT"
 if echo "$REVIEW_RESULT" | grep -qi "^APPROVED"; then
   log "  ✓ APPROVED by review"
   REPORT_STATUS="APPROVED"
+
+  # ─── Step 5: Post-approval tasks ─────────────────────────────────────────
+  log ""
+  log "Step 5: Post-approval tasks"
+
+  # T6: Generate inputSchema.json
+  log "  Generating inputSchema.json (T6)..."
+  INPUT_SCHEMA_FILE="$GAME_DIR/inputSchema.json"
+
+  SCHEMA_PROMPT="Analyze the following HTML game and generate an inputSchema.json that describes its configuration options.
+
+The schema should follow JSON Schema draft-07 format and include:
+- Game title and description
+- Any configurable parameters (number of questions, difficulty, time limit, etc.)
+- Input types (e.g., multiple choice, text input, drag-and-drop)
+- Required vs optional fields
+
+Output ONLY valid JSON (no markdown, no code blocks, no explanation).
+
+HTML:
+$(cat "$HTML_FILE")
+
+SPECIFICATION:
+$SPEC_CONTENT"
+
+  if call_llm "generate-schema" "$SCHEMA_PROMPT" "$REVIEW_MODEL" 2>/dev/null; then
+    # Try to extract valid JSON from the output
+    SCHEMA_JSON=$(echo "$LLM_OUTPUT" | sed -n '/^{/,/^}/p' | head -100)
+    if [ -z "$SCHEMA_JSON" ]; then
+      # Try from code block
+      SCHEMA_JSON=$(echo "$LLM_OUTPUT" | sed -n '/```json/,/```/p' | sed '1d;$d')
+    fi
+    if [ -z "$SCHEMA_JSON" ]; then
+      SCHEMA_JSON="$LLM_OUTPUT"
+    fi
+
+    # Validate it's valid JSON using jq
+    if echo "$SCHEMA_JSON" | jq '.' > /dev/null 2>&1; then
+      echo "$SCHEMA_JSON" | jq '.' > "$INPUT_SCHEMA_FILE"
+      log "  ✓ inputSchema.json generated"
+    else
+      warn "  LLM produced invalid JSON for inputSchema — using fallback"
+      jq -n \
+        --arg game_id "$GAME_ID" \
+        --arg title "$GAME_ID" \
+        '{
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": $title,
+          "type": "object",
+          "properties": {
+            "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"], "default": "medium" },
+            "questionCount": { "type": "integer", "minimum": 1, "maximum": 50, "default": 10 }
+          }
+        }' > "$INPUT_SCHEMA_FILE"
+      log "  ✓ inputSchema.json generated (fallback)"
+    fi
+  else
+    warn "  inputSchema.json generation failed — using fallback"
+    jq -n \
+      --arg game_id "$GAME_ID" \
+      '{
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": $game_id,
+        "type": "object",
+        "properties": {}
+      }' > "$INPUT_SCHEMA_FILE"
+  fi
+
+  # E10: Deployment step — register artifact, version tag
+  DEPLOY_ENABLED="${RALPH_DEPLOY_ENABLED:-0}"
+  DEPLOY_DIR="${RALPH_DEPLOY_DIR:-}"
+
+  if [ "$DEPLOY_ENABLED" = "1" ] && [ -n "$DEPLOY_DIR" ]; then
+    log "  Running deployment step (E10)..."
+
+    # Create versioned artifact directory
+    VERSION_TAG="$(date -u '+%Y%m%d-%H%M%S')"
+    ARTIFACT_DIR="$DEPLOY_DIR/$GAME_ID/$VERSION_TAG"
+    mkdir -p "$ARTIFACT_DIR"
+
+    # Copy approved artifacts
+    cp "$HTML_FILE" "$ARTIFACT_DIR/index.html"
+    [ -f "$INPUT_SCHEMA_FILE" ] && cp "$INPUT_SCHEMA_FILE" "$ARTIFACT_DIR/inputSchema.json"
+    cp "$REPORT_FILE" "$ARTIFACT_DIR/ralph-report.json" 2>/dev/null || true
+
+    # Create/update latest symlink
+    ln -sfn "$ARTIFACT_DIR" "$DEPLOY_DIR/$GAME_ID/latest"
+
+    # Write version manifest
+    jq -n \
+      --arg game_id "$GAME_ID" \
+      --arg version "$VERSION_TAG" \
+      --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+      --arg html_hash "$(sha256sum "$HTML_FILE" | cut -d' ' -f1)" \
+      '{
+        game_id: $game_id,
+        version: $version,
+        timestamp: $timestamp,
+        html_sha256: $html_hash,
+        status: "APPROVED"
+      }' > "$ARTIFACT_DIR/manifest.json"
+
+    log "  ✓ Deployed to $ARTIFACT_DIR"
+  else
+    log "  Deployment skipped (RALPH_DEPLOY_ENABLED=${DEPLOY_ENABLED})"
+  fi
+
+  # E6: Update cache after successful build
+  update_cache
+
   write_report
   exit 0
 else

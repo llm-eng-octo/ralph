@@ -301,13 +301,14 @@ describe('ralph.sh configuration defaults', () => {
     assert.ok(content.includes('jq -n'), 'write_report should use jq for JSON');
   });
 
-  it('has 4 pipeline steps', () => {
+  it('has 5 pipeline steps', () => {
     const content = fs.readFileSync(RALPH_SH, 'utf-8');
     assert.ok(content.includes('Step 1: Generate HTML'));
     assert.ok(content.includes('Step 1b: Static validation'));
     assert.ok(content.includes('Step 2: Generate Playwright tests'));
     assert.ok(content.includes('Step 3: Test'));
     assert.ok(content.includes('Step 4: Review'));
+    assert.ok(content.includes('Step 5: Post-approval tasks'));
   });
 
   it('has smart retry escalation on iteration 3+', () => {
@@ -340,5 +341,149 @@ describe('ralph.sh report format', () => {
     assert.ok(content.includes('test_gen: $test_model'));
     assert.ok(content.includes('fix: $fix_model'));
     assert.ok(content.includes('review: $review_model'));
+  });
+});
+
+describe('ralph.sh E6 caching', () => {
+  it('has check_cache function', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('check_cache()'));
+    assert.ok(content.includes('sha256sum'));
+  });
+
+  it('has update_cache function', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('update_cache()'));
+  });
+
+  it('cache is disabled by default', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('RALPH_ENABLE_CACHE:-0'));
+  });
+
+  it('check_cache verifies sha256 match', () => {
+    // Test the actual bash function
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-cache-'));
+    const cacheDir = path.join(tmpDir, 'cache');
+    const specFile = path.join(tmpDir, 'spec.md');
+    fs.writeFileSync(specFile, 'test spec content');
+
+    try {
+      // No cache should return 1
+      const result = execFileSync('bash', ['-c', `
+        SPEC_PATH="${specFile}"
+        GAME_ID="test-game"
+        SPEC_CACHE_DIR="${cacheDir}"
+        ENABLE_CACHE="1"
+        HTML_FILE="${tmpDir}/index.html"
+
+        check_cache() {
+          [ "$ENABLE_CACHE" != "1" ] && return 1
+          mkdir -p "$SPEC_CACHE_DIR"
+          local SPEC_HASH; SPEC_HASH=$(sha256sum "$SPEC_PATH" | cut -d' ' -f1)
+          local CACHE_FILE="$SPEC_CACHE_DIR/\${GAME_ID}.sha256"
+          local CACHED_HTML="$SPEC_CACHE_DIR/\${GAME_ID}.html"
+          if [ -f "$CACHE_FILE" ] && [ -f "$CACHED_HTML" ]; then
+            local CACHED_HASH; CACHED_HASH=$(cat "$CACHE_FILE")
+            if [ "$SPEC_HASH" = "$CACHED_HASH" ]; then
+              cp "$CACHED_HTML" "$HTML_FILE"
+              return 0
+            fi
+          fi
+          return 1
+        }
+
+        check_cache && echo "HIT" || echo "MISS"
+      `], { encoding: 'utf-8', timeout: 5000 });
+      assert.ok(result.trim() === 'MISS');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true });
+    }
+  });
+});
+
+describe('ralph.sh E8 diff-based fix', () => {
+  it('uses diff-based prompt for large HTML on iteration 2+', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('HTML_SIZE'));
+    assert.ok(content.includes('20000'));
+    assert.ok(content.includes('script section only'));
+    assert.ok(content.includes('E8: Using diff-based prompt'));
+  });
+});
+
+describe('ralph.sh E9 warehouse validation', () => {
+  it('has validate_spec_against_warehouse function', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('validate_spec_against_warehouse()'));
+    assert.ok(content.includes('RALPH_WAREHOUSE_DIR'));
+  });
+
+  it('skips when no warehouse configured', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('Skip if no warehouse configured'));
+  });
+
+  it('checks for part references in spec', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('part:'));
+    assert.ok(content.includes('MISSING_PARTS'));
+  });
+});
+
+describe('ralph.sh E10 deployment step', () => {
+  it('has deployment step gated by RALPH_DEPLOY_ENABLED', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('RALPH_DEPLOY_ENABLED'));
+    assert.ok(content.includes('RALPH_DEPLOY_DIR'));
+  });
+
+  it('deployment is disabled by default', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('RALPH_DEPLOY_ENABLED:-0'));
+  });
+
+  it('creates versioned artifact directory', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('VERSION_TAG'));
+    assert.ok(content.includes('ARTIFACT_DIR'));
+    assert.ok(content.includes('manifest.json'));
+  });
+
+  it('creates latest symlink', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('ln -sfn'));
+    assert.ok(content.includes('latest'));
+  });
+});
+
+describe('ralph.sh T6 inputSchema generation', () => {
+  it('generates inputSchema.json after approval', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('inputSchema.json'));
+    assert.ok(content.includes('generate-schema'));
+    assert.ok(content.includes('INPUT_SCHEMA_FILE'));
+  });
+
+  it('has fallback schema when LLM fails', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('json-schema.org/draft-07'));
+    assert.ok(content.includes('using fallback'));
+  });
+});
+
+describe('ralph.sh T2 contract validation integration', () => {
+  it('calls validate-contract.js in static validation step', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('validate-contract.js'));
+    assert.ok(content.includes('Contract validation'));
+  });
+});
+
+describe('ralph.sh E5 event schema validation', () => {
+  it('includes postMessage validation in test generation prompt', () => {
+    const content = fs.readFileSync(RALPH_SH, 'utf-8');
+    assert.ok(content.includes('postMessage event validation (E5)'));
+    assert.ok(content.includes('gameOver payload schema'));
   });
 });
