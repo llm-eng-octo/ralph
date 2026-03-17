@@ -282,7 +282,7 @@ const worker = new Worker(
     // Pull latest code
     if (fs.existsSync(REPO_DIR) && fs.existsSync(path.join(REPO_DIR, '.git'))) {
       try {
-        await execFileAsync('git', ['pull', 'origin', 'c_code'], {
+        await execFileAsync('git', ['pull', 'origin', 'main'], {
           cwd: REPO_DIR,
           timeout: 60000,
         });
