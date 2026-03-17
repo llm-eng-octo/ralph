@@ -5,6 +5,9 @@ auths/
 gcp-keyfile.json
 data/*.db
 data/*.db-journal
+data/*.db-shm
+data/*.db-wal
+data/games/
 *.log
 .ralph-claude-output-*
 dist/

@@ -110,18 +110,45 @@ This puts ALL games into the same `warehouse/templates/game/` directory instead 
 ### Warehouse knowledge is required for spec generation
 Claude Desktop can't generate good specs without reading the warehouse parts, rules, and contracts. The MCP server exposes these as resources and tools (`get_warehouse_guide`, `read_warehouse_part`, etc.). Without this knowledge, generated specs miss mandatory fields, use wrong patterns, and fail validation.
 
-### Streamable HTTP transport
-Claude Desktop connects to Ralph MCP via `streamableHttp` transport (not stdio). Config:
+### Claude Desktop MCP config
+Claude Desktop doesn't support `type: "streamableHttp"` directly. Use `mcp-remote` as a bridge:
 ```json
 {
   "mcpServers": {
     "ralph": {
-      "type": "streamableHttp",
-      "url": "http://SERVER_IP/mcp"
+      "command": "npx",
+      "args": ["mcp-remote", "http://SERVER_IP/mcp", "--allow-http"]
     }
   }
 }
 ```
+`--allow-http` is required for non-HTTPS URLs. For production, set up TLS with Certbot to avoid this.
+
+## Claude CLI (`claude -p`) for HTML Generation
+
+### Pass file paths, not content
+The original claude-skills implementation passes **file paths** to `claude -p` and lets Claude read them via tools:
+```bash
+claude -p "Read the template at: $TEMPLATE_PATH. Write index.html to: $OUTPUT_PATH" \
+  --allowedTools "Read,Write,Edit,Glob,Grep"
+```
+**Do NOT pass the full spec content as a CLI argument or stdin** — a 53KB spec causes timeouts. Claude reads the files itself using the allowed tools, which is much faster and matches how Claude Code skills work.
+
+### Skill context via working directory
+Running `claude -p` from the `warehouse/mathai-game-builder/` directory auto-loads the skill's CLAUDE.md, giving Claude full component API knowledge (FeedbackManager, TimerComponent, etc.). Use `--add-dir` for additional directories:
+```bash
+claude -p "..." --allowedTools "Read,Write,Edit,Glob,Grep" \
+  --add-dir /path/to/warehouse
+```
+
+### Claude Code auth on servers
+Install with `sudo npm install -g @anthropic-ai/claude-code`. Auth with `claude auth login` (not under `sudo` — auth is per-user). For Max subscription, the OAuth flow shows a URL to open in your browser and returns a code to paste back.
+
+### `RALPH_USE_CLAUDE_CLI=1`
+Set this env var to use `claude -p` instead of CLIProxyAPI for HTML generation and fix steps. This gives Claude full skill context but requires Claude Code installed and authenticated. Test generation and review still use CLIProxyAPI (Gemini).
+
+### Timeout needs to be generous
+`claude -p` has startup overhead (loading CLAUDE.md, reading files via tools). Set `RALPH_LLM_TIMEOUT=600` (10 min) minimum for large specs.
 
 ## Ports Reference
 

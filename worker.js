@@ -111,9 +111,7 @@ const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
 // ─── Run Ralph pipeline for a single game ───────────────────────────────────
 async function runRalph(gameId, specPath, _buildId) {
   // Resolve paths
-  const gameDir = specPath
-    ? path.join(path.dirname(specPath), '..', 'game')
-    : path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'game');
+  const gameDir = path.join(REPO_DIR, 'data', 'games', gameId);
 
   const specFile = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
 
@@ -160,7 +158,7 @@ async function handleFixJob(job) {
 
   if (buildId) db.startBuild(buildId);
 
-  const gameDir = path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'game');
+  const gameDir = path.join(REPO_DIR, 'data', 'games', gameId);
   const specFile = path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
 
   if (!fs.existsSync(specFile)) {
@@ -312,9 +310,7 @@ const worker = new Worker(
     try {
       if (USE_NODE_PIPELINE) {
         const { runPipeline } = require('./lib/pipeline');
-        const gameDir = specPath
-          ? path.join(path.dirname(specPath), '..', 'game')
-          : path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'game');
+        const gameDir = path.join(REPO_DIR, 'data', 'games', gameId);
         const specFile = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
         fs.mkdirSync(gameDir, { recursive: true });
         console.log(`[worker] Running Node.js pipeline (E3) for ${gameId}`);
@@ -353,9 +349,7 @@ const worker = new Worker(
 
     // GCP upload on approval
     if (report.status === 'APPROVED' && gcp.isEnabled()) {
-      const gameDir = specPath
-        ? path.join(path.dirname(specPath), '..', 'game')
-        : path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'game');
+      const gameDir = path.join(REPO_DIR, 'data', 'games', gameId);
       const htmlFile = path.join(gameDir, 'index.html');
       const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
       if (gcpUrl) {
