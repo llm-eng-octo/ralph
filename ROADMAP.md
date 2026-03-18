@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 16, 2026
+**Last updated:** March 18, 2026
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -89,6 +89,18 @@
 | E9 spec validation against warehouse | done | ralph.sh: validate_spec_against_warehouse checks part references exist |
 | E10 deployment step | done | ralph.sh: versioned artifact dirs, latest symlink, manifest.json; gated by RALPH_DEPLOY_ENABLED=1 |
 
+## P6 — Test Generation Quality
+
+| Item | Status | File(s) | Notes |
+|------|--------|---------|-------|
+| Categorized spec files (per category) | done | lib/pipeline.js | game-flow, mechanics, level-progression, edge-cases, contract — each with own fix loop |
+| Pipeline-controlled boilerplate | done | lib/pipeline.js | LLM generates only test.describe() body; pipeline prepends sharedBoilerplate |
+| Per-batch progressive fix loop | done | lib/pipeline.js | RALPH_CATEGORY_BATCH_SIZE=1 sequential; each batch up to MAX_ITERATIONS |
+| Test case coverage enforcement | done | lib/pipeline.js | Prompt enforces exact N test() calls matching Step 2a output |
+| DOM snapshot for test generation context | done | lib/pipeline.js | Headless Playwright captures actual element IDs/classes from running game; injected into test-gen prompts |
+| Per-category pass rate tracking | done | lib/pipeline.js, ralph-report.json | category_results in report; identifies which category consistently fails |
+| Human-run Playwright traces as gold standard | planned | — | Record --trace from a correct human test run; use trace viewer output as ground truth for test generation |
+
 ---
 
 ## Summary
@@ -101,8 +113,10 @@
 | P3 DevOps & Operations | 11 | 0 | 11 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 8 | 1 | 9 |
-| **Total** | **51** | **1** | **52** |
+| P6 Test Generation Quality | 6 | 1 | 7 |
+| **Total** | **57** | **2** | **59** |
 
 ## What's Next
 
 1. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
+2. **Human-run Playwright traces** — record `--trace` from a correct human test run of a game; use Playwright trace viewer output as ground truth for test generation, eliminating LLM selector hallucinations
