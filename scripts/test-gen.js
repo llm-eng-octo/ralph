@@ -8,16 +8,17 @@
 // in isolation, keeping HTML and test-cases.json constant.
 //
 // Usage:
-//   node scripts/test-gen.js [gameDir] [--step=snapshot|cases|tests|all] [--category=<name>]
+//   node scripts/test-gen.js [gameDir] [--step=snapshot|context|cases|tests|all] [--category=<name>]
 //
 // Examples:
 //   node scripts/test-gen.js warehouse/templates/adjustment-strategy/game --step=snapshot
+//   node scripts/test-gen.js warehouse/templates/adjustment-strategy/game --step=context
 //   node scripts/test-gen.js warehouse/templates/adjustment-strategy/game --step=all
 //   node scripts/test-gen.js warehouse/templates/adjustment-strategy/game --step=tests --category=game-flow
-//   node scripts/test-gen.js warehouse/templates/adjustment-strategy/game --step=tests --category=mechanics
 //
 // Steps:
 //   snapshot  — Run DOM snapshot only (no LLM needed)
+//   context   — Extract runtime test context: screen texts, gameState API, timer API, lives format
 //   cases     — Generate test-cases.json from spec (needs LLM proxy)
 //   tests     — Generate category spec files from existing test-cases.json (needs LLM proxy)
 //   all       — Run all steps in sequence
@@ -165,6 +166,151 @@ async function runSnapshot() {
   }
 }
 
+// ─── Step 2.4: Extract runtime test context ───────────────────────────────────
+
+async function runExtractContext() {
+  log('=== Step 2.4: Extract Runtime Test Context ===');
+
+  if (!fs.existsSync(htmlFile)) {
+    log(`ERROR: ${htmlFile} not found`);
+    process.exit(1);
+  }
+
+  const { chromium } = require('@playwright/test');
+  const { spawn } = require('child_process');
+
+  const CONTEXT_PORT = 8787;
+  log(`Starting serve on port ${CONTEXT_PORT}...`);
+
+  const server = spawn('npx', ['-y', 'serve', absGameDir, '-l', String(CONTEXT_PORT), '-s', '--no-clipboard'], {
+    stdio: 'ignore',
+    detached: false,
+  });
+
+  await new Promise((r) => setTimeout(r, 2500));
+
+  const ctx = {
+    screens: {},
+    gameStateKeys: [],
+    timerKeys: [],
+    livesFormat: { full: null, empty: null, one: null, two: null, three: null },
+    roundsFormat: { zero: null, one: null },
+    gameFlow: {},
+  };
+
+  try {
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ viewport: { width: 480, height: 800 } });
+    const page = await context.newPage();
+
+    await page.goto(`http://localhost:${CONTEXT_PORT}`);
+
+    // Dismiss audio popup
+    try {
+      const okayBtn = page.locator('button:has-text("Okay!")');
+      await okayBtn.waitFor({ state: 'visible', timeout: 8000 });
+      await okayBtn.click();
+      await page.waitForTimeout(300);
+    } catch { /* no popup */ }
+
+    // Wait for game init
+    // eslint-disable-next-line no-undef
+    await page.waitForFunction((slotId) => document.getElementById(slotId)?.querySelector('button') !== null, transitionSlotId, { timeout: 20000 });
+
+    // Capture start screen transition text
+    const captureTransition = async (label) => {
+      const title = await page.locator('#transitionTitle').textContent().catch(() => null);
+      const subtitle = await page.locator('#transitionSubtitle').textContent().catch(() => null);
+      const button = await page.locator(`#${transitionSlotId} button`).first().textContent().catch(() => null);
+      ctx.screens[label] = { title, subtitle, button };
+      log(`  [${label}] title="${title}" subtitle="${subtitle}" button="${button}"`);
+    };
+
+    await captureTransition('start');
+
+    // Capture gameState API (before clicking anything)
+    // eslint-disable-next-line no-undef
+    ctx.gameStateKeys = await page.evaluate(() => typeof window.gameState === 'object' ? Object.keys(window.gameState) : []);
+    log(`  gameState keys: ${ctx.gameStateKeys.join(', ')}`);
+
+    // eslint-disable-next-line no-undef
+    ctx.timerKeys = await page.evaluate(() => {
+      // eslint-disable-next-line no-undef
+      if (typeof window.timer === 'object' && window.timer !== null) return Object.keys(window.timer).filter((k) => typeof window.timer[k] !== 'function').concat(Object.getOwnPropertyNames(Object.getPrototypeOf(window.timer) || {}).filter((k) => k !== 'constructor' && typeof window.timer[k] === 'function'));
+      return [];
+    });
+    log(`  timer API: ${ctx.timerKeys.join(', ')}`);
+
+    // Capture initial lives and rounds display format
+    ctx.livesFormat.three = await page.locator('#mathai-progress-slot .mathai-lives-display').textContent().catch(() => null);
+    ctx.roundsFormat.zero = await page.locator('#mathai-progress-slot .mathai-rounds-display').textContent().catch(() => null);
+    log(`  lives (3): "${ctx.livesFormat.three}"`);
+    log(`  rounds (0): "${ctx.roundsFormat.zero}"`);
+
+    // Click through to Level 1 transition
+    await page.locator(`#${transitionSlotId} button`).first().click();
+    await page.waitForTimeout(500);
+    try {
+      const okayBtn = page.locator('button:has-text("Okay!")');
+      if (await okayBtn.isVisible({ timeout: 500 }).catch(() => false)) { await okayBtn.click(); await page.waitForTimeout(300); }
+    } catch { /* ignore */ }
+    await captureTransition('level1');
+
+    // Click through to game screen
+    await page.locator(`#${transitionSlotId} button`).first().click();
+    await page.waitForTimeout(500);
+    // eslint-disable-next-line no-undef
+    await page.waitForFunction(() => document.getElementById('original-a') !== null, null, { timeout: 10000 }).catch(() => {});
+
+    // Get answer input ID and first round data
+    // eslint-disable-next-line no-undef
+    ctx.gameFlow.answerInputId = await page.evaluate(() => document.getElementById('answer-input') ? 'answer-input' : null);
+    // eslint-disable-next-line no-undef
+    ctx.gameFlow.firstRound = await page.evaluate(() => ({
+      // eslint-disable-next-line no-undef
+      a: document.getElementById('original-a')?.textContent,
+      // eslint-disable-next-line no-undef
+      b: document.getElementById('original-b')?.textContent,
+      // eslint-disable-next-line no-undef
+      isProcessing: window.gameState?.isProcessing,
+    }));
+    log(`  first round: a=${ctx.gameFlow.firstRound.a} b=${ctx.gameFlow.firstRound.b}`);
+
+    // Submit wrong answer to see lives decrement
+    await page.locator('#answer-input').fill('1');
+    await page.locator('#btn-check').click();
+    await page.waitForTimeout(2000); // wait for feedback
+    ctx.livesFormat.two = await page.locator('#mathai-progress-slot .mathai-lives-display').textContent().catch(() => null);
+    log(`  lives after 1 wrong: "${ctx.livesFormat.two}"`);
+
+    // Derive empty heart character
+    if (ctx.livesFormat.three && ctx.livesFormat.two) {
+      const threeChars = [...ctx.livesFormat.three];
+      const twoChars = [...ctx.livesFormat.two];
+      // Find chars in two not in three (empty heart is an addition) or just show the diff
+      ctx.livesFormat.emptyHeart = twoChars.find((c) => !threeChars.includes(c)) || null;
+      ctx.livesFormat.fullHeart = threeChars.find((c) => !twoChars.includes(c) || twoChars.filter((x) => x === c).length < threeChars.filter((x) => x === c).length) || null;
+      log(`  full heart: "${ctx.livesFormat.fullHeart}"  empty heart: "${ctx.livesFormat.emptyHeart}"`);
+    }
+
+    // Capture rounds format after wrong answer (still 0 rounds)
+    ctx.roundsFormat.zero = await page.locator('#mathai-progress-slot .mathai-rounds-display').textContent().catch(() => null);
+    log(`  rounds (0): "${ctx.roundsFormat.zero}"`);
+
+    await browser.close();
+  } finally {
+    server.kill();
+  }
+
+  // Save context
+  fs.mkdirSync(testsDir, { recursive: true });
+  const contextFile = path.join(testsDir, 'test-context.json');
+  fs.writeFileSync(contextFile, JSON.stringify(ctx, null, 2));
+  log(`\nSaved test-context.json`);
+  log(`Screen texts:`);
+  Object.entries(ctx.screens).forEach(([k, v]) => log(`  ${k}: title="${v.title}" button="${v.button}"`));
+}
+
 // ─── Step 2a: Generate test cases ───────────────────────────────────────────
 
 async function runGenerateCases() {
@@ -233,6 +379,33 @@ async function runGenerateTests() {
 
   const testCases = JSON.parse(fs.readFileSync(testCasesFile, 'utf-8'));
   const htmlContent = fs.readFileSync(htmlFile, 'utf-8');
+
+  // Load test context if available
+  const contextFile = path.join(testsDir, 'test-context.json');
+  let testContextText = null;
+  if (fs.existsSync(contextFile)) {
+    const ctx = JSON.parse(fs.readFileSync(contextFile, 'utf-8'));
+    const screenLines = Object.entries(ctx.screens || {})
+      .map(([k, v]) => `  ${k}: title="${v.title}" subtitle="${v.subtitle}" button="${v.button}"`)
+      .join('\n');
+    testContextText = `RUNTIME TEST CONTEXT — authoritative values extracted from running game:
+
+Transition screen texts:
+${screenLines}
+
+gameState available keys: ${(ctx.gameStateKeys || []).join(', ')}
+timer API (methods/props): ${(ctx.timerKeys || []).join(', ')}
+
+Lives display format:
+  3 lives: "${ctx.livesFormat?.three}"
+  2 lives: "${ctx.livesFormat?.two}"
+  Full heart char: "${ctx.livesFormat?.fullHeart}"  Empty heart char: "${ctx.livesFormat?.emptyHeart}"
+
+Rounds display format: "${ctx.roundsFormat?.zero}"`;
+    log(`Using test-context.json (${Object.keys(ctx.screens || {}).length} screens captured)`);
+  } else {
+    log('No test-context.json found — run --step=context for better selector accuracy');
+  }
 
   // Load DOM snapshot if available
   const snapshotFile = path.join(testsDir, 'dom-snapshot.json');
@@ -420,7 +593,9 @@ Rules:
 - expect(await page.evaluate(() => x)).toBe(v) — NOT await expect(page.evaluate(...))
 - Pure JavaScript only — no TypeScript type annotations (no : any[], no : string, etc.)
 - Use double quotes for test() names: test("test name", async...) — never single quotes in names
+- Do NOT access window.timer directly — only use gameState properties from the context below
 - Wrap in \`\`\`javascript code block
+${testContextText ? `\n${testContextText}\n` : ''}
 ${domSnapshotText ? `\n${domSnapshotText}\n` : ''}
 HTML:
 ${htmlContent}`;
@@ -462,14 +637,15 @@ ${htmlContent}`;
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const steps = stepArg === 'all' ? ['snapshot', 'cases', 'tests'] : [stepArg];
+  const steps = stepArg === 'all' ? ['snapshot', 'context', 'cases', 'tests'] : [stepArg];
 
   for (const step of steps) {
     if (step === 'snapshot') await runSnapshot();
+    else if (step === 'context') await runExtractContext();
     else if (step === 'cases') await runGenerateCases();
     else if (step === 'tests') await runGenerateTests();
     else {
-      console.error(`Unknown step: ${step}. Use: snapshot | cases | tests | all`);
+      console.error(`Unknown step: ${step}. Use: snapshot | context | cases | tests | all`);
       process.exit(1);
     }
   }
