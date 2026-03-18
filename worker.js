@@ -452,6 +452,14 @@ const worker = new Worker(
         return;
       }
 
+      // ── html-fix-rolled-back ────────────────────────────────────────────────
+      if (step === 'html-fix-rolled-back') {
+        const { batch: b = 'unknown', iteration: iter = '?', reason = '' } = detail || {};
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel,
+          `↩️ ${b} fix ${iter} rolled back (${reason}) — restoring previous HTML`).catch(() => {});
+        return;
+      }
+
       // ── simple mapped messages ───────────────────────────────────────────────
       const messages = {
         'validate-spec': '📋 Validating spec...',
