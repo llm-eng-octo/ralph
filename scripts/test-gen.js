@@ -243,7 +243,7 @@ async function runExtractContext() {
 
     // Capture initial lives and rounds display format
     ctx.livesFormat.three = await page.locator('#mathai-progress-slot .mathai-lives-display').textContent().catch(() => null);
-    ctx.roundsFormat.zero = await page.locator('#mathai-progress-slot .mathai-rounds-display').textContent().catch(() => null);
+    ctx.roundsFormat.zero = await page.locator('#mathai-progress-slot .mathai-progress-text').textContent().catch(() => null);
     log(`  lives (3): "${ctx.livesFormat.three}"`);
     log(`  rounds (0): "${ctx.roundsFormat.zero}"`);
 
@@ -295,7 +295,7 @@ async function runExtractContext() {
 
     // Capture rounds format (wait a bit longer for ProgressBar to render)
     await page.waitForTimeout(500);
-    ctx.roundsFormat.zero = await page.locator('#mathai-progress-slot .mathai-rounds-display').textContent().catch(() => null);
+    ctx.roundsFormat.zero = await page.locator('#mathai-progress-slot .mathai-progress-text').textContent().catch(() => null);
     log(`  rounds (0): "${ctx.roundsFormat.zero}"`);
 
     // Navigate to Level 2 transition by submitting 2 more wrong + 3 correct answers
@@ -615,7 +615,7 @@ Transition slot selectors (all valid — use these):
   - WRONG class: '.game-btn', '.btn-primary' — these do NOT exist on buttons; button class is 'mathai-transition-btn'
 
 Progress slot selectors — ONLY use these (never use #pb-{timestamp} IDs — they change every session):
-  - Rounds: page.locator('#mathai-progress-slot .mathai-rounds-display')
+  - Rounds: page.locator('#mathai-progress-slot .mathai-progress-text')   ← class is mathai-progress-text NOT mathai-rounds-display
   - Lives: page.locator('#mathai-progress-slot .mathai-lives-display')
 
 Screen visibility rules:
@@ -660,8 +660,10 @@ ${htmlContent}`;
     catTests = catTests.replace(/\.game-btn\.btn-primary/g, '');
     catTests = catTests.replace(/\.btn-primary/g, '');
     // Fix dynamically-generated progress bar IDs → stable class selectors
-    catTests = catTests.replace(/#pb-\d+-text/g, '#mathai-progress-slot .mathai-rounds-display');
+    catTests = catTests.replace(/#pb-\d+-text/g, '#mathai-progress-slot .mathai-progress-text');
     catTests = catTests.replace(/#pb-\d+-lives/g, '#mathai-progress-slot .mathai-lives-display');
+    // Fix wrong rounds display class (.mathai-rounds-display doesn't exist — it's .mathai-progress-text)
+    catTests = catTests.replace(/\.mathai-rounds-display/g, '.mathai-progress-text');
 
     // Count test() calls
     const testCount = (catTests.match(/\btest\s*\(/g) || []).length;
