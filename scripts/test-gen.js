@@ -646,6 +646,8 @@ Rules:
 - Do NOT access window.timer directly — only use gameState properties from the context below
 - Do NOT assert #timer-container visibility on start/transition screens — it is hidden there (only visible on game screen)
 - For non-numeric input testing (e.g. typing "abc"), use page.evaluate() to set the value directly — page.fill() rejects non-numeric strings on type="number" inputs: await page.evaluate(() => { const el = document.querySelector('#answer-input'); el.value = 'abc'; el.dispatchEvent(new Event('input', { bubbles: true })); })
+- DO NOT generate tests that require real wall-clock delays to simulate time-based scoring (e.g. playing slowly for 2-star). These always exceed the 30s timeout. Test endGame() postMessage payload for star value instead.
+- Do NOT call window.visibilityTracker.onInactive() or window.visibilityTracker.onResume() directly — use document.dispatchEvent(new Event('visibilitychange')) with Object.defineProperty(document, 'visibilityState', { get: () => 'hidden' }) first
 - Wrap in \`\`\`javascript code block
 ${testContextText ? `\n${testContextText}\n` : ''}
 ${domSnapshotText ? `\n${domSnapshotText}\n` : ''}
