@@ -258,17 +258,28 @@ const worker = new Worker(
       await slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🔄 Build #${buildId} started...`);
     } else {
       // Create new thread with structured opener
+      const specFilePath = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
+      let specLink = '';
+      if (gcp.isEnabled() && fs.existsSync(specFilePath)) {
+        gcp.uploadContent(
+          fs.readFileSync(specFilePath, 'utf-8'),
+          `games/${gameId}/builds/${buildId}/spec.md`,
+          { contentType: 'text/markdown' },
+        ).then((url) => { if (url) specLink = slack.formatLink(url, 'spec.md'); }).catch(() => {});
+      }
+
       const openerText = [
-        `🎮 Building: ${gameId} (Build #${buildId || 'pending'})`,
+        `🎮 Building: *${gameId}* (Build #${buildId || 'pending'})`,
         '',
-        'Pipeline stages:',
-        '1️⃣ Generate HTML → validate',
-        '2️⃣ Generate tests (5 categories)',
+        '*Pipeline:*',
+        '1️⃣ Generate HTML → static/contract validate',
+        '2️⃣ Generate test cases → per-category Playwright tests',
         `3️⃣ Test → fix loop (up to ${pipelineMaxIterations} iterations/category)`,
-        '4️⃣ Review → approve/reject',
+        '4️⃣ LLM review → approve/reject',
         '',
-        `Models: Gen=${pipelineGenModel} | Tests=${pipelineTestModel} | Fix=${pipelineFixModel}`,
-      ].join('\n');
+        `*Models:* Gen=${pipelineGenModel} | Tests=${pipelineTestModel} | Fix=${pipelineFixModel}`,
+        specLink ? `*Spec:* ${specLink}` : '',
+      ].filter(Boolean).join('\n');
 
       threadInfo = await slack.createGameThread(gameId, {
         title: game?.title || gameId,
@@ -398,6 +409,45 @@ const worker = new Worker(
             threadInfo.ts, threadInfo.channel,
             `🔧 ${batchName} fix ${iter} applied\nBefore: ${p}/${t} | After: running…`,
           ).catch(() => {});
+        }
+        return;
+      }
+
+      // ── review-complete ─────────────────────────────────────────────────────
+      if (step === 'review-complete') {
+        const { status = '?', reviewResult = '', categoryResults = {} } = detail || {};
+        const emoji = status === 'APPROVED' ? '✅' : status === 'REJECTED' ? '🔸' : '❌';
+
+        // Build per-category summary
+        const catLines = Object.entries(categoryResults).map(([cat, res]) => {
+          const p = res.passed || 0;
+          const f = res.failed || 0;
+          const catEmoji = f === 0 ? '✅' : p === 0 ? '❌' : '⚠️';
+          return `${catEmoji} ${cat}: ${p}/${p + f}`;
+        });
+
+        let msg = `${emoji} *Review: ${status}*`;
+        if (catLines.length > 0) msg += `\n${catLines.join('  ·  ')}`;
+
+        if (status === 'REJECTED' && reviewResult) {
+          const snippet = reviewResult.slice(0, 400);
+          msg += `\n\`\`\`\n${snippet}${reviewResult.length > 400 ? '…' : ''}\n\`\`\``;
+        }
+
+        // Upload review report to GCP and add link
+        if (gcp.isEnabled() && reviewResult) {
+          gcp.uploadContent(
+            reviewResult,
+            `games/${gameId}/builds/${buildId}/review-report.md`,
+            { contentType: 'text/markdown' },
+          ).then((url) => {
+            if (url) msg += `\n${slack.formatLink(url, 'Full review report')}`;
+            slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
+          }).catch(() => {
+            slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
+          });
+        } else {
+          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
         }
         return;
       }
