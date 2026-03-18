@@ -392,14 +392,16 @@ submitAnswer(page, answer):
   - Fills #answer-input, clicks #btn-check, waits for !gameState.isProcessing
   - Always use this — never interact with #answer-input or #btn-check directly
 
-Transition slot selectors — ONLY use these:
-  - Button: page.locator('#mathai-transition-slot button').first()
-  - Title text: page.locator('#mathai-transition-slot .mathai-transition-title')
-  - DO NOT use #transitionTitle, #transitionSubtitle, #transitionButtons, .game-btn — these do NOT exist
+Transition slot selectors (all valid — use these):
+  - Button: page.locator('#mathai-transition-slot button').first()  ← PREFERRED for clicking
+  - Title: page.locator('#transitionTitle')  ← h2 element
+  - Subtitle: page.locator('#transitionSubtitle')  ← p element
+  - Button container: page.locator('#transitionButtons')
+  - WRONG class: '.game-btn', '.btn-primary' — these do NOT exist on buttons; button class is 'mathai-transition-btn'
 
 Progress slot selectors — ONLY use these:
-  - Rounds: page.locator('#mathai-progress-slot .mathai-rounds-display')
-  - Lives: page.locator('#mathai-progress-slot .mathai-lives-display')
+  - Rounds: page.locator('#mathai-progress-slot .mathai-rounds-display') OR '#pb-1773842549832-text'
+  - Lives: page.locator('#mathai-progress-slot .mathai-lives-display') OR '#pb-1773842549832-lives'
 
 Available globals (DO NOT redefine): dismissPopupIfPresent, startGame, clickNextLevel, submitAnswer, fallbackContent, test.beforeEach
 
@@ -431,7 +433,9 @@ ${htmlContent}`;
     // Post-processing fixes (mirrors pipeline.js)
     catTests = catTests.replace(/let\s+\w+\s*:\s*\w+(\[\])?\s*=\s*/g, 'let $1 = ').replace(/:\s*\w+(\[\])?\s*=/g, ' =');
     catTests = catTests.replace(/await\s+expect\s*\(\s*page\.evaluate\s*\(/g, 'expect(await page.evaluate(');
-    catTests = catTests.replace(/#mathai-transition-slot\s+h[12]/g, '.mathai-transition-title');
+    // Fix wrong button classes that LLMs hallucinate
+    catTests = catTests.replace(/\.game-btn\.btn-primary/g, '');
+    catTests = catTests.replace(/\.btn-primary/g, '');
 
     // Count test() calls
     const testCount = (catTests.match(/\btest\s*\(/g) || []).length;
