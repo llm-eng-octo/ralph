@@ -8,11 +8,13 @@
 // in isolation, keeping HTML and test-cases.json constant.
 //
 // Usage:
-//   node scripts/test-gen.js [gameDir] [--step=snapshot|cases|tests|all]
+//   node scripts/test-gen.js [gameDir] [--step=snapshot|cases|tests|all] [--category=<name>]
 //
 // Examples:
 //   node scripts/test-gen.js warehouse/templates/adjustment-strategy/game --step=snapshot
 //   node scripts/test-gen.js warehouse/templates/adjustment-strategy/game --step=all
+//   node scripts/test-gen.js warehouse/templates/adjustment-strategy/game --step=tests --category=game-flow
+//   node scripts/test-gen.js warehouse/templates/adjustment-strategy/game --step=tests --category=mechanics
 //
 // Steps:
 //   snapshot  — Run DOM snapshot only (no LLM needed)
@@ -28,6 +30,8 @@ const path = require('path');
 
 const gameDir = process.argv[2] || 'warehouse/templates/adjustment-strategy/game';
 const stepArg = (process.argv.find((a) => a.startsWith('--step=')) || '--step=all').replace('--step=', '');
+// --category=game-flow  (only generate that one category in step=tests)
+const categoryArg = (process.argv.find((a) => a.startsWith('--category=')) || '').replace('--category=', '') || null;
 
 const absGameDir = path.resolve(gameDir);
 const gameId = path.basename(absGameDir);
@@ -251,14 +255,106 @@ ${fmt(snap.gameScreen)}`;
 
   const CATEGORIES = ['game-flow', 'mechanics', 'level-progression', 'edge-cases', 'contract'];
 
-  // Delete existing spec files to force fresh generation
-  const existingSpecs = fs.readdirSync(testsDir).filter((f) => f.endsWith('.spec.js'));
-  existingSpecs.forEach((f) => {
-    fs.unlinkSync(path.join(testsDir, f));
-    log(`Deleted ${f}`);
-  });
+  // Shared boilerplate — mirrors pipeline.js exactly
+  const sharedBoilerplate = `import { test, expect } from '@playwright/test';
 
-  for (const category of CATEGORIES) {
+// Hardcoded fallback values — use these instead of window.gameState.content
+const fallbackContent = {
+  rounds: [
+    { numberA: 47, numberB: 33, correctAnswer: 80 },
+    { numberA: 28, numberB: 14, correctAnswer: 42 },
+    { numberA: 56, numberB: 25, correctAnswer: 81 },
+    { numberA: 36, numberB: 84, correctAnswer: 120 },
+    { numberA: 67, numberB: 45, correctAnswer: 112 },
+    { numberA: 49, numberB: 73, correctAnswer: 122 },
+    { numberA: 78, numberB: 56, correctAnswer: 134 },
+    { numberA: 83, numberB: 69, correctAnswer: 152 },
+    { numberA: 95, numberB: 47, correctAnswer: 142 }
+  ]
+};
+
+async function dismissPopupIfPresent(page) {
+  const backdrop = page.locator('#popup-backdrop');
+  if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
+    await backdrop.locator('button').first().click();
+    await page.waitForTimeout(300);
+  }
+  const okayBtn = page.locator('button:has-text("Okay!")');
+  if (await okayBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+    await okayBtn.click();
+    await page.waitForTimeout(300);
+  }
+}
+
+async function startGame(page) {
+  await dismissPopupIfPresent(page);
+  await page.locator('#mathai-transition-slot button').first().click();
+  await page.waitForTimeout(500);
+  await dismissPopupIfPresent(page);
+  await page.locator('#mathai-transition-slot button').first().click();
+  await page.waitForTimeout(500);
+  await expect(page.locator('#original-a')).toBeVisible({ timeout: 5000 });
+}
+
+async function clickNextLevel(page) {
+  await expect(page.locator('#mathai-transition-slot button')).toBeVisible({ timeout: 10000 });
+  await page.locator('#mathai-transition-slot button').first().click();
+  await page.waitForTimeout(500);
+}
+
+async function submitAnswer(page, answer) {
+  await page.locator('#answer-input').fill(answer.toString());
+  await page.locator('#btn-check').click();
+  await expect.poll(async () => await page.evaluate(() => !window.gameState.isProcessing), { timeout: 15000 }).toBe(true);
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('/');
+  try {
+    const okayBtn = page.locator('button:has-text("Okay!")');
+    await okayBtn.waitFor({ state: 'visible', timeout: 8000 });
+    await okayBtn.click();
+    await page.waitForTimeout(300);
+  } catch {
+    // No audio popup
+  }
+  await page.waitForFunction(
+    (slotId) => {
+      const slot = document.getElementById(slotId);
+      return slot !== null && slot.querySelector('button') !== null;
+    },
+    'mathai-transition-slot',
+    { timeout: 20000 }
+  );
+});`;
+
+  // Determine which categories to generate
+  const categoriesToRun = categoryArg
+    ? CATEGORIES.filter((c) => c === categoryArg)
+    : CATEGORIES;
+
+  if (categoryArg && categoriesToRun.length === 0) {
+    log(`ERROR: Unknown category '${categoryArg}'. Valid: ${CATEGORIES.join(', ')}`);
+    return;
+  }
+
+  if (categoryArg) {
+    // Single-category mode: only delete that category's spec file
+    const specFile = path.join(testsDir, `${categoryArg}.spec.js`);
+    if (fs.existsSync(specFile)) {
+      fs.unlinkSync(specFile);
+      log(`Deleted ${categoryArg}.spec.js`);
+    }
+  } else {
+    // All-categories mode: delete all spec files
+    const existingSpecs = fs.readdirSync(testsDir).filter((f) => f.endsWith('.spec.js'));
+    existingSpecs.forEach((f) => {
+      fs.unlinkSync(path.join(testsDir, f));
+      log(`Deleted ${f}`);
+    });
+  }
+
+  for (const category of categoriesToRun) {
     const catTestCases = testCases.filter((tc) => tc.category === category);
     if (catTestCases.length === 0) {
       log(`Skipping ${category} — no test cases`);
@@ -307,11 +403,17 @@ ${htmlContent}`;
     const describeStart = catTests.indexOf('test.describe(');
     if (describeStart > 0) catTests = catTests.substring(describeStart);
 
+    // Post-processing fixes (mirrors pipeline.js)
+    catTests = catTests.replace(/let\s+\w+\s*:\s*\w+(\[\])?\s*=\s*/g, 'let $1 = ').replace(/:\s*\w+(\[\])?\s*=/g, ' =');
+    catTests = catTests.replace(/await\s+expect\s*\(\s*page\.evaluate\s*\(/g, 'expect(await page.evaluate(');
+    catTests = catTests.replace(/#mathai-transition-slot\s+h[12]/g, '.mathai-transition-title');
+
     // Count test() calls
     const testCount = (catTests.match(/\btest\s*\(/g) || []).length;
     log(`  Generated ${testCount} test() calls (expected ${catTestCases.length})`);
 
-    fs.writeFileSync(path.join(testsDir, `${category}.spec.js`), catTests + '\n');
+    const fullSpec = sharedBoilerplate + '\n\n' + catTests;
+    fs.writeFileSync(path.join(testsDir, `${category}.spec.js`), fullSpec + '\n');
     log(`  Wrote ${category}.spec.js`);
   }
 
