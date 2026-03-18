@@ -12,7 +12,7 @@
 ## Game Identity
 
 - **Title:** {{game title}}
-- **Game ID:** game_{{timestamp}}_{{random9chars}}
+- **Game ID:** game*{{timestamp}}*{{random9chars}}
 - **Type:** {{standard | story-only}}
 - **Description:** {{1-2 sentence description}}
 ```
@@ -24,51 +24,51 @@ A table showing which warehouse parts are included. This tells the LLM exactly w
 ```markdown
 ## Parts Selected
 
-| Part ID | Name | Included | Config/Notes |
-|---------|------|----------|-------------|
-| PART-001 | HTML Shell | YES | — |
-| PART-002 | Package Scripts | YES | — |
-| PART-003 | waitForPackages | YES | — |
-| PART-004 | Initialization Block | YES | — |
-| PART-005 | VisibilityTracker | YES | popupProps: {{custom or default}} |
-| PART-006 | TimerComponent | {{YES/NO}} | {{timerType, startTime, endTime, autoStart}} |
-| PART-007 | Game State Object | YES | Custom fields: {{list}} |
-| PART-008 | PostMessage Protocol | YES | — |
-| PART-009 | Attempt Tracking | YES | — |
-| PART-010 | Event Tracking | YES | Custom events: {{list}} |
-| PART-011 | End Game & Metrics | YES | {{custom star logic if any}} |
-| PART-012 | Debug Functions | YES | — |
-| PART-013 | Validation Fixed | {{YES/NO}} | — |
-| PART-014 | Validation Function | {{YES/NO}} | Rules: {{describe}} |
-| PART-015 | Validation LLM | {{YES/NO}} | — |
-| PART-016 | StoriesComponent | {{YES/NO}} | — |
-| PART-017 | Feedback Integration | NO | Extension — added later |
-| PART-018 | Case Converter | {{YES/NO}} | — |
-| PART-019 | Results Screen UI | YES | Custom metrics: {{list}} |
-| PART-020 | CSS Variables & Colors | YES | — |
-| PART-021 | Screen Layout CSS | YES | — |
-| PART-022 | Game Buttons | YES | — |
-| PART-023 | ProgressBar Component | {{YES/NO}} | totalRounds: {{N}}, totalLives: {{N}} |
-| PART-024 | TransitionScreen Component | {{YES/NO}} | Screens: {{start/victory/game-over/level}} |
-| PART-025 | ScreenLayout Component | {{YES/NO}} | slots: progressBar={{t/f}}, transitionScreen={{t/f}} |
-| PART-026 | Anti-Patterns | YES (REFERENCE) | Verification checklist, not code-generating |
-| PART-027 | Play Area Construction | YES | Layout: {{grid/options/input/custom}} |
-| PART-028 | InputSchema Patterns | YES | Schema type: {{questions/grid/levels}} |
-| PART-029 | Story-Only Game | {{YES/NO}} | storyBlockId: {{ID}} |
-| PART-030 | Sentry Error Tracking | NO | Extension — added later |
-| PART-031 | API Helper | {{YES/NO}} | — |
-| PART-032 | AnalyticsManager | {{YES/NO}} | — |
-| PART-033 | Interaction Patterns | {{YES/NO}} | Patterns: {{drag-drop/grid/tag-input}} |
-| PART-034 | Variable Schema Serialization | YES (POST_GEN) | Serializes Section 4 to inputSchema.json |
-| PART-035 | Test Plan Generation | YES (POST_GEN) | Generates tests.md after HTML |
-| PART-037 | Playwright Testing | YES (POST_GEN) | Ralph loop generates tests + fix cycle |
+| Part ID  | Name                          | Included        | Config/Notes                                         |
+| -------- | ----------------------------- | --------------- | ---------------------------------------------------- |
+| PART-001 | HTML Shell                    | YES             | —                                                    |
+| PART-002 | Package Scripts               | YES             | —                                                    |
+| PART-003 | waitForPackages               | YES             | —                                                    |
+| PART-004 | Initialization Block          | YES             | —                                                    |
+| PART-005 | VisibilityTracker             | YES             | popupProps: {{custom or default}}                    |
+| PART-006 | TimerComponent                | {{YES/NO}}      | {{timerType, startTime, endTime, autoStart}}         |
+| PART-007 | Game State Object             | YES             | Custom fields: {{list}}                              |
+| PART-008 | PostMessage Protocol          | YES             | —                                                    |
+| PART-009 | Attempt Tracking              | YES             | —                                                    |
+| PART-010 | Event Tracking                | YES             | Custom events: {{list}}                              |
+| PART-011 | End Game & Metrics            | YES             | {{custom star logic if any}}                         |
+| PART-012 | Debug Functions               | YES             | —                                                    |
+| PART-013 | Validation Fixed              | {{YES/NO}}      | —                                                    |
+| PART-014 | Validation Function           | {{YES/NO}}      | Rules: {{describe}}                                  |
+| PART-015 | Validation LLM                | {{YES/NO}}      | —                                                    |
+| PART-016 | StoriesComponent              | {{YES/NO}}      | —                                                    |
+| PART-017 | Feedback Integration          | {{YES/NO}}      | Audio feedback and sticker moments                   |
+| PART-018 | Case Converter                | {{YES/NO}}      | —                                                    |
+| PART-019 | Results Screen UI             | YES             | Custom metrics: {{list}}                             |
+| PART-020 | CSS Variables & Colors        | YES             | —                                                    |
+| PART-021 | Screen Layout CSS             | YES             | —                                                    |
+| PART-022 | Game Buttons                  | YES             | —                                                    |
+| PART-023 | ProgressBar Component         | {{YES/NO}}      | totalRounds: {{N}}, totalLives: {{N}}                |
+| PART-024 | TransitionScreen Component    | {{YES/NO}}      | Screens: {{start/victory/game-over/level}}           |
+| PART-025 | ScreenLayout Component        | {{YES/NO}}      | slots: progressBar={{t/f}}, transitionScreen={{t/f}} |
+| PART-026 | Anti-Patterns                 | YES (REFERENCE) | Verification checklist, not code-generating          |
+| PART-027 | Play Area Construction        | YES             | Layout: {{grid/options/input/custom}}                |
+| PART-028 | InputSchema Patterns          | YES             | Schema type: {{questions/grid/levels}}               |
+| PART-029 | Story-Only Game               | {{YES/NO}}      | storyBlockId: {{ID}}                                 |
+| PART-030 | Sentry Error Tracking         | YES             | Error monitoring for every game                      |
+| PART-031 | API Helper                    | {{YES/NO}}      | —                                                    |
+| PART-032 | AnalyticsManager              | {{YES/NO}}      | —                                                    |
+| PART-033 | Interaction Patterns          | {{YES/NO}}      | Patterns: {{drag-drop/grid/tag-input}}               |
+| PART-034 | Variable Schema Serialization | YES (POST_GEN)  | Serializes Section 4 to inputSchema.json             |
+| PART-035 | Test Plan Generation          | YES (POST_GEN)  | Generates tests.md after HTML                        |
+| PART-037 | Playwright Testing            | YES (POST_GEN)  | Ralph loop generates tests + fix cycle               |
 ```
 
 ### 3. Game State
 
 The exact `gameState` object for this game, with mandatory fields + game-specific additions.
 
-```markdown
+````markdown
 ## Game State
 
 ```javascript
@@ -100,7 +100,9 @@ const gameState = {
 let timer = null;
 let visibilityTracker = null;
 ```
-```
+````
+
+````
 
 ### 4. Input Schema (External Variables)
 
@@ -127,7 +129,7 @@ The shape of content this game expects via postMessage. This is the interface be
   },
   "required": ["rounds"]
 }
-```
+````
 
 ### Fallback Test Content
 
@@ -140,7 +142,8 @@ const fallbackContent = {
   ]
 };
 ```
-```
+
+````
 
 ### 5. Screens & HTML Structure
 
@@ -157,14 +160,15 @@ Exact HTML for each screen, with all element IDs specified.
   {{Include timer-container div if PART-006 selected}}
   {{Include story-container div if PART-016 selected}}
 </div>
-```
+````
 
 ### Screen 2: Results Screen (#results-screen)
 
 ```html
 {{From PART-019 with any custom metric rows added}}
 ```
-```
+
+````
 
 ### 6. CSS
 
@@ -183,10 +187,43 @@ Complete styles for the game. Must include styles for all screens, states, and i
   - Responsive considerations
   - Animations/transitions
 }}
-```
-```
+````
 
-### 7. Game Flow
+````
+
+### 7. Script Loading
+
+Exact `<script>` tags to copy verbatim. This section makes the template self-contained — do not reference PART-002 without including the actual URLs here.
+
+```markdown
+## Script Loading (copy these EXACT tags — never invent URLs)
+
+```html
+<!-- STEP 1: SentryConfig package -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+<!-- STEP 2: initSentry() function definition (see PART-030 for full code) -->
+<script>
+function initSentry() { /* ... */ }
+</script>
+
+<!-- STEP 3: Sentry SDK v10.23.0 (3 scripts, NO integrity attribute) -->
+<script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+<!-- STEP 4: Initialize on load -->
+<script>window.addEventListener('load', initSentry);</script>
+
+<!-- STEP 5-7: Game packages (exact URLs, in this order) -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+````
+
+````
+
+### 8. Game Flow
 
 Step-by-step description of how the game works, from load to completion.
 
@@ -214,12 +251,15 @@ Step-by-step description of how the game works, from load to completion.
    - {{What happens on incorrect answer}}
    - {{How to advance to next round}}
 
-4. **End condition:**
-   - {{What triggers endGame — all rounds done / timer ends / other}}
+4. **End condition(s) — EVERY path that calls endGame():**
+   - {{Trigger 1: e.g., "All rounds completed → nextRound() calls endGame() when currentRound >= totalRounds"}}
+   - {{Trigger 2: e.g., "Timer expires → timer.onEnd callback calls endGame()"}}
+   - {{Trigger 3: e.g., "All lives lost → life-decrement logic calls endGame() when lives <= 0"}}
    - endGame() calculates metrics, shows results, sends postMessage, cleans up
-```
+   - **There must be NO game state where the player is stuck with no path to endGame()**
+````
 
-### 8. Functions
+### 9. Functions
 
 Every function the game needs, with exact signatures and step-by-step logic.
 
@@ -229,6 +269,7 @@ Every function the game needs, with exact signatures and step-by-step logic.
 ### Global Scope (RULE-001)
 
 **setupGame()**
+
 - {{Step 1}}
 - {{Step 2}}
 - Set gameState.startTime = Date.now()
@@ -236,6 +277,7 @@ Every function the game needs, with exact signatures and step-by-step logic.
 - trackEvent('game_start', 'game')
 
 **handleAnswer({{params}})**
+
 - {{Get user answer}}
 - {{Validate using PART-013/014/015}}
 - recordAttempt({...})
@@ -243,25 +285,31 @@ Every function the game needs, with exact signatures and step-by-step logic.
 - {{Call nextRound() or show retry}}
 
 **nextRound()**
+
 - Increment gameState.currentRound
 - If currentRound >= totalRounds → endGame()
 - Else → render next round
 
 **endGame()**
+
 - From PART-011 (copy exact code)
 - {{Any custom star calculation}}
 - {{Any custom metrics}}
 
 **showResults(metrics)**
+
 - From PART-019
 
 **handlePostMessage(event)**
+
 - From PART-008
 
 **recordAttempt(data)**
+
 - From PART-009
 
 **trackEvent(type, target, data)**
+
 - From PART-010
 
 {{Additional game-specific functions as needed}}
@@ -279,7 +327,7 @@ Every function the game needs, with exact signatures and step-by-step logic.
 - debugGame, debugAudio, testAudio, testPause, testResume
 ```
 
-### 9. Event Schema
+### 10. Event Schema
 
 Which events this game emits and when. Maps to PART-010 (trackEvent).
 
@@ -288,33 +336,32 @@ Which events this game emits and when. Maps to PART-010 (trackEvent).
 
 ### Game Lifecycle Events (automatic — from PART-010)
 
-| Event | Target | When Fired |
-|-------|--------|------------|
-| game_start | game | setupGame() completes |
-| game_end | game | endGame() fires |
+| Event      | Target | When Fired            |
+| ---------- | ------ | --------------------- |
+| game_start | game   | setupGame() completes |
+| game_end   | game   | endGame() fires       |
 
 ### Game-Specific Events
 
-| Event | Target | When Fired | Data |
-|-------|--------|------------|------|
+| Event          | Target     | When Fired            | Data                  |
+| -------------- | ---------- | --------------------- | --------------------- |
 | {{event_name}} | {{target}} | {{trigger condition}} | {{data object shape}} |
 | {{event_name}} | {{target}} | {{trigger condition}} | {{data object shape}} |
-
 ```
 
-### 10. Scaffold Points
+### 11. Scaffold Points
 
 Where learning scaffolds can be injected. These are hooks in the game flow where hints, explanations, or progressive difficulty adjustments can be triggered.
 
 ```markdown
 ## Scaffold Points
 
-| Point | Function | When | What Can Be Injected |
-|-------|----------|------|---------------------|
-| after_incorrect | handleAnswer() | User answers incorrectly | Hint text, visual highlight, worked example |
-| before_round | nextRound() | New round starts | Difficulty preview, strategy tip |
-| on_timeout | timer.onEnd | Timer expires | Partial credit prompt, time extension offer |
-| {{custom_point}} | {{function}} | {{condition}} | {{scaffold_type}} |
+| Point            | Function       | When                     | What Can Be Injected                        |
+| ---------------- | -------------- | ------------------------ | ------------------------------------------- |
+| after_incorrect  | handleAnswer() | User answers incorrectly | Hint text, visual highlight, worked example |
+| before_round     | nextRound()    | New round starts         | Difficulty preview, strategy tip            |
+| on_timeout       | timer.onEnd    | Timer expires            | Partial credit prompt, time extension offer |
+| {{custom_point}} | {{function}}   | {{condition}}            | {{scaffold_type}}                           |
 
 ### Scaffold Integration Notes
 
@@ -323,40 +370,41 @@ Where learning scaffolds can be injected. These are hooks in the game flow where
 - Scaffold content is provided via postMessage (same channel as game content)
 ```
 
-### 11. Feedback Triggers
+### 12. Feedback Triggers
 
 Which moments in the game trigger audio/visual feedback. Maps to PART-017 (FeedbackManager).
 
-```markdown
+````markdown
 ## Feedback Triggers
 
-> Note: FeedbackManager is an EXTENSION (PART-017) — added after initial HTML is approved.
-> This section documents the trigger points so feedback can be wired in later.
+> FeedbackManager (PART-017) is CONDITIONAL — include when the game has audio feedback or sticker moments.
 
-| Moment | Trigger Function | Feedback Type | Notes |
-|--------|-----------------|---------------|-------|
-| Correct answer | handleAnswer() | sound + sticker | Play after visual feedback shown |
-| Incorrect answer | handleAnswer() | sound only | Short negative sound |
-| Game complete (3★) | showResults() | celebration sound + sticker | Play on results screen show |
-| Game complete (<3★) | showResults() | encouragement sound | Gentle, not punishing |
-| Round transition | nextRound() | subtle transition sound | Optional |
-| {{custom_moment}} | {{function}} | {{feedback_type}} | {{notes}} |
+| Moment              | Trigger Function | Feedback Type               | Notes                            |
+| ------------------- | ---------------- | --------------------------- | -------------------------------- |
+| Correct answer      | handleAnswer()   | sound + sticker             | Play after visual feedback shown |
+| Incorrect answer    | handleAnswer()   | sound only                  | Short negative sound             |
+| Game complete (3★)  | showResults()    | celebration sound + sticker | Play on results screen show      |
+| Game complete (<3★) | showResults()    | encouragement sound         | Gentle, not punishing            |
+| Round transition    | nextRound()      | subtle transition sound     | Optional                         |
+| {{custom_moment}}   | {{function}}     | {{feedback_type}}           | {{notes}}                        |
 
 ### Feedback IDs (for FeedbackManager.sound.play)
 
 ```javascript
 // These IDs will be registered in FeedbackManager.init()
-// Placeholder — actual audio URLs added in Phase 3
+// Audio URLs registered in FeedbackManager.init()
 const FEEDBACK_IDS = {
   correct: '{{audio_id}}',
   incorrect: '{{audio_id}}',
   celebration: '{{audio_id}}',
-  encouragement: '{{audio_id}}'
+  encouragement: '{{audio_id}}',
 };
 ```
-```
+````
 
-### 12. Visual Specifications
+````
+
+### 13. Visual Specifications
 
 ```markdown
 ## Visual Specifications
@@ -368,7 +416,7 @@ const FEEDBACK_IDS = {
 - **Interactive states:** {{hover, active, selected, disabled styles}}
 - **Transitions:** {{what animates, duration, easing}}
 - **Responsive:** {{mobile breakpoints, scaling behavior}}
-```
+````
 
 ### 14. Test Scenarios (for Playwright)
 
@@ -382,77 +430,90 @@ Structured test scenarios that the ralph loop (PART-037) uses to generate Playwr
 
 ### Scenario: Complete game with all correct answers
 ```
+
 SETUP: Page loaded, game ready (gameState.isActive === true)
 ACTIONS:
-  {{exact action 1 — e.g., "click .grid-cell[data-row='0'][data-col='2']"}}
-  {{exact action 2 — e.g., "click #btn-submit"}}
-  wait for .correct class on submitted element
-  click #btn-next
-  {{repeat for each round with EXACT correct answers from fallbackContent}}
+{{exact action 1 — e.g., "click .grid-cell[data-row='0'][data-col='2']"}}
+{{exact action 2 — e.g., "click #btn-submit"}}
+wait for .correct class on submitted element
+click #btn-next
+{{repeat for each round with EXACT correct answers from fallbackContent}}
 ASSERT:
-  gameState.score == {{totalRounds}}
-  #results-screen is visible
-  #game-screen is hidden
-  accuracy display shows "100%"
-  stars display shows 3 stars
+gameState.score == {{totalRounds}}
+#results-screen is visible
+#game-screen is hidden
+accuracy display shows "100%"
+stars display shows 3 stars
+
 ```
 
 ### Scenario: Submit incorrect answer
 ```
+
 SETUP: Page loaded, game ready
 ACTIONS:
-  {{exact WRONG action — e.g., "click .grid-cell[data-row='0'][data-col='0']"}}
-  click #btn-submit
+{{exact WRONG action — e.g., "click .grid-cell[data-row='0'][data-col='0']"}}
+click #btn-submit
 ASSERT:
-  .incorrect class visible on wrong element
-  #btn-retry is visible
-  #btn-submit is hidden
-  #btn-next is hidden
-  gameState.attempts.length == 1
-  gameState.attempts[0].correct == false
+.incorrect class visible on wrong element
+#btn-retry is visible
+#btn-submit is hidden
+#btn-next is hidden
+gameState.attempts.length == 1
+gameState.attempts[0].correct == false
+
 ```
 
 ### Scenario: Reset clears all input
 ```
+
 SETUP: Page loaded, user has made some selections
 ACTIONS:
-  {{make some selections/input}}
-  click Reset button
+{{make some selections/input}}
+click Reset button
 ASSERT:
-  all .selected classes removed
-  all input fields empty
-  no .correct or .incorrect classes
+all .selected classes removed
+all input fields empty
+no .correct or .incorrect classes
+
 ```
 
 ### Scenario: Game ends after all rounds
 ```
+
 SETUP: Complete all rounds correctly (use actions from Scenario 1)
 ASSERT:
-  gameState.isActive == false
-  game_complete postMessage sent
-  metrics.accuracy == 100
-  metrics.stars == 3
-  metrics.attempts.length == {{totalRounds}}
-  each attempt has: attempt_timestamp, time_since_start, input_of_user, correct, attempt_number
+gameState.isActive == false
+game_complete postMessage sent
+metrics.accuracy == 100
+metrics.stars == 3
+metrics.attempts.length == {{totalRounds}}
+each attempt has: attempt_timestamp, time_since_start, input_of_user, correct, attempt_number
+
 ```
 
 ### Scenario: {{Game-specific scenario 1}}
 ```
+
 SETUP: {{specific state}}
 ACTIONS:
-  {{exact steps using real selectors}}
+{{exact steps using real selectors}}
 ASSERT:
-  {{exact expected outcomes}}
+{{exact expected outcomes}}
+
 ```
 
 ### Scenario: {{Game-specific scenario 2}}
 ```
+
 SETUP: {{specific state}}
 ACTIONS:
-  {{exact steps}}
+{{exact steps}}
 ASSERT:
-  {{exact expected outcomes}}
+{{exact expected outcomes}}
+
 ```
+
 ```
 
 ### 15. Verification Checklist
@@ -463,6 +524,7 @@ Game-specific checklist combining mandatory part checks + game-specific checks.
 ## Verification Checklist
 
 ### Structural
+
 - [ ] HTML has DOCTYPE, meta charset, meta viewport
 - [ ] Package scripts in correct order (PART-002)
 - [ ] Single <style> in <head>, single <script> in <body> (RULE-007)
@@ -472,6 +534,7 @@ Game-specific checklist combining mandatory part checks + game-specific checks.
 - [ ] {{#story-container if PART-016}}
 
 ### Functional
+
 - [ ] waitForPackages() defined and checks all three packages (PART-003)
 - [ ] DOMContentLoaded calls init sequence in order (PART-004)
 - [ ] VisibilityTracker created with onInactive + onResume (PART-005)
@@ -481,6 +544,7 @@ Game-specific checklist combining mandatory part checks + game-specific checks.
 - [ ] recordAttempt produces correct attempt shape (PART-009)
 - [ ] trackEvent fires at all interaction points (PART-010)
 - [ ] endGame calculates metrics, logs, sends postMessage, cleans up (PART-011)
+- [ ] **Every end condition actually calls endGame()** — rounds complete, timer expires, lives lost (PART-011)
 - [ ] Debug functions on window (PART-012)
 - [ ] showResults populates all fields (PART-019)
 - [ ] InputSchema defined with fallback content (PART-028)
@@ -490,6 +554,7 @@ Game-specific checklist combining mandatory part checks + game-specific checks.
 - [ ] {{Interaction patterns initialized and resetable (PART-033)}}
 
 ### Design & Layout
+
 - [ ] CSS uses `var(--mathai-*)` variables, no hardcoded colors (PART-020)
 - [ ] Gameplay feedback uses correct colors — green/red/blue/gray (PART-020)
 - [ ] `.page-center` / `.game-wrapper` / `.game-stack` layout structure (PART-021)
@@ -501,6 +566,7 @@ Game-specific checklist combining mandatory part checks + game-specific checks.
 - [ ] {{ScreenLayout.inject() called before ProgressBar/TransitionScreen (PART-025)}}
 
 ### Rules Compliance
+
 - [ ] RULE-001: All onclick handlers in global scope
 - [ ] RULE-002: All async functions have async keyword
 - [ ] RULE-003: All async calls in try/catch
@@ -510,11 +576,13 @@ Game-specific checklist combining mandatory part checks + game-specific checks.
 - [ ] RULE-007: Single file, no external CSS/JS
 
 ### Game-Specific
+
 - [ ] {{Check 1 — specific to this game's mechanics}}
 - [ ] {{Check 2 — specific to this game's UI}}
 - [ ] {{Check N}}
 
 ### Contract Compliance
+
 - [ ] gameState matches contracts/game-state.schema.json
 - [ ] Attempts match contracts/attempt.schema.json
 - [ ] Metrics match contracts/metrics.schema.json
