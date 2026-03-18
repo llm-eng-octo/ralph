@@ -193,22 +193,24 @@ async function handleFixJob(job) {
 
   if (buildId) db.completeBuild(buildId, report);
 
-  // GCP upload on approval
-  if (report.status === 'APPROVED' && gcp.isEnabled()) {
+  // GCP upload — always upload for preview link regardless of status
+  if (gcp.isEnabled()) {
     const htmlFile = path.join(gameDir, 'index.html');
-    const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
-    if (gcpUrl) {
-      db.updateBuildGcpUrl(buildId, gcpUrl);
-      db.updateGameGcpUrl(gameId, gcpUrl);
+    if (fs.existsSync(htmlFile)) {
+      const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
+      if (gcpUrl) {
+        db.updateBuildGcpUrl(buildId, gcpUrl);
+        db.updateGameGcpUrl(gameId, gcpUrl);
+      }
     }
   }
 
   // Post result to Slack thread
+  const fixGcpUrl = db.getGame(gameId)?.gcp_url;
   if (game && game.slack_thread_ts) {
-    const gcpUrl = db.getGame(gameId)?.gcp_url;
-    await slack.postThreadResult(game.slack_thread_ts, game.slack_channel_id, gameId, report, { gcpUrl });
+    await slack.postThreadResult(game.slack_thread_ts, game.slack_channel_id, gameId, report, { gcpUrl: fixGcpUrl });
   } else {
-    await slack.notifyBuildResult(gameId, report);
+    await slack.notifyBuildResult(gameId, report, null, fixGcpUrl);
   }
 
   // Update game status
@@ -267,7 +269,8 @@ const worker = new Worker(
           'validate-spec': '📋 Validating spec...',
           'generate-html': `🏗️ Generating HTML (model: ${detail?.model || 'unknown'})...`,
           'static-validation': '🔍 Running static validation...',
-          'generate-tests': '🧪 Generating tests...',
+          'generate-test-cases': `📋 Generating test cases (model: ${detail?.model || 'unknown'})...`,
+          'generate-tests': '🧪 Generating Playwright tests...',
           'test-fix-loop': `🔄 Starting test/fix loop (max ${detail?.maxIterations || 5} iterations)...`,
           'test-result': `📊 Iteration ${detail?.iteration}: ${detail?.passed || 0} passed, ${detail?.failed || 0} failed`,
           review: '📝 Running review...',
@@ -275,6 +278,32 @@ const worker = new Worker(
         const msg = messages[step];
         if (msg) {
           slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
+        }
+        // Post test cases to Slack for human review
+        if (step === 'test-cases-ready' && Array.isArray(detail?.testCases) && detail.testCases.length > 0) {
+          const caseLines = detail.testCases.map((tc, i) => `${i + 1}. *${tc.name}*: ${tc.description}`).join('\n');
+          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `📋 *Test cases (${detail.testCases.length})*:\n${caseLines}`).catch(() => {});
+        }
+        // Upload HTML preview as soon as it's ready (after generation, before testing)
+        if (step === 'html-ready' && detail?.htmlFile && gcp.isEnabled()) {
+          gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile, { suffix: 'generated' }).then((gcpUrl) => {
+            if (gcpUrl) {
+              if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
+              db.updateGameGcpUrl(gameId, gcpUrl);
+              slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🔗 HTML generated — preview: ${gcpUrl}`).catch(() => {});
+            }
+          }).catch(() => {});
+        }
+        // Upload updated HTML after each fix iteration with iteration-specific path
+        if (step === 'html-fixed' && detail?.htmlFile && gcp.isEnabled()) {
+          const { iteration: iter, passed: p, failed: f } = detail;
+          gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile, { suffix: `fix${iter}` }).then((gcpUrl) => {
+            if (gcpUrl) {
+              if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
+              db.updateGameGcpUrl(gameId, gcpUrl);
+              slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🔧 Fix iter ${iter} (before: ${p}p/${f}f) — preview: ${gcpUrl}`).catch(() => {});
+            }
+          }).catch(() => {});
         }
       }
     };
@@ -347,14 +376,16 @@ const worker = new Worker(
     // Extract learnings from diagnosis mode and rejections
     extractLearnings(gameId, buildId, report);
 
-    // GCP upload on approval
-    if (report.status === 'APPROVED' && gcp.isEnabled()) {
+    // GCP upload — always upload so a preview link is available regardless of status
+    if (gcp.isEnabled()) {
       const gameDir = path.join(REPO_DIR, 'data', 'games', gameId);
       const htmlFile = path.join(gameDir, 'index.html');
-      const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
-      if (gcpUrl) {
-        if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
-        db.updateGameGcpUrl(gameId, gcpUrl);
+      if (fs.existsSync(htmlFile)) {
+        const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
+        if (gcpUrl) {
+          if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
+          db.updateGameGcpUrl(gameId, gcpUrl);
+        }
       }
     }
 
@@ -365,11 +396,13 @@ const worker = new Worker(
     transaction.finish && transaction.finish();
 
     // Post result to Slack thread or webhook
+    const gcpUrl = db.getGame(gameId)?.gcp_url;
     if (threadInfo) {
-      const gcpUrl = db.getGame(gameId)?.gcp_url;
+      // Update opener with final status + post summary reply
+      await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
       await slack.postThreadResult(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
     } else {
-      await slack.notifyBuildResult(gameId, report, commitSha);
+      await slack.notifyBuildResult(gameId, report, commitSha, gcpUrl);
     }
 
     // Update game status
