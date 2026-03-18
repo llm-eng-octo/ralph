@@ -269,7 +269,8 @@ const worker = new Worker(
           'validate-spec': '📋 Validating spec...',
           'generate-html': `🏗️ Generating HTML (model: ${detail?.model || 'unknown'})...`,
           'static-validation': '🔍 Running static validation...',
-          'generate-tests': '🧪 Generating tests...',
+          'generate-test-cases': `📋 Generating test cases (model: ${detail?.model || 'unknown'})...`,
+          'generate-tests': '🧪 Generating Playwright tests...',
           'test-fix-loop': `🔄 Starting test/fix loop (max ${detail?.maxIterations || 5} iterations)...`,
           'test-result': `📊 Iteration ${detail?.iteration}: ${detail?.passed || 0} passed, ${detail?.failed || 0} failed`,
           review: '📝 Running review...',
@@ -278,9 +279,14 @@ const worker = new Worker(
         if (msg) {
           slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
         }
+        // Post test cases to Slack for human review
+        if (step === 'test-cases-ready' && Array.isArray(detail?.testCases) && detail.testCases.length > 0) {
+          const caseLines = detail.testCases.map((tc, i) => `${i + 1}. *${tc.name}*: ${tc.description}`).join('\n');
+          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `📋 *Test cases (${detail.testCases.length})*:\n${caseLines}`).catch(() => {});
+        }
         // Upload HTML preview as soon as it's ready (after generation, before testing)
         if (step === 'html-ready' && detail?.htmlFile && gcp.isEnabled()) {
-          gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile).then((gcpUrl) => {
+          gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile, { suffix: 'generated' }).then((gcpUrl) => {
             if (gcpUrl) {
               if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
               db.updateGameGcpUrl(gameId, gcpUrl);
@@ -288,14 +294,14 @@ const worker = new Worker(
             }
           }).catch(() => {});
         }
-        // Upload updated HTML after each fix iteration
+        // Upload updated HTML after each fix iteration with iteration-specific path
         if (step === 'html-fixed' && detail?.htmlFile && gcp.isEnabled()) {
           const { iteration: iter, passed: p, failed: f } = detail;
-          gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile).then((gcpUrl) => {
+          gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile, { suffix: `fix${iter}` }).then((gcpUrl) => {
             if (gcpUrl) {
               if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
               db.updateGameGcpUrl(gameId, gcpUrl);
-              slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🔧 Fix iter ${iter} applied (${p}→?) — preview: ${gcpUrl}`).catch(() => {});
+              slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🔧 Fix iter ${iter} (before: ${p}p/${f}f) — preview: ${gcpUrl}`).catch(() => {});
             }
           }).catch(() => {});
         }
