@@ -31,6 +31,9 @@ const REPO_DIR = process.env.RALPH_REPO_DIR || path.join(__dirname, 'repo');
 const RALPH_SCRIPT = path.join(__dirname, 'ralph.sh');
 const USE_NODE_PIPELINE = process.env.RALPH_USE_NODE_PIPELINE === '1';
 
+// Auto-retry: requeue builds that score 0/total tests (gated, max 1 retry per build)
+const AUTO_RETRY = process.env.RALPH_AUTO_RETRY === '1';
+
 // Rate limiter: max 10 builds per hour
 const RATE_LIMIT_MAX = parseInt(process.env.RALPH_RATE_MAX || '10', 10);
 const RATE_LIMIT_DURATION = parseInt(process.env.RALPH_RATE_DURATION || '3600000', 10);
@@ -309,6 +312,9 @@ const worker = new Worker(
     }
 
     logger.info(`Processing job ${job.id}: ${gameId}`, { gameId, buildId, event: 'build_start' });
+    if (job.data.retryOf) {
+      logger.info(`[worker] This is an auto-retry of build #${job.data.retryOf}`);
+    }
     metrics.recordBuildStarted(gameId);
     const buildStartTime = Date.now();
 
@@ -918,6 +924,32 @@ const worker = new Worker(
       await slack.postThreadResult(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
     } else {
       await slack.notifyBuildResult(gameId, report, commitSha, gcpUrl);
+    }
+
+    // Auto-retry: requeue if build scored 0/total tests and hasn't been retried yet
+    if (AUTO_RETRY && report && report.summary) {
+      const { passed, total } = report.summary;
+      const isCompleteFailure = total > 0 && passed === 0;
+      if (isCompleteFailure) {
+        const currentBuild = db.getBuild(buildId);
+        if ((currentBuild?.retry_count || 0) === 0) {
+          const buildQueue = worker.opts.connection
+            ? new (require('bullmq').Queue)('ralph-builds', { connection: worker.opts.connection })
+            : null;
+          if (buildQueue) {
+            const newJob = await buildQueue.add('build', { gameId, retryOf: buildId });
+            logger.info(`[worker] Auto-retry queued for ${gameId} (build #${buildId} scored 0/${total}) → new job ${newJob.id}`);
+            db.getDb().prepare('UPDATE builds SET retry_count = 1 WHERE id = ?').run(buildId);
+            const retryThread = threadInfo || (db.getGame(gameId)?.slack_thread_ts ? { ts: db.getGame(gameId).slack_thread_ts, channel: db.getGame(gameId).slack_channel_id } : null);
+            if (retryThread) {
+              await slack.postThreadUpdate(retryThread.ts, retryThread.channel, `🔄 Auto-retry queued — build #${buildId} scored 0/${total} tests. Starting fresh build...`);
+            }
+            await buildQueue.close();
+          }
+        } else {
+          logger.warn(`[worker] Auto-retry skipped for ${gameId} — already retried once (build #${buildId})`);
+        }
+      }
     }
 
     // Update game status
