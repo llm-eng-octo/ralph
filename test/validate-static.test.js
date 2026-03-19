@@ -229,9 +229,14 @@ describe('validate-static.js', () => {
   });
 
   it('fails when no star scoring pattern found', () => {
-    const html = VALID_HTML.replace('0.8', '0.9').replace('0.5', '0.6');
+    // Remove all star scoring patterns: thresholds, variable name, ternary
+    const html = VALID_HTML
+      .replace(/0\.8/g, '0.9')
+      .replace(/0\.5/g, '0.6')
+      .replace(/const stars\b/g, 'const rating')
+      .replace(/\bstars\b/g, 'rating');
     const { exitCode, output } = runValidator(html);
-    assert.equal(exitCode, 1);
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
     assert.ok(output.includes('Star scoring'));
   });
 
