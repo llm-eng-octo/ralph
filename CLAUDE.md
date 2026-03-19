@@ -34,14 +34,12 @@ npm run format:check   # Prettier check
 
 ## Testing
 
-Tests use Node.js built-in test runner (`node --test`). No external test framework.
+Tests use Node.js built-in test runner (`node --test`). No external test framework. Tests mock all external dependencies — no infrastructure needed.
 
 ```bash
-node --test test/*.test.js           # All 219 tests
-node --test test/db.test.js          # Single file
+node --test test/*.test.js    # All tests
+node --test test/db.test.js   # Single file
 ```
-
-Tests mock external dependencies (Redis, fetch, filesystem) — no infrastructure needed.
 
 **Test files:** db, games-learnings, gcp, llm, logger, mcp, metrics, sentry, server, slack, validate-static, validate-contract, worker, ralph-sh, e2e, proxy-contract, load, pipeline, failure-patterns.
 
@@ -53,45 +51,21 @@ Tests mock external dependencies (Redis, fetch, filesystem) — no infrastructur
 | worker.js | BullMQ worker: job processing, Slack threading, GCP upload, learnings |
 | ralph.sh | Bash pipeline: LLM generation + validation + deploy |
 | lib/db.js | SQLite: builds, games, learnings, failure_patterns tables + CRUD |
-| lib/metrics.js | Prometheus counters/gauges/histograms |
 | lib/validate-static.js | T1 static HTML checks (CLI tool, 10 error checks + 2 warnings) |
 | lib/validate-contract.js | T2 contract validation (gameState, postMessage, scoring contracts) |
 | lib/slack.js | Dual-mode Slack (Web API threading + webhook fallback), Events API handler |
-| lib/gcp.js | GCP Cloud Storage upload (optional dep, Application Default Credentials) |
-| lib/mcp.js | MCP server with 5 tools (register_spec, get_build_status, list_games, add_learning, get_learnings) |
-| lib/logger.js | Structured JSON logging (optional GCP) |
-| lib/sentry.js | Error monitoring (optional Sentry, v8 API normalized) |
 | lib/pipeline.js | Node.js pipeline (E3) + targeted fix: full pipeline + feedback-driven fix |
 | lib/llm.js | Node.js LLM client (used by pipeline.js and tests) |
 | nginx.conf | Nginx reverse proxy: TLS, rate limiting, security headers |
 | Dockerfile | Multi-stage build: node:20-slim, non-root user, healthcheck |
-| monitoring/alerts.yml | 6 Prometheus alert rules |
-| monitoring/grafana-dashboard.json | 5-row Grafana dashboard |
-| .eslintrc.js | ESLint config (strict mode, best practices, style rules) |
-| .prettierrc.json | Prettier config (single quotes, trailing commas, 120 width) |
 
 ## Environment
 
-Requires Node.js >=20, Redis for BullMQ. See `.env.example` for all config vars.
+Requires Node.js >=20, Redis for BullMQ. See `.env.example` for all config vars. **Critical:** `GITHUB_WEBHOOK_SECRET` required when `NODE_ENV=production`.
 
-Optional: `@sentry/node` (SENTRY_DSN), `@google-cloud/logging` (GOOGLE_CLOUD_PROJECT), `@slack/web-api` (SLACK_BOT_TOKEN), `@google-cloud/storage` (RALPH_GCP_BUCKET). These are `optionalDependencies` — install failures won't block the app.
+Key env vars: `RALPH_ENABLE_CACHE=1`, `RALPH_USE_NODE_PIPELINE=1`, `RALPH_DEPLOY_ENABLED=1`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_CHANNEL_ID`, `RALPH_GCP_BUCKET`, `RALPH_WAREHOUSE_DIR`, `RALPH_DEPLOY_DIR`.
 
-Required: `@modelcontextprotocol/sdk` and `zod` (in dependencies for MCP server).
-
-**Critical:** `GITHUB_WEBHOOK_SECRET` is required when `NODE_ENV=production`.
-
-**New env vars:**
-- `RALPH_ENABLE_CACHE=1` — Enable E6 spec caching (sha256-based)
-- `RALPH_CACHE_DIR` — Cache directory (default: `~/.ralph-cache`)
-- `RALPH_WAREHOUSE_DIR` — Warehouse directory for E9 spec validation
-- `RALPH_DEPLOY_ENABLED=1` — Enable E10 post-approval deployment
-- `RALPH_DEPLOY_DIR` — Deployment artifact directory
-- `RALPH_USE_NODE_PIPELINE=1` — Use Node.js pipeline (E3) instead of ralph.sh
-- `SLACK_BOT_TOKEN` — Slack Bot User OAuth Token for Web API (threading, Block Kit)
-- `SLACK_SIGNING_SECRET` — Slack signing secret for Events API signature verification
-- `SLACK_CHANNEL_ID` — Default Slack channel for game build threads
-- `RALPH_GCP_BUCKET` — GCP Cloud Storage bucket for game artifact uploads
-- `RALPH_GCP_PROJECT` — GCP project ID (optional, uses Application Default Credentials)
+Optional deps (install failures won't block): `@sentry/node`, `@google-cloud/logging`, `@slack/web-api`, `@google-cloud/storage`.
 
 ## Database Tables
 
@@ -109,37 +83,30 @@ Required: `@modelcontextprotocol/sdk` and `zod` (in dependencies for MCP server)
 | POST | /webhook/github | GitHub push webhook |
 | POST | /api/build | Manual build trigger |
 | GET | /api/builds | Build list + stats |
-| GET | /api/builds/:id | Build details |
-| GET | /api/games/:gameId/builds | Builds for a game |
 | GET/POST | /api/games | List/create games |
-| GET | /api/games/:gameId | Game details |
 | GET/POST | /api/learnings | List/create learnings |
 | POST | /api/fix | Trigger targeted fix |
 | POST/GET/DELETE | /mcp | MCP Streamable HTTP transport |
 | POST | /slack/events | Slack Events API handler |
-| GET | /api/failure-patterns | Failure patterns |
 | GET | /metrics | Prometheus metrics |
 | GET | /health | Health check |
 
 ## Code Style
 
-- `'use strict'` in all modules
-- CommonJS (`require`/`module.exports`)
-- No TypeScript
+- `'use strict'` in all modules, CommonJS (`require`/`module.exports`), no TypeScript
 - ESLint + Prettier configured (see `.eslintrc.js`, `.prettierrc.json`)
-- Express 5.x — async errors caught automatically, no try/catch needed
-- SQLite via better-sqlite3 (synchronous API)
+- Express 5.x — async errors caught automatically; SQLite via better-sqlite3 (synchronous)
 - `lastInsertRowid` must be wrapped in `Number()` (BigInt issue)
 
 ## Known Constraints
 
-- `llm.js` is used by `pipeline.js` (E3) and tests. ralph.sh still calls CLIProxyAPI via curl.
-- validate-static.js checks `id="gameContent"` via regex (improved from bare string match).
-- Worker supports dual-mode: bash (ralph.sh, default) or Node.js (pipeline.js, opt-in via `RALPH_USE_NODE_PIPELINE=1`).
+- `llm.js` used by `pipeline.js` (E3) and tests; `ralph.sh` still calls CLIProxyAPI via curl.
+- Worker supports dual-mode: bash (`ralph.sh`, default) or Node.js (`pipeline.js`, opt-in via `RALPH_USE_NODE_PIPELINE=1`).
+- `validate-static.js` checks `id="gameContent"` via regex.
 
 ## Server Operations (GCP: 34.93.153.206)
 
-SSH key: `~/.ssh/google_compute_engine`, user: `the-hw-app`. Cannot SCP directly to `/opt/ralph` (permission denied) — use `/tmp` staging:
+SSH key: `~/.ssh/google_compute_engine`, user: `the-hw-app`. Use `/tmp` staging (no direct SCP to `/opt/ralph`):
 
 ```bash
 # Deploy a file
@@ -152,82 +119,29 @@ ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "journalctl -u ralp
 # Queue a build
 ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "curl -s -X POST http://localhost:3000/api/build -H 'Content-Type: application/json' -d '{\"gameId\":\"doubles\"}'"
 
-# Kill a stuck/useless build
-ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "
-  sudo systemctl kill --signal=SIGKILL ralph-worker
-  redis-cli DEL 'bull:ralph-builds:{jobId}:lock'
-  sleep 2 && sudo systemctl start ralph-worker
-"
-# Then mark the build failed in DB via:
+# Kill a stuck build + mark failed
+ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "sudo systemctl kill --signal=SIGKILL ralph-worker && redis-cli DEL 'bull:ralph-builds:{jobId}:lock' && sleep 2 && sudo systemctl start ralph-worker"
 ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && node -e \"require('./lib/db').failBuild(199, 'reason')\""
 ```
 
-**When to kill a build:** Kill immediately if:
-- Tests fail due to infrastructure issues (e.g. `data-phase` attribute missing because new harness not deployed)
-- The underlying pipeline code was wrong when the build started (redeploy first, then requeue)
-- The build is on iteration 2+ with 0 pass rate and the HTML is clearly wrong
-- The same test fails in iteration 1 and 2 with the same error — root cause is clear, don't wait for iteration 3
-- Never let a broken build run 3 full iterations wasting tokens — kill early and fix the root cause first.
+**Kill a build immediately if:** infrastructure issues cause test failures, pipeline code was wrong at build start, iteration 2+ with 0 pass rate and clearly wrong HTML, or same test fails iterations 1 and 2 with same error.
 
-**Parallel work rule (CRITICAL):** Never sit idle waiting for a build. While a build runs:
-- Analyze iteration-1 failures and diagnose root cause
-- Fix code, commit, push, deploy the fix (worker will pick it up for the next build)
-- Kill the running build if the root cause is now known and it can't recover
-- Update docs, memory, or other tasks in parallel
-- Queue the next fixed build before the broken one finishes
+**Parallel work rule (CRITICAL):** Never idle waiting for a build — diagnose failures, fix code, deploy, and queue the next build in parallel.
 
-## Test Harness Architecture (Phase 1 — implemented)
+## Test Harness Architecture
 
-Every generated HTML gets `<script id="ralph-test-harness">` injected by pipeline (not LLM):
-- `window.__ralph` — interaction-type-specific shortcuts: `.answer()`, `.endGame()`, `.jumpToRound()`, `.setLives()`, `.getState()`, `.getLastPostMessage()`
-- `syncDOMState()` — keeps `data-phase`/`data-lives`/`data-round`/`data-score` on `#app` current; runs every 500ms. Uses `gameState.phase` if present (CDN games track their own phase); falls back to computed value. NEVER overwrite if game uses `setPhase()`.
-- postMessage capture — `window.__lastPostMessage` for contract tests
+Every generated HTML gets `<script id="ralph-test-harness">` injected by pipeline (not LLM). Key APIs:
+- `window.__ralph` — `.answer()`, `.endGame()`, `.jumpToRound()`, `.setLives()`, `.getState()`, `.getLastPostMessage()`
+- `syncDOMState()` — syncs `data-phase`/`data-lives`/`data-round`/`data-score` on `#app` every 500ms
+- Shared test helpers: `waitForPhase(page, phase)`, `getLives/getScore/getRound(page)`, `skipToEnd(page, reason)`, `answer(page, correct)`
+- Phase normalization: `game_over` → `gameover`, `game_complete` → `results`, `start_screen` → `start`
+- `extractSpecMetadata(specContent)` and `injectTestHarness(html, specMeta)` exported from `lib/pipeline.js`
 
-Shared boilerplate helpers (in every spec file, not LLM-generated):
-- `waitForPhase(page, phase)` — reads `data-phase` on `#app`; use instead of `toBeVisible` for phase transitions
-- `getLives(page)`, `getScore(page)`, `getRound(page)` — integers from `data-*`, not text/emoji
-- `skipToEnd(page, reason)` — calls `window.__ralph.endGame(reason)` directly
-- `answer(page, correct)` — calls `window.__ralph.answer()` and waits for `isProcessing` to clear
+CDN games must expose `window.endGame = endGame` (local functions defined in DOMContentLoaded are not on window).
 
-`extractSpecMetadata(specContent)` reads interaction type, rounds, lives, star logic from spec.
-`injectTestHarness(html, specMeta)` appends the harness; idempotent (won't double-inject).
-Both exported from `lib/pipeline.js`.
+## Pipeline Lessons
 
-**Harness known issues:**
-- `window.__ralph.endGame('victory')` calls `window.endGame(reason)`. CDN games define `endGame` as a local function inside DOMContentLoaded — NOT on window. Fix prompt now requires `window.endGame = endGame` in the HTML (added to CRITICAL CDN CONSTRAINTS in fix prompt).
-- Phase normalization: harness maps `game_over` → `gameover`, `game_complete` → `results`, `start_screen` → `start`. Tests use normalized names.
-- 0/0 test result (no tests ran) means HTML is broken by last fix — pipeline restores best snapshot.
-
-## Pipeline Fix Lessons (hard-won)
-
-1. **extractHtml** returns entire LLM output when `<!DOCTYPE` appears anywhere. Fixed to slice from first DOCTYPE position (LLMs sometimes add analysis text before the HTML).
-2. **Re-clicking `.correct` cells** times out in Playwright — CSS `pointer-events: none`. Use `{ force: true }` for re-click tests. Fix prompt includes rule; post-gen fixup patches it automatically.
-3. **0/0 test results** = page broken by last fix. Restored best HTML immediately, skip triage.
-4. **`game_over` phase** — game sets `gameState.phase = 'game_over'` (underscore) but tests expect `'gameover'`. Harness normalizes automatically.
-5. **Local `endGame` function** — CDN games define `endGame` inside DOMContentLoaded, not on `window`. Fix prompt now requires `window.endGame = endGame` exposure.
-6. **Triage `window.__ralph undefined`** — `TypeError: Cannot read properties of undefined (reading 'setLives')` means `window.__ralph` itself is undefined → page has JS error → `fix_html`, NOT `skip_test`. Added KNOWN HTML BUGS section to triage prompt.
-7. **Stale BullMQ job replay** — after SIGKILL, active jobs replay on worker restart. Always fail stale DB builds and obliterate queue before requeuing.
-8. **gameState.phase** — must be set at every state transition: `'playing'`, `'transition'`, `'gameover'`, `'results'`. Added as gen prompt rule 15 and fix prompt CDN constraint.
-9. **Early review** — now checks full spec verification checklist (not just 5 items). Catches endGame guard, signalPayload, 100dvh, etc. before test generation.
-10. **MAX_REVIEW_FIX_ATTEMPTS = 3** — increased from 2. Review fix prompt: "Fix ALL issues in ONE pass. Do NOT change anything not mentioned."
-11. **PROOF: doubles game APPROVED** — build 204 (2026-03-19). game-flow: 2/3, mechanics: 2/2, level-progression: 1/1, contract: 1/1. Review APPROVED first pass.
-12. **Playwright cwd fix** — Playwright must be run with `cwd: gameDir` and relative spec paths (not absolute). Absolute paths fail silently: 0/0 results + "test.beforeEach() not expected here" error because Playwright can't match absolute paths to testDir-scanned files.
-13. **Warehouse HTML must have 100dvh + correct gameover phase** — when pipeline overwrites warehouse with approved build, any manual fixes (100dvh CSS, `setPhase('gameover')` in handleGameOver) are lost. Re-apply after each warehouse update.
-14. **gemini-3.1-pro-preview** — correct proxy model name for review step (not `gemini-2.5-pro-preview`). Check `curl -H "Authorization: Bearer $PROXY_KEY" http://localhost:8317/v1/models` for valid names.
-15. **PROOF: doubles APPROVED with 0 fix iterations** — build 208 (2026-03-19). game-flow: 3/3, mechanics: 2/2, level-progression: 1/1, edge-cases: 2/4 (2 skipped), contract: 2/2. All passing on iteration 1.
-16. **Review model catches async/signalPayload/sound patterns** — build 212 (doubles warehouse): rejected for (a) missing `async` on `handleGameOver`/`endGame`, (b) manual `signals:`/`metadata:` props instead of `...signalPayload` spread (omits `events`), (c) `sound.play().catch()` instead of `await sound.play()`. One review-fix pass → APPROVED. These are recurring issues in warehouse HTML.
-17. **Contract `metrics.stars` unfixable by fix loop** — build 212: 3 iterations, still wrong formula. Pipeline APPROVED anyway (8/9). Root cause: triage says "use livesRemaining directly" but LLM keeps guessing. Spec's star formula must be quoted verbatim in triage context to work.
-18. **Sequential batch processing wastes fix iterations** — build 211 (right-triangle-area): game-flow maxed at 0/3 because init fix hadn't happened yet. Mechanics fix (iter 2) fixed the init issue that would have fixed game-flow too, but game-flow was already done. Contract also 0/2. Final score: 7/11 (64%) → APPROVED. A "final re-test" step after all batches would give a more accurate score.
-19. **Step 3b extended to re-test ALL batches (not just zero-score)** — Previously Step 3b only re-tested batches with 0 passes. This missed cross-batch regressions where a later fix degraded an earlier batch from 1-2 passes down to 0. Now Step 3b re-tests every batch with any recorded result and diffs prevPassed/prevFailed against new results to update totalPassed/totalFailed correctly. This gives an accurate final score and catches both improvements (zero-score batches fixed) and regressions (previously-passing batches broken by later fixes).
-20. **PROOF: right-triangle-area APPROVED** — build 211 (2026-03-19). Fresh e2e, no warehouse HTML. game-flow: 0/3 (batch ordering issue), mechanics: 4/4 ✅, level-progression: 1/1 ✅, edge-cases: 2/3 ✅, contract: 0/2 (postMessage timing). 7/11 = 64% → Review APPROVED.
-21. **signalPayload T1 check fires immediately** — build 211+212 both caught ...signalPayload non-spread at Step 1b static validation. Static-fix (claude-sonnet-4-6) fixed it before tests even ran. This is the correct defense-in-depth approach.
-22. **Spec scoring context in fix prompt fixed stars on first try** — build 212 (doubles): contract "Star Rating Logic" fixed by fix-contract-1 on iter 1. The spec scoring section in the fix prompt gave the LLM the exact formula. Previously this failed all 3 iterations (build 209 lesson 17).
-23. **PROOF: doubles APPROVED 10/10** — build 212 (2026-03-20). game-flow: 3/3, mechanics: 3/3, level-progression: 2/2, contract: 2/2. APPROVED first review pass. Zero review rejections.
-24. **BUG (fixed): early-review-2 was reviewing stale pre-fix HTML** — `earlyReviewPrompt` captured `fs.readFileSync(htmlFile)` once at construction time. When `early-review-2` reran after `early-review-fix`, it sent the ORIGINAL broken HTML to Gemini, not the fixed one. This caused every early-review-fix to fail the second review regardless of whether the fix was correct. Fixed by reconstructing the prompt fresh for early-review-2. Build 213 was REJECTED due to this bug; build 214 confirmed the fix.
-25. **Warehouse prebuilt HTML causes generation bypass** — If `warehouse/templates/<gameId>/game/index.html` exists, worker.js copies it to every new build dir, and pipeline.js skips HTML generation entirely (`index.html exists`). For games that have never been approved, a stale/broken warehouse HTML causes every build to reuse the broken file. Delete the warehouse HTML before queuing fresh e2e builds for unproven games.
-26. **Fix LLM CDN URL hallucination causes 0/2 regressions** — When the fix LLM rewrites HTML, it often "corrects" CDN script URLs from `cdn.homeworkapp.ai` (correct) to `cdn.mathai.ai` (wrong — 404s). This makes ALL CDN scripts fail to load, producing a blank page and all tests failing `toBeVisible`. Also: when fixing restart, it removes `gameState.isActive=true; syncDOMState()` from DOMContentLoaded as collateral damage. Both patterns added to CRITICAL CDN CONSTRAINTS in fix prompt.
-
-**INSTRUCTIONS FOR MAINTAINING LESSONS:** Always update this Lessons list after every notable build outcome or pipeline bug fix. Add lesson immediately when: a new pipeline bug is found and fixed, a build proves or disproves a hypothesis, a new failure pattern is discovered, or any hard-won insight that would help avoid repeating a mistake. Never let insights live only in conversation memory.
+See `docs/lessons-learned.md` for 26 accumulated build lessons and proof log. Read before diagnosing failures or modifying pipeline code.
 
 ## Roadmap
 
