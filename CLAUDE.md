@@ -193,6 +193,25 @@ Shared boilerplate helpers (in every spec file, not LLM-generated):
 `injectTestHarness(html, specMeta)` appends the harness; idempotent (won't double-inject).
 Both exported from `lib/pipeline.js`.
 
+**Harness known issues:**
+- `window.__ralph.endGame('victory')` calls `window.endGame(reason)`. CDN games define `endGame` as a local function inside DOMContentLoaded — NOT on window. Fix prompt now requires `window.endGame = endGame` in the HTML (added to CRITICAL CDN CONSTRAINTS in fix prompt).
+- Phase normalization: harness maps `game_over` → `gameover`, `game_complete` → `results`, `start_screen` → `start`. Tests use normalized names.
+- 0/0 test result (no tests ran) means HTML is broken by last fix — pipeline restores best snapshot.
+
+## Pipeline Fix Lessons (hard-won)
+
+1. **extractHtml** returns entire LLM output when `<!DOCTYPE` appears anywhere. Fixed to slice from first DOCTYPE position (LLMs sometimes add analysis text before the HTML).
+2. **Re-clicking `.correct` cells** times out in Playwright — CSS `pointer-events: none`. Use `{ force: true }` for re-click tests. Fix prompt includes rule; post-gen fixup patches it automatically.
+3. **0/0 test results** = page broken by last fix. Restored best HTML immediately, skip triage.
+4. **`game_over` phase** — game sets `gameState.phase = 'game_over'` (underscore) but tests expect `'gameover'`. Harness normalizes automatically.
+5. **Local `endGame` function** — CDN games define `endGame` inside DOMContentLoaded, not on `window`. Fix prompt now requires `window.endGame = endGame` exposure.
+6. **Triage `window.__ralph undefined`** — `TypeError: Cannot read properties of undefined (reading 'setLives')` means `window.__ralph` itself is undefined → page has JS error → `fix_html`, NOT `skip_test`. Added KNOWN HTML BUGS section to triage prompt.
+7. **Stale BullMQ job replay** — after SIGKILL, active jobs replay on worker restart. Always fail stale DB builds and obliterate queue before requeuing.
+8. **gameState.phase** — must be set at every state transition: `'playing'`, `'transition'`, `'gameover'`, `'results'`. Added as gen prompt rule 15 and fix prompt CDN constraint.
+9. **Early review** — now checks full spec verification checklist (not just 5 items). Catches endGame guard, signalPayload, 100dvh, etc. before test generation.
+10. **MAX_REVIEW_FIX_ATTEMPTS = 3** — increased from 2. Review fix prompt: "Fix ALL issues in ONE pass. Do NOT change anything not mentioned."
+11. **PROOF: doubles game APPROVED** — build 204 (2026-03-19). game-flow: 2/3, mechanics: 2/2, level-progression: 1/1, contract: 1/1. Review APPROVED first pass.
+
 ## Roadmap
 
 See `ROADMAP.md` for full tracking across 6 pillars (52 items, 51 done, 1 planned).
