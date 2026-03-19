@@ -8,6 +8,16 @@ Instructions for any agent responsible for managing the Ralph build queue lifecy
 
 **Never let a build run past its useful life.** Running builds consume LLM tokens (Claude/Gemini calls at ~$0.01–0.10 each), compute time on the GCP worker, and Playwright browser resources. Kill a build the moment it no longer serves a purpose.
 
+**But do not kill prematurely.** Silence in the logs does NOT mean hung. Normal step durations:
+- LLM fix call (claude-sonnet): 2–5 min
+- LLM generation call (claude-opus): 3–8 min
+- Gemini test-gen call: 1–3 min
+- Playwright test run (5 tests): 1–3 min
+- Full batch (test + triage + fix + retest): 8–15 min
+- Full build (5 batches × 3 iter): 30–60 min
+
+**Only declare a build hung if:** no new log line for >15 minutes AND the last logged step was an LLM call (not a test run which can silently execute). Check `journalctl --since "15 minutes ago"` before killing.
+
 ---
 
 ## When to Kill a Build Immediately
@@ -35,6 +45,8 @@ After killing: always `db.failBuild(id, 'reason')` to mark it in the DB.
 | Build is on correct pipeline version AND making progress (pass rate increasing) | Let it run |
 | Only 1–2 batches failing and fix LLM is making different attempts each iteration | Let it run |
 | Build is in review step | Let it run — review is fast (<60s) |
+| Last log was <15 min ago during an LLM call | Let it run — LLM calls are silent for 2–8 min |
+| Last log was <5 min ago during Playwright tests | Let it run — tests are silent while executing |
 
 ---
 
