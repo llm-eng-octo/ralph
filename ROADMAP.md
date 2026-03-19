@@ -104,7 +104,7 @@
 | Force-regenerate missing test categories | planned | lib/pipeline.js, server.js | Pipeline skips test gen when ≥1 spec file exists; add per-category regeneration check so missing categories are always generated, not silently skipped |
 | Review rejection → targeted fix loop | planned | lib/pipeline.js | REJECTED verdict currently ends the build; parse rejection reason and feed into a targeted HTML fix iteration before final failure, enabling autonomous recovery |
 | Autonomous spec → APPROVED pipeline | planned | lib/pipeline.js, worker.js | Full end-to-end loop: FAIL/REJECT → extract specific failing checks → targeted fix → retest → re-review, with no manual intervention required |
-| Multi-game scale validation | planned | — | Run pipeline against all specs in warehouse/templates/ to build confidence, surface new failure patterns, and stress-test the fix loop across game types |
+| Multi-game scale validation | in-progress | warehouse/templates/ | 48 games from claude-skills/c_code queued (builds #60-108); concurrency=3; results pending |
 
 ---
 
