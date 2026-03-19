@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (E11-E15 + pipeline improvements shipped/in-progress)
+**Last updated:** March 20, 2026 (E14, E15, contract auto-fix, review consolidation, Slack restructure done)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -86,8 +86,8 @@
 | E11 parallel build generation | done | lib/llm.js per-model semaphore (RALPH_MODEL_CONCURRENCY); RALPH_CONCURRENCY already wired in worker.js |
 | E12 parallel test generation | done | lib/pipeline.js | Promise.all() across 5 categories in Step 2b; saves 60-100s per build |
 | E13 model routing (triage/global/learnings) | done | lib/pipeline.js | TRIAGE_MODEL (gpt-4.1-mini), GLOBAL_FIX_MODEL (claude-opus-4-6), LEARNINGS_MODEL (gpt-4.1-mini) |
-| E14 hardware resource gate | in-progress | worker.js, lib/metrics.js | CPU/RAM gate before job start; system Prometheus metrics |
-| E15 distributed worker support | in-progress | worker.js, docker-compose.scale.yml | RALPH_WORKER_ID, docker-compose.scale.yml, docs/distributed.md |
+| E14 hardware resource gate | done | lib/metrics.js, worker.js | lib/metrics.js system gauges (CPU/RAM/disk); worker.js gate before job start (RALPH_CPU_GATE, RALPH_RAM_GATE_MB); docs/scale-config.md |
+| E15 distributed worker support | done | worker.js, docker-compose.scale.yml | RALPH_WORKER_ID, worker_id in builds table, docker-compose.scale.yml, docs/distributed.md |
 | E6 caching / incremental runs | done | ralph.sh: check_cache/update_cache with sha256sum; gated by RALPH_ENABLE_CACHE=1 |
 | E7 failure pattern database | done | lib/db.js, worker.js, server.js: failure_patterns table, categorization, /api/failure-patterns endpoint |
 | E8 diff-based fix prompts | done | ralph.sh: sends only `<script>` section for HTML >20KB on iteration 2+ |
@@ -114,8 +114,11 @@
 | Deterministic pre-triage | done | lib/pipeline.js | Skip triage LLM for __ralph undefined, visibilityState, pointer-events patterns — saves 30-40% of triage calls |
 | E8 script-only fix (iteration 2+) | done | lib/pipeline.js | Sends only <script> sections for large HTML on iteration 2+; merges fix back into full HTML |
 | Architecture C: global cross-batch fix loop | done | lib/pipeline.js Step 3c | Global fix after per-batch loops; collects all failing batches for cross-category root cause |
-| Contract auto-fix at Step 1b | in-progress | lib/pipeline.js | Static contract errors trigger targeted fix before test loop |
-| Category results in review prompt | in-progress | lib/pipeline.js | Reviewer sees game-flow: 0/3, contract: 2/2 etc. |
+| Contract auto-fix at Step 1b | done | lib/pipeline.js | lib/pipeline.js: contract errors trigger FIX_MODEL call before test loop |
+| Category results in review prompt | done | lib/pipeline.js | lib/pipeline.js: game-flow 0% + overall <70% fails before review; category scorecard in review prompt |
+| Review prompt consolidation | done | lib/pipeline.js | REVIEW_SHARED_GUIDANCE const shared by early-review, re-review, and final review; eliminates drift |
+| Spec-derived fallbackContent | done | lib/pipeline.js | extractSpecRounds() parses spec markdown tables/lists when DOM snapshot rounds are empty |
+| Slack log restructure (Block Kit) | done | worker.js, lib/slack.js | Block Kit templates with dividers, → Next: narration, pipeline-architecture.md |
 | Multi-game scale validation | in-progress | warehouse/templates/ | 47 games queued (builds #217-262); all improvements active |
 
 ---
@@ -129,9 +132,9 @@
 | P2 Spec Compliance | 6 | 0 | 6 |
 | P3 DevOps & Operations | 11 | 0 | 11 |
 | P4 Code Quality | 6 | 0 | 6 |
-| P5 Scalability | 11 | 1 | 14 |
-| P6 Test Generation Quality | 15 | 1 | 19 |
-| **Total** | **69** | **2** | **76** |
+| P5 Scalability | 13 | 1 | 14 |
+| P6 Test Generation Quality | 20 | 1 | 22 |
+| **Total** | **76** | **2** | **79** |
 
 ## What's Next
 
