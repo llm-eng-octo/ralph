@@ -12,12 +12,35 @@ Do not apply rigid rules. Instead, reason from the intent of the spec. Every fin
 - The student already understands the math concept from prior instruction (a video, lesson, or tutorial). This game is practice, not introduction. The game does not need to explain the concept — it needs to correctly exercise it.
 - Never write code in your response. Describe what the spec should say differently, not how to implement it.
 
-For each issue found, output:
-- **Severity**: Critical / Warning / Info
-- **Category**: Concept | Interaction | Promise | Completeness
-- **What the spec says** (quote it)
-- **The problem** (what goes wrong, for this specific game)
-- **Suggested fix** (describe the change in plain language — no code)
+You MUST use this exact format for every finding. Do not deviate from this structure:
+
+```
+### [SEVERITY] [CATEGORY] — [Short title]
+
+**What the spec says:** "[Direct quote from the spec]"
+
+**Problem:** [What goes wrong, for this specific game]
+
+**Suggested fix:** [Describe the change in plain language — no code]
+```
+
+Where:
+- SEVERITY is one of: 🔴 Critical | ⚠️ Warning | ℹ️ Info
+- CATEGORY is one of: Concept | Interaction | Promise | Completeness
+
+Example:
+
+```
+### 🔴 Critical · Interaction — Timer not recreated between rounds
+
+**What the spec says:** "Timer destroyed in endGame() and at start of each new round."
+
+**Problem:** TimerComponent is destroyed but never recreated for the next round. startRound() would crash when calling timer.start() on a null reference.
+
+**Suggested fix:** Add an explicit statement: "At the start of each new round, the previous timer is destroyed and a new TimerComponent is created with startTime: rounds[currentRound].timerSeconds."
+```
+
+Every finding MUST have all three fields (What the spec says, Problem, Suggested fix). Do not merge or skip any field.
 
 ---
 
@@ -95,18 +118,16 @@ Flag anything left undefined or ambiguous:
 
 ### Summary
 
+End with this exact summary table. List each finding as a one-line reference. Do not omit any finding.
+
 ```
-CONCEPT
-- [findings about whether the mechanic correctly exercises the concept]
+| # | Severity | Category      | Title                              |
+|---|----------|---------------|------------------------------------|
+| 1 | Critical | Interaction   | Timer not recreated between rounds |
+| 2 | Warning  | Concept       | Arbitrary distractors              |
+| … | …        | …             | …                                  |
 
-INTERACTION
-- [findings about stuck states, broken flows, or repeated-action failures]
-
-PROMISES
-- [findings about mismatches between what the spec says and what it actually describes happening]
-
-COMPLETENESS
-- [findings about undefined states, missing edge cases, ambiguous spec language]
-
-VERDICT: [Ready for implementation | Needs revision]
+VERDICT: [Ready for implementation | Needs revision — N critical, M warnings]
 ```
+
+If there are any Critical findings, the verdict MUST be "Needs revision".
