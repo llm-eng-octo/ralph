@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 19, 2026
+**Last updated:** March 19, 2026 (post E2E validation #57)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -100,7 +100,7 @@
 | DOM snapshot for test generation context | done | lib/pipeline.js | Headless Playwright captures actual element IDs/classes from running game; injected into test-gen prompts |
 | Per-category pass rate tracking | done | lib/pipeline.js, ralph-report.json | category_results in report; identifies which category consistently fails |
 | Human-run Playwright traces as gold standard | planned | — | Record --trace from a correct human test run; use trace viewer output as ground truth for test generation |
-| `data-testid` attributes in gen prompt | planned | lib/pipeline.js | LLM must add data-testid to all interactive/observable elements; test gen uses data-testid selectors exclusively — eliminates class/ID hallucinations |
+| `data-testid` attributes in gen prompt | done | lib/pipeline.js | Rule 15: LLM adds data-testid to all interactive/observable elements; test gen uses them as primary selectors |
 | Force-regenerate missing test categories | planned | lib/pipeline.js, server.js | Pipeline skips test gen when ≥1 spec file exists; add per-category regeneration check so missing categories are always generated, not silently skipped |
 | Review rejection → targeted fix loop | planned | lib/pipeline.js | REJECTED verdict currently ends the build; parse rejection reason and feed into a targeted HTML fix iteration before final failure, enabling autonomous recovery |
 | Autonomous spec → APPROVED pipeline | planned | lib/pipeline.js, worker.js | Full end-to-end loop: FAIL/REJECT → extract specific failing checks → targeted fix → retest → re-review, with no manual intervention required |
@@ -118,13 +118,12 @@
 | P3 DevOps & Operations | 11 | 0 | 11 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 8 | 1 | 9 |
-| P6 Test Generation Quality | 6 | 6 | 12 |
-| **Total** | **57** | **7** | **64** |
+| P6 Test Generation Quality | 7 | 5 | 12 |
+| **Total** | **58** | **6** | **64** |
 
 ## What's Next
 
-1. **`data-testid` attributes** — add to gen prompt so all interactive/observable elements get stable test hooks; update test gen to use them exclusively
-2. **Force-regenerate missing test categories** — pipeline silently skips categories when ≥1 spec file exists; fix so missing categories are always regenerated
+1. **Force-regenerate missing test categories** — pipeline silently skips categories when ≥1 spec file exists; fix so missing categories are always regenerated
 3. **Review rejection → targeted fix loop** — parse REJECTED reason and attempt an autonomous HTML fix before giving up
 4. **Autonomous spec → APPROVED pipeline** — full self-healing loop with no manual intervention
 5. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline
