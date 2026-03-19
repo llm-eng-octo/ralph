@@ -166,13 +166,21 @@ ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && n
 - Tests fail due to infrastructure issues (e.g. `data-phase` attribute missing because new harness not deployed)
 - The underlying pipeline code was wrong when the build started (redeploy first, then requeue)
 - The build is on iteration 2+ with 0 pass rate and the HTML is clearly wrong
+- The same test fails in iteration 1 and 2 with the same error — root cause is clear, don't wait for iteration 3
 - Never let a broken build run 3 full iterations wasting tokens — kill early and fix the root cause first.
+
+**Parallel work rule (CRITICAL):** Never sit idle waiting for a build. While a build runs:
+- Analyze iteration-1 failures and diagnose root cause
+- Fix code, commit, push, deploy the fix (worker will pick it up for the next build)
+- Kill the running build if the root cause is now known and it can't recover
+- Update docs, memory, or other tasks in parallel
+- Queue the next fixed build before the broken one finishes
 
 ## Test Harness Architecture (Phase 1 — implemented)
 
 Every generated HTML gets `<script id="ralph-test-harness">` injected by pipeline (not LLM):
 - `window.__ralph` — interaction-type-specific shortcuts: `.answer()`, `.endGame()`, `.jumpToRound()`, `.setLives()`, `.getState()`, `.getLastPostMessage()`
-- `syncDOMState()` — keeps `data-phase`/`data-lives`/`data-round`/`data-score` on `#app` current; runs every 500ms
+- `syncDOMState()` — keeps `data-phase`/`data-lives`/`data-round`/`data-score` on `#app` current; runs every 500ms. Uses `gameState.phase` if present (CDN games track their own phase); falls back to computed value. NEVER overwrite if game uses `setPhase()`.
 - postMessage capture — `window.__lastPostMessage` for contract tests
 
 Shared boilerplate helpers (in every spec file, not LLM-generated):
