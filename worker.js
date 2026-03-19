@@ -12,6 +12,7 @@ const gcp = require('./lib/gcp');
 const logger = require('./lib/logger');
 const sentry = require('./lib/sentry');
 const metrics = require('./lib/metrics');
+const { getSystemStats, startSystemMetrics } = metrics;
 
 // ─── Initialize observability + integrations ─────────────────────────────────
 sentry.init('ralph-worker');
@@ -31,6 +32,10 @@ const USE_NODE_PIPELINE = process.env.RALPH_USE_NODE_PIPELINE === '1';
 // Rate limiter: max 10 builds per hour
 const RATE_LIMIT_MAX = parseInt(process.env.RALPH_RATE_MAX || '10', 10);
 const RATE_LIMIT_DURATION = parseInt(process.env.RALPH_RATE_DURATION || '3600000', 10);
+
+// Resource gate thresholds
+const CPU_GATE_PCT = parseFloat(process.env.RALPH_CPU_GATE || '85');
+const RAM_GATE_MB = parseFloat(process.env.RALPH_RAM_GATE_MB || '512');
 
 // ─── E7: Failure categorization ───────────────────────────────────────────────
 function categorizeFailure(failureDesc) {
@@ -290,6 +295,16 @@ const worker = new Worker(
 
     const { gameId, commitSha, buildId, specUrl, specContent } = job.data;
     let { specPath } = job.data;
+
+    // ─── Resource gate ────────────────────────────────────────────────────────
+    const stats = await getSystemStats();
+    if (stats.cpuPct > CPU_GATE_PCT || stats.freeMemMb < RAM_GATE_MB) {
+      logger.warn(
+        `[worker] Resource gate: CPU=${stats.cpuPct.toFixed(1)}% RAM_FREE=${stats.freeMemMb.toFixed(0)}MB — delaying 30s`,
+      );
+      await new Promise((r) => setTimeout(r, 30000));
+      // re-check once after delay (don't loop — just delay once and proceed)
+    }
 
     logger.info(`Processing job ${job.id}: ${gameId}`, { gameId, buildId, event: 'build_start' });
     metrics.recordBuildStarted(gameId);
