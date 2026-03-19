@@ -737,6 +737,17 @@ const worker = new Worker(
         return;
       }
 
+      // ── spec-validated ───────────────────────────────────────────────────────
+      if (step === 'spec-validated') {
+        if (detail?.warnings > 0) {
+          const warningList = (detail.warningList || []).map(w => `• ${w}`).join('\n');
+          const bodyText = `⚠️ *Spec warnings (${detail.warnings})*\n${warningList}`;
+          const blocks = [divider(), mrkdwn(bodyText)];
+          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
+        }
+        return;
+      }
+
       // ── suppress noisy low-value steps ──────────────────────────────────────
       const silentSteps = new Set(['validate-spec', 'static-validation', 'generate-test-cases', 'dom-snapshot', 'dom-snapshot-ready', 'early-review', 'contract-static-fix', 'global-fix-prompt', 'global-fix-rolled-back', 'review-fix', 'review-fix-applied']);
       if (silentSteps.has(step)) return;
