@@ -920,7 +920,7 @@ const worker = new Worker(
           console.log(`[worker] Using pre-built HTML from warehouse for ${gameId} (skipping generation)`);
         }
         console.log(`[worker] Running Node.js pipeline (E3) for ${gameId}, build dir: ${gameDir}`);
-        report = await runPipeline(gameDir, specFile, { metrics, logger, onProgress });
+        report = await runPipeline(gameDir, specFile, { metrics, logger, onProgress, buildId });
       } else {
         report = await runRalph(gameId, specPath, buildId);
       }

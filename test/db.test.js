@@ -130,4 +130,35 @@ describe('db', () => {
     assert.equal(found.status, 'running');
     assert.equal(found.game_id, 'orphan-test');
   });
+
+  it('updateBuildSpecKeywords stores keywords as JSON array', () => {
+    const id = db.createBuild('kw-test', null);
+    db.updateBuildSpecKeywords(id, ['part-012', 'feedbackmanager', 'screenlayout']);
+    const build = db.getBuild(id);
+    assert.ok(build.spec_keywords, 'spec_keywords should be set');
+    const kws = JSON.parse(build.spec_keywords);
+    assert.ok(Array.isArray(kws), 'spec_keywords should parse to an array');
+    assert.ok(kws.includes('part-012'));
+    assert.ok(kws.includes('feedbackmanager'));
+    assert.ok(kws.includes('screenlayout'));
+  });
+
+  it('updateBuildSpecKeywords stores empty array when called with no keywords', () => {
+    const id = db.createBuild('kw-empty-test', null);
+    db.updateBuildSpecKeywords(id, []);
+    const build = db.getBuild(id);
+    const kws = JSON.parse(build.spec_keywords);
+    assert.ok(Array.isArray(kws));
+    assert.equal(kws.length, 0);
+  });
+
+  it('updateBuildSpecKeywords is idempotent — second call overwrites first', () => {
+    const id = db.createBuild('kw-overwrite-test', null);
+    db.updateBuildSpecKeywords(id, ['part-001', 'oldkeyword']);
+    db.updateBuildSpecKeywords(id, ['part-002', 'newkeyword']);
+    const build = db.getBuild(id);
+    const kws = JSON.parse(build.spec_keywords);
+    assert.ok(kws.includes('newkeyword'), 'second call should overwrite');
+    assert.ok(!kws.includes('oldkeyword'), 'first call values should be gone');
+  });
 });

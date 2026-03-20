@@ -8,7 +8,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords, getCategoryBoost } = require('../lib/pipeline');
+const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords, getCategoryBoost, deriveRelevantCategories } = require('../lib/pipeline');
 
 describe('pipeline.js extractHtml', () => {
   it('extracts HTML from ```html code block', () => {
@@ -542,6 +542,125 @@ describe('pipeline.js getCategoryBoost', () => {
       const bullets = result.split('\n').filter(Boolean);
       assert.ok(bullets.length >= 2, 'should have at least 2 bullets');
       assert.ok(bullets[0].includes('[contract]'), `contract entry should be first, got: ${bullets[0]}`);
+    } finally {
+      if (originalDb) {
+        require.cache[dbPath] = originalDb;
+      } else {
+        delete require.cache[dbPath];
+      }
+      if (originalPipeline) {
+        require.cache[pipelinePath] = originalPipeline;
+      } else {
+        delete require.cache[pipelinePath];
+      }
+      delete require.cache[pipelinePath];
+      require('../lib/pipeline');
+    }
+  });
+});
+
+describe('pipeline.js deriveRelevantCategories', () => {
+  it('is exported as a function', () => {
+    assert.equal(typeof deriveRelevantCategories, 'function');
+  });
+
+  it('returns null when specKeywords is null', () => {
+    assert.equal(deriveRelevantCategories(null), null);
+  });
+
+  it('returns null when specKeywords is empty Set', () => {
+    assert.equal(deriveRelevantCategories(new Set()), null);
+  });
+
+  it('always includes contract and general', () => {
+    const cats = deriveRelevantCategories(new Set(['fraction', 'tile']));
+    assert.ok(cats instanceof Set);
+    assert.ok(cats.has('contract'));
+    assert.ok(cats.has('general'));
+  });
+
+  it('adds cdncompat when any PART-xxx keyword is present', () => {
+    const cats = deriveRelevantCategories(new Set(['part-012', 'fraction']));
+    assert.ok(cats.has('cdncompat'));
+  });
+
+  it('does NOT add cdncompat when no PART-xxx keyword present', () => {
+    const cats = deriveRelevantCategories(new Set(['fraction', 'tile', 'feedbackmanager']));
+    assert.ok(!cats.has('cdncompat'));
+  });
+
+  it('adds audio when feedbackmanager is in keywords', () => {
+    const cats = deriveRelevantCategories(new Set(['feedbackmanager']));
+    assert.ok(cats.has('audio'));
+  });
+
+  it('adds layout when screenlayout is in keywords', () => {
+    const cats = deriveRelevantCategories(new Set(['screenlayout']));
+    assert.ok(cats.has('layout'));
+  });
+
+  it('adds all relevant categories when all signals present', () => {
+    const kws = new Set(['part-001', 'feedbackmanager', 'screenlayout', 'fraction']);
+    const cats = deriveRelevantCategories(kws);
+    assert.ok(cats.has('contract'));
+    assert.ok(cats.has('general'));
+    assert.ok(cats.has('cdncompat'));
+    assert.ok(cats.has('audio'));
+    assert.ok(cats.has('layout'));
+  });
+
+  it('SQL pre-filter: getRelevantLearnings only returns matching categories when specContent given', () => {
+    // Spec mentions FeedbackManager (CDN) and PART-012 — expect audio+cdncompat+contract+general
+    // A 'layout' row should NOT appear (screenlayout not in spec)
+    const allRows = [
+      { content: 'feedbackmanager fire and forget to avoid blocking audio calls', category: 'audio' },
+      { content: 'screenlayout vertical must set height 100percent to avoid overflow', category: 'layout' },
+      { content: 'always expose window endGame for contract tests', category: 'contract' },
+    ];
+    const spec = '## CDN\nFeedbackManager\nPART-012\n\n## Game Mechanics\nplayer answers fraction question\n';
+
+    const dbPath = require.resolve('../lib/db');
+    const pipelinePath = require.resolve('../lib/pipeline');
+    const originalDb = require.cache[dbPath];
+    const originalPipeline = require.cache[pipelinePath];
+    try {
+      // Mock db so we can verify which rows are requested
+      let capturedSql = null;
+      require.cache[dbPath] = {
+        id: dbPath,
+        filename: dbPath,
+        loaded: true,
+        exports: {
+          getDb: () => ({
+            prepare: (sql) => ({
+              all: (...params) => {
+                capturedSql = sql;
+                // Filter rows by category to simulate SQL WHERE clause
+                const inClauseMatch = sql.match(/l\.category IN \(([^)]+)\)/);
+                if (inClauseMatch) {
+                  // params[0] = gameId, then category placeholders, last = limit
+                  const catEnd = params.length - 1;
+                  const cats = new Set(params.slice(1, catEnd));
+                  return allRows.filter((r) => cats.has(r.category));
+                }
+                return allRows;
+              },
+            }),
+          }),
+        },
+      };
+      delete require.cache[pipelinePath];
+      const { getRelevantLearnings: freshFn } = require('../lib/pipeline');
+      const result = freshFn('other-game', spec, 10);
+      assert.ok(result !== null, 'should return a string');
+      // layout row should NOT appear (screenlayout not mentioned in spec)
+      assert.ok(!result.includes('screenlayout'), `layout row should be excluded by SQL filter, got: ${result}`);
+      // audio row SHOULD appear (feedbackmanager in spec)
+      assert.ok(result.includes('feedbackmanager'), 'audio row should be included');
+      // contract row SHOULD appear (always included)
+      assert.ok(result.includes('endGame'), 'contract row should be included');
+      // SQL should contain IN clause
+      assert.ok(capturedSql && capturedSql.includes('IN'), 'SQL should use IN pre-filter');
     } finally {
       if (originalDb) {
         require.cache[dbPath] = originalDb;
