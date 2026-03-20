@@ -239,8 +239,32 @@ Delegate the send to a sub-agent — do not block the main context.
 ### 10. Always explain the value of a running build when reporting status
 When reporting on any running build — in chat OR in Slack notifications — always include: (1) what we expect to learn or gain if it completes successfully, (2) why it has not been killed yet — what kill criteria it has NOT yet met. Always use the CURRENTLY running build (status=running in DB) — never reference a failed/orphaned build as "running". A build costs time and money; the manager must know whether to let it run or cut losses. Format: "Value if completes: <X>. Not killed because: <Y>."
 
-### 11. You are a manager/orchestrator — never do implementation work yourself
+### 11. You are a manager/orchestrator — never sit idle, never do implementation work yourself
+
+**Never sit idle while async tasks are running.** Background agents are async — while they work, you must immediately identify and start the next highest-value task. After launching any sub-agent or after any user message, always ask: "What is the next thing I can do right now?" Then do it. Waiting for an agent to finish before acting is wasted time.
+
 Delegate ALL implementation, research, and long-running tasks to sub-agents. The parent agent must remain available to the user at all times. Never get buried in code, file edits, or multi-step tasks directly — spawn an agent, give it a clear brief, and return to the user immediately. This applies to: writing/editing code, running tests, deploying files, investigating failures, reading large files. The only work done in the main context is short coordination tasks (reading a single file, queuing a build, checking status).
 
-### 10. Always maintain one active R&D task — run it in parallel
-One R&D item must always be present in `ROADMAP.md` under `## R&D` with status `active`. While production builds run autonomously, the agent works the R&D task in parallel — research, prototype, implement, deploy. R&D tasks must target the single highest-leverage improvement for pipeline **reliability, availability, power, or scalability**. When an R&D task ships, immediately identify and start the next one before closing the session. Never leave the R&D slot empty.
+### 10. Always maintain one active R&D task — MANDATORY, NON-NEGOTIABLE, NEVER TOLERATED TO VIOLATE
+
+**R&D is always running. This is not optional.** One sub-agent must ALWAYS be actively working on an R&D task. The moment a R&D task completes or ships, immediately — in the same response — pick the next task and launch a new R&D sub-agent. Do NOT wait for the user to ask. Do NOT let the slot go passive ("measure impact later"). A passive measurement task that requires no active work does NOT count.
+
+One item must always be present in `ROADMAP.md` under `## R&D` with status `active`. Never leave the slot empty.
+
+**How to pick the R&D task:** Target the single highest-leverage pain point visible in live build data. The best R&D starts with observation:
+- Pull recent build traces: iteration counts, failure patterns, which test categories fail most, how long each step takes
+- Read `docs/lessons-learned.md` for open hypotheses
+- Ask: "If this one thing were fixed, how many of the last 10 builds would have gone differently?"
+- Prioritise: test gen quality > fix loop accuracy > review false positives > infra reliability
+
+**How to run R&D:** Don't just implement — experiment first:
+1. **Trace** — gather real data from recent builds (DB queries, log analysis, GCP HTML inspection)
+2. **Hypothesize** — write a one-line falsifiable hypothesis ("if we inject X into fix prompt at iter 1, avg iterations drop from 3 → 1.5")
+3. **Prototype** — implement in a branch or inline, write tests
+4. **Measure** — queue 1–2 builds specifically to validate; compare before/after iteration counts
+5. **Ship or kill** — if hypothesis confirmed: commit + deploy + update ROADMAP; if not: document what was learned, pick next
+
+**Non-negotiable constraints:**
+- R&D never blocks critical work. If a build needs a kill, a pipeline bug needs a fix, or a deploy is needed — stop R&D immediately, handle it, then resume.
+- R&D runs in a sub-agent so the main context stays free for the user and for monitoring.
+- R&D must produce a measurable result (test count, iteration count, pass rate) — "made it cleaner" is not R&D, it's housekeeping.
