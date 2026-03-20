@@ -423,6 +423,11 @@ const worker = new Worker(
     const onProgress = (step, detail) => {
       console.log(`[worker] progress: ${step}`, detail);
 
+      // Renew BullMQ lock on every progress event to prevent stalled-job failures
+      // during long LLM/Playwright calls that block event loop renewToken().
+      const progressData = { step, ...(detail || {}) };
+      job.updateProgress(progressData).catch(() => {});
+
       // ── Track LLM call count and current step (used in parent message updates) ──
       if (detail?.llmCalls != null) llmCallCount = detail.llmCalls;
       else if (step === 'html-ready' || step === 'tests-generated' || step === 'html-fixed' || step === 'review-complete') {
@@ -901,6 +906,27 @@ const worker = new Worker(
       const tmpSpecPath = path.join(tmpSpecDir, 'spec.md');
       await fetchSpec(specUrl, tmpSpecPath);
       specPath = tmpSpecPath;
+    }
+
+    // Warehouse hygiene gate: delete stale HTML if game not approved.
+    // Prevents pipeline from reusing broken HTML from prior failed builds.
+    // pipeline.js checks fs.existsSync(htmlFile) && size > 5000 — if true, it skips
+    // HTML generation entirely, causing every build to reuse the same broken output.
+    const warehouseHtmlPath = path.join(
+      process.env.RALPH_WAREHOUSE_DIR ||
+        path.join(__dirname, 'warehouse', 'templates'),
+      gameId,
+      'game',
+      'index.html'
+    );
+    if (fs.existsSync(warehouseHtmlPath)) {
+      const gameRecord = db.getGame(gameId);
+      if (!gameRecord || gameRecord.status !== 'approved') {
+        fs.unlinkSync(warehouseHtmlPath);
+        logger.info(
+          `[worker] Deleted stale warehouse HTML for ${gameId} (game status: ${gameRecord?.status ?? 'unknown'})`
+        );
+      }
     }
 
     // Run Ralph — E3: choose between bash (ralph.sh) and Node.js (pipeline.js)
