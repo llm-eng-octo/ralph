@@ -731,6 +731,67 @@ describe('pipeline-fix-loop.js isInitFailure', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Tests for detectRenderingMismatch (P8 — deterministic pre-triage)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js detectRenderingMismatch', () => {
+  const { detectRenderingMismatch } = require('../lib/pipeline-fix-loop');
+
+  it('returns true when 4 failures all contain toBeVisible (threshold is >3)', () => {
+    const failures = [
+      'expect(locator).toBeVisible() — element not visible',
+      'expect(locator).toBeVisible() — element not found',
+      'expect(locator).toBeVisible() — element hidden by CSS',
+      'expect(locator).toBeVisible() — timed out waiting for element',
+    ];
+    assert.equal(detectRenderingMismatch(failures), true);
+  });
+
+  it('returns false when exactly 3 failures contain toBeVisible (threshold is >3, not >=3)', () => {
+    const failures = [
+      'expect(locator).toBeVisible() — element not visible',
+      'expect(locator).toBeVisible() — element not found',
+      'expect(locator).toBeVisible() — element hidden',
+    ];
+    assert.equal(detectRenderingMismatch(failures), false);
+  });
+
+  it('returns true when 2 toBeVisible + 2 toBeHidden (mixed, total 4)', () => {
+    const failures = [
+      'expect(locator).toBeVisible() — element not visible',
+      'expect(locator).toBeVisible() — not found',
+      'expect(locator).toBeHidden() — element is visible',
+      'expect(locator).toBeHidden() — element unexpectedly visible',
+    ];
+    assert.equal(detectRenderingMismatch(failures), true);
+  });
+
+  it('returns false for an empty array', () => {
+    assert.equal(detectRenderingMismatch([]), false);
+  });
+
+  it('returns false when 4 failures exist but none contain toBeVisible or toBeHidden', () => {
+    const failures = [
+      'Expected: 5, Received: 3 — score mismatch',
+      'waitForPhase timed out after 10s',
+      'net::ERR_CONNECTION_REFUSED',
+      'TypeError: window.__ralph is not defined',
+    ];
+    assert.equal(detectRenderingMismatch(failures), false);
+  });
+
+  it('matches toBeVisible case-insensitively (TOBEVISIBLE, ToBeVisible)', () => {
+    const failures = [
+      'TOBEVISIBLE assertion failed',
+      'ToBeVisible check failed',
+      'tobevisible element missing',
+      'TOBEVISIBLE timeout exceeded',
+    ];
+    assert.equal(detectRenderingMismatch(failures), true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tests for global fix loop 0/0 false-pass guard
 // Verifies that a batch returning passed=0, failed=0, total=0 (page crash /
 // corrupted HTML) is NOT treated as "all tests pass" — it must be placed in
