@@ -395,3 +395,27 @@ RALPH_REVIEW_MODEL=gemini-3.1-pro-preview
 Gemini uses API key authentication (not OAuth) and is unaffected by Claude org restrictions. Pipeline runs fully on Gemini until Claude auth is restored.
 
 **How to apply:** If both `claude -p` and CLIProxyAPI Claude calls fail, check Gemini availability with a direct proxy test (`curl ... -d '{"model":"gemini-3.1-pro-preview"...}'`). If Gemini works, switch all `RALPH_*_MODEL` vars to gemini and restart worker. The pipeline quality difference is minimal — Gemini 3.1 Pro Preview is capable of full pipeline execution.
+
+## Lesson 63 — skip_test vs skip_tests triage decision mismatch
+
+**Issue:** The LLM triage prompt instructed returning `"skip_test"` (singular) in the decision description text, but the pipeline code checked for `"skip_tests"` (plural). The LLM consistently followed the description wording rather than the JSON schema example, so the pipeline never saw `skip_tests` — it fell through to `fix_html` on every call where skip was intended.
+
+**Root cause:** Inconsistency between `prompts.js` line 751 (description said `"skip_test"`) and line 768 JSON schema (used `"skip_tests"`) plus the `pipeline-fix-loop.js` check for `"skip_tests"`.
+
+**Fix:** Added normalization `if (triageDecision === 'skip_test') triageDecision = 'skip_tests'` after JSON parse. Also fixed the prompt JSON schema to use `skip_test` consistently. Commit 5158275.
+
+**Impact:** All builds where the LLM returned `skip_test` (singular) had unnecessary fix LLM calls run, which often corrupted the HTML — causing 0/0 cascade failures on the next iteration.
+
+**Prevention:** When adding new decision values to triage, ensure the prompt description text, the JSON schema example, and all code checks use exactly the same string. A normalization alias is a useful safety net but the root cause is always prompt/code mismatch.
+
+## Lesson 64 — Non-CDN games got CDN startGame() helper causing all tests to timeout
+
+**Issue:** The `sharedBoilerplate` in `pipeline-test-gen.js` always included a `startGame()` helper that clicked `#mathai-transition-slot button`. For non-CDN games (no CDN ScreenLayout), this button does not exist. Every test that called `startGame()` timed out, triage marked all tests as skip, all spec files were deleted, and the build failed with 0/0 across all categories.
+
+**Detection signal:** Triage rationale saying "startGame helper hardcodes a wait and click for '#mathai-transition-slot button', which times out on non-CDN games". All 5 categories affected simultaneously with skip_tests.
+
+**Fix:** `startGame()` and `clickNextLevel()` are now conditional on `hasTransitionSlot`. For non-CDN games they try generic button selectors (Start/Play/Begin, `.start-btn`) then fall back to `waitForPhase(page, 'playing')`. Commit 3df4a3e.
+
+**Detection:** `hasTransitionSlot` is derived by checking whether the HTML or domSnapshot contains `mathai-transition-slot`. Non-CDN games (e.g., adjustment-strategy, game-type templates) must use the new phase-based `startGame()` path.
+
+**How to apply:** If a non-CDN build has all 5 categories skip_tests on iteration 1 and the triage rationale mentions the transition-slot button, verify `hasTransitionSlot` is being computed correctly from the HTML content. The fallback `startGame()` tries three generic button selectors before falling back to phase waiting — if none of those match the game's actual start button, add the correct selector to the fallback list.
