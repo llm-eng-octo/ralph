@@ -361,6 +361,70 @@ describe('validate-static.js', () => {
     assert.ok(!output.includes('isActive/isProcessing guard'), `Unexpected isActive warning: ${output}`);
   });
 
+  it('does not warn W3 when all buttons have data-testid', () => {
+    // All interactive elements have data-testid — no W3 warning expected
+    const html = VALID_HTML.replace(
+      '</script>',
+      `// buttons with data-testid
+  document.getElementById('answers').innerHTML =
+    '<button data-testid="option-0">A</button>' +
+    '<button data-testid="option-1">B</button>' +
+    '<button data-testid="btn-restart">Restart</button>';
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(!output.includes('W3'), `Unexpected W3 warning: ${output}`);
+  });
+
+  it('warns W3 when 3 buttons have no data-testid', () => {
+    // 3 buttons, none have data-testid — W3 warning expected
+    const html = VALID_HTML.replace(
+      'document.getElementById(\'questionText\').textContent = a + \' x \' + b + \' = ?\';',
+      `document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+    document.getElementById('answers').innerHTML =
+      '<button>A</button><button>B</button><button>C</button>';`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('W3'), `Expected W3 warning but got: ${output}`);
+    assert.ok(output.includes('data-testid'), `Expected data-testid mention but got: ${output}`);
+  });
+
+  it('does not warn W3 when exactly half buttons lack data-testid (50% threshold)', () => {
+    // 4 buttons, 2 have data-testid (50% missing = exactly at threshold, not >50%) — no warning
+    const html = VALID_HTML.replace(
+      'document.getElementById(\'questionText\').textContent = a + \' x \' + b + \' = ?\';',
+      `document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+    document.getElementById('answers').innerHTML =
+      '<button data-testid="option-0">A</button>' +
+      '<button data-testid="option-1">B</button>' +
+      '<button>C</button>' +
+      '<button>D</button>';`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(!output.includes('W3'), `Unexpected W3 warning: ${output}`);
+  });
+
+  it('warns W3 when 4 of 5 buttons lack data-testid (80% missing)', () => {
+    // 5 buttons, 4 lack data-testid (80% > 50%) — W3 warning expected
+    const html = VALID_HTML.replace(
+      'document.getElementById(\'questionText\').textContent = a + \' x \' + b + \' = ?\';',
+      `document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+    document.getElementById('answers').innerHTML =
+      '<button data-testid="option-0">A</button>' +
+      '<button>B</button>' +
+      '<button>C</button>' +
+      '<button>D</button>' +
+      '<button>E</button>';`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('W3'), `Expected W3 warning but got: ${output}`);
+    assert.ok(output.includes('4/5'), `Expected 4/5 count in warning but got: ${output}`);
+  });
+
   it('exits with code 2 when no file argument given', () => {
     try {
       execFileSync('node', [VALIDATOR], { encoding: 'utf-8', timeout: 5000 });
