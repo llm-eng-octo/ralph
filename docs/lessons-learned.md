@@ -447,3 +447,15 @@ Gemini uses API key authentication (not OAuth) and is unaffected by Claude org r
 **Fix:** Before Step 3b in the fix loop, subtract deleted batches' counts from `totalPassed`/`totalFailed` and zero out their `category_results` entry. Commit dc20844.
 
 **How to apply:** If a build FAILED without any review logs and the test_results in DB show some categories with all failures (0/N passing) that match categories that were skip_tests'd, this was the bug. Post-fix, deleted batches are removed from the passRate calculation.
+
+## Lesson 67: FeedbackManager.init() in spec initialization blocks causes CDN smoke-check failure
+
+**Date:** 2026-03-20  
+**Games affected:** associations (3 consecutive failures at CDN smoke check), + 18 more specs with same pattern  
+**Root cause:** The spec quality fix (R&D session 2026-03-20) replaced `await FeedbackManager.init()` in 48/50 specs, but missed instances formatted as `   - FeedbackManager.init()` (with 3-space indent bullet syntax, no `await`). These were still interpreted by the LLM as executable init code. When `FeedbackManager.init()` runs during `waitForPackages()` callback, it shows a blocking audio popup that prevents `ScreenLayout.inject()` from being called → #gameContent never created → smoke check fails with "Blank page: missing #gameContent element".
+
+**Fix:** Replaced `   - FeedbackManager.init()` with `   - // DO NOT call FeedbackManager.init() — PART-015 auto-inits on load. Calling it shows a blocking audio popup that breaks all tests.` across 20 specs (associations, bubbles-pairs, connect, crazy-maze, disappearing-numbers, doubles, explain-the-pattern, free-the-key, hidden-sums, identify-pairs-list, jelly-doods, kakuro, keep-track, listen-and-add, loop-the-loop, matching-doubles, queens, truth-tellers-liars, two-digit-doubles-aided, template-schema).
+
+**Proof:** associations #398 (next build after fix) should not hit CDN smoke check failure.
+
+**Pattern to watch:** Any spec that says `FeedbackManager.init()` without `await` prefix in a bullet list is still dangerous — LLM generates it as executable code.
