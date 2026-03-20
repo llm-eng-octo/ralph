@@ -204,8 +204,7 @@ async function runRalph(gameId, specPath, _buildId) {
       cwd: __dirname,
     });
   } catch (err) {
-    // ralph.sh exits non-zero for FAILED/REJECTED — that's expected
-    // Only treat as error if no report was produced
+    // critical: ralph.sh exits non-zero for FAILED/REJECTED — that's expected; only rethrow if no report was produced
     if (!fs.existsSync(reportFile)) {
       throw new Error(`ralph.sh crashed without producing a report: ${err.message}`);
     }
@@ -362,7 +361,7 @@ const worker = new Worker(
         fs.readFileSync(specFilePath, 'utf-8'),
         `games/${gameId}/builds/${buildId}/spec.md`,
         { contentType: 'text/markdown' },
-      ).catch(() => null);
+      ).catch(() => null); // cosmetic: spec link in Slack is optional; GCP failure must not abort thread creation
       if (gcpSpecUrl) specLink = slack.formatLink(gcpSpecUrl, '📄 Spec');
     }
 
@@ -372,7 +371,7 @@ const worker = new Worker(
         buildPipelineDocsMarkdown({ gameId, buildId, genModel: pipelineGenModel, testModel: pipelineTestModel, fixModel: pipelineFixModel, maxIterations: pipelineMaxIterations }),
         `games/${gameId}/builds/${buildId}/pipeline-docs.md`,
         { contentType: 'text/markdown' },
-      ).catch(() => null);
+      ).catch(() => null); // cosmetic: pipeline docs link in Slack is optional; GCP failure must not abort thread creation
       if (docsUrl) pipelineDocsLink = slack.formatLink(docsUrl, '📖 Pipeline Docs');
     }
 
@@ -424,7 +423,7 @@ const worker = new Worker(
       // Renew BullMQ lock on every progress event to prevent stalled-job failures
       // during long LLM/Playwright calls that block event loop renewToken().
       const progressData = { step, ...(detail || {}) };
-      job.updateProgress(progressData).catch(() => {});
+      job.updateProgress(progressData).catch(() => {}); // cosmetic: lock renewal failure must not abort the job
 
       // ── Track LLM call count and current step (used in parent message updates) ──
       if (detail?.llmCalls != null) llmCallCount = detail.llmCalls;
@@ -874,6 +873,7 @@ const worker = new Worker(
                 `📋 *Test cases generated* (${detail.testCases.length} total, ${Object.keys(byCategory).join(', ')})`).catch(() => {});
             }
           } catch (err) {
+            // degraded: test case GCP upload is for Slack preview only; failure must not affect build outcome
             console.warn(`[worker] Failed to upload test cases: ${err.message}`);
           }
         })();
@@ -906,6 +906,7 @@ const worker = new Worker(
           console.log(`[worker] Git pull completed (no change)`);
         }
       } catch (err) {
+        // degraded: git pull is an optional hot-reload; network or repo errors must not block the build
         console.warn(`[worker] Git pull failed (continuing): ${err.message}`);
       }
     }
@@ -970,7 +971,7 @@ const worker = new Worker(
         report = await runRalph(gameId, specPath, buildId);
       }
     } catch (err) {
-      // Record metrics even on failure
+      // critical: pipeline crash — record metrics + DB failure, then rethrow so BullMQ marks the job failed
       const buildDuration = (Date.now() - buildStartTime) / 1000;
       metrics.recordBuildCompleted(gameId, 'CRASHED', buildDuration, 0);
       transaction.setStatus && transaction.setStatus('error');
@@ -994,7 +995,9 @@ const worker = new Worker(
       if (buildRecord?.iteration_html_urls) {
         try {
           report.iteration_html_urls = JSON.parse(buildRecord.iteration_html_urls);
-        } catch (_) {}
+        } catch (_) {
+          // cosmetic: iteration URL map is optional report enrichment; malformed JSON must not crash post-build steps
+        }
       }
     }
 
