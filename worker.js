@@ -421,7 +421,13 @@ const worker = new Worker(
     // Progress callback for Slack thread updates
     const phaseStarts = {};
     const onProgress = (step, detail) => {
-      console.log(`[worker] progress: ${step}`, detail);
+      const _logParts = [step];
+      if (detail?.model) _logParts.push(`model=${detail.model}`);
+      if (detail?.time != null) _logParts.push(`elapsed=${detail.time}s`);
+      if (detail?.gameId) _logParts.push(`game=${detail.gameId}`);
+      if (detail?.passed != null && detail?.total != null) _logParts.push(`${detail.passed}/${detail.total}`);
+      if (detail?.iteration != null) _logParts.push(`iter=${detail.iteration}`);
+      console.log(`[worker] ${_logParts.join(' | ')}`);
 
       // Renew BullMQ lock on every progress event to prevent stalled-job failures
       // during long LLM/Playwright calls that block event loop renewToken().
