@@ -11,6 +11,12 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 | 211 | right-triangle-area | APPROVED | 7/11 (64%) | Sequential batch ordering issue; game-flow: 0/3, mechanics: 4/4, level-progression: 1/1, edge-cases: 2/3, contract: 0/2 |
 | 212 | doubles | APPROVED | 10/10 | Zero review rejections; game-flow: 3/3, mechanics: 3/3, level-progression: 2/2, contract: 2/2 |
 | 226 | match-the-cards | APPROVED | 12/12 | First scale-run APPROVED (~33 min). game-flow: 2/2 (iter 2), mechanics: 4/4 (iter 3), level-progression: 1/1, edge-cases: 3/3, contract: 2/2 (iter 2). Early review APPROVED first attempt. Final review rejected twice (CDN domain + waitForPackages timeout), APPROVED 3rd attempt. |
+| 384 | matching-doubles | APPROVED | — | Gemini-only mode. First build with new pipeline. |
+| 385 | adjustment-strategy | APPROVED | — | Non-CDN game. Global fix loop triggered 2 spurious calls (Lesson 65 bug, pre-fix). APPROVED. |
+| 386 | bubbles-pairs | APPROVED | — | Passed all per-batch loops iter=1. Review rejected twice (postMessage+calcStars), fixed in 2 review-fix cycles. APPROVED. |
+| 388 | zip | APPROVED | — | Review passed on FIRST attempt (32s). First build with new review rejection gen-prompt fixes. |
+| 387 | interactive-chat | FAILED | 5/12 | Lesson 66 bug: mechanics+level-prog spec files deleted → passRate=42% → FAILED before review. Fixed in dc20844. Re-queued as #390. |
+| 389 | kakuro | FAILED | — | Early-review-fix broke CDN init → smoke-regen also failed. Re-queued as #391. |
 
 ## Pipeline Fix Lessons
 
@@ -429,3 +435,15 @@ Gemini uses API key authentication (not OAuth) and is unaffected by Claude org r
 **Fix:** In the global fix loop, check `existingBatchFiles = batch.filter(f => fs.existsSync(f))` before running Playwright. If all files are missing (length === 0), treat the batch as passing and skip. Commit 749a2f1.
 
 **How to apply:** Any time a category shows 0/0 in the global loop immediately after per-batch triage, check whether the spec file was deleted. If it was, the issue was this bug (pre-fix). Post-fix, deleted batches are silently skipped in the global loop.
+
+## Lesson 66 — Deleted batch spec files cause passRate < 0.5 false-fail before review
+
+**Issue:** When triage deletes all spec files in a batch (skip_tests), the per-batch fix loop records those test counts as failures in `totalFailed` (line 861 of pipeline-fix-loop.js). Step 3b (final re-test) only re-tests batches with existing spec files — it never corrects the deleted batch counts. This means `passRate = totalPassed / (totalPassed + totalFailed)` still includes the deleted test failures, potentially pushing it below the 0.5 threshold at Step 4, causing a FAILED before review even when all remaining tests pass.
+
+**Example:** Build #387 interactive-chat — mechanics (0/6) + level-progression (0/1) deleted by triage. Remaining passing tests: game-flow:2, edge-cases:1, contract:2 = 5 passed, 7 failed. passRate = 5/12 = 42% < 50% → FAILED before review.
+
+**Detection signal:** Build FAILED immediately after `[gcp] Uploaded games/.../index.html` with no Step 4 review logs. DB shows `status=failed`, all final re-test batches show 0 failures.
+
+**Fix:** Before Step 3b in the fix loop, subtract deleted batches' counts from `totalPassed`/`totalFailed` and zero out their `category_results` entry. Commit dc20844.
+
+**How to apply:** If a build FAILED without any review logs and the test_results in DB show some categories with all failures (0/N passing) that match categories that were skip_tests'd, this was the bug. Post-fix, deleted batches are removed from the passRate calculation.
