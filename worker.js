@@ -959,6 +959,14 @@ const worker = new Worker(
       metrics.recordBuildCompleted(gameId, 'CRASHED', buildDuration, 0);
       transaction.setStatus && transaction.setStatus('error');
       transaction.finish && transaction.finish();
+      // Ensure error_message is always recorded — worker.on('failed') is the outer
+      // safety net, but err.message may be empty/undefined if a non-Error was thrown
+      // or the Error was constructed without a message.  Write it here first so the
+      // DB always has a descriptive message even if the outer handler loses context.
+      if (buildId) {
+        const errMsg = (err && (err.message || err.toString())) || 'pipeline crashed without a message';
+        db.failBuild(buildId, errMsg);
+      }
       throw err;
     } finally {
       clearInterval(heartbeatInterval);
@@ -1114,11 +1122,19 @@ worker.on('completed', (job, result) => {
 
 worker.on('failed', async (job, err) => {
   const { gameId, buildId, commitSha } = job.data;
-  logger.error(`Job ${job.id} failed: ${err.message}`, { gameId, buildId, event: 'build_failed' });
+  // Normalise the error message: err may be a non-Error object or have an empty
+  // message (which would store NULL in SQLite).  Always record something useful.
+  const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+  logger.error(`Job ${job.id} failed: ${errMsg}`, { gameId, buildId, event: 'build_failed' });
   sentry.captureException(err, { gameId, buildId, step: 'worker' });
 
   if (buildId) {
-    db.failBuild(buildId, err.message);
+    // Only write if the build does not already have an error_message (the inner
+    // catch block writes first when the pipeline itself crashes).
+    const existing = db.getBuild(buildId);
+    if (!existing?.error_message) {
+      db.failBuild(buildId, errMsg);
+    }
   }
 
   await slack.notifyBuildResult(

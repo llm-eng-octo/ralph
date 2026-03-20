@@ -119,6 +119,38 @@ describe('worker error handling patterns', () => {
     assert.equal(iterations, 0);
   });
 
+  it('error message normalisation: real Error with message', () => {
+    const err = new Error('pipeline crashed');
+    const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+    assert.equal(errMsg, 'pipeline crashed');
+  });
+
+  it('error message normalisation: Error with empty message falls back to toString()', () => {
+    const err = new Error('');
+    // err.message is '' (falsy), toString() gives 'Error'
+    const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+    assert.ok(errMsg.length > 0, 'should not produce empty string');
+    assert.ok(errMsg.includes('Error'), 'should include Error class name');
+  });
+
+  it('error message normalisation: string thrown (non-Error)', () => {
+    const err = 'something bad happened';
+    const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+    assert.equal(errMsg, 'something bad happened');
+  });
+
+  it('error message normalisation: null error falls back to sentinel message', () => {
+    const err = null;
+    const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+    assert.equal(errMsg, 'worker-level failure: no error message captured');
+  });
+
+  it('error message normalisation: undefined error falls back to sentinel message', () => {
+    const err = undefined;
+    const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+    assert.equal(errMsg, 'worker-level failure: no error message captured');
+  });
+
   it('models fallback object has no crash on .generation access', () => {
     // This simulates the failed-job handler path where models = {}
     const failedReport = {
