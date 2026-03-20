@@ -132,7 +132,9 @@
 | sound.register() T1 static check | done | lib/validate-static.js | T1 errors on FeedbackManager + sound.register() usage; gen/fix/global prompts forbid it |
 | CDN window exposure T1 static check + gen rules | done | lib/validate-static.js, lib/pipeline.js | T1 checks window.endGame assignment when DOMContentLoaded present; rule 21 in gen prompt |
 | endGame double-call guard in gen prompts | done | lib/pipeline.js | Rule 20: if(gameState.gameEnded)return pattern; added to all fix prompts |
-| Multi-game scale validation | in-progress | warehouse/templates/ | 47 games queued (builds #217-262); build 227 (hidden-sums) running |
+| Static re-validation after Step 1b fix | done | lib/pipeline.js | Re-runs runStaticValidation() after LLM fix; logs remaining errors; emits partial event if not fully fixed |
+| window.gameState shape in DOM snapshot | done | lib/pipeline.js | captureGameDomSnapshot() captures actual property names/types from window.gameState; injected into test-gen so LLM uses real data shapes not guesses |
+| Multi-game scale validation | in-progress | warehouse/templates/ | 47 games queued; 1 APPROVED (match-the-cards), visual-memory + 4 more in queue with latest fixes |
 
 ---
 
@@ -146,8 +148,8 @@
 | P3 DevOps & Operations | 11 | 0 | 11 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 33 | 1 | 35 |
-| **Total** | **89** | **2** | **92** |
+| P6 Test Generation Quality | 35 | 1 | 37 |
+| **Total** | **91** | **2** | **94** |
 
 ## What's Next
 
