@@ -1216,8 +1216,8 @@ const worker = new Worker(
   {
     connection,
     concurrency: CONCURRENCY,
-    lockDuration: 30 * 60 * 1000, // 30 minutes — pipeline jobs take up to 25min
-    lockRenewTime: 10 * 60 * 1000, // renew every 10 minutes (lockDuration / 3)
+    lockDuration: 90 * 60 * 1000, // 90 minutes — pipeline jobs can take up to 60min with parallel builds
+    lockRenewTime: 20 * 60 * 1000, // renew every 20 minutes (lockDuration / 4.5)
     limiter: {
       max: RATE_LIMIT_MAX,
       duration: RATE_LIMIT_DURATION,
