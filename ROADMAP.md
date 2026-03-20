@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (spec-keyword SQL pre-filtering in getRelevantLearnings done)
+**Last updated:** March 20, 2026 (P8 warehouse hygiene gate + BullMQ heartbeat shipped; P7 Phase 1+2 done; P7 Phase 3 active R&D)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -81,8 +81,8 @@
 
 | Item | Status | Files | Notes |
 |------|--------|-------|-------|
-| **Warehouse hygiene gate** | **planned** | worker.js, lib/pipeline.js | Pre-build check: if `warehouse/templates/<gameId>/game/index.html` exists AND game is NOT status='approved' in DB, delete it (or pass `forceRegenerate` flag) before calling `runPipeline()`. Prevents stale HTML from skipping generation entirely — root cause of 54% of production failures (93/172 post-dev builds). Effort: 8-12 lines in worker.js. Risk: low. Proof: zero `test_results=[]` builds in next 47-game scale run. See `docs/failure-analysis.md §3` for full POC spec. |
-| **BullMQ stall prevention** | **planned** | worker.js | Wire `onProgress` callback to `job.updateProgress()` every ~2 min during pipeline execution. BullMQ auto-renews job lock on `updateProgress()` calls, preventing the 15 stall failures caused by Node event loop saturation during long LLM calls. Effort: ~5 lines in worker.js + 2-3 lines in pipeline.js. Risk: low. |
+| **Warehouse hygiene gate** | **done (2026-03-20)** | worker.js, lib/pipeline.js | Pre-build: deletes stale warehouse HTML for non-approved games before calling `runPipeline()`. Prevents generation bypass — root cause of 54% of production failures. Shipped in commit 8202a79. |
+| **BullMQ stall prevention** | **done (2026-03-20)** | worker.js | Wired `onProgress` → `job.updateProgress()` every ~2 min (KillMode=control-group + heartbeat). BullMQ renews job lock on each call, preventing the 15 stall failures. Shipped in commit cc36e6c. |
 | **Stale warehouse auto-delete: relax isInitFailure guard** | **planned** | lib/pipeline.js:2550-2565 | Current guard requires ALL failure descriptions to match `beforeEach|TimeoutError|waiting for|transition-slot|data-phase|SKIPPED`. If even one failure has a different error pattern, stale HTML is kept. Relax to: trigger if ANY failure matches init-failure patterns AND `passed === 0` on iteration 1. This catches partial-init failures that currently slip through. |
 
 ---
@@ -153,6 +153,7 @@
 | T1: initSentry() order check | done | lib/validate-static.js | Errors if initSentry() appears before waitForPackages() — throws before SDK loads → ScreenLayout blocked |
 | T1: Debug functions on window check | done | lib/validate-static.js | Errors on window.debugGame/testAudio/testPause etc. — review model rejects window-exposed debug fns |
 | Multi-game scale validation | in-progress | warehouse/templates/ | 47 games queued; 1 APPROVED (match-the-cards), visual-memory + 4 more in queue with latest fixes |
+| Reduce review rejection rate (~20% of failures) | planned | lib/pipeline.js, lib/prompts.js | Review model rejects for 3 recurring patterns: (1) gameState.phase never set to 'game_over' after last round ends (LLM uses 'gameover' without underscore mismatch), (2) missing isActive guard in answer handler (double-click fires endGame twice), (3) TransitionScreen transition not awaited before next round starts. Add T1 static checks + gen/fix prompt rules for each. Goal: review APPROVED on first attempt >80% of builds (currently ~60%). |
 
 ---
 
@@ -168,7 +169,7 @@
 | **Learning category boosting** | **done (2026-03-20)** | `getCategoryBoost()` in `lib/pipeline.js`: `contract` +0.2 always, `cdncompat` +0.2 when PART-xxx in spec, `audio` +0.2 when FeedbackManager in spec, `layout` +0.2 when ScreenLayout in spec; exported for testability; 10 new unit tests; all 372 tests pass; deployed 2026-03-20 | Category-aware secondary sort surfaces contract/CDN/audio/layout learnings above equally-similar general entries — most actionable patterns reach the LLM first |
 | **Spec-keyword SQL pre-filtering** | **done (2026-03-20)** | `spec_keywords TEXT` column added to `builds` table (idempotent ALTER TABLE migration); `db.updateBuildSpecKeywords()` stores extracted keywords as JSON array; `deriveRelevantCategories()` maps spec keyword signals → category set (contract+general always; cdncompat when PART-xxx; audio when feedbackmanager; layout when screenlayout); `getRelevantLearnings()` adds SQL `WHERE l.category IN (...)` pre-filter when specContent provided; falls back to no-filter when specContent null; `buildId` threaded through `runPipeline()` options so worker saves keywords to DB early in Step 0; 13 new tests; 385 total pass; deployed 2026-03-20 | SQL pre-filter reduces rows fetched from O(N) to O(matching-category-rows), keeping JS dedup work O(k) as learnings table grows to 1000+ entries; `spec_keywords` column enables future LLM-side retrieval augmentation |
 | **Learning retrieval — index-scan optimization** | **done (2026-03-20)** | `CREATE INDEX IF NOT EXISTS idx_learnings_cat_build ON learnings(category, build_id DESC)` makes `WHERE l.category IN (...) ORDER BY l.build_id DESC` use an index scan. `CREATE INDEX IF NOT EXISTS idx_builds_approved ON builds(id) WHERE status='approved'` partial index covers the approved-builds JOIN. Both added to schema init in `lib/db.js`; idempotent `IF NOT EXISTS`; 385 tests pass; deployed 2026-03-20 (no worker restart needed — indexes applied on next DB connection open). | Per-call latency O(log N + k) instead of O(N) at 10k+ learning rows |
-| **pipeline.js split into focused sub-modules** | **next** | Split lib/pipeline.js (~4100 lines) into lib/pipeline/generate.js, lib/pipeline/test-gen.js, lib/pipeline/fix-loop.js, lib/pipeline/review.js, lib/pipeline/harness.js, lib/pipeline/snapshot.js. Also extract all inline prompt template literals into lib/prompts/ with named exports (GEN_PROMPT, TRIAGE_PROMPT, REVIEW_PROMPT, etc.). This is the highest-leverage P7 structural improvement: makes each sub-module independently testable, reduces merge conflicts, and enables prompt-only edits without touching orchestration logic. | Unlocks targeted unit tests for fix-loop and snapshot paths (currently untested); makes onboarding 10× faster; prompt edits become safe one-liner diffs |
+| **pipeline.js Phase 3: split remaining orchestration** | **active** | pipeline.js is now 2433 lines after Phase 1 (prompts.js, -513 lines) and Phase 2 (pipeline-utils.js, -1159 lines). Phase 3 targets: extract runTargetedFix() (~350 lines) → lib/pipeline-targeted-fix.js, extract fix-loop inner logic → lib/pipeline-fix-loop.js, extract test-generation step → lib/pipeline-test-gen.js. Goal: pipeline.js under 1000 lines — only top-level orchestration remains. | Unlocks targeted unit tests for fix-loop and targeted-fix paths (currently untested); reduces merge conflict surface; onboarding time drops by ~5× vs. current 2433-line single file |
 
 ### Cross-game learning injection — design notes
 
@@ -186,8 +187,9 @@
 
 | Item | Status | File(s) | Notes |
 |------|--------|---------|-------|
-| Extract all LLM prompt strings into lib/prompts/ | planned | lib/pipeline.js:1539–1726, 2377–2473, 2957–2997, 3609–3628, 3653–3666, 3684–3710 | genPrompt (~188 lines), catPrompt (~90 lines), triagePrompt (~40 lines), reviewPrompt, fixPrompt, earlyReviewPrompt, contractFixPrompt, and ~8 more are all inline template literals scattered through runPipeline(). A lib/prompts/ module with named exports (GEN_PROMPT, TRIAGE_PROMPT, etc.) would make them independently editable, testable, and diffable without touching pipeline orchestration logic. |
-| Split pipeline.js (~4100 lines) into focused sub-modules | planned | lib/pipeline.js | Single file does: config, cost estimation, spec parsing, DOM snapshotting, behavioral transcripts, test harness injection, HTML extraction, static validation, LLM call orchestration, per-batch fix loops, global fix loops, targeted fix, review, spec round extraction, test generation, and post-processing rewrites. Suggested split: lib/pipeline/generate.js, lib/pipeline/test-gen.js, lib/pipeline/fix-loop.js, lib/pipeline/review.js, lib/pipeline/harness.js, lib/pipeline/snapshot.js. |
+| Extract all LLM prompt strings into lib/prompts/ | **done (2026-03-20)** | lib/prompts.js | 18 prompt builders extracted from pipeline.js inline template literals; pipeline.js: 4105 → 3592 lines. Shipped commit d6d619f. |
+| Extract snapshot/harness/spec utilities into lib/pipeline-utils.js | **done (2026-03-20)** | lib/pipeline-utils.js | 12 utility functions (captureGameDomSnapshot, captureBehavioralTranscript, injectTestHarness, extractSpecRounds, extractSpecMetadata, extractTestGenerationHints, etc.) extracted; pipeline.js: 3592 → 2433 lines. Shipped commit 6c52240. |
+| Split pipeline.js (~2433 lines) into focused sub-modules | **in-progress (R&D active)** | lib/pipeline.js | Next targets: extract runTargetedFix() (~350 lines) → lib/pipeline-targeted-fix.js, fix-loop inner logic → lib/pipeline-fix-loop.js, test-generation step → lib/pipeline-test-gen.js. Goal: pipeline.js under 1000 lines. |
 | Deduplicate REVIEW_SHARED_GUIDANCE (used as literal string in re-review prompt) | planned | lib/pipeline.js:1270, 2027–2044, 3684–3710 | The re-review prompt inside the early-review fix path (line 2027) duplicates REVIEW_SHARED_GUIDANCE verbatim as a string literal instead of referencing the constant defined at line 1270. The two copies have already diverged (the re-review version at line 3690 omits RULE-003 and RULE-005 sections). All review prompts should interpolate `${REVIEW_SHARED_GUIDANCE}` unconditionally. |
 | Deduplicate playwright.config.js template (written twice) | planned | lib/pipeline.js:2737–2756, 3926–3947 | The defineConfig block with baseURL, timeout 90000, retries 0, webServer, and JSON reporter is copy-pasted verbatim in both runPipeline() and runTargetedFix(). Extract to a buildPlaywrightConfig(port) helper function; both call sites become one-liners and the config lives in one place. |
 | Deduplicate CATEGORIES / SPEC_ORDER constant (defined three times) | planned | lib/pipeline.js:2164, 2710, 3836 | CATEGORIES_ALL at line 2164 and SPEC_ORDER at lines 2710 and 3836 all hardcode the identical five-element array ['game-flow', 'mechanics', 'level-progression', 'edge-cases', 'contract']. One top-level constant PIPELINE_CATEGORIES should serve all three call sites. |
@@ -215,15 +217,16 @@
 | P3 DevOps & Operations | 11 | 0 | 11 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 41 | 1 | 43 |
-| P7 Code Architecture | 0 | 15 | 15 |
-| P8 Build Reliability | 0 | 3 | 3 |
-| **Total** | **97** | **20** | **118** |
+| P6 Test Generation Quality | 41 | 2 | 44 |
+| P7 Code Architecture | 2 | 13 | 15 |
+| P8 Build Reliability | 2 | 1 | 3 |
+| **Total** | **101** | **15** | **119** |
 
 ## What's Next
 
-0. **[P8 — PRIORITY] Warehouse hygiene gate** — 8-12 lines in worker.js; prevents 54% of production build failures; proof: next 47-game scale run shows zero `test_results=[]` failures
-0. **[P8 — PRIORITY] BullMQ stall prevention** — 5 lines wiring `onProgress` → `job.updateProgress()`; prevents 9% of production failures
+0. **[P8 — DONE] Warehouse hygiene gate** — shipped 2026-03-20 (commit 8202a79); worker.js deletes stale non-approved warehouse HTML before pipeline run
+0. **[P8 — DONE] BullMQ stall prevention** — shipped 2026-03-20 (commit cc36e6c); `job.updateProgress()` heartbeat + KillMode=control-group prevents lock expiry stalls
+0. **[P8 — PRIORITY] Stale warehouse auto-delete: relax isInitFailure guard** — relax ALL-must-match → ANY-matches + passed===0 on iter 1; catches partial-init failures currently slipping through
 
 1. **[R&D — done] Cross-game learning injection** — `getRelevantLearnings()` added to `lib/pipeline.js`; queries APPROVED build learnings from DB and merges into all gen/fix prompts; 347 tests pass; deployed 2026-03-20
 2. **[R&D — done] Semantic learning deduplication** — `jaccardSimilarity()` + dedup pass in `getRelevantLearnings()`; Jaccard threshold 0.6, cap 20 bullets; 357 tests pass; deployed 2026-03-20
@@ -233,7 +236,7 @@
 6. **[R&D — done] Learning retrieval composite index** — `idx_learnings_cat_build ON learnings(category, build_id DESC)` + partial index `idx_builds_approved ON builds(id) WHERE status='approved'`; SQL pre-filter now O(log N + k) at 10k+ rows; 385 tests pass; deployed 2026-03-20
 7. **[R&D — done] pipeline.js Phase 1: prompts extracted** — 18 prompt builders extracted into lib/prompts.js; pipeline.js: 4105 → 3592 lines; 385 tests pass; deployed 2026-03-20
 8. **[R&D — done] pipeline.js Phase 2: snapshot/harness/spec utilities extracted** — 12 utility functions extracted into lib/pipeline-utils.js (1221 lines); pipeline.js: 3592 → 2433 lines; 385 tests pass; deployed 2026-03-20
-9. **[R&D — next] pipeline.js Phase 3: split remaining orchestration** — pipeline.js is now 2433 lines; next targets: extract runTargetedFix() (~350 lines) into lib/pipeline-targeted-fix.js, extract fix-loop inner logic into lib/pipeline-fix-loop.js, extract test-generation step into lib/pipeline-test-gen.js; would bring pipeline.js under 1000 lines
-5. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
-4. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
-5. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
+9. **[R&D — ACTIVE] pipeline.js Phase 3: split remaining orchestration** — pipeline.js is now 2433 lines; targets: extract runTargetedFix() (~350 lines) → lib/pipeline-targeted-fix.js, fix-loop inner logic → lib/pipeline-fix-loop.js, test-generation step → lib/pipeline-test-gen.js; goal: pipeline.js under 1000 lines
+10. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
+11. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
+12. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
