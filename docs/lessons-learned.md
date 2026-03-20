@@ -111,3 +111,19 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 **Workaround (current):** The test fix loop will eventually catch and fix shape mismatches, but wastes iterations. If a game consistently fails with `is not iterable` or `undefined reading '0'`, check whether the test is accessing a property that doesn't exist on the actual game state object.
 
 **How to apply:** When game-flow fails on iter 1 for window.gameState reasons but iter 2+ fails with `not iterable` / `Cannot read properties of undefined`, the issue shifted from game init → test data assumptions. Don't re-queue; the fix loop should resolve it. If it fails all 3 iterations on the same property error, this is a known gap in the DOM snapshot context (no runtime state shape).
+
+## Lesson 44 — `extractSpecRounds()` parses spec metadata tables as round data
+
+**Pattern:** Build 232 (face-memory): `extractSpecRounds()` parsed the spec's "Parts Selected" table — rows like `PART-001 | HTML Shell | YES` — as game round data because the header filter only excluded the literal text `"Question"` / `"Answer"` / `"Round"`. The `Part ID` header and `PART-xxx` data rows passed through, producing `fallbackContent.rounds = [{ question: "PART-001", answer: "HTML Shell" }]`. Tests then crashed with `TypeError: Cannot read properties of undefined (reading 'eyes')` when accessing `rounds[0].faceFeatures['eyes']` — a property that would only exist on real face-memory round data.
+
+**Triage failure:** The triage model saw `TypeError: Cannot read properties of undefined (reading 'eyes')` and diagnosed it as an HTML init failure (gameState not fully initialized). Fix attempts rewrote initialization code, which broke the HTML and cascaded into `page.waitForSelector Timeout 30000ms` across all batches. The real root cause — garbage data injected by `extractSpecRounds` — was never surfaced because the TypeError message gave no hint of its origin being test data.
+
+**Root cause:** `extractSpecRounds()` matched any two-column markdown table in the spec. The "Parts Selected" table (`PART-001 | HTML Shell`) is a spec metadata table, not a rounds table. No exclusion existed for part-reference rows.
+
+**Fix:** Added skip conditions in `extractSpecRounds()`:
+1. Skip any row where `col1` matches `Part ID` (header row) or `/^PART-\d+/` (data rows).
+2. Skip any row where `col2` is `YES`, `NO`, or `—` (the "Included" column of the parts table).
+
+**Proof:** Build 232 killed after cascading failures. Fix deployed, build 279 requeued and completed successfully.
+
+**How to apply:** If tests crash with `TypeError: Cannot read properties of undefined` accessing a game-specific nested property (e.g., `.faceFeatures`, `.gridData`, `.pattern`) on `rounds[0]`, check `fallbackContent.rounds` first — the question/answer values may be spec metadata rather than actual game rounds. Log or inspect the extracted rounds before injecting them into the test context.
