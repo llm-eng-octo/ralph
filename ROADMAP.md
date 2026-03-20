@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (P7 Phase 1+2+3 done + lazy-require/magic-number/db-migration cleanup done; P6 reject-rate rules shipped; P8 isInitFailure guard relaxation active R&D)
+**Last updated:** March 20, 2026 (P7 split done (819 lines) + config.js/lazy-require/magic-number/db-migration done; P8 isInitFailure + queue-dedup + error-message done; R&D: queue-sync auto-requeue active)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -83,7 +83,7 @@
 |------|--------|-------|-------|
 | **Warehouse hygiene gate** | **done (2026-03-20)** | worker.js, lib/pipeline.js | Pre-build: deletes stale warehouse HTML for non-approved games before calling `runPipeline()`. Prevents generation bypass — root cause of 54% of production failures. Shipped in commit 8202a79. |
 | **BullMQ stall prevention** | **done (2026-03-20)** | worker.js | Wired `onProgress` → `job.updateProgress()` every ~2 min (KillMode=control-group + heartbeat). BullMQ renews job lock on each call, preventing the 15 stall failures. Shipped in commit cc36e6c. |
-| **Stale warehouse auto-delete: relax isInitFailure guard** | **planned** | lib/pipeline.js:2550-2565 | Current guard requires ALL failure descriptions to match `beforeEach|TimeoutError|waiting for|transition-slot|data-phase|SKIPPED`. If even one failure has a different error pattern, stale HTML is kept. Relax to: trigger if ANY failure matches init-failure patterns AND `passed === 0` on iteration 1. This catches partial-init failures that currently slip through. |
+| **Stale warehouse auto-delete: relax isInitFailure guard** | **done (2026-03-20)** | lib/pipeline.js | `isInitFailure()` refactored to exported function; ANY-match + passed===0; 14 regex patterns; 10 new unit tests; 399 tests pass; deployed 2026-03-20 (commit 5e7eaa0). |
 | **Redis AOF persistence (Task #44)** | **done (2026-03-20)** | docker-compose.yml | `--appendonly yes` in Redis service command prevents BullMQ queue loss on restart. Verified on live server: `ralph-redis-1` container running with AOF active; `appendonlydir/` with `*.incr.aof` confirmed. See Lesson 45 in docs/lessons-learned.md. |
 
 ---
@@ -171,10 +171,14 @@
 | **Spec-keyword SQL pre-filtering** | **done (2026-03-20)** | `spec_keywords TEXT` column added to `builds` table (idempotent ALTER TABLE migration); `db.updateBuildSpecKeywords()` stores extracted keywords as JSON array; `deriveRelevantCategories()` maps spec keyword signals → category set (contract+general always; cdncompat when PART-xxx; audio when feedbackmanager; layout when screenlayout); `getRelevantLearnings()` adds SQL `WHERE l.category IN (...)` pre-filter when specContent provided; falls back to no-filter when specContent null; `buildId` threaded through `runPipeline()` options so worker saves keywords to DB early in Step 0; 13 new tests; 385 total pass; deployed 2026-03-20 | SQL pre-filter reduces rows fetched from O(N) to O(matching-category-rows), keeping JS dedup work O(k) as learnings table grows to 1000+ entries; `spec_keywords` column enables future LLM-side retrieval augmentation |
 | **Learning retrieval — index-scan optimization** | **done (2026-03-20)** | `CREATE INDEX IF NOT EXISTS idx_learnings_cat_build ON learnings(category, build_id DESC)` makes `WHERE l.category IN (...) ORDER BY l.build_id DESC` use an index scan. `CREATE INDEX IF NOT EXISTS idx_builds_approved ON builds(id) WHERE status='approved'` partial index covers the approved-builds JOIN. Both added to schema init in `lib/db.js`; idempotent `IF NOT EXISTS`; 385 tests pass; deployed 2026-03-20 (no worker restart needed — indexes applied on next DB connection open). | Per-call latency O(log N + k) instead of O(N) at 10k+ learning rows |
 | **pipeline.js Phase 3: split remaining orchestration** | **done (2026-03-20)** | pipeline.js: 2433 → 839 lines; lib/pipeline-fix-loop.js (802 lines), lib/pipeline-test-gen.js (569 lines), lib/pipeline-targeted-fix.js (422 lines) created; 385 tests pass; deployed 2026-03-20 (commit 73cc250) | Unlocks targeted unit tests for fix-loop and targeted-fix paths; reduces merge conflict surface; onboarding time drops by ~5× |
+| **Queue-sync resilience: auto-requeue job-lost builds at startup** | **active** | worker.js, lib/db.js | Hypothesis: at worker startup, after cleanupOrphanedBuilds(), scan DB for recently-failed builds with `error_message LIKE '%queue-sync%'` and `retry_count = 0`, then auto-requeue them. This eliminates manual intervention after every worker restart. 9 of 10 most-recent failures are queue-sync losses — this is the single highest-frequency production failure pattern not yet automated. | Expected: zero manual re-queues needed after any planned/unplanned worker restart. Recovers ~5-9 builds per restart event automatically. |
+| **Rendering-pattern detection: toBeVisible failure auto-skip** | **next** | lib/pipeline.js, lib/pipeline-fix-loop.js | Hypothesis: the failure_patterns table shows 8 distinct `toBeVisible` failures from a single game (adjustment-strategy) all at 2 occurrences each, categorized as "rendering". These are test-side visibility assumptions failing against the actual DOM. Add deterministic pre-triage detection: if >3 failures in a batch all match `toBeVisible()` for different elements, classify as `skip_tests` (rendering mismatch) rather than fix_html, saving wasted fix iterations on unfixable DOM-visibility mismatches. | Expected: saves 2-3 fix iterations per affected batch; reduces cost on games where tests assume visibility that the DOM doesn't guarantee. |
 | **P6: Reduce review rejection rate** | **done (2026-03-20)** | Rules 22/23/24 added to gen prompt (isActive guard, game_over stars, TransitionScreen routing); CDN_CONSTRAINTS_BLOCK updated for fix prompts; T1 Check 11 (game_over star display) + Check 12 (isActive guard) added as warnings; 389 tests pass; deployed 2026-03-20 (commit 1a6e01e) | Should cut review rejections from ~20% to ~10% |
 | **P8: Relax isInitFailure guard** | **done (2026-03-20)** | `isInitFailure()` refactored to exported function; ANY-match + passed===0; 14 regex patterns; 10 new unit tests; 399 tests pass; deployed 2026-03-20 (commit 5e7eaa0) | Catches partial-init failures that ALL-match missed; saves 5 wasted iterations per affected build |
 | **P8: Deduplicate build queue at enqueue** | **done (2026-03-20)** | `POST /api/build` checks for existing `queued/running` build before creating new one; returns existing `buildId` with `deduplicated: true`; `force: true` bypasses; approved game check; webhook handler calls `shouldSkipWebhookBuild()`; 5 new integration tests; 409 total pass; deployed 2026-03-20 (commit 0c6f2d2) | Prevents duplicate queue entries; rapid-challenge manual fix now automated |
+| **Queue-sync resilience: auto-requeue BullMQ job-lost builds** | **planned** | worker.js, lib/db.js | 9 of 10 most-recent failures are `queue-sync: BullMQ job lost after worker restart`. Fix: at worker startup, after `cleanupOrphanedBuilds()`, auto-requeue recently-failed queue-sync builds (unless `retry_count > 0`). Prevents needing manual re-queue after every worker restart. |
 | **P8: Ensure pre-pipeline failures record error_message** | **done (2026-03-20)** | `worker.on('failed')` normalised error message: non-Error/empty-message cases now fall back to `err.toString()` or sentinel string; inner catch now calls `failBuild()` before re-throw; DB never left with NULL; 5 new tests; 404 total pass; deployed 2026-03-20 (commit 05a9070) | Future `null error_message` failures now impossible; debugging orphaned builds no longer blind |
+| **Queue-sync resilience: auto-requeue BullMQ job-lost builds** | **planned** | worker.js, lib/db.js | 9 of 10 most-recent failures have `error_message = "queue-sync: BullMQ job lost after worker restart"`. These builds had `status=running` in DB when the worker was restarted and had their queue entry dropped. Fix: at worker startup, after `cleanupOrphanedBuilds()`, scan for recently-failed builds with this error and auto-requeue them (unless `retry_count > 0`). Prevents needing manual re-queue after every worker restart. |
 
 ### Cross-game learning injection — design notes
 
@@ -194,7 +198,7 @@
 |------|--------|---------|-------|
 | Extract all LLM prompt strings into lib/prompts/ | **done (2026-03-20)** | lib/prompts.js | 18 prompt builders extracted from pipeline.js inline template literals; pipeline.js: 4105 → 3592 lines. Shipped commit d6d619f. |
 | Extract snapshot/harness/spec utilities into lib/pipeline-utils.js | **done (2026-03-20)** | lib/pipeline-utils.js | 12 utility functions (captureGameDomSnapshot, captureBehavioralTranscript, injectTestHarness, extractSpecRounds, extractSpecMetadata, extractTestGenerationHints, etc.) extracted; pipeline.js: 3592 → 2433 lines. Shipped commit 6c52240. |
-| Split pipeline.js (~2433 lines) into focused sub-modules | **in-progress (R&D active)** | lib/pipeline.js | Next targets: extract runTargetedFix() (~350 lines) → lib/pipeline-targeted-fix.js, fix-loop inner logic → lib/pipeline-fix-loop.js, test-generation step → lib/pipeline-test-gen.js. Goal: pipeline.js under 1000 lines. |
+| Split pipeline.js (~2433 lines) into focused sub-modules | **done (2026-03-20)** | lib/pipeline.js, lib/pipeline-fix-loop.js, lib/pipeline-test-gen.js, lib/pipeline-targeted-fix.js | pipeline.js: 2433 → 819 lines; lib/pipeline-fix-loop.js (802 lines), lib/pipeline-test-gen.js (569 lines), lib/pipeline-targeted-fix.js (422 lines) created; 385 tests pass; deployed 2026-03-20 (commit 73cc250). |
 | Deduplicate REVIEW_SHARED_GUIDANCE (used as literal string in re-review prompt) | planned | lib/pipeline.js:1270, 2027–2044, 3684–3710 | The re-review prompt inside the early-review fix path (line 2027) duplicates REVIEW_SHARED_GUIDANCE verbatim as a string literal instead of referencing the constant defined at line 1270. The two copies have already diverged (the re-review version at line 3690 omits RULE-003 and RULE-005 sections). All review prompts should interpolate `${REVIEW_SHARED_GUIDANCE}` unconditionally. |
 | Deduplicate playwright.config.js template (written twice) | planned | lib/pipeline.js:2737–2756, 3926–3947 | The defineConfig block with baseURL, timeout 90000, retries 0, webServer, and JSON reporter is copy-pasted verbatim in both runPipeline() and runTargetedFix(). Extract to a buildPlaywrightConfig(port) helper function; both call sites become one-liners and the config lives in one place. |
 | Deduplicate CATEGORIES / SPEC_ORDER constant (defined three times) | **done (2026-03-20)** | lib/pipeline-utils.js | CATEGORY_SPEC_ORDER added to pipeline-utils.js as single source; removed inline declarations from pipeline-fix-loop.js, pipeline-test-gen.js, pipeline-targeted-fix.js. MODEL_COSTS/estimateCost and findFreePort also centralized. 417 tests pass. Commit 0e753c0. |
@@ -223,15 +227,15 @@
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
 | P6 Test Generation Quality | 41 | 2 | 44 |
-| P7 Code Architecture | 5 | 10 | 15 |
-| P8 Build Reliability | 3 | 1 | 4 |
-| **Total** | **105** | **12** | **120** |
+| P7 Code Architecture | 7 | 8 | 15 |
+| P8 Build Reliability | 5 | 2 | 7 |
+| **Total** | **109** | **11** | **123** |
 
 ## What's Next
 
 0. **[P8 — DONE] Warehouse hygiene gate** — shipped 2026-03-20 (commit 8202a79); worker.js deletes stale non-approved warehouse HTML before pipeline run
 0. **[P8 — DONE] BullMQ stall prevention** — shipped 2026-03-20 (commit cc36e6c); `job.updateProgress()` heartbeat + KillMode=control-group prevents lock expiry stalls
-0. **[P8 — ACTIVE] Stale warehouse auto-delete: relax isInitFailure guard** — sub-agent implementing; relaxes ALL-must-match → ANY-match + passed===0 on iter 1; face-memory build confirmed pattern
+0. **[P8 — DONE] Stale warehouse auto-delete: relax isInitFailure guard** — shipped 2026-03-20 (commit 5e7eaa0); ANY-match + passed===0; 10 new unit tests
 
 1. **[R&D — done] Cross-game learning injection** — `getRelevantLearnings()` added to `lib/pipeline.js`; queries APPROVED build learnings from DB and merges into all gen/fix prompts; 347 tests pass; deployed 2026-03-20
 2. **[R&D — done] Semantic learning deduplication** — `jaccardSimilarity()` + dedup pass in `getRelevantLearnings()`; Jaccard threshold 0.6, cap 20 bullets; 357 tests pass; deployed 2026-03-20
@@ -243,7 +247,8 @@
 8. **[R&D — done] pipeline.js Phase 2: snapshot/harness/spec utilities extracted** — 12 utility functions extracted into lib/pipeline-utils.js (1221 lines); pipeline.js: 3592 → 2433 lines; 385 tests pass; deployed 2026-03-20
 9. **[R&D — done] pipeline.js Phase 3: split remaining orchestration** — pipeline.js: 2433 → 839 lines; 3 sub-modules created; 385 tests pass; deployed 2026-03-20 (commit 73cc250)
 9b. **[R&D — done] P6: Reduce review rejection rate** — Rules 22/23/24 in gen prompt + T1 Check 11/12; 389 tests pass; deployed 2026-03-20 (commit 1a6e01e)
-9c. **[R&D — ACTIVE] P8: Relax isInitFailure guard** — ANY-match + passed===0; sub-agent implementing; face-memory confirmed this saves 5 wasted iterations on partial-init failures
+9c. **[R&D — DONE] P8: Relax isInitFailure guard** — ANY-match + passed===0; shipped 2026-03-20 (commit 5e7eaa0); saves 5 wasted iterations on partial-init failures
+10. **[R&D — ACTIVE] Queue-sync resilience** — auto-requeue BullMQ job-lost builds at worker startup; 9/10 recent failures are queue-sync losses; target: zero manual re-queues after restart
 10. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
 11. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
 12. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
