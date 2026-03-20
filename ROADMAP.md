@@ -137,7 +137,28 @@
 | Spec-derived test generation hints | done | lib/pipeline.js | extractTestGenerationHints() detects multi-cell/timed-flash/learn-recall/sequential-step patterns from spec; injects targeted warnings into test-gen prompt |
 | Size-drop continue-to-iter-2 on truncation | done | lib/pipeline.js | When iter 1 full-HTML fix returns near-empty (>90% shrink), continue to iter 2 (E8 script-only) instead of breaking fix loop |
 | Behavioral transcript (Step 2.5b) | done | lib/pipeline.js | captureBehavioralTranscript() fires game_init, observes correct/wrong interactions, captures postMessage — injected into test-gen prompt as ground truth |
+| T1: ScreenLayout.inject() presence check | done | lib/validate-static.js | Errors if ScreenLayout referenced but .inject() never called — CDN slot never renders otherwise |
+| T1: initSentry() order check | done | lib/validate-static.js | Errors if initSentry() appears before waitForPackages() — throws before SDK loads → ScreenLayout blocked |
+| T1: Debug functions on window check | done | lib/validate-static.js | Errors on window.debugGame/testAudio/testPause etc. — review model rejects window-exposed debug fns |
 | Multi-game scale validation | in-progress | warehouse/templates/ | 47 games queued; 1 APPROVED (match-the-cards), visual-memory + 4 more in queue with latest fixes |
+
+---
+
+## R&D
+
+> One task always active. Target: highest-leverage improvement for reliability / availability / power / scalability.
+
+| Task | Status | Hypothesis | Expected Impact |
+|------|--------|-----------|-----------------|
+| **Cross-game learning injection** | **active** | Extract fix patterns + root-cause notes from every APPROVED build's `learnings` table and inject as a "lessons from similar games" block into generation + fix prompts for new builds of the same CDN part mix | Reduce avg iterations from ~3 → ~1.5; fewer triage calls; higher first-pass approval rate — biggest throughput lever remaining |
+
+### Cross-game learning injection — design notes
+
+- **Source**: `learnings` table already populated per build (`level`, `category`, `content`). APPROVED builds are ground truth.
+- **Retrieval**: at Step 1 (gen) and Step 3 (fix), query `learnings WHERE resolved=0` for games sharing the same PART set (parsed from spec CDN section). Top-N by recency + category relevance.
+- **Injection**: append as `## Lessons from similar games` block to gen/fix system prompt — same slot as spec-derived hints.
+- **Scope**: `pipeline.js` only. No new DB schema (learnings table already exists). No new env var needed.
+- **Success metric**: average iterations-to-pass drops; track via `builds.iterations` across next 10 builds post-deploy.
 
 ---
 
@@ -151,14 +172,12 @@
 | P3 DevOps & Operations | 11 | 0 | 11 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 38 | 1 | 40 |
-| **Total** | **94** | **2** | **97** |
+| P6 Test Generation Quality | 41 | 1 | 43 |
+| **Total** | **97** | **2** | **100** |
 
 ## What's Next
 
-1. **Force-regenerate missing test categories** — pipeline silently skips categories when ≥1 spec file exists; fix so missing categories are always regenerated
-3. **Review rejection → targeted fix loop** — parse REJECTED reason and attempt an autonomous HTML fix before giving up
-4. **Autonomous spec → APPROVED pipeline** — full self-healing loop with no manual intervention
-5. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline
-6. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
-7. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
+1. **[R&D — active] Cross-game learning injection** — extract APPROVED build lessons from DB, inject into gen/fix prompts; target: avg iterations ~3 → ~1.5
+2. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
+3. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
+4. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
