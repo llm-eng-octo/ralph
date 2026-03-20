@@ -181,8 +181,8 @@ Goal: any future agent reading these docs should operate without rediscovering k
 
 These rules are non-negotiable. Violating them causes data loss, broken builds, or wasted compute. Every agent must follow them unconditionally.
 
-### 1. Never kill an active build without checking DB status first
-`sudo systemctl restart ralph-worker` kills any running pipeline mid-LLM-call. Before restarting the worker, always run:
+### 1. Never kill an active build without checking DB status first — this applies to ALL agents
+`sudo systemctl restart ralph-worker` kills any running pipeline mid-LLM-call. This rule applies to EVERY agent, including deploy agents and sub-agents. Before restarting the worker, always run:
 ```bash
 ssh ... "cd /opt/ralph && node -e \"const db=require('./lib/db'); console.log(db.getRecentBuilds(3).map(b=>b.game_id+' '+b.status).join('\n'))\""
 ```
