@@ -307,3 +307,21 @@ Check the spec's `PART-017` value. If `NO`, the call must be removed.
 **Fix:** Added `RALPH_GEN_LLM_TIMEOUT` config (default 600s) used specifically at all 4 HTML generation call sites (generate-html, generate-html-retry, smoke-regen, snapshot-regen). Triage/fix calls keep 300s. Commit 4eb1d29.
 
 **Rule:** Generation calls (maxTokens=32000) need a separate, larger timeout than fix/triage calls. Never use a single global timeout for all LLM call types.
+
+## Lesson 58 — #popup-backdrop overlay persists after VisibilityTracker onResume — intercepts all clicks
+
+**Pattern:** CDN VisibilityTracker shows a full-screen `#popup-backdrop` element when the page becomes inactive. When `onResume` fires and the user dismisses the "Continue" popup, the backdrop remains in the DOM with `position:fixed; z-index:9999` (or similar) — NOT automatically hidden. Any click on a game element (grid cells, Next Round button, answer input) hits the backdrop instead.
+
+**Symptom:** game-flow and mechanics tests fail at iteration 2 with `locator.click: Timeout` errors despite the game rendering correctly. Tests pass in early iterations (before VisibilityTracker fires) but fail after a round transition or restart.
+
+**Fix:** In `VisibilityTracker` `onResume` callback AND in `restartGame()`:
+```javascript
+const bd = document.getElementById('popup-backdrop');
+if (bd) { bd.style.display = 'none'; bd.style.pointerEvents = 'none'; }
+```
+
+**Proof:** builds 306 (two-digit-doubles-aided, iter 2: "backdrop overlay not hidden after popup dismissal") and 310 (speedy-taps, iter 2: "popup backdrop intercepts clicks on Next Round button").
+
+**Note:** The pipeline test harness already dismisses popups in `startGame()` via `dismissPopupIfPresent()`, but this only runs at test setup. The backdrop can re-appear during gameplay when page visibility changes occur.
+
+**Rule:** Never rely on VisibilityTracker to auto-hide #popup-backdrop. Always explicitly set `display='none'` and `pointerEvents='none'` in the `onResume` callback and in `restartGame()`.
