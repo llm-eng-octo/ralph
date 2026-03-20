@@ -231,7 +231,9 @@
 4. **[R&D — done] Learning category boosting** — `getCategoryBoost()` in `lib/pipeline.js`; contract/cdncompat/audio/layout +0.2 additive boost; 10 new tests; 372 pass; deployed 2026-03-20
 5. **[R&D — done] Spec-keyword SQL pre-filtering** — `spec_keywords TEXT` on builds table; `deriveRelevantCategories()` maps spec signals → SQL IN clause; `buildId` threaded through `runPipeline()` options; 13 new tests; 385 pass; deployed 2026-03-20
 6. **[R&D — done] Learning retrieval composite index** — `idx_learnings_cat_build ON learnings(category, build_id DESC)` + partial index `idx_builds_approved ON builds(id) WHERE status='approved'`; SQL pre-filter now O(log N + k) at 10k+ rows; 385 tests pass; deployed 2026-03-20
-7. **[R&D — next] pipeline.js split into sub-modules** — split lib/pipeline.js (~4100 lines) into lib/pipeline/{generate,test-gen,fix-loop,review,harness,snapshot}.js + extract prompts into lib/prompts/; highest-leverage P7 structural improvement
+7. **[R&D — done] pipeline.js Phase 1: prompts extracted** — 18 prompt builders extracted into lib/prompts.js; pipeline.js: 4105 → 3592 lines; 385 tests pass; deployed 2026-03-20
+8. **[R&D — done] pipeline.js Phase 2: snapshot/harness/spec utilities extracted** — 12 utility functions extracted into lib/pipeline-utils.js (1221 lines); pipeline.js: 3592 → 2433 lines; 385 tests pass; deployed 2026-03-20
+9. **[R&D — next] pipeline.js Phase 3: split remaining orchestration** — pipeline.js is now 2433 lines; next targets: extract runTargetedFix() (~350 lines) into lib/pipeline-targeted-fix.js, extract fix-loop inner logic into lib/pipeline-fix-loop.js, extract test-generation step into lib/pipeline-test-gen.js; would bring pipeline.js under 1000 lines
 5. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
 4. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
 5. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
