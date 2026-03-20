@@ -325,3 +325,30 @@ if (bd) { bd.style.display = 'none'; bd.style.pointerEvents = 'none'; }
 **Note:** The pipeline test harness already dismisses popups in `startGame()` via `dismissPopupIfPresent()`, but this only runs at test setup. The backdrop can re-appear during gameplay when page visibility changes occur.
 
 **Rule:** Never rely on VisibilityTracker to auto-hide #popup-backdrop. Always explicitly set `display='none'` and `pointerEvents='none'` in the `onResume` callback and in `restartGame()`.
+
+## Lesson 59 — adjustment-strategy chronic failures: 4 root causes across 60 builds (8% approval rate)
+
+**Symptom:** 60 builds of adjustment-strategy, 8% approval rate. Mechanics tests persistently fail across all builds. Three independent root causes compounded each other.
+
+**Root cause 1: Button ID mismatch after `updateAdjusterUI()` innerHTML rebuild**
+The spec's `updateAdjusterUI()` used `innerHTML` to rebuild top/bottom adjuster areas on every delta change, but the injected markup omitted `id="btn-a-plus"` etc. The initial HTML template also lacked these IDs. Generated tests correctly expected `#btn-a-plus` / `#btn-a-minus` / `#btn-b-plus` / `#btn-b-minus` (since the warehouse `game.spec.js` used them), but after the first adjustment click, `innerHTML` replaced the button DOM node with a new element lacking the ID. Every subsequent `page.locator('#btn-a-plus').click()` timed out.
+
+**Root cause 2: `isProcessing` race in `checkAnswer()`**
+`checkAnswer()` sets `isProcessing = true`, awaits `FeedbackManager.sound.play()` and `FeedbackManager.playDynamicFeedback()`, then schedules `setTimeout(() => roundComplete(), 400)` — but does NOT reset `isProcessing = false` before the setTimeout. If FeedbackManager threw or took longer than expected, `isProcessing` remained `true` permanently, blocking all further user interaction and causing mechanics tests to timeout on the next round's button clicks.
+
+**Root cause 3: `calcStars` not handling `game_over → 0★` explicitly**
+The `endGame` star calculation in generated HTML sometimes applied the time-based formula even for `reason === 'game_over'`, resulting in `stars = 1` (instead of 0) when the game ended early with some level times recorded. The contract validator expects `stars = 0` for game_over. Review would reject with "calcStars wrong for game_over path".
+
+**Root cause 4: postMessage missing `duration_data` / `attempts`**
+Some generated HTML variants built `metrics` without explicitly including `duration_data` and `attempts`, or included them as undefined references. The contract validator checks both fields. Review rejected with "metrics.duration_data missing" or "metrics.attempts not an array".
+
+**Fix:**
+1. Spec `specs/Adjustment Strategy.md` updated: button IDs (`btn-a-minus`, `btn-a-plus`, `btn-b-minus`, `btn-b-plus`) added to the initial HTML template and to all `updateAdjusterUI()` innerHTML patterns. CRITICAL note added at top of spec.
+2. `checkAnswer()` spec updated: `gameState.isProcessing = false` added immediately before `setTimeout(() => roundComplete(), 400)`.
+3. `endGame()` spec updated: explicit `if (reason === 'game_over') stars = 0` branch required, with CRITICAL note in Verification Checklist.
+4. postMessage spec updated: CRITICAL note requiring `duration_data` and `attempts` inside the `metrics` object.
+5. Stale warehouse HTML (`warehouse/templates/adjustment-strategy/game/index.html`) and stale test files (`game/tests/`) deleted from both local and server so the next build generates fresh HTML and tests.
+
+**Proof:** Identified 2026-03-20 via R&D deep-dive. Pre-fix approval rate: 8% over 60 builds. Fix deployed to both `specs/Adjustment Strategy.md` and server `/opt/ralph/specs/Adjustment Strategy.md`. Warehouse HTML and test cache cleared.
+
+**How to apply:** For any game with persistent mechanics test failures where button clicks timeout after the first interaction: check whether `innerHTML` rebuild in UI update functions preserves button IDs. This is a systematic pattern — any game that uses innerHTML to show/hide adjusted values without re-injecting IDs will hit this bug.
