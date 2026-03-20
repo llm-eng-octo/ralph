@@ -25,7 +25,7 @@ Slack Events → /slack/events ────────┤
 ```bash
 npm start              # Start webhook server (port 3000)
 npm run worker         # Start BullMQ worker
-npm test               # Run all 385 tests (19 test files)
+npm test               # Run all 550 tests (19 test files)
 npm run validate       # Run static HTML validator on a file
 npm run validate:contract  # Run contract validator on a file
 npm run lint           # ESLint check
