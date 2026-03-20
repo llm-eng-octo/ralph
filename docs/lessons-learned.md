@@ -419,3 +419,13 @@ Gemini uses API key authentication (not OAuth) and is unaffected by Claude org r
 **Detection:** `hasTransitionSlot` is derived by checking whether the HTML or domSnapshot contains `mathai-transition-slot`. Non-CDN games (e.g., adjustment-strategy, game-type templates) must use the new phase-based `startGame()` path.
 
 **How to apply:** If a non-CDN build has all 5 categories skip_tests on iteration 1 and the triage rationale mentions the transition-slot button, verify `hasTransitionSlot` is being computed correctly from the HTML content. The fallback `startGame()` tries three generic button selectors before falling back to phase waiting — if none of those match the game's actual start button, add the correct selector to the fallback list.
+
+## Lesson 65 — Global fix loop treats deleted spec files as failing batches (0/0)
+
+**Issue:** When triage deletes a spec file (all tests in a category were skipped via `skip_tests`), the global fix loop at Step 3c still iterates over it from the pre-built `batches` array. Running Playwright on a non-existent file produces 0 passed / 0 failed, which the global loop treats as a failing batch. This triggers a spurious HTML fix LLM call even though the category was intentionally cleared by triage.
+
+**Detection signal:** Log line `"[global] [edge-cases] 0/0 tests ran — page likely broken, treating as failing batch"` immediately after a per-batch loop where triage returned `skip_tests` and the spec file was deleted.
+
+**Fix:** In the global fix loop, check `existingBatchFiles = batch.filter(f => fs.existsSync(f))` before running Playwright. If all files are missing (length === 0), treat the batch as passing and skip. Commit 749a2f1.
+
+**How to apply:** Any time a category shows 0/0 in the global loop immediately after per-batch triage, check whether the spec file was deleted. If it was, the issue was this bug (pre-fix). Post-fix, deleted batches are silently skipped in the global loop.
