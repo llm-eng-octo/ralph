@@ -1114,4 +1114,163 @@ describe('pipeline-fix-loop.js detectCrossBatchRegression', () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('returns no regression when nowPassed > prevPassed (improvement)', async () => {
+    const { specFile, dir } = makeTmpSpecFile('mechanics');
+    try {
+      // Mock: Playwright now reports more passing than before (improvement, not regression)
+      const fakeExecFile = (_cmd, _args, _opts, cb) => {
+        const stdout = JSON.stringify({ stats: { expected: 7, unexpected: 0 } });
+        cb(null, { stdout });
+      };
+      await withMockExecFile(fakeExecFile, async (fn) => {
+        const prior = [{ category: 'mechanics', specFile, passed: 4, total: 4 }];
+        const result = await fn(prior, dir, 5000);
+        assert.deepEqual(result, [], 'improvement (nowPassed > prevPassed) is not a regression');
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for pipeline-utils.js extractSpecRounds
+// Covers table parsing, ordered list parsing, and fallback to empty array.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-utils.js extractSpecRounds', () => {
+  const { extractSpecRounds } = require('../lib/pipeline-utils');
+
+  it('returns empty array for null/undefined input', () => {
+    assert.deepEqual(extractSpecRounds(null), []);
+    assert.deepEqual(extractSpecRounds(undefined), []);
+    assert.deepEqual(extractSpecRounds(''), []);
+  });
+
+  it('parses markdown table rows into question/answer pairs', () => {
+    const spec = `
+## Rounds
+| Question | Answer |
+|----------|--------|
+| 3 + 4 | 7 |
+| 10 - 5 | 5 |
+| 6 × 2 | 12 |
+`;
+    const result = extractSpecRounds(spec);
+    assert.equal(result.length, 3);
+    assert.equal(result[0].question, '3 + 4');
+    assert.equal(result[0].answer, '7');
+    assert.equal(result[1].question, '10 - 5');
+    assert.equal(result[1].answer, '5');
+  });
+
+  it('skips header rows (Question/Answer/--- separators)', () => {
+    const spec = `| Question | Answer |\n|---|---|\n| What is 2+2? | 4 |`;
+    const result = extractSpecRounds(spec);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].question, 'What is 2+2?');
+    assert.equal(result[0].answer, '4');
+  });
+
+  it('skips metadata rows where col2 is YES/NO (Parts Selected table)', () => {
+    const spec = `
+| Part ID | Included |
+|---------|---------|
+| PART-001 | YES |
+| PART-002 | NO |
+| What is 5+3? | 8 |
+`;
+    const result = extractSpecRounds(spec);
+    // Only the real Q/A row should be returned; YES/NO rows skipped
+    assert.ok(result.every((r) => r.answer !== 'YES' && r.answer !== 'NO'));
+    assert.ok(result.some((r) => r.question === 'What is 5+3?' && r.answer === '8'));
+  });
+
+  it('parses numbered list items with → separator', () => {
+    const spec = `
+1. Apple → Red
+2. Banana → Yellow
+3. Sky → Blue
+`;
+    const result = extractSpecRounds(spec);
+    assert.equal(result.length, 3);
+    assert.equal(result[0].question, 'Apple');
+    assert.equal(result[0].answer, 'Red');
+    assert.equal(result[2].question, 'Sky');
+    assert.equal(result[2].answer, 'Blue');
+  });
+
+  it('falls back to ordered list when no table rows found', () => {
+    const spec = `No table here.\n1. 3+4=7\n2. 5+6=11\n`;
+    const result = extractSpecRounds(spec);
+    assert.ok(result.length >= 1, 'should extract at least one round from numbered list');
+    assert.equal(result[0].question, '3+4');
+    assert.equal(result[0].answer, '7');
+  });
+
+  it('caps output at 5 rounds maximum', () => {
+    const rows = Array.from({ length: 10 }, (_, i) => `| Q${i + 1} | A${i + 1} |`).join('\n');
+    const spec = `| Q | A |\n|---|---|\n${rows}`;
+    const result = extractSpecRounds(spec);
+    assert.equal(result.length, 5, 'should stop at 5 rounds');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for pipeline-fix-loop.js deterministicTriage
+// Covers fix_html, skip_tests, and null (fall-through) cases.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js deterministicTriage', () => {
+  const { deterministicTriage } = require('../lib/pipeline-fix-loop');
+
+  it('returns null for empty or missing failures', () => {
+    assert.equal(deterministicTriage([]), null);
+    assert.equal(deterministicTriage(null), null);
+  });
+
+  it('returns fix_html when all failures are __ralph not defined', () => {
+    const failures = [
+      'TypeError: window.__ralph is not defined',
+      'Cannot read properties of undefined (reading __ralph)',
+    ];
+    assert.equal(deterministicTriage(failures), 'fix_html');
+  });
+
+  it('returns skip_tests when all failures are visibilityState redefinition', () => {
+    const failures = [
+      'Cannot redefine property: visibilityState',
+      'Cannot redefine property: visibilityState',
+    ];
+    assert.equal(deterministicTriage(failures), 'skip_tests');
+  });
+
+  it('returns null when failures are mixed patterns (no deterministic match)', () => {
+    const failures = [
+      'Expected score to be 10, got 5',
+      'waitForPhase timed out after 10s',
+    ];
+    assert.equal(deterministicTriage(failures), null);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Additional isInitFailure pattern coverage (patterns not yet covered above)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js isInitFailure — additional patterns', () => {
+  const { isInitFailure } = require('../lib/pipeline-fix-loop');
+
+  it('matches window.gameState undefined pattern', () => {
+    assert.equal(isInitFailure(['window.gameState is undefined — cannot read phase'], 0), true);
+  });
+
+  it('matches page.goto failed pattern', () => {
+    assert.equal(isInitFailure(['page.goto failed: net::ERR_CONNECTION_REFUSED'], 0), true);
+  });
+
+  it('matches transition-slot legacy pattern', () => {
+    assert.equal(isInitFailure(['transition-slot never appeared in DOM'], 0), true);
+  });
 });
