@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (spec pre-validation, build auto-retry, iteration HTML URL audit trail done)
+**Last updated:** March 20, 2026 (semantic learning deduplication done)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -151,7 +151,8 @@
 | Task | Status | Hypothesis | Expected Impact |
 |------|--------|-----------|-----------------|
 | **Cross-game learning injection** | **done (2026-03-20)** | Extract fix patterns + root-cause notes from every APPROVED build's `learnings` table and inject as a "lessons from similar games" block into generation + fix prompts for new builds of the same CDN part mix | Reduce avg iterations from ~3 → ~1.5; fewer triage calls; higher first-pass approval rate — biggest throughput lever remaining |
-| **Semantic learning deduplication** | **next** | Before injecting DB learnings, cluster semantically near-duplicate entries (same root cause, different wording) and keep only one representative per cluster — prevents prompt bloat as the learnings table grows; use simple text-similarity bucketing in `getRelevantLearnings()` | Keep injected learnings block compact (< 20 bullets) even after 100+ approved builds; preserves prompt token budget |
+| **Semantic learning deduplication** | **done (2026-03-20)** | `jaccardSimilarity()` + dedup pass in `getRelevantLearnings()`: keeps most-recent entry per cluster (threshold 0.6), caps at 20 bullets, fetch limit 3× cap — 10 new tests, 357 pass | Keeps injected learnings block compact (≤ 20 bullets) even after 100+ approved builds; preserves prompt token budget |
+| **Spec-similarity retrieval** | **next** | Instead of returning all APPROVED learnings indiscriminately, score each learning against the current spec using TF-IDF or keyword overlap on CDN parts + mechanic type — return only the top-K learnings most relevant to this specific build's game type | Further reduce prompt bloat and noise; more targeted learnings → fewer irrelevant bullets injected; expected to improve first-pass approval rate for novel game types |
 
 ### Cross-game learning injection — design notes
 
@@ -179,7 +180,8 @@
 ## What's Next
 
 1. **[R&D — done] Cross-game learning injection** — `getRelevantLearnings()` added to `lib/pipeline.js`; queries APPROVED build learnings from DB and merges into all gen/fix prompts; 347 tests pass; deployed 2026-03-20
-2. **[R&D — next] Semantic learning deduplication** — cluster near-duplicate learnings before injection to keep prompt block compact as DB grows
-3. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
+2. **[R&D — done] Semantic learning deduplication** — `jaccardSimilarity()` + dedup pass in `getRelevantLearnings()`; Jaccard threshold 0.6, cap 20 bullets; 357 tests pass; deployed 2026-03-20
+3. **[R&D — next] Spec-similarity retrieval** — score learnings against current spec by CDN parts + mechanic overlap; return top-K most relevant learnings per build
+4. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
 4. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
 5. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
