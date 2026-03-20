@@ -150,7 +150,8 @@
 
 | Task | Status | Hypothesis | Expected Impact |
 |------|--------|-----------|-----------------|
-| **Cross-game learning injection** | **active** | Extract fix patterns + root-cause notes from every APPROVED build's `learnings` table and inject as a "lessons from similar games" block into generation + fix prompts for new builds of the same CDN part mix | Reduce avg iterations from ~3 → ~1.5; fewer triage calls; higher first-pass approval rate — biggest throughput lever remaining |
+| **Cross-game learning injection** | **done (2026-03-20)** | Extract fix patterns + root-cause notes from every APPROVED build's `learnings` table and inject as a "lessons from similar games" block into generation + fix prompts for new builds of the same CDN part mix | Reduce avg iterations from ~3 → ~1.5; fewer triage calls; higher first-pass approval rate — biggest throughput lever remaining |
+| **Semantic learning deduplication** | **next** | Before injecting DB learnings, cluster semantically near-duplicate entries (same root cause, different wording) and keep only one representative per cluster — prevents prompt bloat as the learnings table grows; use simple text-similarity bucketing in `getRelevantLearnings()` | Keep injected learnings block compact (< 20 bullets) even after 100+ approved builds; preserves prompt token budget |
 
 ### Cross-game learning injection — design notes
 
@@ -177,7 +178,8 @@
 
 ## What's Next
 
-1. **[R&D — active] Cross-game learning injection** — extract APPROVED build lessons from DB, inject into gen/fix prompts; target: avg iterations ~3 → ~1.5
-2. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
-3. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
-4. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
+1. **[R&D — done] Cross-game learning injection** — `getRelevantLearnings()` added to `lib/pipeline.js`; queries APPROVED build learnings from DB and merges into all gen/fix prompts; 347 tests pass; deployed 2026-03-20
+2. **[R&D — next] Semantic learning deduplication** — cluster near-duplicate learnings before injection to keep prompt block compact as DB grows
+3. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
+4. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
+5. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
