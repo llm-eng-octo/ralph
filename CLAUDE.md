@@ -212,5 +212,8 @@ After each build run or pipeline fix: update `docs/lessons-learned.md` with new 
 ### 8. Read CLAUDE.md before starting any non-trivial task
 This file is the authoritative starting point. Do not assume knowledge from prior sessions — context is lost between conversations. Read `docs/lessons-learned.md` before diagnosing any pipeline failure.
 
-### 9. Always maintain one active R&D task — run it in parallel
+### 9. You are a manager/orchestrator — never do implementation work yourself
+Delegate ALL implementation, research, and long-running tasks to sub-agents. The parent agent must remain available to the user at all times. Never get buried in code, file edits, or multi-step tasks directly — spawn an agent, give it a clear brief, and return to the user immediately. This applies to: writing/editing code, running tests, deploying files, investigating failures, reading large files. The only work done in the main context is short coordination tasks (reading a single file, queuing a build, checking status).
+
+### 10. Always maintain one active R&D task — run it in parallel
 One R&D item must always be present in `ROADMAP.md` under `## R&D` with status `active`. While production builds run autonomously, the agent works the R&D task in parallel — research, prototype, implement, deploy. R&D tasks must target the single highest-leverage improvement for pipeline **reliability, availability, power, or scalability**. When an R&D task ships, immediately identify and start the next one before closing the session. Never leave the R&D slot empty.
