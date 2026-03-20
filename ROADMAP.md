@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (queue-sync orphan auto-recovery shipped 924c9a5; RALPH_GEN_LLM_TIMEOUT raised 600s→1200s commit 60bd7ae; Worker SyntaxError fix de84b38; rendering failure R1-R5 rules 1645449; 550 tests pass; R&D: non-standard lifecycle test gen active)
+**Last updated:** March 20, 2026 (passing-test-protection regex fix 275d14f; popup-backdrop teardown Rule 24 + Lesson 58 7428526; extractGameFeatures() 34 unit tests 14d5d7f; 584 tests pass; R&D: non-standard lifecycle test gen active — H2 shipped, measuring)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -162,6 +162,9 @@
 | RALPH_LLM_TIMEOUT config drift → worker stall (Lesson 54) | **done (2026-03-20)** | /opt/ralph/.env (server config) | Production had RALPH_LLM_TIMEOUT=1200 (4× documented default). Static-fix calls hung 20+ min, stalling 40+ queued builds (futoshiki build 296 stalled 23 min). Fixed by setting RALPH_LLM_TIMEOUT=300 in production .env. AbortController in llm.js is correctly wired — pure config issue. |
 | `logger is not defined` crash on pipeline init | **done (2026-03-20)** | lib/pipeline.js | `runPageSmokeDiagnostic()` was passed `logger` (undeclared) instead of `log` (local alias). Fixed commit 14e22e3. Affects free-the-key, crazy-maze, connect, colour-coding-tool — all requeued. |
 | VisibilityTracker template wrong in CDN_CONSTRAINTS_BLOCK | **done (2026-03-20)** | lib/prompts.js | Replaced DOM-element API with correct options-object pattern: onInactive/onResume + `{ fromVisibilityTracker: true }` + popupProps. Propagates to buildFixPrompt/buildGlobalFixPrompt/buildTargetedFixPrompt. Commit 827f44d. |
+| popup-backdrop teardown: Rule 24 + CDN constraint (Lesson 58) | **done (2026-03-20, commit 7428526)** | lib/prompts.js | VisibilityTracker's #popup-backdrop stays as full-screen overlay after popup dismissal — intercepts all pointer events, causing click timeouts at iter 2 (builds 306, 310). Fix: Rule 24 in buildGenerationPrompt requires explicit `bd.style.display='none'; bd.style.pointerEvents='none'` in onResume and restartGame(). POPUP-BACKDROP TEARDOWN constraint added to CDN_CONSTRAINTS_BLOCK for fix prompts. Lesson 58 documented. |
+| Passing-test-protection regex fix in fix-loop prompt builder | **done (2026-03-20, commit 275d14f)** | lib/pipeline-fix-loop.js | `passingContext` and `priorBatchContext` were silently broken: regex `^\}` in multiline mode matched only top-level `}` but Playwright test blocks have indented `  });` — so `passingTestBodies` was always empty and the "MUST keep passing" LLM constraint was a no-op. Fix: drop body extraction entirely; switch to name-only lists (`"- test name\n"` per passing test; `"batchLabel: name1, name2"` per prior batch). Regression context now actually works — prevents class of iter-3 regressions (4 passing → 0 after fix). |
+| extractGameFeatures() unit tests (non-standard lifecycle) | **done (2026-03-20, commit 14d5d7f)** | test/pipeline-utils-game-features.test.js | 34 unit tests covering unlimited-lives, timer scoring, multi-level, accuracy scoring, single-round, and learn/recall two-phase variants. Supports R&D measurement of non-standard lifecycle test gen. 584 total tests pass. |
 
 ---
 
@@ -234,7 +237,7 @@
 
 ## P7 — Code Architecture & Best Practices
 
-> Audit date: 2026-03-20. All items identified from reading lib/pipeline.js (4105 lines), worker.js (1111 lines), server.js (572 lines), lib/db.js (468 lines), lib/slack.js (561 lines).
+> Audit date: 2026-03-20. All items identified from reading lib/pipeline.js (4105 lines → now 1263 lines), pipeline-fix-loop.js (1036), pipeline-test-gen.js (627), pipeline-targeted-fix.js (392), worker.js (1111 lines), server.js (572 lines), lib/db.js (468 lines), lib/slack.js (561 lines). P7 split complete — no single file exceeds 2000 lines.
 
 | Item | Status | File(s) | Notes |
 |------|--------|---------|-------|
@@ -270,10 +273,10 @@
 | P3 DevOps & Operations | 13 | 0 | 13 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 48 | 5 | 53 |
+| P6 Test Generation Quality | 51 | 5 | 56 |
 | P7 Code Architecture | 9 | 6 | 15 |
 | P8 Build Reliability | 5 | 2 | 7 |
-| **Total** | **120** | **11** | **134** |
+| **Total** | **123** | **11** | **137** |
 
 ## What's Next
 
@@ -306,5 +309,7 @@
 20. **[R&D — ACTIVE] Non-standard lifecycle test gen measurement** — H2 shipped (GAME FEATURE FLAGS block); measure 0-iteration-kill rate across next 10 builds for non-standard lifecycle games.
 21. **[R&D — NEXT] adjustment-strategy chronic failure deep-dive** — 15/15 real pipeline failures are adjustment-strategy; root cause unknown post-spec-contradiction-fix; trace per-iteration failure breakdown to identify structural issue.
 22. **[R&D — PLANNED] Measure abort-on-snapshot-failure impact** — add Prometheus counter for FatalSnapshotError regen triggers; track trigger rate over next 10 builds; if >20% investigate gen prompt improvements to reduce initial blank-page rate.
+23. **[SHIPPED] popup-backdrop teardown Rule 24 + Lesson 58** — VisibilityTracker backdrop overlay intercepts clicks at iter 2; Rule 24 + CDN_CONSTRAINTS_BLOCK POPUP-BACKDROP TEARDOWN constraint deployed 2026-03-20 (commit 7428526); Lesson 58 in docs/lessons-learned.md.
+24. **[SHIPPED] Passing-test-protection regex fix** — `passingContext` name extraction was always empty (regex `^\}` never matched indented `  });`); switched to name-only list format; "MUST keep passing" constraint now functional; prevents iter-3 regressions; deployed 2026-03-20 (commit 275d14f).
 11. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
 12. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
