@@ -126,10 +126,20 @@ describe('validate-static.js', () => {
       )
       .replace(
         '</script>',
-        'window.addEventListener("DOMContentLoaded", async () => { setupGame(); });\n</script>',
+        'window.endGame = endGame;\nwindow.addEventListener("DOMContentLoaded", async () => { setupGame(); });\n</script>',
       );
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+  });
+
+  it('fails when CDN game (DOMContentLoaded) missing window.endGame assignment', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      '// no window.endGame assignment\nwindow.addEventListener("DOMContentLoaded", async () => { endGame(); });\n</script>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1);
+    assert.ok(output.includes('window.endGame'));
   });
 
   it('fails when missing endGame', () => {
