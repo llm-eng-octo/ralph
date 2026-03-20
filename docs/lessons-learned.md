@@ -52,3 +52,25 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 
 **INSTRUCTIONS FOR MAINTAINING LESSONS:** Always update this file after every notable build outcome or pipeline bug fix. Add lesson immediately when: a new pipeline bug is found and fixed, a build proves or disproves a hypothesis, a new failure pattern is discovered, or any hard-won insight that would help avoid repeating a mistake. Never let insights live only in conversation memory.
 35. **beforeEach transition-slot wait fails for non-CDN games** — The shared test boilerplate `beforeEach` unconditionally waited for `#mathai-transition-slot button`. Games that don't use the TransitionScreen CDN component (non-CDN or inline-layout games) never have this button — ALL tests failed in `beforeEach` with "expected locator to be visible" timeout. Caused build 216 (count-and-tap) to score 0/10 across all batches. **Fix:** At `sharedBoilerplate` generation time, check `htmlContent` for `mathai-transition-slot`. If present (`hasTransitionSlot = true`), use the existing 50s polling loop. If absent, use a fallback: `waitForSelector('#app[data-phase="start"], #gameContent, #start-screen', { timeout: 30000 })`. The `domSnapshot` string is checked as a secondary signal. Default is `true` (slot path) only when both `htmlContent` is empty and `domSnapshot` is null. **How to apply:** Any game whose HTML doesn't include `mathai-transition-slot` gets the fallback `beforeEach`. Games using ScreenLayout CDN always have it.
+
+## Lesson 36 — Stale warehouse HTML causes all scale run builds to fail at initialization
+
+**Pattern:** When `warehouse/templates/<gameId>/game/index.html` exists, the worker copies it to each new build directory and the pipeline SKIPS HTML generation entirely. For games that were never approved, this means every build reuses broken/stale warehouse HTML. The fix loop cannot recover because the fundamental initialization issue is in the original HTML, not in the test logic.
+
+**Root cause of scale run failures (builds 219-223+):** All queued games had pre-existing warehouse HTML from prior manual/pipeline runs. None was approved. The HTML had initialization bugs (start screen never renders, `#mathai-transition-slot button` never appears) that the per-batch fix loop couldn't resolve in 3 iterations.
+
+**Fix (one-time cleanup):** Before running a scale validation, delete `warehouse/templates/<gameId>/game/index.html` for ALL games that have never reached APPROVED status in the DB. Keeps: games with `status='approved'` in the games table.
+
+**Pipeline improvement needed:** Add auto-detection: if game-flow AND mechanics both score 0/N on iteration 1 AND warehouse HTML was copied (not freshly generated), delete warehouse HTML and regenerate. Add to build kill criteria.
+
+**Proof:** Deleting 41 warehouse HTML files (non-approved games) immediately unblocked the scale run. Build 224 (true-or-false) generated fresh HTML and passed static validation on the same run.
+
+## Lesson 37 — Always-applied post-processing overwrites conditional beforeEach (bug identified, fix pending)
+
+**Pattern:** The "always-applied test post-processing" block (pipeline.js ~line 1847) replaces every `test.beforeEach` with a hardcoded version that unconditionally waits for `#mathai-transition-slot button`. This overwrites the conditional sharedBoilerplate fix (lesson 35) for games without the transition slot. Even when sharedBoilerplate correctly generates a fallback beforeEach, post-processing replaces it on every run.
+
+**Fix:** In the post-processing block, check `htmlContent.includes('mathai-transition-slot')` and use the appropriate beforeEach (slot-based vs fallback).
+
+**Also:** Gemini sometimes generates `#${transitionSlotId}` as a literal string (template variable hallucination). Fix: add post-processing cleanup to replace `${transitionSlotId}` → `mathai-transition-slot` in all spec files.
+
+**Status:** Fix committed (see task #31 follow-up). Both issues found during monitoring of builds 221-223.
