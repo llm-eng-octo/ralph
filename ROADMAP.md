@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (P7 split done (819 lines) + config.js/lazy-require/magic-number/db-migration done; P8 isInitFailure + queue-dedup + error-message + Step 1d smoke-check done; R&D: queue-sync auto-requeue DONE — 7 new tests, 435 pass; R&D: rendering-pattern detection toBeVisible pre-triage DONE — 6 new tests, 441 pass; blank-page smoke check done cad2ca3; require() cache bust done f77b404; gen prompt T1 compliance done 14ab33c; E9 cross-build pattern injection done 26b21b0; R&D DONE: first-pass failure root-cause analysis — abort-on-snapshot-failure + syncDOMState rule 22 shipped; Lessons 49 + 50 added; R&D ACTIVE: measure abort-on-snapshot-failure impact; E4 done 316f32a; transitionScreen.show() gen rule added (58% fatal-init fix))
+**Last updated:** March 20, 2026 (P7 split done (819 lines) + config.js/lazy-require/magic-number/db-migration done; P8 isInitFailure + queue-dedup + error-message + Step 1d smoke-check done; R&D: queue-sync auto-requeue DONE — 7 new tests, 435 pass; R&D: rendering-pattern detection toBeVisible pre-triage DONE — 6 new tests, 441 pass; blank-page smoke check done cad2ca3; require() cache bust done f77b404; gen prompt T1 compliance done 14ab33c; E9 cross-build pattern injection done 26b21b0; R&D DONE: first-pass failure root-cause analysis — abort-on-snapshot-failure + syncDOMState rule 22 shipped; Lessons 49 + 50 added; R&D ACTIVE: measure abort-on-snapshot-failure impact; E4 done 316f32a; transitionScreen.show() gen rule added (58% fatal-init fix); R&D: review rejection analysis done — debug-function rule conflict found (29% rejections); VisibilityTracker template fix in progress; cross-batch regression R&D active)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -155,7 +155,7 @@
 | T1: initSentry() order check | done | lib/validate-static.js | Errors if initSentry() appears before waitForPackages() — throws before SDK loads → ScreenLayout blocked |
 | T1: Debug functions on window check | done | lib/validate-static.js | Errors on window.debugGame/testAudio/testPause etc. — review model rejects window-exposed debug fns |
 | Multi-game scale validation | in-progress | warehouse/templates/ | 47 games queued; 1 APPROVED (match-the-cards), visual-memory + 4 more in queue with latest fixes |
-| Reduce review rejection rate (~20% of failures) | planned | lib/pipeline.js, lib/prompts.js | Review model rejects for 3 recurring patterns: (1) gameState.phase never set to 'game_over' after last round ends (LLM uses 'gameover' without underscore mismatch), (2) missing isActive guard in answer handler (double-click fires endGame twice), (3) TransitionScreen transition not awaited before next round starts. Add T1 static checks + gen/fix prompt rules for each. Goal: review APPROVED on first attempt >80% of builds (currently ~60%). |
+| Reduce review rejection rate (~20% of failures) | in-progress | lib/pipeline.js, lib/prompts.js | Review model rejects for 3 recurring patterns: (1) gameState.phase never set to 'game_over' after last round ends (LLM uses 'gameover' without underscore mismatch), (2) missing isActive guard in answer handler (double-click fires endGame twice), (3) TransitionScreen transition not awaited before next round starts. Add T1 static checks + gen/fix prompt rules for each. Goal: review APPROVED on first attempt >80% of builds (currently ~60%). Fix being implemented: change debug-function rule from MUST NOT expose on window to MUST expose on window (29% rejection root cause per R&D analysis). |
 
 ---
 
@@ -187,6 +187,8 @@
 | **E9 cross-build failure pattern injection** | **done (2026-03-20)** | `findMatchingPattern()` in db.js; injected at iteration 1 via triageFixHints + fixHintContext; scoped to current-game-only lookup; 3 new tests; 444 pass; commit 26b21b0 | Saves ~1 iteration for repeat-pattern games; low overhead |
 | **First-pass failure root cause analysis** | **done (2026-03-20)** | Traced 65 triage events across builds 218–232: 58% HTML fatal init, 22% phase-transition missing syncDOMState(), 9% data-shape mismatch, 11% other. Shipped two fixes: (1) abort-on-snapshot-failure (pipeline-test-gen.js throws FatalSnapshotError on null snapshot; pipeline.js regen + retry; abort if retry fails) — eliminates test-gen LLM call on confirmed-broken pages (44% of fatal-init cases). (2) Rule 22 in lib/prompts.js: syncDOMState() required after every gameState.phase assignment — targets 22% of iter-1 failures. Full analysis at docs/rnd-first-pass-failure-analysis.md. | Committed 2026-03-20. Expected: ~44% reduction in wasted test-gen LLM calls; 22% reduction in phase-transition iter-1 failures. |
 | **Reduce fatal CDN init failures (58% of iter-1 failures)** | **done (2026-03-20)** | Hypothesis confirmed. Critical finding: `transitionScreen.show()` MUST be called as the last step of `DOMContentLoaded` when using PART-025/ScreenLayout — a missing call leaves `#mathai-transition-slot` empty, causing 100% test failure on all waitForPhase() calls. Rule added to gen prompt (commit 316f32a). This addresses the 58% fatal-init class. Measurable: before/after iteration-1 game-flow pass rate across next 10 builds. | |
+| **Review rejection root cause analysis** | **done (2026-03-20)** | Classified 28 rejection events (builds 50–295). Top causes: VisibilityTracker API misuse (39%), debug-function window-exposure rule conflict (29%), postMessage payload incomplete (18%). Critical finding: CDN_CONSTRAINTS_BLOCK says "debug functions MUST NOT be on window" but spec checklist requires them ON window — creates unfixable loop. Fix: change rule to MUST expose on window. Full analysis at docs/rnd-review-rejection-analysis.md. | Fixing rule conflict + adding VisibilityTracker template expected to eliminate ~50% of early-review rejections |
+| **Cross-batch fix-loop regression detection** | **active** | Per-batch 3-iteration loop cannot detect when a fix in batch N breaks batch N+1 — budget exhausted before regression is caught. Hypothesis: adding a quick smoke re-run of all previously-passing batches after each per-batch fix would catch cross-batch regressions before the next batch's budget is spent. Analysis underway in docs/rnd-cross-batch-regression.md. | Expected: eliminates the "chronic failure" class (rapid-challenge, associations); reduces avg iterations for multi-batch games |
 
 ### Cross-game learning injection — design notes
 
@@ -234,7 +236,7 @@
 | P3 DevOps & Operations | 11 | 0 | 11 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 41 | 2 | 44 |
+| P6 Test Generation Quality | 41 | 3 | 44 |
 | P7 Code Architecture | 7 | 8 | 15 |
 | P8 Build Reliability | 5 | 2 | 7 |
 | **Total** | **109** | **11** | **123** |
