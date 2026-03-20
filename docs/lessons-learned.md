@@ -74,3 +74,11 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 **Also:** Gemini sometimes generates `#${transitionSlotId}` as a literal string (template variable hallucination). Fix: add post-processing cleanup to replace `${transitionSlotId}` → `mathai-transition-slot` in all spec files.
 
 **Status:** Fix committed (see task #31 follow-up). Both issues found during monitoring of builds 221-223.
+
+## Lesson 38 — CDN URL constraint missing from generation prompt caused fresh-HTML init failures
+
+**Pattern:** The fix prompt had CRITICAL CDN CONSTRAINTS (`cdn.homeworkapp.ai`, not `cdn.mathai.ai`) but the **generation prompt** did not. LLMs hallucinate `cdn.mathai.ai` as the CDN domain. Using the wrong domain causes all CDN scripts (ProgressBarComponent, TransitionScreen, etc.) to 404 silently — the game page renders blank, the start screen never appears, and ALL tests fail in `beforeEach` with "element not found" timeout. This was the root cause of fresh-HTML init failures in builds 222-225 (start screen never renders even after game_init fix and warehouse HTML deletion).
+
+**Fix:** Added rule 18 to both the API generation prompt and the CLI (`claude -p`) generation prompt: "ALWAYS use cdn.homeworkapp.ai. NEVER use cdn.mathai.ai." Also added post-generation cleanup in pipeline.js that replaces `cdn.mathai.ai` → `cdn.homeworkapp.ai` in the generated HTML file before harness injection (defense in depth).
+
+**How to apply:** If a freshly generated CDN game has 0% on game-flow iteration 1 AND init failures (start screen never renders), check the generated HTML for `cdn.mathai.ai` — that's the first thing to verify.
