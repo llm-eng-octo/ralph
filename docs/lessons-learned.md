@@ -192,3 +192,17 @@ sudo docker exec ralph-redis-1 ls -la /data/appendonlydir/
 **Tests:** 7 new unit tests in `test/worker.test.js` covering: candidate selection (retry_count=0), exclusion (retry_count=1), null retry_count eligibility, skip when queued/running build exists, allow when no active build, empty table.
 
 **How to apply:** This is now automatic. After any worker restart, the startup log will show `[worker] queue-sync requeue: found N builds to requeue` (or 0). No manual intervention needed. If a game is stuck and you need to prevent the auto-requeue, set `retry_count=1` directly: `node -e "require('./lib/db').getDb().prepare('UPDATE builds SET retry_count=1 WHERE id=?').run(BUILD_ID)"`.
+
+## Lesson 48 — Deterministic pre-triage: toBeVisible/toBeHidden batch failures are rendering mismatches, not HTML bugs
+
+**Pattern:** When a test batch returns >3 failures all containing `toBeVisible()` or `toBeHidden()`, these are invariably test-side DOM visibility assumptions that the game HTML doesn't satisfy. The test generator assumed certain elements would be visible at specific points in the game flow, but the game renders them differently (e.g., hidden by default until the game starts, or visibility toggled by CDN components). The LLM triage model correctly identifies these as `skip_tests` (rendering mismatch, not an HTML bug), but only AFTER spending a full triage LLM call.
+
+**Real example:** adjustment-strategy game had 8 distinct `toBeVisible()` failures in one batch, all categorized as "rendering" in the failure_patterns table. Each triage call for this pattern costs a full LLM round-trip with no HTML fix output.
+
+**Fix:** `detectRenderingMismatch(failureDescs)` added to `lib/pipeline-fix-loop.js`. Runs BEFORE the triage LLM call in the per-batch iteration loop. If more than 3 failures match `/toBeVisible|toBeHidden/i`, the function returns `true` and the loop immediately breaks with `skip_tests` — no LLM call. The threshold is `>3` (not `>=3`) because 3 toBeVisible failures could be a real DOM bug affecting a specific element; 4+ distributed across different elements strongly indicates test-side assumptions.
+
+**Saves:** One LLM triage round-trip per affected batch per iteration. For games that trigger this pattern on iterations 1, 2, and 3, this saves 3 triage calls (roughly $0.01–$0.03 per batch, plus latency).
+
+**How to apply:** If a batch repeatedly hits `skip_tests` in triage for `toBeVisible` reasons, it's this pattern. The fix loop will log `[pipeline] [batchLabel] Pre-triage: toBeVisible pattern detected (N failures) — skip_tests` and emit a `pretriage-visibility-skip` progress event. No action needed — the pre-triage guard is active automatically.
+
+**Implementation:** `detectRenderingMismatch()` exported from `lib/pipeline-fix-loop.js` alongside `isInitFailure`. 6 unit tests cover: 4 visible=true, 3 visible=false (boundary), 2+2 mixed=true, empty=false, 4 non-visibility=false, case-insensitive=true.
