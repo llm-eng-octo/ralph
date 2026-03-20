@@ -1162,6 +1162,47 @@ async function cleanupOrphanedBuilds() {
 }
 cleanupOrphanedBuilds().catch(err => logger.error('[worker] Orphan cleanup failed:', err));
 
+// At startup: requeue any failed builds with queue-sync error that haven't been retried yet
+async function requeueQueueSyncBuilds() {
+  const candidates = db
+    .getDb()
+    .prepare(
+      "SELECT * FROM builds WHERE status = 'failed' AND error_message LIKE '%queue-sync%' AND (retry_count IS NULL OR retry_count < 1) ORDER BY id ASC",
+    )
+    .all();
+
+  if (candidates.length === 0) {
+    logger.info('[worker] queue-sync requeue: found 0 builds to requeue');
+    return;
+  }
+
+  logger.info(`[worker] queue-sync requeue: found ${candidates.length} build(s) to requeue`);
+
+  const buildQueue = new Queue('ralph-builds', { connection });
+
+  for (const build of candidates) {
+    const gameId = build.game_id;
+
+    // Skip if this game already has a queued or running build
+    const active = db
+      .getDb()
+      .prepare("SELECT id FROM builds WHERE game_id = ? AND status IN ('queued', 'running') LIMIT 1")
+      .get(gameId);
+    if (active) {
+      logger.info(`[worker] queue-sync requeue: skipping ${gameId} — already has active build #${active.id}`);
+      db.getDb().prepare('UPDATE builds SET retry_count = 1 WHERE id = ?').run(build.id);
+      continue;
+    }
+
+    await buildQueue.add('build', { gameId, requeueOf: build.id });
+    db.getDb().prepare('UPDATE builds SET retry_count = 1 WHERE id = ?').run(build.id);
+    logger.info(`[worker] queue-sync auto-requeue: ${gameId} (was build #${build.id})`);
+  }
+
+  await buildQueue.close();
+}
+requeueQueueSyncBuilds().catch(err => logger.error('[worker] queue-sync requeue failed:', err));
+
 startSystemMetrics();
 logger.info(`[worker] Worker ID: ${WORKER_ID}`);
 console.log(`[ralph-worker] Started with concurrency=${CONCURRENCY}`);

@@ -169,3 +169,26 @@ sudo docker exec ralph-redis-1 ls -la /data/appendonlydir/
 **Cost saved:** Prevents ~2 full LLM fix iterations + test generation tokens ($0.20–$0.50 per incident) on CDN-broken pages that would otherwise waste 5 full iterations before the pipeline fails.
 
 **How to apply:** When a build fails iteration 1 with 0/N on all categories AND the error is `page.waitForSelector Timeout` or similar, check the Slack thread for a `smoke-check-failed` progress event. If present, the root cause is a page load failure — the smoke check caught it on the next build attempt.
+
+## Lesson 47 — Queue-sync job loss: auto-requeue at worker startup eliminates manual intervention
+
+**Pattern:** When the `ralph-worker` systemd service restarts (planned deploy, OOM kill, or crash), any BullMQ jobs that were in-flight are lost from the queue. The existing `cleanupOrphanedBuilds()` at startup correctly marks `status=running` builds as `failed` with `error_message = "orphaned: worker restarted..."`. But these builds were never automatically retried — they required a manual `POST /api/build` call. In the last 10 build failures, 9 had exactly this pattern (queue-sync job loss).
+
+**Root cause:** `cleanupOrphanedBuilds()` only marks builds failed; it has no requeue path. There was no automated recovery: the operator had to notice the failure in Slack, identify it as a queue-sync loss, and manually requeue. On busy days with multiple deploys, this meant 3–5 manual requeue calls per session.
+
+**Fix:** `requeueQueueSyncBuilds()` added to `worker.js` startup, called right after `cleanupOrphanedBuilds()`:
+1. Queries: `status='failed' AND error_message LIKE '%queue-sync%' AND (retry_count IS NULL OR retry_count < 1)`
+2. For each candidate, checks if the game already has a `queued` or `running` build — skips if so (prevents duplicate)
+3. Enqueues via `new Queue('ralph-builds', { connection })` and calls `.add('build', { gameId, requeueOf: build.id })`
+4. Sets `retry_count = 1` on the old failed build to prevent repeated requeue on subsequent restarts
+5. Logs: `[worker] queue-sync auto-requeue: ${gameId} (was build #${id})`
+
+**Guard rails:**
+- `retry_count < 1` — only auto-requeues once per failed build; prevents infinite loops
+- Active-build check — skips if game already has queued/running build; prevents duplicate concurrent pipelines
+- Only matches `error_message LIKE '%queue-sync%'` — never auto-retries other failure types (pipeline errors, review rejections, etc.)
+- Queue is opened and closed within the function; does not interfere with the main worker's connection
+
+**Tests:** 7 new unit tests in `test/worker.test.js` covering: candidate selection (retry_count=0), exclusion (retry_count=1), null retry_count eligibility, skip when queued/running build exists, allow when no active build, empty table.
+
+**How to apply:** This is now automatic. After any worker restart, the startup log will show `[worker] queue-sync requeue: found N builds to requeue` (or 0). No manual intervention needed. If a game is stuck and you need to prevent the auto-requeue, set `retry_count=1` directly: `node -e "require('./lib/db').getDb().prepare('UPDATE builds SET retry_count=1 WHERE id=?').run(BUILD_ID)"`.

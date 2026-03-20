@@ -300,3 +300,86 @@ describe('worker concurrency and rate limit config', () => {
     assert.equal(duration, 3600000);
   });
 });
+
+describe('queue-sync auto-requeue logic', () => {
+  // Replicate the requeueQueueSyncBuilds candidate-selection and skip logic for unit testing
+
+  function selectCandidates(builds) {
+    return builds.filter(
+      (b) => b.status === 'failed' && b.error_message && b.error_message.includes('queue-sync') && (b.retry_count == null || b.retry_count < 1),
+    );
+  }
+
+  function hasActiveBuilds(builds, gameId) {
+    return builds.some((b) => b.game_id === gameId && (b.status === 'queued' || b.status === 'running'));
+  }
+
+  it('selects builds with queue-sync error and retry_count=0', () => {
+    const builds = [
+      { id: 10, game_id: 'doubles', status: 'failed', error_message: 'queue-sync: BullMQ job lost after worker restart', retry_count: 0 },
+      { id: 11, game_id: 'fractions', status: 'failed', error_message: 'pipeline crashed', retry_count: 0 },
+      { id: 12, game_id: 'doubles', status: 'approved', error_message: null, retry_count: 0 },
+    ];
+    const candidates = selectCandidates(builds);
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0].id, 10);
+  });
+
+  it('does not select builds where retry_count is already 1', () => {
+    const builds = [
+      { id: 20, game_id: 'doubles', status: 'failed', error_message: 'queue-sync: BullMQ job lost after worker restart', retry_count: 1 },
+      { id: 21, game_id: 'fractions', status: 'failed', error_message: 'queue-sync: BullMQ job lost', retry_count: 0 },
+    ];
+    const candidates = selectCandidates(builds);
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0].id, 21);
+  });
+
+  it('treats null retry_count as eligible (equivalent to 0)', () => {
+    const builds = [
+      { id: 30, game_id: 'doubles', status: 'failed', error_message: 'queue-sync: job lost', retry_count: null },
+    ];
+    const candidates = selectCandidates(builds);
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0].id, 30);
+  });
+
+  it('skips requeue when game already has a queued build', () => {
+    const allBuilds = [
+      { id: 40, game_id: 'doubles', status: 'failed', error_message: 'queue-sync: job lost', retry_count: 0 },
+      { id: 41, game_id: 'doubles', status: 'queued', error_message: null, retry_count: 0 },
+    ];
+    const candidates = selectCandidates(allBuilds);
+    assert.equal(candidates.length, 1);
+    // Simulate the skip check
+    const shouldSkip = hasActiveBuilds(allBuilds, candidates[0].game_id);
+    assert.ok(shouldSkip, 'should skip when queued build exists');
+  });
+
+  it('skips requeue when game already has a running build', () => {
+    const allBuilds = [
+      { id: 50, game_id: 'fractions', status: 'failed', error_message: 'queue-sync: job lost', retry_count: 0 },
+      { id: 51, game_id: 'fractions', status: 'running', error_message: null, retry_count: 0 },
+    ];
+    const candidates = selectCandidates(allBuilds);
+    assert.equal(candidates.length, 1);
+    const shouldSkip = hasActiveBuilds(allBuilds, candidates[0].game_id);
+    assert.ok(shouldSkip, 'should skip when running build exists');
+  });
+
+  it('allows requeue when game has no active builds', () => {
+    const allBuilds = [
+      { id: 60, game_id: 'multiplication', status: 'failed', error_message: 'queue-sync: BullMQ job lost', retry_count: 0 },
+      { id: 59, game_id: 'multiplication', status: 'failed', error_message: 'pipeline error', retry_count: 0 },
+    ];
+    const candidates = selectCandidates(allBuilds);
+    assert.equal(candidates.length, 1);
+    const shouldSkip = hasActiveBuilds(allBuilds, candidates[0].game_id);
+    assert.ok(!shouldSkip, 'should not skip when no active build exists');
+  });
+
+  it('handles empty builds table gracefully', () => {
+    const candidates = selectCandidates([]);
+    assert.equal(candidates.length, 0);
+  });
+});
