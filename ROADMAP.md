@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (spec-similarity scoring in getRelevantLearnings done)
+**Last updated:** March 20, 2026 (learning category boosting in getRelevantLearnings done)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -153,7 +153,8 @@
 | **Cross-game learning injection** | **done (2026-03-20)** | Extract fix patterns + root-cause notes from every APPROVED build's `learnings` table and inject as a "lessons from similar games" block into generation + fix prompts for new builds of the same CDN part mix | Reduce avg iterations from ~3 → ~1.5; fewer triage calls; higher first-pass approval rate — biggest throughput lever remaining |
 | **Semantic learning deduplication** | **done (2026-03-20)** | `jaccardSimilarity()` + dedup pass in `getRelevantLearnings()`: keeps most-recent entry per cluster (threshold 0.6), caps at 20 bullets, fetch limit 3× cap — 10 new tests, 357 pass | Keeps injected learnings block compact (≤ 20 bullets) even after 100+ approved builds; preserves prompt token budget |
 | **Spec-similarity retrieval** | **done (2026-03-20)** | `extractSpecKeywords()` extracts PART-XXX IDs + PascalCase CDN names + mechanic nouns from spec; `getRelevantLearnings()` scores deduped learnings via Jaccard against spec keywords and sorts most-relevant first; falls back to recency when no specContent; 5 new tests, 362 total / 358 pass; deployed 2026-03-20 | Reduces prompt noise: irrelevant learnings from dissimilar game types sort to bottom; novel game types get targeted learnings surfaced first |
-| **Learning category boosting** | **next** | After spec-similarity sort, apply a secondary boost for learnings whose `category` matches the game's primary CDN part (e.g. `cdncompat` entries boosted for CDN games, `audio` boosted when FeedbackManager present). Also investigate persisting `spec_keywords` on the `builds` table to enable pre-filtered SQL WHERE clause instead of in-process scoring, saving CPU on large learning sets (100+ entries) | Further precision: category-aware ranking means the most actionable learnings for this exact failure class are first; SQL pre-filter scales to thousands of learnings without JS heap pressure |
+| **Learning category boosting** | **done (2026-03-20)** | `getCategoryBoost()` in `lib/pipeline.js`: `contract` +0.2 always, `cdncompat` +0.2 when PART-xxx in spec, `audio` +0.2 when FeedbackManager in spec, `layout` +0.2 when ScreenLayout in spec; exported for testability; 10 new unit tests; all 372 tests pass; deployed 2026-03-20 | Category-aware secondary sort surfaces contract/CDN/audio/layout learnings above equally-similar general entries — most actionable patterns reach the LLM first |
+| **Spec-keyword SQL pre-filtering** | **next** | Persist `spec_keywords` as a JSON column on the `builds` table; use SQL `WHERE l.category IN (...)` pre-filter to avoid loading and scoring irrelevant rows in JS when the learning set grows past 100+ entries. Also explore whether category boost weight should be tunable per-game-type via env var | Scales `getRelevantLearnings()` to large learning sets (1000+ rows) without JS heap pressure; combined SQL LIMIT reduces per-call latency from O(N) JS scoring to O(k) where k = matching category count |
 
 ### Cross-game learning injection — design notes
 
@@ -209,7 +210,8 @@
 1. **[R&D — done] Cross-game learning injection** — `getRelevantLearnings()` added to `lib/pipeline.js`; queries APPROVED build learnings from DB and merges into all gen/fix prompts; 347 tests pass; deployed 2026-03-20
 2. **[R&D — done] Semantic learning deduplication** — `jaccardSimilarity()` + dedup pass in `getRelevantLearnings()`; Jaccard threshold 0.6, cap 20 bullets; 357 tests pass; deployed 2026-03-20
 3. **[R&D — done] Spec-similarity retrieval** — `extractSpecKeywords()` + Jaccard scoring pass in `getRelevantLearnings()`; spec-relevant learnings sorted first; 362 tests / 358 pass; deployed 2026-03-20
-4. **[R&D — next] Learning category boosting** — secondary sort boost by category match (cdncompat/audio/etc.) + optional SQL pre-filter via persisted spec_keywords on builds table
-4. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
+4. **[R&D — done] Learning category boosting** — `getCategoryBoost()` in `lib/pipeline.js`; contract/cdncompat/audio/layout +0.2 additive boost; 10 new tests; 372 pass; deployed 2026-03-20
+5. **[R&D — next] Spec-keyword SQL pre-filtering** — persist spec_keywords JSON on builds table; SQL WHERE l.category IN (...) pre-filter scales to 1000+ learning rows without JS heap pressure
+5. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
 4. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
 5. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
