@@ -35,7 +35,7 @@
 | T2 contract validation layer | done | lib/validate-contract.js | Validates gameState shape, postMessage contracts, scoring/init contracts |
 | Load/stress tests | done | test/load.test.js | 47-template bulk creates, rapid cycles, 100+ record performance, metrics throughput |
 
-**Test count: 337 tests, 52 suites, 0 failures**
+**Test count: 338 tests, 52 suites, 0 failures**
 
 ## P2 — Spec Compliance & Feature Completeness
 
@@ -123,6 +123,11 @@
 | Build auto-retry (RALPH_AUTO_RETRY) | done | worker.js, lib/db.js | Requeues builds scoring 0/total once; retry_count in DB prevents chains; gated by env var |
 | Iteration HTML URL audit trail | done | lib/db.js, worker.js | iteration_html_urls column tracks all fix snapshots per build; count shown in Slack summary |
 | LLM call cost tracking (per-build USD estimate) | done | lib/llm.js, lib/pipeline.js, lib/slack.js, lib/db.js | Token accumulation per model; MODEL_COSTS map; total_cost_usd in DB + Slack |
+| Truncated HTML detection + generation retry | done | lib/pipeline.js, lib/validate-static.js | isHtmlTruncated() checks </html>/script tags; retries up to 3x; T1 now errors on missing </html> |
+| Auto-delete stale warehouse HTML on 0% game-flow iter 1 | done | lib/pipeline.js | Detects init-failure pattern + warehouse HTML source → deletes + regenerates; prevents 3-batch waste |
+| CDN URL constraint + auto-fix in generation | done | lib/pipeline.js | Rule 18 in gen prompt; post-gen cleanup replaces cdn.mathai.ai → cdn.homeworkapp.ai |
+| Conditional beforeEach post-processing | done | lib/pipeline.js | Post-processing respects hasTransitionSlot; ${transitionSlotId} hallucination cleanup |
+| Orphaned build auto-cleanup at worker startup | done | worker.js, lib/db.js | cleanupOrphanedBuilds() marks running builds failed at startup; getRunningBuilds() in db.js |
 | Multi-game scale validation | in-progress | warehouse/templates/ | 47 games queued (builds #217-262); all improvements active |
 
 ---
@@ -137,8 +142,8 @@
 | P3 DevOps & Operations | 11 | 0 | 11 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 24 | 1 | 26 |
-| **Total** | **80** | **2** | **83** |
+| P6 Test Generation Quality | 29 | 1 | 31 |
+| **Total** | **85** | **2** | **88** |
 
 ## What's Next
 
