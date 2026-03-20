@@ -298,7 +298,7 @@ const worker = new Worker(
       return handleFixJob(job);
     }
 
-    const { gameId, commitSha, buildId, specUrl, specContent } = job.data;
+    const { gameId, commitSha, buildId, specUrl, specContent, requestedBy } = job.data;
     let { specPath } = job.data;
 
     // ─── Resource gate ────────────────────────────────────────────────────────
@@ -342,7 +342,7 @@ const worker = new Worker(
       threadInfo = { ts: game.slack_thread_ts, channel: game.slack_channel_id };
       await slack.postThreadUpdate(
         threadInfo.ts, threadInfo.channel,
-        `🔄 *Build #${buildId} started* — ${gameId}\nGen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}`,
+        `🔄 *Build #${buildId} started* — ${gameId}\nGen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}${requestedBy ? `\ncc: <@${requestedBy}>` : ''}`,
       );
     } else {
       // Upload spec (await so link is ready for opener)
@@ -372,6 +372,7 @@ const worker = new Worker(
         `*Status:* 🔄 Building...`,
         `*Models:* Gen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}`,
         linksLine || null,
+        requestedBy ? `cc: <@${requestedBy}>` : null,
       ].filter(Boolean).join('\n');
 
       threadInfo = await slack.createGameThread(gameId, {
