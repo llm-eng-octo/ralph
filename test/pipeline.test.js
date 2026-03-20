@@ -8,7 +8,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { extractHtml, extractTests, getRelevantLearnings } = require('../lib/pipeline');
+const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity } = require('../lib/pipeline');
 
 describe('pipeline.js extractHtml', () => {
   it('extracts HTML from ```html code block', () => {
@@ -236,5 +236,135 @@ describe('pipeline.js getRelevantLearnings', () => {
       delete require.cache[require.resolve('../lib/pipeline')];
       require('../lib/pipeline');
     }
+  });
+});
+
+describe('pipeline.js jaccardSimilarity', () => {
+  it('returns 1 for identical strings', () => {
+    assert.equal(jaccardSimilarity('always expose window gameState for syncDOMState', 'always expose window gameState for syncDOMState'), 1);
+  });
+
+  it('returns 0 for completely disjoint strings', () => {
+    const sim = jaccardSimilarity('apple banana cherry', 'delta echo foxtrot');
+    assert.equal(sim, 0);
+  });
+
+  it('returns a value in (0, 1) for partially overlapping strings', () => {
+    const sim = jaccardSimilarity('expose window gameState for syncDOMState', 'always expose window gameState via assignment');
+    assert.ok(sim > 0 && sim < 1, `expected 0 < sim < 1, got ${sim}`);
+  });
+
+  it('correctly identifies near-duplicates above threshold 0.6', () => {
+    // Strings sharing most words — same root cause, minor wording change
+    const a = 'always expose window gameState so syncDOMState can read the state';
+    const b = 'always expose window gameState so syncDOMState can read game state';
+    const sim = jaccardSimilarity(a, b);
+    assert.ok(sim > 0.6, `expected sim > 0.6 for near-duplicates, got ${sim}`);
+  });
+
+  it('does not flag clearly distinct learnings as duplicates', () => {
+    const a = 'always expose window endGame so tests can trigger end of game';
+    const b = 'use fire and forget for FeedbackManager audio calls to avoid blocking';
+    const sim = jaccardSimilarity(a, b);
+    assert.ok(sim < 0.6, `expected sim < 0.6 for distinct entries, got ${sim}`);
+  });
+
+  it('handles empty strings without throwing', () => {
+    assert.equal(jaccardSimilarity('', ''), 1);
+    assert.equal(jaccardSimilarity('hello world', ''), 0);
+    assert.equal(jaccardSimilarity('', 'hello world'), 0);
+  });
+
+  it('is case-insensitive and strips punctuation', () => {
+    const sim = jaccardSimilarity('Window.GameState must be set!', 'window gamestate must be set');
+    assert.equal(sim, 1);
+  });
+});
+
+describe('pipeline.js getRelevantLearnings deduplication', () => {
+  // Helper: installs mock db, calls fn(getRelevantLearnings), then restores.
+  // The mock remains active for the duration of fn() — critical because
+  // getRelevantLearnings() lazy-requires db at call time.
+  function withMockDb(rows, fn) {
+    const dbPath = require.resolve('../lib/db');
+    const pipelinePath = require.resolve('../lib/pipeline');
+    const originalDb = require.cache[dbPath];
+    const originalPipeline = require.cache[pipelinePath];
+    try {
+      require.cache[dbPath] = {
+        id: dbPath,
+        filename: dbPath,
+        loaded: true,
+        exports: {
+          getDb: () => ({
+            prepare: () => ({ all: () => rows }),
+          }),
+        },
+      };
+      // Reload pipeline so it picks up the mock db binding
+      delete require.cache[pipelinePath];
+      const freshPipeline = require('../lib/pipeline');
+      return fn(freshPipeline.getRelevantLearnings);
+    } finally {
+      if (originalDb) {
+        require.cache[dbPath] = originalDb;
+      } else {
+        delete require.cache[dbPath];
+      }
+      if (originalPipeline) {
+        require.cache[pipelinePath] = originalPipeline;
+      } else {
+        delete require.cache[pipelinePath];
+      }
+      // Re-require pipeline with original db so later tests are clean
+      delete require.cache[pipelinePath];
+      require('../lib/pipeline');
+    }
+  }
+
+  it('deduplicates near-duplicate entries (Jaccard > 0.6)', () => {
+    // Two entries sharing most words (same root cause) + one unrelated entry
+    const rows = [
+      { content: 'always expose window gameState so syncDOMState can read state correctly', category: 'cdncompat' },
+      { content: 'always expose window gameState so syncDOMState can read game state', category: 'cdncompat' },
+      { content: 'use fire and forget for FeedbackManager audio to avoid blocking the game loop', category: 'audio' },
+    ];
+    withMockDb(rows, (fn) => {
+      const result = fn('other-game', 10);
+      assert.ok(result !== null, 'should return a string');
+      // Only 2 distinct clusters: gameState cluster + audio entry
+      const bullets = result.split('\n').filter(Boolean);
+      assert.equal(bullets.length, 2, `expected 2 deduped bullets, got ${bullets.length}: ${result}`);
+    });
+  });
+
+  it('caps output at 20 bullets regardless of row count', () => {
+    // Generate 30 distinct rows (no duplicates — each has unique words)
+    const rows = Array.from({ length: 30 }, (_, i) => ({
+      content: `technique${i} procedure${i} protocol${i} requirement${i} constraint${i} guideline${i} rule${i} standard${i} pattern${i} approach${i}`,
+      category: 'general',
+    }));
+    withMockDb(rows, (fn) => {
+      const result = fn('other-game', 10);
+      assert.ok(result !== null, 'should return a string');
+      const bullets = result.split('\n').filter(Boolean);
+      assert.ok(bullets.length <= 20, `expected ≤ 20 bullets, got ${bullets.length}`);
+    });
+  });
+
+  it('keeps the most recent entry when deduplicating (first in ORDER BY build_id DESC list)', () => {
+    const rows = [
+      // Most recent (index 0 = first in desc order) — should be kept
+      { content: 'always expose window endGame function so test harness can invoke it', category: 'cdncompat' },
+      // Older near-duplicate — should be dropped
+      { content: 'always expose window endGame function so test harness can call it', category: 'cdncompat' },
+    ];
+    withMockDb(rows, (fn) => {
+      const result = fn('other-game', 10);
+      assert.ok(result !== null, 'should return a string');
+      const bullets = result.split('\n').filter(Boolean);
+      assert.equal(bullets.length, 1, 'should keep only 1 entry for this near-duplicate cluster');
+      assert.ok(result.includes('invoke'), 'should keep the most recent (first) entry');
+    });
   });
 });
