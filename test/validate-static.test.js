@@ -303,4 +303,63 @@ describe('validate-static.js', () => {
     const { exitCode } = runValidator(html);
     assert.equal(exitCode, 0);
   });
+
+  it('passes when waitForPackages has correct 10000ms timeout and throw', () => {
+    const html = VALID_HTML.replace(
+      'function initGame()',
+      `async function waitForPackages() {
+    const timeout = 10000;
+    const interval = 50;
+    let elapsed = 0;
+    while (typeof FeedbackManager === 'undefined') {
+      if (elapsed >= timeout) { throw new Error('Packages failed to load within 10s'); }
+      await new Promise(resolve => setTimeout(resolve, interval));
+      elapsed += interval;
+    }
+  }
+  function initGame()`
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+  });
+
+  it('fails when waitForPackages has wrong timeout (>10s)', () => {
+    const html = VALID_HTML.replace(
+      'function initGame()',
+      `async function waitForPackages() {
+    const timeout = 15000;
+    const interval = 50;
+    let elapsed = 0;
+    while (typeof FeedbackManager === 'undefined') {
+      if (elapsed >= timeout) { throw new Error('Packages failed to load'); }
+      await new Promise(resolve => setTimeout(resolve, interval));
+      elapsed += interval;
+    }
+  }
+  function initGame()`
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1);
+    assert.ok(output.includes('timeout=10000'));
+  });
+
+  it('fails when waitForPackages does not throw on timeout', () => {
+    const html = VALID_HTML.replace(
+      'function initGame()',
+      `async function waitForPackages() {
+    const timeout = 10000;
+    const interval = 50;
+    let elapsed = 0;
+    while (typeof FeedbackManager === 'undefined') {
+      if (elapsed >= timeout) { console.error('Packages failed to load'); return; }
+      await new Promise(resolve => setTimeout(resolve, interval));
+      elapsed += interval;
+    }
+  }
+  function initGame()`
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1);
+    assert.ok(output.includes('throw new Error'));
+  });
 });
