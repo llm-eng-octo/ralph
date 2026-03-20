@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (P8 warehouse hygiene gate + BullMQ heartbeat shipped; P7 Phase 1+2 done; P7 Phase 3 active R&D)
+**Last updated:** March 20, 2026 (P7 Phase 1+2+3 done; P6 reject-rate rules shipped; P8 isInitFailure guard relaxation active R&D)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -169,7 +169,9 @@
 | **Learning category boosting** | **done (2026-03-20)** | `getCategoryBoost()` in `lib/pipeline.js`: `contract` +0.2 always, `cdncompat` +0.2 when PART-xxx in spec, `audio` +0.2 when FeedbackManager in spec, `layout` +0.2 when ScreenLayout in spec; exported for testability; 10 new unit tests; all 372 tests pass; deployed 2026-03-20 | Category-aware secondary sort surfaces contract/CDN/audio/layout learnings above equally-similar general entries — most actionable patterns reach the LLM first |
 | **Spec-keyword SQL pre-filtering** | **done (2026-03-20)** | `spec_keywords TEXT` column added to `builds` table (idempotent ALTER TABLE migration); `db.updateBuildSpecKeywords()` stores extracted keywords as JSON array; `deriveRelevantCategories()` maps spec keyword signals → category set (contract+general always; cdncompat when PART-xxx; audio when feedbackmanager; layout when screenlayout); `getRelevantLearnings()` adds SQL `WHERE l.category IN (...)` pre-filter when specContent provided; falls back to no-filter when specContent null; `buildId` threaded through `runPipeline()` options so worker saves keywords to DB early in Step 0; 13 new tests; 385 total pass; deployed 2026-03-20 | SQL pre-filter reduces rows fetched from O(N) to O(matching-category-rows), keeping JS dedup work O(k) as learnings table grows to 1000+ entries; `spec_keywords` column enables future LLM-side retrieval augmentation |
 | **Learning retrieval — index-scan optimization** | **done (2026-03-20)** | `CREATE INDEX IF NOT EXISTS idx_learnings_cat_build ON learnings(category, build_id DESC)` makes `WHERE l.category IN (...) ORDER BY l.build_id DESC` use an index scan. `CREATE INDEX IF NOT EXISTS idx_builds_approved ON builds(id) WHERE status='approved'` partial index covers the approved-builds JOIN. Both added to schema init in `lib/db.js`; idempotent `IF NOT EXISTS`; 385 tests pass; deployed 2026-03-20 (no worker restart needed — indexes applied on next DB connection open). | Per-call latency O(log N + k) instead of O(N) at 10k+ learning rows |
-| **pipeline.js Phase 3: split remaining orchestration** | **active** | pipeline.js is now 2433 lines after Phase 1 (prompts.js, -513 lines) and Phase 2 (pipeline-utils.js, -1159 lines). Phase 3 targets: extract runTargetedFix() (~350 lines) → lib/pipeline-targeted-fix.js, extract fix-loop inner logic → lib/pipeline-fix-loop.js, extract test-generation step → lib/pipeline-test-gen.js. Goal: pipeline.js under 1000 lines — only top-level orchestration remains. | Unlocks targeted unit tests for fix-loop and targeted-fix paths (currently untested); reduces merge conflict surface; onboarding time drops by ~5× vs. current 2433-line single file |
+| **pipeline.js Phase 3: split remaining orchestration** | **done (2026-03-20)** | pipeline.js: 2433 → 839 lines; lib/pipeline-fix-loop.js (802 lines), lib/pipeline-test-gen.js (569 lines), lib/pipeline-targeted-fix.js (422 lines) created; 385 tests pass; deployed 2026-03-20 (commit 73cc250) | Unlocks targeted unit tests for fix-loop and targeted-fix paths; reduces merge conflict surface; onboarding time drops by ~5× |
+| **P6: Reduce review rejection rate** | **done (2026-03-20)** | Rules 22/23/24 added to gen prompt (isActive guard, game_over stars, TransitionScreen routing); CDN_CONSTRAINTS_BLOCK updated for fix prompts; T1 Check 11 (game_over star display) + Check 12 (isActive guard) added as warnings; 389 tests pass; deployed 2026-03-20 (commit 1a6e01e) | Should cut review rejections from ~20% to ~10% |
+| **P8: Relax isInitFailure guard** | **active** | Current ANY-must-match is too strict; misses partial-init failures (some tests pass but init broken). Change to ANY-match + passed===0 on iter 1 — catches more stale warehouse failures earlier, saving 5 wasted iterations per affected build. face-memory build confirmed pattern. | Sub-agent implementing now; ~5-10% of builds affected |
 
 ### Cross-game learning injection — design notes
 
@@ -226,7 +228,7 @@
 
 0. **[P8 — DONE] Warehouse hygiene gate** — shipped 2026-03-20 (commit 8202a79); worker.js deletes stale non-approved warehouse HTML before pipeline run
 0. **[P8 — DONE] BullMQ stall prevention** — shipped 2026-03-20 (commit cc36e6c); `job.updateProgress()` heartbeat + KillMode=control-group prevents lock expiry stalls
-0. **[P8 — PRIORITY] Stale warehouse auto-delete: relax isInitFailure guard** — relax ALL-must-match → ANY-matches + passed===0 on iter 1; catches partial-init failures currently slipping through
+0. **[P8 — ACTIVE] Stale warehouse auto-delete: relax isInitFailure guard** — sub-agent implementing; relaxes ALL-must-match → ANY-match + passed===0 on iter 1; face-memory build confirmed pattern
 
 1. **[R&D — done] Cross-game learning injection** — `getRelevantLearnings()` added to `lib/pipeline.js`; queries APPROVED build learnings from DB and merges into all gen/fix prompts; 347 tests pass; deployed 2026-03-20
 2. **[R&D — done] Semantic learning deduplication** — `jaccardSimilarity()` + dedup pass in `getRelevantLearnings()`; Jaccard threshold 0.6, cap 20 bullets; 357 tests pass; deployed 2026-03-20
@@ -236,7 +238,9 @@
 6. **[R&D — done] Learning retrieval composite index** — `idx_learnings_cat_build ON learnings(category, build_id DESC)` + partial index `idx_builds_approved ON builds(id) WHERE status='approved'`; SQL pre-filter now O(log N + k) at 10k+ rows; 385 tests pass; deployed 2026-03-20
 7. **[R&D — done] pipeline.js Phase 1: prompts extracted** — 18 prompt builders extracted into lib/prompts.js; pipeline.js: 4105 → 3592 lines; 385 tests pass; deployed 2026-03-20
 8. **[R&D — done] pipeline.js Phase 2: snapshot/harness/spec utilities extracted** — 12 utility functions extracted into lib/pipeline-utils.js (1221 lines); pipeline.js: 3592 → 2433 lines; 385 tests pass; deployed 2026-03-20
-9. **[R&D — ACTIVE] pipeline.js Phase 3: split remaining orchestration** — pipeline.js is now 2433 lines; targets: extract runTargetedFix() (~350 lines) → lib/pipeline-targeted-fix.js, fix-loop inner logic → lib/pipeline-fix-loop.js, test-generation step → lib/pipeline-test-gen.js; goal: pipeline.js under 1000 lines
+9. **[R&D — done] pipeline.js Phase 3: split remaining orchestration** — pipeline.js: 2433 → 839 lines; 3 sub-modules created; 385 tests pass; deployed 2026-03-20 (commit 73cc250)
+9b. **[R&D — done] P6: Reduce review rejection rate** — Rules 22/23/24 in gen prompt + T1 Check 11/12; 389 tests pass; deployed 2026-03-20 (commit 1a6e01e)
+9c. **[R&D — ACTIVE] P8: Relax isInitFailure guard** — ANY-match + passed===0; sub-agent implementing; face-memory confirmed this saves 5 wasted iterations on partial-init failures
 10. **Multi-game scale validation** — run all specs in warehouse/templates/ to stress-test the pipeline; 20 builds currently queued
 11. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
 12. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
