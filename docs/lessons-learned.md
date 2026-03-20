@@ -111,3 +111,181 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 **Workaround (current):** The test fix loop will eventually catch and fix shape mismatches, but wastes iterations. If a game consistently fails with `is not iterable` or `undefined reading '0'`, check whether the test is accessing a property that doesn't exist on the actual game state object.
 
 **How to apply:** When game-flow fails on iter 1 for window.gameState reasons but iter 2+ fails with `not iterable` / `Cannot read properties of undefined`, the issue shifted from game init → test data assumptions. Don't re-queue; the fix loop should resolve it. If it fails all 3 iterations on the same property error, this is a known gap in the DOM snapshot context (no runtime state shape).
+
+## Lesson 44 — `extractSpecRounds()` parses spec metadata tables as round data
+
+**Pattern:** Build 232 (face-memory): `extractSpecRounds()` parsed the spec's "Parts Selected" table — rows like `PART-001 | HTML Shell | YES` — as game round data because the header filter only excluded the literal text `"Question"` / `"Answer"` / `"Round"`. The `Part ID` header and `PART-xxx` data rows passed through, producing `fallbackContent.rounds = [{ question: "PART-001", answer: "HTML Shell" }]`. Tests then crashed with `TypeError: Cannot read properties of undefined (reading 'eyes')` when accessing `rounds[0].faceFeatures['eyes']` — a property that would only exist on real face-memory round data.
+
+**Triage failure:** The triage model saw `TypeError: Cannot read properties of undefined (reading 'eyes')` and diagnosed it as an HTML init failure (gameState not fully initialized). Fix attempts rewrote initialization code, which broke the HTML and cascaded into `page.waitForSelector Timeout 30000ms` across all batches. The real root cause — garbage data injected by `extractSpecRounds` — was never surfaced because the TypeError message gave no hint of its origin being test data.
+
+**Root cause:** `extractSpecRounds()` matched any two-column markdown table in the spec. The "Parts Selected" table (`PART-001 | HTML Shell`) is a spec metadata table, not a rounds table. No exclusion existed for part-reference rows.
+
+**Fix:** Added skip conditions in `extractSpecRounds()`:
+1. Skip any row where `col1` matches `Part ID` (header row) or `/^PART-\d+/` (data rows).
+2. Skip any row where `col2` is `YES`, `NO`, or `—` (the "Included" column of the parts table).
+
+**Proof:** Build 232 killed after cascading failures. Fix deployed, build 279 requeued and completed successfully.
+
+**How to apply:** If tests crash with `TypeError: Cannot read properties of undefined` accessing a game-specific nested property (e.g., `.faceFeatures`, `.gridData`, `.pattern`) on `rounds[0]`, check `fallbackContent.rounds` first — the question/answer values may be spec metadata rather than actual game rounds. Log or inspect the extracted rounds before injecting them into the test context.
+
+## Lesson 45 — BullMQ queue loss on Redis restart: enable AOF persistence
+
+**Pattern:** In a past incident, 39 queued builds vanished after a Redis restart. Redis's default configuration uses RDB snapshots only (periodic dumps to `dump.rdb`). If Redis exits between snapshots, all in-memory queue state — pending BullMQ jobs, job locks, job data — is lost. On restart, the queue appears empty and all queued builds are gone with no record.
+
+**Root cause:** Redis defaults to RDB-only persistence. RDB snapshots happen at intervals (e.g., every 60s if 1000 keys changed, every 300s if 10 keys changed). Any Redis restart between snapshot intervals loses all changes made since the last snapshot. BullMQ jobs are entirely Redis-backed; there is no secondary durable store.
+
+**Fix:** Enable Redis AOF (Append Only File) persistence via `--appendonly yes` in the Redis startup command. With AOF, every write command is appended to a file on disk. Redis 7 uses the multi-part AOF format: an `appendonlydir/` directory containing a base RDB snapshot (`*.base.rdb`) and an incremental log (`*.incr.aof`). On restart, Redis replays the AOF log — all queued jobs survive.
+
+**How it was applied:**
+1. `docker-compose.yml` Redis service already has `command: redis-server --appendonly yes` — this is the correct configuration for local/Docker deployments.
+2. The live server runs Redis in the `ralph-redis-1` Docker container. Verified with `sudo docker inspect ralph-redis-1 --format='{{.Config.Cmd}}'` → `[redis-server --appendonly yes]`. AOF is active: `sudo docker exec ralph-redis-1 redis-cli CONFIG GET appendonly` returns `yes`. The `appendonlydir/` directory exists in `/data/` with `appendonly.aof.2.incr.aof` actively written.
+
+**Verification command:**
+```bash
+sudo docker exec ralph-redis-1 redis-cli CONFIG GET appendonly
+# Expected: appendonly / yes
+sudo docker exec ralph-redis-1 ls -la /data/appendonlydir/
+# Expected: *.base.rdb + *.incr.aof files present and recently modified
+```
+
+**How to apply:** Always start Redis with `--appendonly yes`. For docker-compose deployments, include it in the `command:` field. For standalone Redis, set `appendonly yes` in `redis.conf` and run `redis-cli CONFIG REWRITE` to persist the change. Never rely on RDB-only persistence for BullMQ-backed pipelines where job loss is unacceptable.
+
+## Lesson 46 — Step 1d: Page load smoke check prevents wasted test-gen tokens on broken pages
+
+**Pattern:** Generated HTML can fail to load entirely due to CDN package timeouts, missing globals, or JS init errors. The page is a white screen from generation, but the pipeline doesn't detect this until iteration 1 of the test loop returns 0/10 — after test-gen LLM tokens have already been spent. Real example: `"Packages failed to load within 10s"` — the console error appears at page load, but the pipeline wasn't listening.
+
+**Root cause:** The pipeline had no pre-test-gen check for page-level init failures. Static validation (Step 1b) checks HTML structure and CDN contract compliance but cannot detect runtime errors. The test loop's 0/10 iteration-1 result was the first signal.
+
+**Fix (Step 1d):** Added `runPageSmokeDiagnostic(htmlFile, gameDir, logger)` in `lib/pipeline-utils.js`. Runs after Step 1c (early review), before test generation:
+1. Spawns a local static server (same pattern as `captureGameDomSnapshot`)
+2. Opens the page in headless Playwright with a 5s navigation timeout
+3. Collects `console.error` events for 8 seconds
+4. Classifies errors against fatal patterns: `packages? failed to load`, `initialization error`, `failed to load resource`, `waitforpackages`, `is not a constructor`, and CDN-context `X is not defined`
+5. If fatal errors found: one HTML regeneration attempt with the error appended to the gen prompt, then re-smoke-checks
+6. If still failing after regen: throws immediately (no test-gen, no fix loop wasted)
+
+**Pattern matching helper:** `classifySmokeErrors(consoleErrors)` is exported separately for unit testing without Playwright. The `X is not defined` pattern is only fatal when the error message also contains a CDN/package context string — avoids false positives from routine JS reference errors.
+
+**Cost saved:** Prevents ~2 full LLM fix iterations + test generation tokens ($0.20–$0.50 per incident) on CDN-broken pages that would otherwise waste 5 full iterations before the pipeline fails.
+
+**How to apply:** When a build fails iteration 1 with 0/N on all categories AND the error is `page.waitForSelector Timeout` or similar, check the Slack thread for a `smoke-check-failed` progress event. If present, the root cause is a page load failure — the smoke check caught it on the next build attempt.
+
+## Lesson 47 — Queue-sync job loss: auto-requeue at worker startup eliminates manual intervention
+
+**Pattern:** When the `ralph-worker` systemd service restarts (planned deploy, OOM kill, or crash), any BullMQ jobs that were in-flight are lost from the queue. The existing `cleanupOrphanedBuilds()` at startup correctly marks `status=running` builds as `failed` with `error_message = "orphaned: worker restarted..."`. But these builds were never automatically retried — they required a manual `POST /api/build` call. In the last 10 build failures, 9 had exactly this pattern (queue-sync job loss).
+
+**Root cause:** `cleanupOrphanedBuilds()` only marks builds failed; it has no requeue path. There was no automated recovery: the operator had to notice the failure in Slack, identify it as a queue-sync loss, and manually requeue. On busy days with multiple deploys, this meant 3–5 manual requeue calls per session.
+
+**Fix:** `requeueQueueSyncBuilds()` added to `worker.js` startup, called right after `cleanupOrphanedBuilds()`:
+1. Queries: `status='failed' AND error_message LIKE '%queue-sync%' AND (retry_count IS NULL OR retry_count < 1)`
+2. For each candidate, checks if the game already has a `queued` or `running` build — skips if so (prevents duplicate)
+3. Enqueues via `new Queue('ralph-builds', { connection })` and calls `.add('build', { gameId, requeueOf: build.id })`
+4. Sets `retry_count = 1` on the old failed build to prevent repeated requeue on subsequent restarts
+5. Logs: `[worker] queue-sync auto-requeue: ${gameId} (was build #${id})`
+
+**Guard rails:**
+- `retry_count < 1` — only auto-requeues once per failed build; prevents infinite loops
+- Active-build check — skips if game already has queued/running build; prevents duplicate concurrent pipelines
+- Only matches `error_message LIKE '%queue-sync%'` — never auto-retries other failure types (pipeline errors, review rejections, etc.)
+- Queue is opened and closed within the function; does not interfere with the main worker's connection
+
+**Tests:** 7 new unit tests in `test/worker.test.js` covering: candidate selection (retry_count=0), exclusion (retry_count=1), null retry_count eligibility, skip when queued/running build exists, allow when no active build, empty table.
+
+**How to apply:** This is now automatic. After any worker restart, the startup log will show `[worker] queue-sync requeue: found N builds to requeue` (or 0). No manual intervention needed. If a game is stuck and you need to prevent the auto-requeue, set `retry_count=1` directly: `node -e "require('./lib/db').getDb().prepare('UPDATE builds SET retry_count=1 WHERE id=?').run(BUILD_ID)"`.
+
+## Lesson 48 — Deterministic pre-triage: toBeVisible/toBeHidden batch failures are rendering mismatches, not HTML bugs
+
+**Pattern:** When a test batch returns >3 failures all containing `toBeVisible()` or `toBeHidden()`, these are invariably test-side DOM visibility assumptions that the game HTML doesn't satisfy. The test generator assumed certain elements would be visible at specific points in the game flow, but the game renders them differently (e.g., hidden by default until the game starts, or visibility toggled by CDN components). The LLM triage model correctly identifies these as `skip_tests` (rendering mismatch, not an HTML bug), but only AFTER spending a full triage LLM call.
+
+**Real example:** adjustment-strategy game had 8 distinct `toBeVisible()` failures in one batch, all categorized as "rendering" in the failure_patterns table. Each triage call for this pattern costs a full LLM round-trip with no HTML fix output.
+
+**Fix:** `detectRenderingMismatch(failureDescs)` added to `lib/pipeline-fix-loop.js`. Runs BEFORE the triage LLM call in the per-batch iteration loop. If more than 3 failures match `/toBeVisible|toBeHidden/i`, the function returns `true` and the loop immediately breaks with `skip_tests` — no LLM call. The threshold is `>3` (not `>=3`) because 3 toBeVisible failures could be a real DOM bug affecting a specific element; 4+ distributed across different elements strongly indicates test-side assumptions.
+
+**Saves:** One LLM triage round-trip per affected batch per iteration. For games that trigger this pattern on iterations 1, 2, and 3, this saves 3 triage calls (roughly $0.01–$0.03 per batch, plus latency).
+
+**How to apply:** If a batch repeatedly hits `skip_tests` in triage for `toBeVisible` reasons, it's this pattern. The fix loop will log `[pipeline] [batchLabel] Pre-triage: toBeVisible pattern detected (N failures) — skip_tests` and emit a `pretriage-visibility-skip` progress event. No action needed — the pre-triage guard is active automatically.
+
+**Implementation:** `detectRenderingMismatch()` exported from `lib/pipeline-fix-loop.js` alongside `isInitFailure`. 6 unit tests cover: 4 visible=true, 3 visible-false (boundary), 2+2 mixed=true, empty=false, 4 non-visibility=false, case-insensitive=true.
+
+## Lesson 49 — Abort pipeline on DOM snapshot failure: regen HTML instead of proceeding to test-gen
+
+**Pattern:** `captureGameDomSnapshot()` (Step 2.5) can return `null` when the generated HTML is fatally broken — blank page, CDN packages failed to load, JS init error. Previously, the pipeline would silently proceed to test-gen using an empty DOM snapshot, spending a full LLM test-gen call (60–120s, $0.10–$0.30) on a page that is confirmed broken. The resulting tests fail 100% on iteration 1, and the fix loop then has to diagnose the underlying HTML bug from test failures rather than from the direct evidence of a blank page.
+
+**Fix:** `lib/pipeline-test-gen.js` now checks the return value of `captureGameDomSnapshot()`. If it returns `null`, it throws an error with `isFatalSnapshotError = true`. `lib/pipeline.js` catches this in the Step 2 entry point: regenerates the HTML with a "blank-page context" note appended to the gen prompt, then retries the full test-gen step (snapshot + test generation). If the retry also fails with a null snapshot, the build is aborted entirely — no test-gen, no fix loop, no wasted compute.
+
+**Impact:** R&D trace of 65 triage events across builds 218–232:
+- 58% — HTML fatal init (CDN 404, JS ReferenceError, ScreenLayout blocked)
+- 22% — phase-transition missing syncDOMState() call
+- 9% — data-shape mismatch (test assumed wrong property names)
+- 11% — other
+
+Of the 58% init failures, ~44% had a null DOM snapshot detectable at Step 2.5. Aborting early on those cases eliminates the test-gen LLM call and the full first fix iteration — saving ~2 LLM round-trips per affected build.
+
+Full analysis at `docs/rnd-first-pass-failure-analysis.md`.
+
+**How to apply:** If a build Slack thread shows a `snapshot-failed-regenerating` progress event, the pipeline detected a null snapshot and is regenerating HTML. If a second `snapshot-failed-abort` event appears, the HTML was still broken after regen and the build aborted. Investigate the generated HTML (check for CDN URL errors, initSentry order, waitForPackages missing) rather than waiting for 5 failed iterations.
+
+## Lesson 50 — Every `gameState.phase =` assignment must be immediately followed by `syncDOMState()`
+
+**Pattern:** CDN games generated by the pipeline frequently passed game-flow tests on iteration 1 for some transitions but failed others with `waitForPhase() timeout`. Root cause: `syncDOMState()` (injected by the test harness into `<script id="ralph-test-harness">`) reads `window.gameState.phase` and writes it to `#app[data-phase]` — but only when called. If the game sets `gameState.phase = 'playing'` without immediately calling `syncDOMState()`, the `data-phase` attribute on `#app` is never updated until the next periodic sync tick (500ms). `waitForPhase(page, 'playing')` times out if the transition happens faster than the polling interval, or if `syncDOMState()` is never called for that phase at all.
+
+**Root cause:** The generation prompt did not explicitly require calling `syncDOMState()` after every phase assignment. LLMs sometimes call it at game start and at `endGame`, but omit it at intermediate transitions (`'transition'`, `'correct'`, `'wrong'`, etc.). This was causing 22% of all iteration-1 failures in the R&D trace.
+
+**Fix:** Rule 22 added to `lib/prompts.js`: "After EVERY `gameState.phase =` assignment, immediately call `syncDOMState()`. Without this call, `data-phase` on `#app` is never updated and ALL `waitForPhase()` test calls will timeout." This rule is injected into the API generation prompt, CLI generation prompt, and all fix/global-fix prompts via the CDN_CONSTRAINTS_BLOCK.
+
+**How to apply:** If tests fail with `waitForPhase('transition')` or `waitForPhase('correct')` timeout on iteration 1, search the generated HTML for `gameState.phase = 'transition'` (or whichever phase). If there is no `syncDOMState()` call on the immediately following line, that is the bug. The fix prompt should already include this rule (as of 2026-03-20); if it doesn't, the LLM will fix it on iteration 1 triage.
+
+## Lesson 51 — FeedbackManager.init() popup causes 100% non-deterministic test failure when PART-017=NO
+
+**Pattern:** adjustment-strategy had 58 failed builds with all failures labeled as "rendering/toBeVisible". The page was NOT blank — it rendered fine. The real cause: `FeedbackManager.init()` was being called despite the spec saying `PART-017 Feedback Integration: NO`. This shows a blocking audio permission popup ("Okay!" button). The `beforeEach` tries to dismiss it with an 8-second timeout, but the catch is silent. When it misses (race condition), ALL tests fail on the same `waitForFunction` timeout.
+
+**Proof of non-determinism:** Build 159 showed the SAME HTML passing 6/0 then failing 0/10 in the same pipeline run. Identical code, identical page — different outcomes depending on whether the popup appeared before or after the `beforeEach` dismissal window. This is the clearest possible signal of a race condition, not an HTML logic bug.
+
+**Root cause:** `FeedbackManager.init()` initializes audio subsystems that may trigger browser permission dialogs in headless Playwright. When the spec says `PART-017=NO`, the game should never call this function. LLMs include it as boilerplate without checking the spec's PART-017 value.
+
+**Fix:**
+1. Gen prompt rule added: never call `FeedbackManager.init()` unless spec says `PART-017=YES` or `popupProps` is explicitly specified.
+2. adjustment-strategy `spec.md` updated with an explicit `CRITICAL` prohibition block.
+3. These two changes fix 58 builds worth of thrashing caused by the race condition.
+
+**How to identify:** Any game where:
+- 100% of failures are labeled "rendering/toBeVisible" across ALL test categories
+- DOM snapshot shows elements rendering correctly (page is not blank)
+- Failures are non-deterministic (pass rate fluctuates run-to-run on the same HTML)
+- `FeedbackManager.init()` appears in the generated HTML
+
+Check the spec's `PART-017` value. If `NO`, the call must be removed.
+
+**How to apply:** Search generated HTML for `FeedbackManager.init(`. If present, check the spec: if `PART-017=NO` and `popupProps` is not specified, remove the call entirely. The fix loop will not reliably catch this on its own because the non-determinism means some iterations "pass" — masking the root cause.
+
+## Lesson 52 — Cross-batch fix loop regressions (63% of multi-batch builds)
+
+**Pattern:** When the per-batch fix loop fixes batch N, it can break batch N+1 because the fix overwrites the shared htmlFile with no rollback mechanism for downstream batches.
+
+**Fix:** Added `detectCrossBatchRegression()` in pipeline-fix-loop.js — smoke-checks all prior-passing batch spec files after each batch completes. On regression, rolls back to preBatchHtml and marks batch as rolled_back.
+
+**Proof:** Empirical trace of 19 multi-batch builds showed 63% had cross-batch regressions. 6 new unit tests. Commit 76996c1.
+
+## Lesson 53 — HTML generation token truncation on large specs
+
+**Pattern:** `trackedLlmCall` for HTML generation defaulted to maxTokens=16000. Large specs (bubbles-pairs 64KB, interactive-chat 59KB) generated HTML that exceeded 16K output tokens, truncating mid-script. Reviewer correctly rejected.
+
+**Fix:** All 4 HTML generation call sites in pipeline.js updated to `{ maxTokens: 32000 }`.
+
+**Proof:** bubbles-pairs truncated at `window.testS` (mid-function), interactive-chat at `case 'challenge_intro':` (mid-switch). Both games had 3-5 previously unexplained rejections. Commit a8392bc.
+
+## Lesson 54 — RALPH_LLM_TIMEOUT config drift (production = 1200s vs 300s documented)
+
+**Pattern:** Production server had RALPH_LLM_TIMEOUT=1200 in .env — 4x the documented default. Static-fix LLM calls could hang for up to 20 minutes before timing out, stalling the worker and blocking 40+ queued builds.
+
+**Fix:** Updated /opt/ralph/.env to RALPH_LLM_TIMEOUT=300. The AbortController mechanism in llm.js is correctly wired — this was a config-only issue.
+
+**Proof:** Worker stalled 23 minutes on futoshiki build #296 static-fix call. Force-kill required to unblock queue.
+
+## Lesson 55 — debug-function window exposure rule conflict (29% of review rejections)
+
+**Pattern:** CDN_CONSTRAINTS_BLOCK told gen LLM "debug functions MUST NOT be on window" but spec Verification Checklist requires them ON window. LLM followed the gen rule, reviewer rejected per spec checklist — an unfixable loop causing 29% of early-review rejections.
+
+**Fix:** Changed rule to "MUST be exposed on window — define as named functions inside DOMContentLoaded then assign: window.debugGame = debugGame".
+
+**Proof:** queens build 285 rejected 3 consecutive times for this exact conflict. Commit dd7f170.

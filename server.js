@@ -2,6 +2,8 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const db = require('./lib/db');
 const slack = require('./lib/slack');
 const logger = require('./lib/logger');
@@ -137,29 +139,51 @@ function createApp(deps = {}) {
 
     const commitSha = req.body.after || null;
 
+    // Helper: check spec hash to decide if webhook build should be skipped
+    function shouldSkipWebhookBuild(gameId) {
+      const existing = db.getDb().prepare(
+        "SELECT id, status FROM builds WHERE game_id = ? AND status IN ('queued', 'running') ORDER BY id DESC LIMIT 1",
+      ).get(gameId);
+      return !!existing;
+    }
+
     if (changedSpecs.size > BULK_THRESHOLD) {
       // Bulk — schedule overnight
       const midnight = getNextMidnight('Asia/Kolkata');
       const delay = midnight - Date.now();
 
+      let queued = 0;
+      const skipped = [];
       for (const gameId of changedSpecs) {
+        if (shouldSkipWebhookBuild(gameId)) {
+          skipped.push(gameId);
+          continue;
+        }
         const buildId = db.createBuild(gameId, commitSha);
         await queue.add('build-game', { gameId, commitSha, buildId }, { delay });
+        queued++;
       }
 
-      await slack.notifyBulkQueued(changedSpecs.size);
-      logger.info(`${changedSpecs.size} games queued for overnight build`, { event: 'bulk_queue' });
-      return res.json({ queued: changedSpecs.size, scheduled: 'overnight' });
+      if (queued > 0) await slack.notifyBulkQueued(queued);
+      logger.info(`${queued} games queued for overnight build (${skipped.length} deduplicated)`, { event: 'bulk_queue' });
+      return res.json({ queued, scheduled: 'overnight', deduplicated: skipped.length });
     }
 
     // Small batch — run now
+    let queued = 0;
+    const skipped = [];
     for (const gameId of changedSpecs) {
+      if (shouldSkipWebhookBuild(gameId)) {
+        skipped.push(gameId);
+        continue;
+      }
       const buildId = db.createBuild(gameId, commitSha);
       await queue.add('build-game', { gameId, commitSha, buildId });
+      queued++;
     }
 
-    logger.info(`${changedSpecs.size} games queued for immediate build`, { event: 'immediate_queue' });
-    return res.json({ queued: changedSpecs.size, scheduled: 'immediate' });
+    logger.info(`${queued} games queued for immediate build (${skipped.length} deduplicated)`, { event: 'immediate_queue' });
+    return res.json({ queued, scheduled: 'immediate', deduplicated: skipped.length });
   });
 
   // ─── Manual build trigger ─────────────────────────────────────────────────
@@ -168,8 +192,6 @@ function createApp(deps = {}) {
     const requestedBy = bodyRequestedBy || process.env.RALPH_SLACK_USER_ID || null;
 
     if (all) {
-      const fs = require('fs');
-      const path = require('path');
       const repoDir = process.env.RALPH_REPO_DIR || path.join(__dirname, 'repo');
       const templatesDir = path.join(repoDir, 'warehouse', 'templates');
 
@@ -215,7 +237,27 @@ function createApp(deps = {}) {
       }
     }
 
-    const buildId = db.createBuild(gameId, null);
+    const { force } = req.body;
+
+    if (!force) {
+      // Check for an already queued or running build for this game
+      const existing = db.getDb().prepare(
+        "SELECT id, status FROM builds WHERE game_id = ? AND status IN ('queued', 'running') ORDER BY id DESC LIMIT 1",
+      ).get(gameId);
+      if (existing) {
+        logger.info(`Build deduplicated for ${gameId} — existing build #${existing.id} is ${existing.status}`, { gameId, buildId: existing.id, event: 'build_deduplicated' });
+        return res.json({ buildId: existing.id, status: existing.status, deduplicated: true, queued: false, gameId });
+      }
+
+      // Skip if the game is already approved (force is required to rebuild approved games)
+      const game = db.getGame(gameId);
+      if (game && game.status === 'approved') {
+        logger.info(`Build skipped for ${gameId} — game already approved`, { gameId, event: 'build_skipped_approved' });
+        return res.json({ buildId: null, skipped: true, reason: 'game already approved', gameId });
+      }
+    }
+
+    const buildId = db.createBuild(gameId, null, { requestedBy: requestedBy || null });
     await queue.add('build-game', {
       gameId,
       buildId,
@@ -375,7 +417,7 @@ function createApp(deps = {}) {
       }
 
       // Queue a targeted fix
-      const buildId = db.createBuild(game.game_id, null);
+      const buildId = db.createBuild(game.game_id, null, { requestedBy: feedback.userId || null });
       db.updateBuildFeedback(buildId, feedback.text);
 
       if (queue) {

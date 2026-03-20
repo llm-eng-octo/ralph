@@ -1,11 +1,13 @@
 'use strict';
 
-const { Worker } = require('bullmq');
+const { Worker, Queue } = require('bullmq');
 const IORedis = require('ioredis');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { runPipeline, runTargetedFix } = require('./lib/pipeline');
 const db = require('./lib/db');
 const slack = require('./lib/slack');
 const gcp = require('./lib/gcp');
@@ -14,7 +16,7 @@ const sentry = require('./lib/sentry');
 const metrics = require('./lib/metrics');
 const { getSystemStats, startSystemMetrics } = metrics;
 
-const WORKER_ID = process.env.RALPH_WORKER_ID || require('crypto').randomUUID().slice(0, 8);
+const WORKER_ID = process.env.RALPH_WORKER_ID || crypto.randomUUID().slice(0, 8);
 
 // ─── Initialize observability + integrations ─────────────────────────────────
 sentry.init('ralph-worker');
@@ -41,6 +43,9 @@ const RATE_LIMIT_DURATION = parseInt(process.env.RALPH_RATE_DURATION || '3600000
 // Resource gate thresholds
 const CPU_GATE_PCT = parseFloat(process.env.RALPH_CPU_GATE || '85');
 const RAM_GATE_MB = parseFloat(process.env.RALPH_RAM_GATE_MB || '512');
+
+// GitHub repo URL for spec links (e.g. https://github.com/org/repo)
+const RALPH_GITHUB_REPO = process.env.RALPH_GITHUB_REPO || '';
 
 // ─── E7: Failure categorization ───────────────────────────────────────────────
 function categorizeFailure(failureDesc) {
@@ -199,8 +204,7 @@ async function runRalph(gameId, specPath, _buildId) {
       cwd: __dirname,
     });
   } catch (err) {
-    // ralph.sh exits non-zero for FAILED/REJECTED — that's expected
-    // Only treat as error if no report was produced
+    // critical: ralph.sh exits non-zero for FAILED/REJECTED — that's expected; only rethrow if no report was produced
     if (!fs.existsSync(reportFile)) {
       throw new Error(`ralph.sh crashed without producing a report: ${err.message}`);
     }
@@ -240,8 +244,6 @@ async function handleFixJob(job) {
       throw new Error(`No spec found for ${gameId}`);
     }
   }
-
-  const { runTargetedFix } = require('./lib/pipeline');
 
   // Create Slack thread update
   const game = db.getGame(gameId);
@@ -336,66 +338,70 @@ const worker = new Worker(
     let threadInfo = null;
     let specLink = '';
     let pipelineDocsLink = '';
+    // Build a GitHub spec URL if RALPH_GITHUB_REPO is configured
+    const specGithubUrl = RALPH_GITHUB_REPO
+      ? `${RALPH_GITHUB_REPO}/blob/main/warehouse/templates/${gameId}/spec.md`
+      : '';
+    // Link to pipeline architecture doc on GitHub
+    const pipelineDocsGithubUrl = RALPH_GITHUB_REPO
+      ? `${RALPH_GITHUB_REPO}/blob/main/docs/pipeline-architecture.md`
+      : '';
+
+    // Live build progress tracking (for parent message updates)
+    let llmCallCount = 0;
+    let currentBuildStep = 'Starting';
+    let stepStartedAt = buildStartTime; // resets whenever currentBuildStep changes
+
     const game = db.getGame(gameId);
-    if (game && game.slack_thread_ts) {
-      // Use existing thread
-      threadInfo = { ts: game.slack_thread_ts, channel: game.slack_channel_id };
-      await slack.postThreadUpdate(
-        threadInfo.ts, threadInfo.channel,
-        `🔄 *Build #${buildId} started* — ${gameId}\nGen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}${requestedBy ? `\ncc: <@${requestedBy}>` : ''}`,
-      );
-    } else {
-      // Upload spec (await so link is ready for opener)
-      const specFilePath = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
-      if (gcp.isEnabled() && fs.existsSync(specFilePath)) {
-        const specUrl = await gcp.uploadContent(
-          fs.readFileSync(specFilePath, 'utf-8'),
-          `games/${gameId}/builds/${buildId}/spec.md`,
-          { contentType: 'text/markdown' },
-        ).catch(() => null);
-        if (specUrl) specLink = slack.formatLink(specUrl, '📄 Spec');
-      }
+    // Always create a fresh Slack thread for each new build — never reuse an existing thread.
+    // Upload spec to GCP for a hosted link (preferred over GitHub raw link)
+    const specFilePath = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
+    if (gcp.isEnabled() && fs.existsSync(specFilePath)) {
+      const gcpSpecUrl = await gcp.uploadContent(
+        fs.readFileSync(specFilePath, 'utf-8'),
+        `games/${gameId}/builds/${buildId}/spec.md`,
+        { contentType: 'text/markdown' },
+      ).catch(() => null); // cosmetic: spec link in Slack is optional; GCP failure must not abort thread creation
+      if (gcpSpecUrl) specLink = slack.formatLink(gcpSpecUrl, '📄 Spec');
+    }
 
-      // Upload pipeline docs
-      if (gcp.isEnabled()) {
-        const docsUrl = await gcp.uploadContent(
-          buildPipelineDocsMarkdown({ gameId, buildId, genModel: pipelineGenModel, testModel: pipelineTestModel, fixModel: pipelineFixModel, maxIterations: pipelineMaxIterations }),
-          `games/${gameId}/builds/${buildId}/pipeline-docs.md`,
-          { contentType: 'text/markdown' },
-        ).catch(() => null);
-        if (docsUrl) pipelineDocsLink = slack.formatLink(docsUrl, '📖 Pipeline Docs');
-      }
+    // Upload pipeline docs to GCP
+    if (gcp.isEnabled()) {
+      const docsUrl = await gcp.uploadContent(
+        buildPipelineDocsMarkdown({ gameId, buildId, genModel: pipelineGenModel, testModel: pipelineTestModel, fixModel: pipelineFixModel, maxIterations: pipelineMaxIterations }),
+        `games/${gameId}/builds/${buildId}/pipeline-docs.md`,
+        { contentType: 'text/markdown' },
+      ).catch(() => null); // cosmetic: pipeline docs link in Slack is optional; GCP failure must not abort thread creation
+      if (docsUrl) pipelineDocsLink = slack.formatLink(docsUrl, '📖 Pipeline Docs');
+    }
 
-      const linksLine = [specLink, pipelineDocsLink].filter(Boolean).join('  ·  ');
-      const openerText = [
-        `🎮 *${game?.title || gameId}* — Build #${buildId || 'pending'}`,
-        `*Status:* 🔄 Building...`,
-        `*Models:* Gen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}`,
-        linksLine || null,
-        requestedBy ? `cc: <@${requestedBy}>` : null,
-      ].filter(Boolean).join('\n');
-
-      threadInfo = await slack.createGameThread(gameId, {
-        title: game?.title || gameId,
-        buildId,
-        openerText,
-      });
-      if (threadInfo && threadInfo.ts) {
-        // Ensure game row exists before updating thread (game may not be pre-created via /api/games)
-        if (!game) db.createGame(gameId, {});
-        db.updateGameThread(gameId, threadInfo.ts, threadInfo.channel);
-        // First reply: build plan
-        const planText = [
-          `📋 *Build Plan — Build #${buildId}*`,
-          `1️⃣ Generate HTML — ${pipelineGenModel}`,
-          `2️⃣ Static + contract validation`,
-          `3️⃣ Generate Playwright tests — ${pipelineTestModel}`,
-          `4️⃣ Test → fix loop — 5 categories × max ${pipelineMaxIterations} iterations — ${pipelineFixModel}`,
-          `   Categories: game-flow · mechanics · level-progression · edge-cases · contract`,
-          `5️⃣ LLM review — ${pipelineTestModel}`,
-        ].join('\n');
-        await slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, planText);
-      }
+    threadInfo = await slack.createGameThread(gameId, {
+      title: game?.title || gameId,
+      buildId,
+      requestedBy: requestedBy || null,
+      startedAt: buildStartTime,
+      currentStep: 'Step 1 · Generating HTML',
+      llmCalls: 0,
+      specLink: specLink || null,
+      specGithubUrl: !specLink ? specGithubUrl : null,
+      pipelineDocsLink: pipelineDocsLink || null,
+      pipelineDocsUrl: !pipelineDocsLink ? pipelineDocsGithubUrl : null,
+    });
+    if (threadInfo && threadInfo.ts) {
+      // Ensure game row exists before updating thread (game may not be pre-created via /api/games)
+      if (!game) db.createGame(gameId, {});
+      db.updateGameThread(gameId, threadInfo.ts, threadInfo.channel);
+      // First reply: build plan
+      const planText = [
+        `📋 *Build Plan — Build #${buildId}*`,
+        `1️⃣ Generate HTML — ${pipelineGenModel}`,
+        `2️⃣ Static + contract validation`,
+        `3️⃣ Generate Playwright tests — ${pipelineTestModel}`,
+        `4️⃣ Test → fix loop — 5 categories × max ${pipelineMaxIterations} iterations — ${pipelineFixModel}`,
+        `   Categories: game-flow · mechanics · level-progression · edge-cases · contract`,
+        `5️⃣ LLM review — ${pipelineTestModel}`,
+      ].join('\n');
+      await slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, planText);
     }
 
     // ── Block Kit helpers ────────────────────────────────────────────────────
@@ -406,9 +412,56 @@ const worker = new Worker(
     // Progress callback for Slack thread updates
     const phaseStarts = {};
     const onProgress = (step, detail) => {
-      console.log(`[worker] progress: ${step}`, detail);
-      if (!threadInfo) return;
+      const _logParts = [step];
+      if (detail?.model) _logParts.push(`model=${detail.model}`);
+      if (detail?.time != null) _logParts.push(`elapsed=${detail.time}s`);
+      if (detail?.gameId) _logParts.push(`game=${detail.gameId}`);
+      if (detail?.passed != null && detail?.total != null) _logParts.push(`${detail.passed}/${detail.total}`);
+      if (detail?.iteration != null) _logParts.push(`iter=${detail.iteration}`);
+      console.log(`[worker] ${_logParts.join(' | ')}`);
+
+      // Renew BullMQ lock on every progress event to prevent stalled-job failures
+      // during long LLM/Playwright calls that block event loop renewToken().
+      const progressData = { step, ...(detail || {}) };
+      job.updateProgress(progressData).catch(() => {}); // cosmetic: lock renewal failure must not abort the job
+
+      // ── Track LLM call count and current step (used in parent message updates) ──
+      if (detail?.llmCalls != null) llmCallCount = detail.llmCalls;
+      else if (step === 'html-ready' || step === 'tests-generated' || step === 'html-fixed' || step === 'review-complete') {
+        llmCallCount += 1;
+      }
+
       const now = Date.now();
+
+      // Map progress steps to human-readable current step labels
+      const stepLabels = {
+        'generate-html': 'Step 1 · Generating HTML',
+        'html-ready': 'Step 1 · HTML Generated',
+        'static-validation-failed': 'Step 1a · Static Fix',
+        'static-validation-fixed': 'Step 1a · Static Fixed',
+        'early-review': 'Step 1c · Early Review',
+        'generate-tests': 'Step 2 · Generating Tests',
+        'tests-generated': 'Step 2 · Tests Ready',
+        'test-fix-loop': 'Step 3 · Test → Fix Loop',
+        'review': 'Step 4 · Review',
+        'review-complete': 'Step 4 · Review Complete',
+      };
+      const prevBuildStep = currentBuildStep;
+      if (stepLabels[step]) {
+        currentBuildStep = stepLabels[step];
+      } else if (step === 'batch-start' && detail?.batch) {
+        currentBuildStep = `Step 3 · ${detail.batch} · iter 1/${detail.maxIterations || pipelineMaxIterations}`;
+      } else if (step === 'test-result' && detail?.batch) {
+        currentBuildStep = `Step 3 · ${detail.batch} · iter ${detail.iteration}/${detail.maxIterations || pipelineMaxIterations}`;
+      } else if (step === 'html-fixed' && detail?.batch) {
+        currentBuildStep = `Step 3 · ${detail.batch} · fix ${detail.iteration}`;
+      }
+      // Reset step timer whenever the step label changes
+      if (currentBuildStep !== prevBuildStep) {
+        stepStartedAt = now;
+      }
+
+      if (!threadInfo) return;
       if (!phaseStarts[step]) phaseStarts[step] = now;
 
       // ── generate-html — suppress; post happens on html-ready ───────────────
@@ -820,21 +873,40 @@ const worker = new Worker(
                 `📋 *Test cases generated* (${detail.testCases.length} total, ${Object.keys(byCategory).join(', ')})`).catch(() => {});
             }
           } catch (err) {
+            // degraded: test case GCP upload is for Slack preview only; failure must not affect build outcome
             console.warn(`[worker] Failed to upload test cases: ${err.message}`);
           }
         })();
       }
     };
 
-    // Pull latest code
+    // Pull latest code; if HEAD changed, clear require() cache for pipeline modules
+    // so the next job runs the updated code rather than the stale in-memory copy.
     if (fs.existsSync(REPO_DIR) && fs.existsSync(path.join(REPO_DIR, '.git'))) {
       try {
+        const { stdout: headBefore } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+          cwd: REPO_DIR,
+        }).catch(() => ({ stdout: '' }));
         await execFileAsync('git', ['pull', 'origin', 'main'], {
           cwd: REPO_DIR,
           timeout: 60000,
         });
-        console.log(`[worker] Git pull completed`);
+        const { stdout: headAfter } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+          cwd: REPO_DIR,
+        }).catch(() => ({ stdout: '' }));
+        if (headBefore.trim() !== headAfter.trim() && headAfter.trim()) {
+          // Code changed — bust require() cache for all local lib/ modules so this
+          // job (and all subsequent jobs in this process) use the updated source.
+          const libDir = path.join(REPO_DIR, 'lib');
+          Object.keys(require.cache).forEach((key) => {
+            if (key.startsWith(libDir)) delete require.cache[key];
+          });
+          console.log(`[worker] Git pull: code updated ${headBefore.trim().slice(0, 7)} → ${headAfter.trim().slice(0, 7)}, lib/ cache cleared`);
+        } else {
+          console.log(`[worker] Git pull completed (no change)`);
+        }
       } catch (err) {
+        // degraded: git pull is an optional hot-reload; network or repo errors must not block the build
         console.warn(`[worker] Git pull failed (continuing): ${err.message}`);
       }
     }
@@ -852,11 +924,36 @@ const worker = new Worker(
       specPath = tmpSpecPath;
     }
 
+    // Warehouse hygiene gate: delete stale HTML if game not approved.
+    // Prevents pipeline from reusing broken HTML from prior failed builds.
+    // pipeline.js checks fs.existsSync(htmlFile) && size > 5000 — if true, it skips
+    // HTML generation entirely, causing every build to reuse the same broken output.
+    const warehouseHtmlPath = path.join(
+      process.env.RALPH_WAREHOUSE_DIR ||
+        path.join(__dirname, 'warehouse', 'templates'),
+      gameId,
+      'game',
+      'index.html'
+    );
+    if (fs.existsSync(warehouseHtmlPath)) {
+      const gameRecord = db.getGame(gameId);
+      if (!gameRecord || gameRecord.status !== 'approved') {
+        fs.unlinkSync(warehouseHtmlPath);
+        logger.info(
+          `[worker] Deleted stale warehouse HTML for ${gameId} (game status: ${gameRecord?.status ?? 'unknown'})`
+        );
+      }
+    }
+
     // Run Ralph — E3: choose between bash (ralph.sh) and Node.js (pipeline.js)
     let report;
+    // Heartbeat: renew BullMQ lock every 2 min during long builds (LLM/Playwright calls
+    // can block the event loop long enough for the 30-min lock to expire without renewal).
+    const heartbeatInterval = setInterval(async () => {
+      await job.updateProgress({ heartbeat: true, gameId }).catch(() => {});
+    }, 2 * 60 * 1000);
     try {
       if (USE_NODE_PIPELINE) {
-        const { runPipeline } = require('./lib/pipeline');
         const gameDir = path.join(REPO_DIR, 'data', 'games', gameId, 'builds', String(buildId));
         const specFile = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
         fs.mkdirSync(gameDir, { recursive: true });
@@ -869,17 +966,27 @@ const worker = new Worker(
           console.log(`[worker] Using pre-built HTML from warehouse for ${gameId} (skipping generation)`);
         }
         console.log(`[worker] Running Node.js pipeline (E3) for ${gameId}, build dir: ${gameDir}`);
-        report = await runPipeline(gameDir, specFile, { metrics, logger, onProgress });
+        report = await runPipeline(gameDir, specFile, { metrics, logger, onProgress, buildId });
       } else {
         report = await runRalph(gameId, specPath, buildId);
       }
     } catch (err) {
-      // Record metrics even on failure
+      // critical: pipeline crash — record metrics + DB failure, then rethrow so BullMQ marks the job failed
       const buildDuration = (Date.now() - buildStartTime) / 1000;
       metrics.recordBuildCompleted(gameId, 'CRASHED', buildDuration, 0);
       transaction.setStatus && transaction.setStatus('error');
       transaction.finish && transaction.finish();
+      // Ensure error_message is always recorded — worker.on('failed') is the outer
+      // safety net, but err.message may be empty/undefined if a non-Error was thrown
+      // or the Error was constructed without a message.  Write it here first so the
+      // DB always has a descriptive message even if the outer handler loses context.
+      if (buildId) {
+        const errMsg = (err && (err.message || err.toString())) || 'pipeline crashed without a message';
+        db.failBuild(buildId, errMsg);
+      }
       throw err;
+    } finally {
+      clearInterval(heartbeatInterval);
     }
 
     // Merge iteration HTML URLs from DB into report (populated async by html-fixed handler)
@@ -888,7 +995,9 @@ const worker = new Worker(
       if (buildRecord?.iteration_html_urls) {
         try {
           report.iteration_html_urls = JSON.parse(buildRecord.iteration_html_urls);
-        } catch (_) {}
+        } catch (_) {
+          // cosmetic: iteration URL map is optional report enrichment; malformed JSON must not crash post-build steps
+        }
       }
     }
 
@@ -935,7 +1044,26 @@ const worker = new Worker(
     const gcpUrl = db.getGame(gameId)?.gcp_url;
     if (threadInfo) {
       // Update opener with final status + post summary reply
-      await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl, specLink, pipelineDocsLink });
+      const finalPipelineMs = Date.now() - buildStartTime;
+      const finalPipelineMin = Math.round(finalPipelineMs / 60000);
+      const finalPipelineElapsedMin = finalPipelineMin < 1 ? '<1m' : `${finalPipelineMin}m`;
+      const finalStepMs = Date.now() - stepStartedAt;
+      const finalStepMin = Math.round(finalStepMs / 60000);
+      const finalStepElapsedMin = finalStepMin < 1 ? '<1m' : `${finalStepMin}m`;
+      await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId, report, {
+        gcpUrl,
+        specLink: specLink || null,
+        specGithubUrl: !specLink ? specGithubUrl : null,
+        pipelineDocsLink: pipelineDocsLink || null,
+        pipelineDocsUrl: !pipelineDocsLink ? pipelineDocsGithubUrl : null,
+        requestedBy: requestedBy || null,
+        startedAt: buildStartTime,
+        llmCalls: llmCallCount || report.llm_calls || null,
+        currentStep: currentBuildStep,
+        gameTitle: game?.title || null,
+        pipelineElapsedMin: finalPipelineElapsedMin,
+        stepElapsedMin: finalStepElapsedMin,
+      });
       await slack.postThreadResult(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
     } else {
       await slack.notifyBuildResult(gameId, report, commitSha, gcpUrl);
@@ -949,7 +1077,7 @@ const worker = new Worker(
         const currentBuild = db.getBuild(buildId);
         if ((currentBuild?.retry_count || 0) === 0) {
           const buildQueue = worker.opts.connection
-            ? new (require('bullmq').Queue)('ralph-builds', { connection: worker.opts.connection })
+            ? new Queue('ralph-builds', { connection: worker.opts.connection })
             : null;
           if (buildQueue) {
             const newJob = await buildQueue.add('build', { gameId, retryOf: buildId });
@@ -969,6 +1097,19 @@ const worker = new Worker(
 
     // Update game status
     db.updateGameStatus(gameId, report.status === 'APPROVED' ? 'approved' : report.status.toLowerCase());
+
+    // Post-approval: sync approved HTML back to warehouse so future builds start from known-good base
+    if (report.status === 'APPROVED') {
+      const approvedHtmlSrc = path.join(REPO_DIR, 'data', 'games', gameId, 'builds', String(buildId), 'index.html');
+      const warehouseTemplatesDir = process.env.RALPH_WAREHOUSE_DIR || path.join(__dirname, 'warehouse', 'templates');
+      const warehouseGameDir = path.join(warehouseTemplatesDir, gameId, 'game');
+      const warehouseHtmlDst = path.join(warehouseGameDir, 'index.html');
+      if (fs.existsSync(approvedHtmlSrc)) {
+        fs.mkdirSync(warehouseGameDir, { recursive: true });
+        fs.copyFileSync(approvedHtmlSrc, warehouseHtmlDst);
+        logger.info(`[worker] Synced approved HTML to warehouse for ${gameId}`);
+      }
+    }
 
     logger.info(`${gameId}: ${report.status}`, {
       gameId,
@@ -1000,11 +1141,19 @@ worker.on('completed', (job, result) => {
 
 worker.on('failed', async (job, err) => {
   const { gameId, buildId, commitSha } = job.data;
-  logger.error(`Job ${job.id} failed: ${err.message}`, { gameId, buildId, event: 'build_failed' });
+  // Normalise the error message: err may be a non-Error object or have an empty
+  // message (which would store NULL in SQLite).  Always record something useful.
+  const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+  logger.error(`Job ${job.id} failed: ${errMsg}`, { gameId, buildId, event: 'build_failed' });
   sentry.captureException(err, { gameId, buildId, step: 'worker' });
 
   if (buildId) {
-    db.failBuild(buildId, err.message);
+    // Only write if the build does not already have an error_message (the inner
+    // catch block writes first when the pipeline itself crashes).
+    const existing = db.getBuild(buildId);
+    if (!existing?.error_message) {
+      db.failBuild(buildId, errMsg);
+    }
   }
 
   await slack.notifyBuildResult(
@@ -1032,6 +1181,47 @@ async function cleanupOrphanedBuilds() {
   }
 }
 cleanupOrphanedBuilds().catch(err => logger.error('[worker] Orphan cleanup failed:', err));
+
+// At startup: requeue any failed builds with queue-sync error that haven't been retried yet
+async function requeueQueueSyncBuilds() {
+  const candidates = db
+    .getDb()
+    .prepare(
+      "SELECT * FROM builds WHERE status = 'failed' AND error_message LIKE '%queue-sync%' AND (retry_count IS NULL OR retry_count < 1) ORDER BY id ASC",
+    )
+    .all();
+
+  if (candidates.length === 0) {
+    logger.info('[worker] queue-sync requeue: found 0 builds to requeue');
+    return;
+  }
+
+  logger.info(`[worker] queue-sync requeue: found ${candidates.length} build(s) to requeue`);
+
+  const buildQueue = new Queue('ralph-builds', { connection });
+
+  for (const build of candidates) {
+    const gameId = build.game_id;
+
+    // Skip if this game already has a queued or running build
+    const active = db
+      .getDb()
+      .prepare("SELECT id FROM builds WHERE game_id = ? AND status IN ('queued', 'running') LIMIT 1")
+      .get(gameId);
+    if (active) {
+      logger.info(`[worker] queue-sync requeue: skipping ${gameId} — already has active build #${active.id}`);
+      db.getDb().prepare('UPDATE builds SET retry_count = 1 WHERE id = ?').run(build.id);
+      continue;
+    }
+
+    await buildQueue.add('build', { gameId, requeueOf: build.id });
+    db.getDb().prepare('UPDATE builds SET retry_count = 1 WHERE id = ?').run(build.id);
+    logger.info(`[worker] queue-sync auto-requeue: ${gameId} (was build #${build.id})`);
+  }
+
+  await buildQueue.close();
+}
+requeueQueueSyncBuilds().catch(err => logger.error('[worker] queue-sync requeue failed:', err));
 
 startSystemMetrics();
 logger.info(`[worker] Worker ID: ${WORKER_ID}`);

@@ -25,7 +25,7 @@ Slack Events → /slack/events ────────┤
 ```bash
 npm start              # Start webhook server (port 3000)
 npm run worker         # Start BullMQ worker
-npm test               # Run all 334 tests (19 test files)
+npm test               # Run all 385 tests (19 test files)
 npm run validate       # Run static HTML validator on a file
 npm run validate:contract  # Run contract validator on a file
 npm run lint           # ESLint check
@@ -181,12 +181,22 @@ Goal: any future agent reading these docs should operate without rediscovering k
 
 These rules are non-negotiable. Violating them causes data loss, broken builds, or wasted compute. Every agent must follow them unconditionally.
 
-### 1. Never kill an active build without checking DB status first
-`sudo systemctl restart ralph-worker` kills any running pipeline mid-LLM-call. Before restarting the worker, always run:
+### 1. Never kill an active build without checking DB status first — this applies to ALL agents
+`sudo systemctl restart ralph-worker` kills any running pipeline mid-LLM-call. This rule applies to EVERY agent, including deploy agents and sub-agents. Before restarting the worker, always run:
 ```bash
 ssh ... "cd /opt/ralph && node -e \"const db=require('./lib/db'); console.log(db.getRecentBuilds(3).map(b=>b.game_id+' '+b.status).join('\n'))\""
 ```
 Only restart if no build has `status='running'`. If one is running, wait for it or kill it explicitly with `db.failBuild()` first.
+
+**Deploy agents MUST use this exact sequence every time:**
+```bash
+# 1. Check before touching worker
+node -p "const Database = require('better-sqlite3'); const db = new Database('data/builds.db'); db.prepare('SELECT id,game_id,status FROM builds WHERE status=?').get('running') || 'IDLE'"
+# 2. Only if IDLE: copy files + restart
+sudo cp /tmp/file.js /opt/ralph/path/file.js
+sudo systemctl restart ralph-worker
+# 3. If running: copy files only — NO restart. New code loads on next job.
+```
 
 ### 2. Never auto-restart based on wall-clock time alone
 A build with `iterations=0` in the DB does NOT mean it's stuck — it means the pipeline is actively running LLM calls (DB is only updated at phase boundaries). The only reliable stuck signal is `status='running'` for >45 minutes with no Slack progress messages. Always check Slack thread activity before restarting.
@@ -211,3 +221,60 @@ After each build run or pipeline fix: update `docs/lessons-learned.md` with new 
 
 ### 8. Read CLAUDE.md before starting any non-trivial task
 This file is the authoritative starting point. Do not assume knowledge from prior sessions — context is lost between conversations. Read `docs/lessons-learned.md` before diagnosing any pipeline failure.
+
+### 9. Never ask for approval — act, then report
+Execute decisions autonomously. Do not ask "want me to do X?" — just do it and report what was done. The user is a manager: they set direction, agents execute. The only exception is irreversible destructive actions (dropping DB, deleting prod data, force-pushing main).
+
+### 10. Send a Slack progress update to Mithilesh every 15 minutes
+Every 15 minutes, post a brief status update to channel `C09J341LC2K` tagging `<@U0242GULG48>` (Mithilesh Kohale) using `SLACK_TOKEN` from `/Users/the-hw-app/Projects/slack-helpers/.env`. Include:
+1. Current running build + step
+2. Queue depth
+3. New approvals/failures since last update
+4. **Improvements since last update** — point-wise list of what was shipped (R&D tasks completed, bugs fixed, pipeline changes deployed)
+5. Active R&D task + status
+6. One-line flag if anything needs attention
+
+Delegate the send to a sub-agent — do not block the main context.
+
+### 10. Always explain the value of a running build when reporting status
+When reporting on any running build — in chat OR in Slack notifications — always include: (1) what we expect to learn or gain if it completes successfully, (2) why it has not been killed yet — what kill criteria it has NOT yet met. Always use the CURRENTLY running build (status=running in DB) — never reference a failed/orphaned build as "running". A build costs time and money; the manager must know whether to let it run or cut losses. Format: "Value if completes: <X>. Not killed because: <Y>."
+
+### 11. You are a manager/orchestrator — never sit idle, never do implementation work yourself
+
+**Never sit idle while async tasks are running.** Background agents are async — while they work, you must immediately identify and start the next highest-value task. After launching any sub-agent or after any user message, always ask: "What is the next thing I can do right now?" Then do it. Waiting for an agent to finish before acting is wasted time.
+
+Delegate ALL implementation, research, and long-running tasks to sub-agents. The parent agent must remain available to the user at all times. Never get buried in code, file edits, or multi-step tasks directly — spawn an agent, give it a clear brief, and return to the user immediately. This applies to: writing/editing code, running tests, deploying files, investigating failures, reading large files. The only work done in the main context is short coordination tasks (reading a single file, queuing a build, checking status).
+
+### 10. Always maintain one active R&D task — MANDATORY, NON-NEGOTIABLE, NEVER TOLERATED TO VIOLATE
+
+**R&D is always running. This is not optional.** One sub-agent must ALWAYS be actively working on an R&D task. The moment a R&D task completes or ships, immediately — in the same response — pick the next task and launch a new R&D sub-agent. Do NOT wait for the user to ask. Do NOT let the slot go passive ("measure impact later"). A passive measurement task that requires no active work does NOT count.
+
+One item must always be present in `ROADMAP.md` under `## R&D` with status `active`. Never leave the slot empty.
+
+**How to pick the R&D task:** Target the single highest-leverage pain point visible in live build data. The best R&D starts with observation:
+- Pull recent build traces: iteration counts, failure patterns, which test categories fail most, how long each step takes
+- Read `docs/lessons-learned.md` for open hypotheses
+- Ask: "If this one thing were fixed, how many of the last 10 builds would have gone differently?"
+- Prioritise: test gen quality > fix loop accuracy > review false positives > infra reliability
+
+**How to run R&D:** Don't just implement — experiment first:
+1. **Trace** — gather real data from recent builds (DB queries, log analysis, GCP HTML inspection)
+2. **Hypothesize** — write a one-line falsifiable hypothesis ("if we inject X into fix prompt at iter 1, avg iterations drop from 3 → 1.5")
+3. **Prototype** — implement in a branch or inline, write tests
+4. **Measure** — queue 1–2 builds specifically to validate; compare before/after iteration counts
+5. **Ship or kill** — if hypothesis confirmed: commit + deploy + update ROADMAP; if not: document what was learned, pick next
+
+**Non-negotiable constraints:**
+- R&D never blocks critical work. If a build needs a kill, a pipeline bug needs a fix, or a deploy is needed — stop R&D immediately, handle it, then resume.
+- R&D runs in a sub-agent so the main context stays free for the user and for monitoring.
+- R&D must produce a measurable result (test count, iteration count, pass rate) — "made it cleaner" is not R&D, it's housekeeping.
+
+### 12. At session start and after every context compaction — restore background task continuity
+
+When starting a new session or resuming after context compaction:
+1. **Check CronList** — verify the 15-minute Slack update cron is running. If missing, recreate it immediately using the prompt from Rule 10.
+2. **Check running sub-agents** — review the conversation summary or task notifications to identify any agents that were mid-flight. If their results are pending, relaunch them with the same brief.
+3. **Check build pipeline** — SSH to server and confirm worker is running and no build has been stuck >45 min.
+4. **Check ROADMAP.md R&D slot** — confirm one R&D task is marked `active`. If the slot is empty or passive, pick the next highest-leverage item and launch a sub-agent immediately.
+
+This rule exists because session compaction silently kills all crons, loses agent context, and can leave background work orphaned. Any future agent starting a session must run this checklist before doing anything else.

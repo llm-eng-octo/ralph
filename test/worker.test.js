@@ -119,6 +119,38 @@ describe('worker error handling patterns', () => {
     assert.equal(iterations, 0);
   });
 
+  it('error message normalisation: real Error with message', () => {
+    const err = new Error('pipeline crashed');
+    const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+    assert.equal(errMsg, 'pipeline crashed');
+  });
+
+  it('error message normalisation: Error with empty message falls back to toString()', () => {
+    const err = new Error('');
+    // err.message is '' (falsy), toString() gives 'Error'
+    const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+    assert.ok(errMsg.length > 0, 'should not produce empty string');
+    assert.ok(errMsg.includes('Error'), 'should include Error class name');
+  });
+
+  it('error message normalisation: string thrown (non-Error)', () => {
+    const err = 'something bad happened';
+    const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+    assert.equal(errMsg, 'something bad happened');
+  });
+
+  it('error message normalisation: null error falls back to sentinel message', () => {
+    const err = null;
+    const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+    assert.equal(errMsg, 'worker-level failure: no error message captured');
+  });
+
+  it('error message normalisation: undefined error falls back to sentinel message', () => {
+    const err = undefined;
+    const errMsg = (err && (err.message || err.toString())) || 'worker-level failure: no error message captured';
+    assert.equal(errMsg, 'worker-level failure: no error message captured');
+  });
+
   it('models fallback object has no crash on .generation access', () => {
     // This simulates the failed-job handler path where models = {}
     const failedReport = {
@@ -266,5 +298,88 @@ describe('worker concurrency and rate limit config', () => {
     const duration = parseInt(process.env.RALPH_RATE_DURATION || '3600000', 10);
     assert.equal(max, 10);
     assert.equal(duration, 3600000);
+  });
+});
+
+describe('queue-sync auto-requeue logic', () => {
+  // Replicate the requeueQueueSyncBuilds candidate-selection and skip logic for unit testing
+
+  function selectCandidates(builds) {
+    return builds.filter(
+      (b) => b.status === 'failed' && b.error_message && b.error_message.includes('queue-sync') && (b.retry_count == null || b.retry_count < 1),
+    );
+  }
+
+  function hasActiveBuilds(builds, gameId) {
+    return builds.some((b) => b.game_id === gameId && (b.status === 'queued' || b.status === 'running'));
+  }
+
+  it('selects builds with queue-sync error and retry_count=0', () => {
+    const builds = [
+      { id: 10, game_id: 'doubles', status: 'failed', error_message: 'queue-sync: BullMQ job lost after worker restart', retry_count: 0 },
+      { id: 11, game_id: 'fractions', status: 'failed', error_message: 'pipeline crashed', retry_count: 0 },
+      { id: 12, game_id: 'doubles', status: 'approved', error_message: null, retry_count: 0 },
+    ];
+    const candidates = selectCandidates(builds);
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0].id, 10);
+  });
+
+  it('does not select builds where retry_count is already 1', () => {
+    const builds = [
+      { id: 20, game_id: 'doubles', status: 'failed', error_message: 'queue-sync: BullMQ job lost after worker restart', retry_count: 1 },
+      { id: 21, game_id: 'fractions', status: 'failed', error_message: 'queue-sync: BullMQ job lost', retry_count: 0 },
+    ];
+    const candidates = selectCandidates(builds);
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0].id, 21);
+  });
+
+  it('treats null retry_count as eligible (equivalent to 0)', () => {
+    const builds = [
+      { id: 30, game_id: 'doubles', status: 'failed', error_message: 'queue-sync: job lost', retry_count: null },
+    ];
+    const candidates = selectCandidates(builds);
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0].id, 30);
+  });
+
+  it('skips requeue when game already has a queued build', () => {
+    const allBuilds = [
+      { id: 40, game_id: 'doubles', status: 'failed', error_message: 'queue-sync: job lost', retry_count: 0 },
+      { id: 41, game_id: 'doubles', status: 'queued', error_message: null, retry_count: 0 },
+    ];
+    const candidates = selectCandidates(allBuilds);
+    assert.equal(candidates.length, 1);
+    // Simulate the skip check
+    const shouldSkip = hasActiveBuilds(allBuilds, candidates[0].game_id);
+    assert.ok(shouldSkip, 'should skip when queued build exists');
+  });
+
+  it('skips requeue when game already has a running build', () => {
+    const allBuilds = [
+      { id: 50, game_id: 'fractions', status: 'failed', error_message: 'queue-sync: job lost', retry_count: 0 },
+      { id: 51, game_id: 'fractions', status: 'running', error_message: null, retry_count: 0 },
+    ];
+    const candidates = selectCandidates(allBuilds);
+    assert.equal(candidates.length, 1);
+    const shouldSkip = hasActiveBuilds(allBuilds, candidates[0].game_id);
+    assert.ok(shouldSkip, 'should skip when running build exists');
+  });
+
+  it('allows requeue when game has no active builds', () => {
+    const allBuilds = [
+      { id: 60, game_id: 'multiplication', status: 'failed', error_message: 'queue-sync: BullMQ job lost', retry_count: 0 },
+      { id: 59, game_id: 'multiplication', status: 'failed', error_message: 'pipeline error', retry_count: 0 },
+    ];
+    const candidates = selectCandidates(allBuilds);
+    assert.equal(candidates.length, 1);
+    const shouldSkip = hasActiveBuilds(allBuilds, candidates[0].game_id);
+    assert.ok(!shouldSkip, 'should not skip when no active build exists');
+  });
+
+  it('handles empty builds table gracefully', () => {
+    const candidates = selectCandidates([]);
+    assert.equal(candidates.length, 0);
   });
 });

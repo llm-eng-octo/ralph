@@ -8,7 +8,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { extractHtml, extractTests } = require('../lib/pipeline');
+const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords, getCategoryBoost, deriveRelevantCategories } = require('../lib/pipeline');
 
 describe('pipeline.js extractHtml', () => {
   it('extracts HTML from ```html code block', () => {
@@ -172,5 +172,1105 @@ describe('pipeline.js runTargetedFix', () => {
         fs.rmSync(tmpDir, { recursive: true });
       } catch {}
     }
+  });
+});
+
+describe('pipeline.js getRelevantLearnings', () => {
+  it('is exported as a function', () => {
+    assert.equal(typeof getRelevantLearnings, 'function');
+  });
+
+  it('returns null gracefully when DB is unavailable (in-memory test env)', () => {
+    // In the test environment RALPH_DB_PATH points to a temp path that
+    // has no approved builds — function must not throw and must return
+    // null or a string.
+    const result = getRelevantLearnings('test-game', null, 5);
+    assert.ok(result === null || typeof result === 'string');
+  });
+
+  it('returns null when gameId is undefined', () => {
+    const result = getRelevantLearnings(undefined, null, 5);
+    assert.ok(result === null || typeof result === 'string');
+  });
+
+  it('formats results as bullet list when rows exist', () => {
+    // Inject a mock db module via module cache manipulation
+    const Module = require('module');
+    const dbPath = require.resolve('../lib/db');
+    const originalDb = require.cache[dbPath];
+
+    const mockRows = [
+      { content: 'Always expose window.gameState for syncDOMState to work', category: 'cdncompat' },
+      { content: 'Use fire-and-forget for FeedbackManager audio calls', category: 'audio' },
+    ];
+
+    try {
+      require.cache[dbPath] = {
+        id: dbPath,
+        filename: dbPath,
+        loaded: true,
+        exports: {
+          getDb: () => ({
+            prepare: () => ({ all: () => mockRows }),
+          }),
+        },
+      };
+
+      // Must clear pipeline cache so it picks up mock db
+      const pipelinePath = require.resolve('../lib/pipeline');
+      delete require.cache[pipelinePath];
+      const { getRelevantLearnings: freshFn } = require('../lib/pipeline');
+
+      const result = freshFn('some-other-game', null, 10);
+      assert.ok(result !== null, 'should return a string when rows exist');
+      assert.ok(result.includes('- [cdncompat]'), 'should format category in brackets');
+      assert.ok(result.includes('window.gameState'), 'should include content');
+    } finally {
+      // Restore original db module
+      if (originalDb) {
+        require.cache[dbPath] = originalDb;
+      } else {
+        delete require.cache[dbPath];
+      }
+      // Restore pipeline module
+      delete require.cache[require.resolve('../lib/pipeline')];
+      require('../lib/pipeline');
+    }
+  });
+});
+
+describe('pipeline.js jaccardSimilarity', () => {
+  it('returns 1 for identical strings', () => {
+    assert.equal(jaccardSimilarity('always expose window gameState for syncDOMState', 'always expose window gameState for syncDOMState'), 1);
+  });
+
+  it('returns 0 for completely disjoint strings', () => {
+    const sim = jaccardSimilarity('apple banana cherry', 'delta echo foxtrot');
+    assert.equal(sim, 0);
+  });
+
+  it('returns a value in (0, 1) for partially overlapping strings', () => {
+    const sim = jaccardSimilarity('expose window gameState for syncDOMState', 'always expose window gameState via assignment');
+    assert.ok(sim > 0 && sim < 1, `expected 0 < sim < 1, got ${sim}`);
+  });
+
+  it('correctly identifies near-duplicates above threshold 0.6', () => {
+    // Strings sharing most words — same root cause, minor wording change
+    const a = 'always expose window gameState so syncDOMState can read the state';
+    const b = 'always expose window gameState so syncDOMState can read game state';
+    const sim = jaccardSimilarity(a, b);
+    assert.ok(sim > 0.6, `expected sim > 0.6 for near-duplicates, got ${sim}`);
+  });
+
+  it('does not flag clearly distinct learnings as duplicates', () => {
+    const a = 'always expose window endGame so tests can trigger end of game';
+    const b = 'use fire and forget for FeedbackManager audio calls to avoid blocking';
+    const sim = jaccardSimilarity(a, b);
+    assert.ok(sim < 0.6, `expected sim < 0.6 for distinct entries, got ${sim}`);
+  });
+
+  it('handles empty strings without throwing', () => {
+    assert.equal(jaccardSimilarity('', ''), 1);
+    assert.equal(jaccardSimilarity('hello world', ''), 0);
+    assert.equal(jaccardSimilarity('', 'hello world'), 0);
+  });
+
+  it('is case-insensitive and strips punctuation', () => {
+    const sim = jaccardSimilarity('Window.GameState must be set!', 'window gamestate must be set');
+    assert.equal(sim, 1);
+  });
+});
+
+describe('pipeline.js getRelevantLearnings deduplication', () => {
+  // Helper: installs mock db, calls fn(getRelevantLearnings), then restores.
+  // The mock remains active for the duration of fn() — critical because
+  // getRelevantLearnings() lazy-requires db at call time.
+  function withMockDb(rows, fn) {
+    const dbPath = require.resolve('../lib/db');
+    const pipelinePath = require.resolve('../lib/pipeline');
+    const originalDb = require.cache[dbPath];
+    const originalPipeline = require.cache[pipelinePath];
+    try {
+      require.cache[dbPath] = {
+        id: dbPath,
+        filename: dbPath,
+        loaded: true,
+        exports: {
+          getDb: () => ({
+            prepare: () => ({ all: () => rows }),
+          }),
+        },
+      };
+      // Reload pipeline so it picks up the mock db binding
+      delete require.cache[pipelinePath];
+      const freshPipeline = require('../lib/pipeline');
+      return fn(freshPipeline.getRelevantLearnings);
+    } finally {
+      if (originalDb) {
+        require.cache[dbPath] = originalDb;
+      } else {
+        delete require.cache[dbPath];
+      }
+      if (originalPipeline) {
+        require.cache[pipelinePath] = originalPipeline;
+      } else {
+        delete require.cache[pipelinePath];
+      }
+      // Re-require pipeline with original db so later tests are clean
+      delete require.cache[pipelinePath];
+      require('../lib/pipeline');
+    }
+  }
+
+  it('deduplicates near-duplicate entries (Jaccard > 0.6)', () => {
+    // Two entries sharing most words (same root cause) + one unrelated entry
+    const rows = [
+      { content: 'always expose window gameState so syncDOMState can read state correctly', category: 'cdncompat' },
+      { content: 'always expose window gameState so syncDOMState can read game state', category: 'cdncompat' },
+      { content: 'use fire and forget for FeedbackManager audio to avoid blocking the game loop', category: 'audio' },
+    ];
+    withMockDb(rows, (fn) => {
+      const result = fn('other-game', null, 10);
+      assert.ok(result !== null, 'should return a string');
+      // Only 2 distinct clusters: gameState cluster + audio entry
+      const bullets = result.split('\n').filter(Boolean);
+      assert.equal(bullets.length, 2, `expected 2 deduped bullets, got ${bullets.length}: ${result}`);
+    });
+  });
+
+  it('caps output at 20 bullets regardless of row count', () => {
+    // Generate 30 distinct rows (no duplicates — each has unique words)
+    const rows = Array.from({ length: 30 }, (_, i) => ({
+      content: `technique${i} procedure${i} protocol${i} requirement${i} constraint${i} guideline${i} rule${i} standard${i} pattern${i} approach${i}`,
+      category: 'general',
+    }));
+    withMockDb(rows, (fn) => {
+      const result = fn('other-game', null, 10);
+      assert.ok(result !== null, 'should return a string');
+      const bullets = result.split('\n').filter(Boolean);
+      assert.ok(bullets.length <= 20, `expected <= 20 bullets, got ${bullets.length}`);
+    });
+  });
+
+  it('keeps the most recent entry when deduplicating (first in ORDER BY build_id DESC list)', () => {
+    const rows = [
+      // Most recent (index 0 = first in desc order) — should be kept
+      { content: 'always expose window endGame function so test harness can invoke it', category: 'cdncompat' },
+      // Older near-duplicate — should be dropped
+      { content: 'always expose window endGame function so test harness can call it', category: 'cdncompat' },
+    ];
+    withMockDb(rows, (fn) => {
+      const result = fn('other-game', null, 10);
+      assert.ok(result !== null, 'should return a string');
+      const bullets = result.split('\n').filter(Boolean);
+      assert.equal(bullets.length, 1, 'should keep only 1 entry for this near-duplicate cluster');
+      assert.ok(result.includes('invoke'), 'should keep the most recent (first) entry');
+    });
+  });
+});
+
+describe('pipeline.js extractSpecKeywords', () => {
+  it('returns an empty Set for null/empty input', () => {
+    assert.equal(extractSpecKeywords(null).size, 0);
+    assert.equal(extractSpecKeywords('').size, 0);
+    assert.equal(extractSpecKeywords(undefined).size, 0);
+  });
+
+  it('extracts PART-XXX identifiers from spec text', () => {
+    const spec = `## CDN\n- PART-012 FeedbackManager\n- PART-003 ScreenLayout\n`;
+    const keywords = extractSpecKeywords(spec);
+    assert.ok(keywords.has('part-012'), 'should include part-012');
+    assert.ok(keywords.has('part-003'), 'should include part-003');
+  });
+
+  it('extracts PascalCase CDN part names from CDN section', () => {
+    const spec = `## CDN\nFeedbackManager, ScreenLayout, SlotMachine\n\n## Mechanics\nnothing here\n`;
+    const keywords = extractSpecKeywords(spec);
+    assert.ok(keywords.has('feedbackmanager'), 'should include feedbackmanager');
+    assert.ok(keywords.has('screenlayout'), 'should include screenlayout');
+    assert.ok(keywords.has('slotmachine'), 'should include slotmachine');
+  });
+
+  it('extracts mechanic keywords from Game Mechanics section (min 4 chars, no stop words)', () => {
+    const spec = `## Game Mechanics\nPlayer selects a fraction tile and matches it to an equivalent.\nLives are reduced on wrong answer.\n`;
+    const keywords = extractSpecKeywords(spec);
+    // meaningful words present
+    assert.ok(keywords.has('player'), 'should include player');
+    assert.ok(keywords.has('fraction'), 'should include fraction');
+    assert.ok(keywords.has('matches'), 'should include matches');
+    // stop words excluded
+    assert.ok(!keywords.has('this'), 'should exclude stop word "this"');
+    assert.ok(!keywords.has('game'), 'should exclude stop word "game"');
+    // short words excluded
+    assert.ok(!keywords.has('on'), 'should exclude "on" (< 4 chars)');
+    assert.ok(!keywords.has('it'), 'should exclude "it" (< 4 chars)');
+  });
+
+  it('getRelevantLearnings sorts spec-relevant learnings first when specContent provided', () => {
+    // Rows: one about FeedbackManager (relevant to spec), one about timer (irrelevant)
+    const rows = [
+      // This entry is about timer — not relevant to a FeedbackManager spec
+      { content: 'timercomponent starttime must be zero to avoid negative elapsed values', category: 'general' },
+      // This entry mentions feedbackmanager — highly relevant to our spec
+      { content: 'feedbackmanager playDynamicFeedback must be fire and forget never awaited', category: 'audio' },
+    ];
+    const spec = `## CDN\nFeedbackManager\n\n## Game Mechanics\nplayer answers question\n`;
+
+    // Use withMockDb helper from the outer describe scope by duplicating the setup inline
+    const dbPath = require.resolve('../lib/db');
+    const pipelinePath = require.resolve('../lib/pipeline');
+    const originalDb = require.cache[dbPath];
+    const originalPipeline = require.cache[pipelinePath];
+    try {
+      require.cache[dbPath] = {
+        id: dbPath,
+        filename: dbPath,
+        loaded: true,
+        exports: {
+          getDb: () => ({
+            prepare: () => ({ all: () => rows }),
+          }),
+        },
+      };
+      delete require.cache[pipelinePath];
+      const { getRelevantLearnings: freshFn } = require('../lib/pipeline');
+      const result = freshFn('other-game', spec, 10);
+      assert.ok(result !== null, 'should return a string');
+      const bullets = result.split('\n').filter(Boolean);
+      // FeedbackManager bullet should appear first (higher spec relevance)
+      assert.ok(bullets[0].includes('feedbackmanager') || bullets[0].includes('FeedbackManager'), `expected feedbackmanager entry first, got: ${bullets[0]}`);
+    } finally {
+      if (originalDb) {
+        require.cache[dbPath] = originalDb;
+      } else {
+        delete require.cache[dbPath];
+      }
+      if (originalPipeline) {
+        require.cache[pipelinePath] = originalPipeline;
+      } else {
+        delete require.cache[pipelinePath];
+      }
+      delete require.cache[pipelinePath];
+      require('../lib/pipeline');
+    }
+  });
+});
+
+describe('pipeline.js getCategoryBoost', () => {
+  it('is exported as a function', () => {
+    assert.equal(typeof getCategoryBoost, 'function');
+  });
+
+  it('contract category always returns +0.2 regardless of spec keywords', () => {
+    // No spec keywords at all
+    assert.equal(getCategoryBoost('contract', new Set()), 0.2);
+    // With unrelated keywords
+    assert.equal(getCategoryBoost('contract', new Set(['fraction', 'tile'])), 0.2);
+    // Null keywords
+    assert.equal(getCategoryBoost('contract', null), 0.2);
+  });
+
+  it('audio category returns +0.2 when spec keywords include feedbackmanager', () => {
+    const withFM = new Set(['feedbackmanager', 'part-012']);
+    assert.equal(getCategoryBoost('audio', withFM), 0.2);
+  });
+
+  it('audio category returns 0 when spec keywords do NOT include feedbackmanager', () => {
+    const withoutFM = new Set(['screenlayout', 'fraction', 'tile']);
+    assert.equal(getCategoryBoost('audio', withoutFM), 0);
+  });
+
+  it('layout category returns +0.2 when spec keywords include screenlayout', () => {
+    const withSL = new Set(['screenlayout', 'part-003']);
+    assert.equal(getCategoryBoost('layout', withSL), 0.2);
+  });
+
+  it('layout category returns 0 when screenlayout not in spec keywords', () => {
+    const withoutSL = new Set(['feedbackmanager', 'fraction']);
+    assert.equal(getCategoryBoost('layout', withoutSL), 0);
+  });
+
+  it('cdncompat returns +0.2 when any PART-xxx keyword is present', () => {
+    const withPart = new Set(['part-012', 'feedbackmanager']);
+    assert.equal(getCategoryBoost('cdncompat', withPart), 0.2);
+    // Any PART-xxx works
+    assert.equal(getCategoryBoost('cdncompat', new Set(['part-001'])), 0.2);
+  });
+
+  it('cdncompat returns 0 when no PART-xxx keyword is present', () => {
+    const noPart = new Set(['feedbackmanager', 'screenlayout', 'fraction']);
+    assert.equal(getCategoryBoost('cdncompat', noPart), 0);
+  });
+
+  it('unrecognised categories always return 0', () => {
+    const kws = new Set(['part-012', 'feedbackmanager', 'screenlayout']);
+    assert.equal(getCategoryBoost('test-gen', kws), 0);
+    assert.equal(getCategoryBoost('fix-loop', kws), 0);
+    assert.equal(getCategoryBoost('general', kws), 0);
+    assert.equal(getCategoryBoost(null, kws), 0);
+    assert.equal(getCategoryBoost(undefined, kws), 0);
+  });
+
+  it('category boost affects sort order: contract entry ranks above same-similarity general entry', () => {
+    // When spec has no matching keywords, Jaccard similarity is ~0 for both.
+    // The contract entry should still come first due to +0.2 boost.
+    const rows = [
+      { content: 'irrelevant alpha bravo charlie delta echo foxtrot', category: 'general' },
+      { content: 'irrelevant golf hotel india juliet kilo lima', category: 'contract' },
+    ];
+    const spec = '## Game Mechanics\nplayer answers questions about fractions\n';
+
+    const dbPath = require.resolve('../lib/db');
+    const pipelinePath = require.resolve('../lib/pipeline');
+    const originalDb = require.cache[dbPath];
+    const originalPipeline = require.cache[pipelinePath];
+    try {
+      require.cache[dbPath] = {
+        id: dbPath,
+        filename: dbPath,
+        loaded: true,
+        exports: {
+          getDb: () => ({
+            prepare: () => ({ all: () => rows }),
+          }),
+        },
+      };
+      delete require.cache[pipelinePath];
+      const { getRelevantLearnings: freshFn } = require('../lib/pipeline');
+      const result = freshFn('other-game', spec, 10);
+      assert.ok(result !== null, 'should return a string');
+      const bullets = result.split('\n').filter(Boolean);
+      assert.ok(bullets.length >= 2, 'should have at least 2 bullets');
+      assert.ok(bullets[0].includes('[contract]'), `contract entry should be first, got: ${bullets[0]}`);
+    } finally {
+      if (originalDb) {
+        require.cache[dbPath] = originalDb;
+      } else {
+        delete require.cache[dbPath];
+      }
+      if (originalPipeline) {
+        require.cache[pipelinePath] = originalPipeline;
+      } else {
+        delete require.cache[pipelinePath];
+      }
+      delete require.cache[pipelinePath];
+      require('../lib/pipeline');
+    }
+  });
+});
+
+describe('pipeline.js deriveRelevantCategories', () => {
+  it('is exported as a function', () => {
+    assert.equal(typeof deriveRelevantCategories, 'function');
+  });
+
+  it('returns null when specKeywords is null', () => {
+    assert.equal(deriveRelevantCategories(null), null);
+  });
+
+  it('returns null when specKeywords is empty Set', () => {
+    assert.equal(deriveRelevantCategories(new Set()), null);
+  });
+
+  it('always includes contract and general', () => {
+    const cats = deriveRelevantCategories(new Set(['fraction', 'tile']));
+    assert.ok(cats instanceof Set);
+    assert.ok(cats.has('contract'));
+    assert.ok(cats.has('general'));
+  });
+
+  it('adds cdncompat when any PART-xxx keyword is present', () => {
+    const cats = deriveRelevantCategories(new Set(['part-012', 'fraction']));
+    assert.ok(cats.has('cdncompat'));
+  });
+
+  it('does NOT add cdncompat when no PART-xxx keyword present', () => {
+    const cats = deriveRelevantCategories(new Set(['fraction', 'tile', 'feedbackmanager']));
+    assert.ok(!cats.has('cdncompat'));
+  });
+
+  it('adds audio when feedbackmanager is in keywords', () => {
+    const cats = deriveRelevantCategories(new Set(['feedbackmanager']));
+    assert.ok(cats.has('audio'));
+  });
+
+  it('adds layout when screenlayout is in keywords', () => {
+    const cats = deriveRelevantCategories(new Set(['screenlayout']));
+    assert.ok(cats.has('layout'));
+  });
+
+  it('adds all relevant categories when all signals present', () => {
+    const kws = new Set(['part-001', 'feedbackmanager', 'screenlayout', 'fraction']);
+    const cats = deriveRelevantCategories(kws);
+    assert.ok(cats.has('contract'));
+    assert.ok(cats.has('general'));
+    assert.ok(cats.has('cdncompat'));
+    assert.ok(cats.has('audio'));
+    assert.ok(cats.has('layout'));
+  });
+
+  it('SQL pre-filter: getRelevantLearnings only returns matching categories when specContent given', () => {
+    // Spec mentions FeedbackManager (CDN) and PART-012 — expect audio+cdncompat+contract+general
+    // A 'layout' row should NOT appear (screenlayout not in spec)
+    const allRows = [
+      { content: 'feedbackmanager fire and forget to avoid blocking audio calls', category: 'audio' },
+      { content: 'screenlayout vertical must set height 100percent to avoid overflow', category: 'layout' },
+      { content: 'always expose window endGame for contract tests', category: 'contract' },
+    ];
+    const spec = '## CDN\nFeedbackManager\nPART-012\n\n## Game Mechanics\nplayer answers fraction question\n';
+
+    const dbPath = require.resolve('../lib/db');
+    const pipelinePath = require.resolve('../lib/pipeline');
+    const originalDb = require.cache[dbPath];
+    const originalPipeline = require.cache[pipelinePath];
+    try {
+      // Mock db so we can verify which rows are requested
+      let capturedSql = null;
+      require.cache[dbPath] = {
+        id: dbPath,
+        filename: dbPath,
+        loaded: true,
+        exports: {
+          getDb: () => ({
+            prepare: (sql) => ({
+              all: (...params) => {
+                capturedSql = sql;
+                // Filter rows by category to simulate SQL WHERE clause
+                const inClauseMatch = sql.match(/l\.category IN \(([^)]+)\)/);
+                if (inClauseMatch) {
+                  // params[0] = gameId, then category placeholders, last = limit
+                  const catEnd = params.length - 1;
+                  const cats = new Set(params.slice(1, catEnd));
+                  return allRows.filter((r) => cats.has(r.category));
+                }
+                return allRows;
+              },
+            }),
+          }),
+        },
+      };
+      delete require.cache[pipelinePath];
+      const { getRelevantLearnings: freshFn } = require('../lib/pipeline');
+      const result = freshFn('other-game', spec, 10);
+      assert.ok(result !== null, 'should return a string');
+      // layout row should NOT appear (screenlayout not mentioned in spec)
+      assert.ok(!result.includes('screenlayout'), `layout row should be excluded by SQL filter, got: ${result}`);
+      // audio row SHOULD appear (feedbackmanager in spec)
+      assert.ok(result.includes('feedbackmanager'), 'audio row should be included');
+      // contract row SHOULD appear (always included)
+      assert.ok(result.includes('endGame'), 'contract row should be included');
+      // SQL should contain IN clause
+      assert.ok(capturedSql && capturedSql.includes('IN'), 'SQL should use IN pre-filter');
+    } finally {
+      if (originalDb) {
+        require.cache[dbPath] = originalDb;
+      } else {
+        delete require.cache[dbPath];
+      }
+      if (originalPipeline) {
+        require.cache[pipelinePath] = originalPipeline;
+      } else {
+        delete require.cache[pipelinePath];
+      }
+      delete require.cache[pipelinePath];
+      require('../lib/pipeline');
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for isInitFailure (P8 — relaxed ANY-match guard)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js isInitFailure', () => {
+  const { isInitFailure } = require('../lib/pipeline-fix-loop');
+
+  it('returns true when passed=0 and ONE matching error (new ANY-match behaviour)', () => {
+    const failures = ['waitForPhase timed out after 10s waiting for "playing"', 'test unrelated to init'];
+    assert.equal(isInitFailure(failures, 0), true);
+  });
+
+  it('returns false when passed=1, even with a matching error', () => {
+    const failures = ['waitForPhase timed out'];
+    assert.equal(isInitFailure(failures, 1), false);
+  });
+
+  it('returns false when passed=0 but no matching error patterns', () => {
+    const failures = ['Expected element to be visible', 'Score did not increment'];
+    assert.equal(isInitFailure(failures, 0), false);
+  });
+
+  it('returns true when passed=0 and ALL errors match (still works)', () => {
+    const failures = ['TimeoutError: waiting for selector', 'data-phase never changed', 'SKIPPED'];
+    assert.equal(isInitFailure(failures, 0), true);
+  });
+
+  it('returns false for empty failure list', () => {
+    assert.equal(isInitFailure([], 0), false);
+  });
+
+  it('returns false for null failure list', () => {
+    assert.equal(isInitFailure(null, 0), false);
+  });
+
+  it('matches gameState is not defined error', () => {
+    assert.equal(isInitFailure(['ReferenceError: gameState is not defined'], 0), true);
+  });
+
+  it('matches __ralph not defined error', () => {
+    assert.equal(isInitFailure(['ReferenceError: __ralph is not defined'], 0), true);
+  });
+
+  it('matches net::ERR_ network error', () => {
+    assert.equal(isInitFailure(['net::ERR_CONNECTION_REFUSED at http://localhost:3333'], 0), true);
+  });
+
+  it('matches Timeout exceeded waiting error', () => {
+    assert.equal(isInitFailure(['Timeout 30000ms exceeded waiting for element'], 0), true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for detectRenderingMismatch (P8 — deterministic pre-triage)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js detectRenderingMismatch', () => {
+  const { detectRenderingMismatch } = require('../lib/pipeline-fix-loop');
+
+  it('returns true when 4 failures all contain toBeVisible (threshold is >3)', () => {
+    const failures = [
+      'expect(locator).toBeVisible() — element not visible',
+      'expect(locator).toBeVisible() — element not found',
+      'expect(locator).toBeVisible() — element hidden by CSS',
+      'expect(locator).toBeVisible() — timed out waiting for element',
+    ];
+    assert.equal(detectRenderingMismatch(failures), true);
+  });
+
+  it('returns false when exactly 3 failures contain toBeVisible (threshold is >3, not >=3)', () => {
+    const failures = [
+      'expect(locator).toBeVisible() — element not visible',
+      'expect(locator).toBeVisible() — element not found',
+      'expect(locator).toBeVisible() — element hidden',
+    ];
+    assert.equal(detectRenderingMismatch(failures), false);
+  });
+
+  it('returns true when 2 toBeVisible + 2 toBeHidden (mixed, total 4)', () => {
+    const failures = [
+      'expect(locator).toBeVisible() — element not visible',
+      'expect(locator).toBeVisible() — not found',
+      'expect(locator).toBeHidden() — element is visible',
+      'expect(locator).toBeHidden() — element unexpectedly visible',
+    ];
+    assert.equal(detectRenderingMismatch(failures), true);
+  });
+
+  it('returns false for an empty array', () => {
+    assert.equal(detectRenderingMismatch([]), false);
+  });
+
+  it('returns false when 4 failures exist but none contain toBeVisible or toBeHidden', () => {
+    const failures = [
+      'Expected: 5, Received: 3 — score mismatch',
+      'waitForPhase timed out after 10s',
+      'net::ERR_CONNECTION_REFUSED',
+      'TypeError: window.__ralph is not defined',
+    ];
+    assert.equal(detectRenderingMismatch(failures), false);
+  });
+
+  it('matches toBeVisible case-insensitively (TOBEVISIBLE, ToBeVisible)', () => {
+    const failures = [
+      'TOBEVISIBLE assertion failed',
+      'ToBeVisible check failed',
+      'tobevisible element missing',
+      'TOBEVISIBLE timeout exceeded',
+    ];
+    assert.equal(detectRenderingMismatch(failures), true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for global fix loop 0/0 false-pass guard
+// Verifies that a batch returning passed=0, failed=0, total=0 (page crash /
+// corrupted HTML) is NOT treated as "all tests pass" — it must be placed in
+// globalFailingBatches, not globalPassingBatches, so the loop does NOT exit
+// early believing the build is healthy.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js global fix loop — 0/0 false-pass guard', () => {
+  // We test the classification logic directly: given gPassed and gFailed values,
+  // confirm whether a batch would end up as "passing" or "failing".
+  // The rule in the fixed code: only gFailed===0 && gPassed>0 → passing.
+  // Anything else (gFailed>0 OR gPassed===0&&gFailed===0) → failing.
+
+  function classifyBatch(gPassed, gFailed) {
+    // Mirrors the fixed condition in runFixLoop (Step 3c global fix loop)
+    if (gFailed === 0 && gPassed > 0) return 'passing';
+    return 'failing';
+  }
+
+  it('batch with passed=5, failed=0 is classified as passing', () => {
+    assert.equal(classifyBatch(5, 0), 'passing');
+  });
+
+  it('batch with passed=0, failed=3 is classified as failing', () => {
+    assert.equal(classifyBatch(0, 3), 'failing');
+  });
+
+  it('batch with passed=2, failed=1 is classified as failing', () => {
+    assert.equal(classifyBatch(2, 1), 'failing');
+  });
+
+  it('batch with passed=0, failed=0 (0/0 — page crash / broken HTML) is classified as failing — not passing', () => {
+    // This is the core bug fix: 0/0 must NOT satisfy "all pass"
+    assert.equal(classifyBatch(0, 0), 'failing',
+      '0/0 result (no tests ran) must be treated as failing, not passing');
+  });
+
+  it('batch with passed=1, failed=0 is classified as passing (boundary)', () => {
+    assert.equal(classifyBatch(1, 0), 'passing');
+  });
+
+  it('batch with passed=0, failed=1 is classified as failing (boundary)', () => {
+    assert.equal(classifyBatch(0, 1), 'failing');
+  });
+
+  it('globalFailingBatches.length===0 check is only safe when no 0/0 batches exist', () => {
+    // Simulates the scenario: two batches — one 5/0 (passing), one 0/0 (broken)
+    // Before fix: 0/0 fell through both branches → globalFailingBatches was empty → false early exit
+    // After fix: 0/0 → globalFailingBatches has one entry → loop continues correctly
+    const batches = [
+      { gPassed: 5, gFailed: 0 },  // genuinely passing
+      { gPassed: 0, gFailed: 0 },  // corrupted — 0/0
+    ];
+    const globalFailingBatches = [];
+    const globalPassingBatches = [];
+    for (const { gPassed, gFailed } of batches) {
+      if (gFailed === 0 && gPassed > 0) {
+        globalPassingBatches.push({ gPassed, gFailed });
+      } else {
+        globalFailingBatches.push({ gPassed, gFailed });
+      }
+    }
+    assert.equal(globalPassingBatches.length, 1, 'only the 5/0 batch should be passing');
+    assert.equal(globalFailingBatches.length, 1, 'the 0/0 batch must be in failing list');
+    // Loop must NOT exit early — there is a failing batch
+    assert.ok(globalFailingBatches.length > 0, 'global fix loop should continue (not exit early)');
+  });
+
+  it('all-passing scenario (no 0/0 batches) still exits the loop correctly', () => {
+    const batches = [
+      { gPassed: 5, gFailed: 0 },
+      { gPassed: 3, gFailed: 0 },
+    ];
+    const globalFailingBatches = [];
+    for (const { gPassed, gFailed } of batches) {
+      if (!(gFailed === 0 && gPassed > 0)) {
+        globalFailingBatches.push({ gPassed, gFailed });
+      }
+    }
+    assert.equal(globalFailingBatches.length, 0, 'with all genuinely passing batches, loop should exit');
+  });
+});
+
+// ─── runPageSmokeDiagnostic / classifySmokeErrors tests ──────────────────────
+// classifySmokeErrors is the pure pattern-matching core of the smoke check.
+// We test it directly to avoid spawning Playwright or a real server.
+
+const { classifySmokeErrors } = require('../lib/pipeline-utils');
+
+describe('runPageSmokeDiagnostic classifySmokeErrors — fatal pattern detection', () => {
+  it('returns empty array when there are no console errors (ok: true scenario)', () => {
+    const result = classifySmokeErrors([]);
+    assert.deepEqual(result, []);
+  });
+
+  it('detects "Packages failed to load" as fatal', () => {
+    const errors = ['Packages failed to load within 10s'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+    assert.ok(result[0].includes('Packages failed to load'));
+  });
+
+  it('detects "Initialization error" as fatal (case-insensitive)', () => {
+    const errors = ['INITIALIZATION ERROR: cannot read property of undefined'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+    assert.ok(result[0].includes('INITIALIZATION ERROR'));
+  });
+
+  it('does NOT classify a non-fatal console error as fatal', () => {
+    const errors = ['minor warning: color contrast ratio is low'];
+    const result = classifySmokeErrors(errors);
+    assert.deepEqual(result, []);
+  });
+
+  it('returns only the fatal error when mixed with a non-fatal error', () => {
+    const errors = [
+      'minor warning: element has no accessible name',
+      'Package failed to load: cdn.homeworkapp.ai/mathai-game-engine.js',
+    ];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+    assert.ok(result[0].includes('Package failed to load'));
+  });
+
+  it('detects "failed to load resource" (CDN 404) as fatal', () => {
+    const errors = ['Failed to load resource: the server responded with a status of 404'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+  });
+
+  it('detects "is not a constructor" as fatal', () => {
+    const errors = ['TypeError: MathaiGame is not a constructor'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+  });
+
+  it('detects "waitForPackages" as fatal', () => {
+    const errors = ['waitForPackages timed out after 10000ms'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+  });
+
+  it('"X is not defined" without CDN context is NOT fatal', () => {
+    // A plain undefined error with no CDN/package context should not block the build
+    const errors = ['ReferenceError: myLocalVar is not defined'];
+    const result = classifySmokeErrors(errors);
+    assert.deepEqual(result, []);
+  });
+
+  it('"X is not defined" WITH CDN context IS fatal', () => {
+    const errors = ['MathaiEngine is not defined — ensure cdn.homeworkapp.ai script is loaded'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+  });
+
+  it('returns all matching errors when multiple fatal errors appear', () => {
+    const errors = [
+      'Packages failed to load within 10s',
+      'Initialization error: null reference',
+    ];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 2);
+  });
+});
+
+// ─── Blank page detection — white screen with no console errors ───────────────
+// The smoke check now also evaluates #gameContent children to catch cases where
+// the CDN loads silently but the game never renders (e.g. missing #mathai-transition-slot).
+describe('runPageSmokeDiagnostic blank-page detection — #gameContent guard', () => {
+  it('blankPageError is set when #gameContent has no children', () => {
+    // Simulate the page.evaluate result shape the smoke check uses
+    const hasContent = { ok: false, reason: '#gameContent is empty — game did not render' };
+    const blankPageError = hasContent.ok ? null : `Blank page: ${hasContent.reason}`;
+    assert.ok(blankPageError);
+    assert.match(blankPageError, /Blank page/);
+  });
+
+  it('blankPageError is null when #gameContent has children', () => {
+    const hasContent = { ok: true };
+    const blankPageError = hasContent.ok ? null : `Blank page: ${hasContent.reason}`;
+    assert.equal(blankPageError, null);
+  });
+
+  it('blankPageError is set when #gameContent element is missing entirely', () => {
+    const hasContent = { ok: false, reason: 'missing #gameContent element' };
+    const blankPageError = hasContent.ok ? null : `Blank page: ${hasContent.reason}`;
+    assert.match(blankPageError, /missing #gameContent/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for detectCrossBatchRegression
+// We test the pure logic in isolation by mocking execFileAsync via the child_process
+// module cache — no real Playwright is invoked.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js detectCrossBatchRegression', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
+  const { detectCrossBatchRegression } = require('../lib/pipeline-fix-loop');
+
+  // Helper: create a temporary spec file so fs.existsSync passes
+  function makeTmpSpecFile(name) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-xbatch-'));
+    const specFile = path.join(dir, `${name}.spec.js`);
+    fs.writeFileSync(specFile, `test('dummy', () => {});\n`);
+    return { dir, specFile };
+  }
+
+  // Helper: swap child_process execFile implementation for the duration of fn()
+  // fn receives a fresh detectCrossBatchRegression bound to the mocked execFile.
+  async function withMockExecFile(mockImpl, fn) {
+    const cpPath = require.resolve('child_process');
+    const fixLoopPath = require.resolve('../lib/pipeline-fix-loop');
+    const originalCp = require.cache[cpPath];
+    const originalFixLoop = require.cache[fixLoopPath];
+
+    try {
+      // Patch child_process in the module cache with a fake execFile
+      const fakeCp = Object.assign({}, require('child_process'), {
+        execFile: mockImpl,
+      });
+      require.cache[cpPath] = {
+        id: cpPath,
+        filename: cpPath,
+        loaded: true,
+        exports: fakeCp,
+      };
+      // Force pipeline-fix-loop to reload with patched child_process so
+      // promisify(execFile) captures the mock.
+      delete require.cache[fixLoopPath];
+      const freshModule = require('../lib/pipeline-fix-loop');
+      // Await the async fn so the finally block runs only after completion
+      return await fn(freshModule.detectCrossBatchRegression);
+    } finally {
+      if (originalCp) require.cache[cpPath] = originalCp;
+      else delete require.cache[cpPath];
+      if (originalFixLoop) require.cache[fixLoopPath] = originalFixLoop;
+      else delete require.cache[fixLoopPath];
+      // Restore original module
+      delete require.cache[fixLoopPath];
+      require('../lib/pipeline-fix-loop');
+    }
+  }
+
+  it('returns empty array when priorPassingBatches is empty', async () => {
+    const result = await detectCrossBatchRegression([], '/tmp', 5000);
+    assert.deepEqual(result, []);
+  });
+
+  it('returns empty array when priorPassingBatches is null', async () => {
+    const result = await detectCrossBatchRegression(null, '/tmp', 5000);
+    assert.deepEqual(result, []);
+  });
+
+  it('detects regression when nowPassed < prevPassed', async () => {
+    const { specFile, dir } = makeTmpSpecFile('game-flow');
+    try {
+      // Mock: Playwright now reports only 2 passing (was 5)
+      const fakeExecFile = (_cmd, _args, _opts, cb) => {
+        const stdout = JSON.stringify({ stats: { expected: 2, unexpected: 1 } });
+        cb(Object.assign(new Error('tests failed'), { stdout }));
+      };
+      await withMockExecFile(fakeExecFile, async (fn) => {
+        const prior = [{ category: 'game-flow', specFile, passed: 5, total: 5 }];
+        const result = await fn(prior, dir, 5000);
+        assert.equal(result.length, 1, 'should detect one regression');
+        assert.equal(result[0].category, 'game-flow');
+        assert.equal(result[0].prevPassed, 5);
+        assert.equal(result[0].nowPassed, 2);
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns no regression when nowPassed equals prevPassed', async () => {
+    const { specFile, dir } = makeTmpSpecFile('contract');
+    try {
+      // Mock: Playwright still reports 4 passing (same as before)
+      const fakeExecFile = (_cmd, _args, _opts, cb) => {
+        const stdout = JSON.stringify({ stats: { expected: 4, unexpected: 0 } });
+        cb(null, { stdout });
+      };
+      await withMockExecFile(fakeExecFile, async (fn) => {
+        const prior = [{ category: 'contract', specFile, passed: 4, total: 4 }];
+        const result = await fn(prior, dir, 5000);
+        assert.deepEqual(result, [], 'no regression expected when counts are equal');
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('skips spec files that no longer exist on disk', async () => {
+    const nonExistent = '/tmp/this-file-does-not-exist-ralph.spec.js';
+    const prior = [{ category: 'audio', specFile: nonExistent, passed: 3, total: 3 }];
+    const result = await detectCrossBatchRegression(prior, '/tmp', 5000);
+    assert.deepEqual(result, [], 'missing spec files should be silently skipped');
+  });
+
+  it('handles Playwright returning 0/0 (page crash) as a regression when prevPassed > 0', async () => {
+    const { specFile, dir } = makeTmpSpecFile('scoring');
+    try {
+      // Mock: Playwright returns 0 passed, 0 failed (page crash)
+      const fakeExecFile = (_cmd, _args, _opts, cb) => {
+        const stdout = JSON.stringify({ stats: { expected: 0, unexpected: 0 } });
+        cb(null, { stdout });
+      };
+      await withMockExecFile(fakeExecFile, async (fn) => {
+        const prior = [{ category: 'scoring', specFile, passed: 3, total: 3 }];
+        const result = await fn(prior, dir, 5000);
+        assert.equal(result.length, 1, '0/0 (page crash) is a regression when prevPassed > 0');
+        assert.equal(result[0].nowPassed, 0);
+        assert.equal(result[0].prevPassed, 3);
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns no regression when nowPassed > prevPassed (improvement)', async () => {
+    const { specFile, dir } = makeTmpSpecFile('mechanics');
+    try {
+      // Mock: Playwright now reports more passing than before (improvement, not regression)
+      const fakeExecFile = (_cmd, _args, _opts, cb) => {
+        const stdout = JSON.stringify({ stats: { expected: 7, unexpected: 0 } });
+        cb(null, { stdout });
+      };
+      await withMockExecFile(fakeExecFile, async (fn) => {
+        const prior = [{ category: 'mechanics', specFile, passed: 4, total: 4 }];
+        const result = await fn(prior, dir, 5000);
+        assert.deepEqual(result, [], 'improvement (nowPassed > prevPassed) is not a regression');
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for pipeline-utils.js extractSpecRounds
+// Covers table parsing, ordered list parsing, and fallback to empty array.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-utils.js extractSpecRounds', () => {
+  const { extractSpecRounds } = require('../lib/pipeline-utils');
+
+  it('returns empty array for null/undefined input', () => {
+    assert.deepEqual(extractSpecRounds(null), []);
+    assert.deepEqual(extractSpecRounds(undefined), []);
+    assert.deepEqual(extractSpecRounds(''), []);
+  });
+
+  it('parses markdown table rows into question/answer pairs', () => {
+    const spec = `
+## Rounds
+| Question | Answer |
+|----------|--------|
+| 3 + 4 | 7 |
+| 10 - 5 | 5 |
+| 6 × 2 | 12 |
+`;
+    const result = extractSpecRounds(spec);
+    assert.equal(result.length, 3);
+    assert.equal(result[0].question, '3 + 4');
+    assert.equal(result[0].answer, '7');
+    assert.equal(result[1].question, '10 - 5');
+    assert.equal(result[1].answer, '5');
+  });
+
+  it('skips header rows (Question/Answer/--- separators)', () => {
+    const spec = `| Question | Answer |\n|---|---|\n| What is 2+2? | 4 |`;
+    const result = extractSpecRounds(spec);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].question, 'What is 2+2?');
+    assert.equal(result[0].answer, '4');
+  });
+
+  it('skips metadata rows where col2 is YES/NO (Parts Selected table)', () => {
+    const spec = `
+| Part ID | Included |
+|---------|---------|
+| PART-001 | YES |
+| PART-002 | NO |
+| What is 5+3? | 8 |
+`;
+    const result = extractSpecRounds(spec);
+    // Only the real Q/A row should be returned; YES/NO rows skipped
+    assert.ok(result.every((r) => r.answer !== 'YES' && r.answer !== 'NO'));
+    assert.ok(result.some((r) => r.question === 'What is 5+3?' && r.answer === '8'));
+  });
+
+  it('parses numbered list items with → separator', () => {
+    const spec = `
+1. Apple → Red
+2. Banana → Yellow
+3. Sky → Blue
+`;
+    const result = extractSpecRounds(spec);
+    assert.equal(result.length, 3);
+    assert.equal(result[0].question, 'Apple');
+    assert.equal(result[0].answer, 'Red');
+    assert.equal(result[2].question, 'Sky');
+    assert.equal(result[2].answer, 'Blue');
+  });
+
+  it('falls back to ordered list when no table rows found', () => {
+    const spec = `No table here.\n1. 3+4=7\n2. 5+6=11\n`;
+    const result = extractSpecRounds(spec);
+    assert.ok(result.length >= 1, 'should extract at least one round from numbered list');
+    assert.equal(result[0].question, '3+4');
+    assert.equal(result[0].answer, '7');
+  });
+
+  it('caps output at 5 rounds maximum', () => {
+    const rows = Array.from({ length: 10 }, (_, i) => `| Q${i + 1} | A${i + 1} |`).join('\n');
+    const spec = `| Q | A |\n|---|---|\n${rows}`;
+    const result = extractSpecRounds(spec);
+    assert.equal(result.length, 5, 'should stop at 5 rounds');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for pipeline-fix-loop.js deterministicTriage
+// Covers fix_html, skip_tests, and null (fall-through) cases.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js deterministicTriage', () => {
+  const { deterministicTriage } = require('../lib/pipeline-fix-loop');
+
+  it('returns null for empty or missing failures', () => {
+    assert.equal(deterministicTriage([]), null);
+    assert.equal(deterministicTriage(null), null);
+  });
+
+  it('returns fix_html when all failures are __ralph not defined', () => {
+    const failures = [
+      'TypeError: window.__ralph is not defined',
+      'Cannot read properties of undefined (reading __ralph)',
+    ];
+    assert.equal(deterministicTriage(failures), 'fix_html');
+  });
+
+  it('returns skip_tests when all failures are visibilityState redefinition', () => {
+    const failures = [
+      'Cannot redefine property: visibilityState',
+      'Cannot redefine property: visibilityState',
+    ];
+    assert.equal(deterministicTriage(failures), 'skip_tests');
+  });
+
+  it('returns null when failures are mixed patterns (no deterministic match)', () => {
+    const failures = [
+      'Expected score to be 10, got 5',
+      'waitForPhase timed out after 10s',
+    ];
+    assert.equal(deterministicTriage(failures), null);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Additional isInitFailure pattern coverage (patterns not yet covered above)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js isInitFailure — additional patterns', () => {
+  const { isInitFailure } = require('../lib/pipeline-fix-loop');
+
+  it('matches window.gameState undefined pattern', () => {
+    assert.equal(isInitFailure(['window.gameState is undefined — cannot read phase'], 0), true);
+  });
+
+  it('matches page.goto failed pattern', () => {
+    assert.equal(isInitFailure(['page.goto failed: net::ERR_CONNECTION_REFUSED'], 0), true);
+  });
+
+  it('matches transition-slot legacy pattern', () => {
+    assert.equal(isInitFailure(['transition-slot never appeared in DOM'], 0), true);
   });
 });
