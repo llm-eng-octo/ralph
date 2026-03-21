@@ -1113,3 +1113,17 @@ M7. For games where the CORRECT TARGET changes position after shuffling (shell g
 **Evidence:** keep-track local diagnostic: CDN loads in <1s locally. On server, Lesson 91 established CDN cold-start = 2.5 min for count-and-tap. keep-track game HTML is correct — browser runs it perfectly locally with `isActive=true`, correct `.correct` class, and 5.6s animation before guess phase.
 
 **Prevention:** Any CDN game with animation phases (shuffle, reveal, memory) needs the increased timeouts — not just keep-track. The fix applies globally to ALL CDN games in the beforeEach template. The tradeoff (slow test suites on infra failures) is acceptable; false failures on correct HTML are not.
+
+## Lesson 108 — Contract test direct gameState mutation causes 0/0 evidence gate failure
+
+**Pattern (source: visual-memory #456, 2026-03-21):** Contract test-gen generated `window.gameState.score = X` (direct property assignment) to trigger game completion instead of playing through the game via `answer()` or `skipToEnd()`. Triage correctly identified this as a test logic bug → `skip_test`. With ALL contract tests skipped, the category had 0 tests run → 0/0 evidence → the `0/0 contract evidence gate` (Step 4) tripped → build failed.
+
+**Root cause:** No rule in triage prompt or test-gen prompt explicitly forbade direct `window.gameState` property assignment. Contract test-gen defaulted to the shortest path (direct mutation) rather than the correct path (UI interaction or harness calls).
+
+**Fix:** Commit 97b1cc0. Two additions:
+1. `buildTriagePrompt` KNOWN TEST BUGS: "Test directly assigns to window.gameState properties... bypasses game handlers → harness out of sync → skip_test"
+2. `buildTestGenCategoryPrompt` OUTPUT INSTRUCTIONS: "NEVER directly assign to window.gameState properties — always use answer()/skipToEnd() + getLastPostMessage() for contract tests"
+
+**Prevention:** Contract tests must reach game-over state by interacting through the game (click buttons, call `answer()`) or by calling `skipToEnd(page, 'victory')`. Then read the postMessage via `window.__ralph.getLastPostMessage()`. Direct `window.gameState.x = value` is always wrong — the game's internal handlers must process state changes.
+
+**Cost:** visual-memory #456 wasted a full pipeline run (~$0.50). The rules prevent recurrence on any future contract test gen.
