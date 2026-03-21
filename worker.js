@@ -1276,6 +1276,12 @@ const worker = new Worker(
     lockDuration: 5 * 60 * 60 * 1000, // 5 hours — well above longest realistic build (Opus × 5 iters ≈ 150min)
     lockRenewTime: 60 * 60 * 1000, // renew every 60 min (timer fires every 30min; lock never near expiry)
     stalledInterval: 5 * 60 * 1000, // check for stalled jobs every 5 min (default 30s was too aggressive)
+    maxStalledCount: 0, // never declare a job stalled — pipeline has its own timeout handling; prevents
+    // "Missing key for job N. moveToFinished" after worker SIGKILL: stall checker was moving job back to
+    // wait (incrementing stc) after restart, then moveToFinished failed with JobNotExist because the
+    // job had been moved out of active state concurrently. With maxStalledCount=0, the stall checker
+    // only ever moves jobs back to wait once (stc stays at 0, defa is never set), but since lockDuration=5h
+    // the lock check in moveStalledJobsToWait skips active jobs with live locks anyway.
     limiter: {
       max: RATE_LIMIT_MAX,
       duration: RATE_LIMIT_DURATION,
@@ -1313,6 +1319,18 @@ worker.on('failed', async (job, err) => {
 });
 
 worker.on('error', (err) => {
+  // "Missing key for job N. moveToFinished" happens when the worker was SIGKILLed mid-job and
+  // restarted: the new worker picks up the job with a new token, runs it to completion, but
+  // BullMQ's lock/state machinery finds the job hash gone (moved/cleaned by a concurrent stall
+  // check from the prior restart cycle). The pipeline DB write already succeeded at this point —
+  // the build is correctly recorded as failed/approved. This is a BullMQ bookkeeping error only;
+  // log as WARN and skip Sentry noise.
+  if (err.message && err.message.includes('Missing key for job') && err.message.includes('moveToFinished')) {
+    logger.warn(`Worker BullMQ state sync error (DB write already complete): ${err.message}`, {
+      event: 'worker_bullmq_state_sync_error',
+    });
+    return;
+  }
   logger.error(`Worker error: ${err.message}`, { event: 'worker_error' });
   sentry.captureException(err, { step: 'worker_process' });
 });
@@ -1424,8 +1442,21 @@ console.log(`[ralph-worker] Slack Web API: ${slack.isWebApiEnabled() ? 'enabled'
 console.log(`[ralph-worker] GCP uploads: ${gcp.isEnabled() ? 'enabled' : 'disabled'}`);
 
 // ─── Graceful shutdown ──────────────────────────────────────────────────────
+// WARNING: worker.close() waits for the active job processor to finish, which can take up to
+// 45+ min for a long pipeline run. systemd TimeoutStopSec=600 (10min) will SIGKILL before that.
+// A SIGKILL while a build is running corrupts BullMQ lock state (causes "Missing key" errors
+// on the next run). Before restarting the worker, always check for running builds:
+//   node -p "const Database=require('better-sqlite3');const db=new Database('data/builds.db');db.prepare('SELECT id,game_id,status FROM builds WHERE status=?').get('running')||'IDLE'"
 async function shutdown() {
-  logger.info('Worker shutting down...', { event: 'shutdown' });
+  const runningBuilds = db.getRunningBuilds ? db.getRunningBuilds() : [];
+  if (runningBuilds.length > 0) {
+    logger.warn(
+      `[worker] SIGTERM received while ${runningBuilds.length} build(s) are running: ${runningBuilds.map((b) => `#${b.id} ${b.game_id}`).join(', ')} — waiting for completion (this may take up to 45min; TimeoutStopSec=600 may SIGKILL)`,
+      { event: 'shutdown_with_active_builds' },
+    );
+  } else {
+    logger.info('Worker shutting down (no active builds)...', { event: 'shutdown' });
+  }
   await sentry.flush();
   await worker.close();
   await connection.quit();
