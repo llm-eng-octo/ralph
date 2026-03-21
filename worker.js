@@ -343,7 +343,7 @@ const worker = new Worker(
     // the job is redelivered. Guard here prevents cancelled/duplicate builds from resurrecting.
     if (buildId) {
       const existingBuild = db.getBuild(buildId);
-      if (existingBuild && ['failed', 'approved', 'rejected'].includes(existingBuild.status)) {
+      if (existingBuild && ['failed', 'approved', 'rejected', 'cancelled'].includes(existingBuild.status)) {
         logger.warn(`[worker] Build #${buildId} (${gameId}) already in terminal state '${existingBuild.status}' — skipping stale BullMQ job`);
         return;
       }

@@ -534,16 +534,25 @@ function createApp(deps = {}) {
     if (!build) {
       return res.status(404).json({ error: 'Build not found' });
     }
-    if (build.status !== 'running') {
-      return res.status(400).json({ error: 'Build is not running' });
+    if (!['queued', 'running'].includes(build.status)) {
+      return res.status(400).json({ error: 'Build is not queued or running' });
     }
-    db.failBuild(id, 'Cancelled by user');
+    db.cancelBuild(id, 'Cancelled by user');
     logger.info(`Build ${id} cancelled`, { buildId: id, event: 'build_cancelled' });
+    // Remove BullMQ job so it is never picked up by the worker
+    if (queue) {
+      try {
+        const existingJob = await queue.getJob(`${id}`);
+        if (existingJob) await existingJob.remove();
+      } catch (jobErr) {
+        logger.warn(`[cancel] Could not remove BullMQ job for build #${id}: ${jobErr.message}`, { buildId: id });
+      }
+    }
     // Fire-and-forget Slack notification (optional)
     if (process.env.SLACK_WEBHOOK_URL) {
       slack.notify(`Build #${id} cancelled by user`).catch(() => {});
     }
-    res.json({ success: true, buildId: id, status: 'FAILED' });
+    res.json({ success: true, buildId: id, status: 'cancelled' });
   });
 
   app.get('/api/games/:gameId/builds', (req, res) => {
