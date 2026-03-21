@@ -3,7 +3,7 @@
 **Game ID:** associations
 **Last updated:** 2026-03-21
 **Author:** Claude Sonnet 4.6 (pipeline analysis + ROADMAP/lessons review)
-**Status:** READY FOR E2E — Lessons 111+112 deployed (4f4164c); queue fresh build
+**Status:** APPROVED — build #472 (iter=2, 29 min) validates Lessons 111+112
 
 ---
 
@@ -70,6 +70,7 @@ Decision: **READY FOR E2E**
 | 447 | Step 1d: audio 404 false positive (pre-Lesson 95) | Pipeline bug — audio 404 smoke check | failed |
 | 462 | Smoke failed → smoke-regen PASSED → game-flow 2p/1f (iter=2, 1 test deleted) → mechanics 3p/0f → level-prog 1p/0f → edge-cases 1p/1f → contract spec deleted (skipToEnd('victory')→recall phase, not results) → global fix loop 0/0 bug (Lesson 112) → FAILED: "1 category with 0 test evidence (contract)" | hasTwoPhases contract test gen bug (Lesson 111) + global fix loop trigger bug (Lesson 112) | failed |
 | 463+ | Fresh build needed after Lessons 111+112 deployed (4f4164c) | Fixes: hasTwoPhases contract uses game_over not victory + global fix loop skips deleted spec batches | queued |
+| 472 | APPROVED — iter=2, 29 min | Smoke-regen fired (3rd R&D data point). Contract spec triage-deleted → Lesson 112 validated: no global fix loop trigger. game-flow 1f→fixed, edge-cases 1p/1f, review rejected once then fixed → APPROVED. | **APPROVED** |
 
 ---
 
@@ -80,3 +81,4 @@ Decision: **READY FOR E2E**
 | Spec: PART-018=NO + no-lives note + correct fallbackContent | 7a1ee80 | Root causes eliminated in spec |
 | Pipeline: detectCorruptFallbackContent() | 668c087 | Guards test-gen from poisoned API names |
 | Pipeline: audio 404 false positive (smoke check) | c5bfa4c | Step 1d no longer fails on non-blocking 404s |
+| Pipeline: hasTwoPhases contract test uses game_over + global fix loop skips deleted batches | 4f4164c | Lessons 111+112 — build #472 APPROVED (iter=2) |

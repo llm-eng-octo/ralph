@@ -3,7 +3,7 @@
 **Game ID:** hide-unhide
 **Last updated:** 2026-03-21
 **Author:** Claude Sonnet 4.6 (local diagnostic)
-**Status:** READY FOR E2E — `fixCdnDomainsInFile()` Fix 2 scoped to cdn.homeworkapp.ai only (Lesson 104, commit e81f410); #461 queued
+**Status:** APPROVED — build #461 (iter=1, 10/10 tests passing — zero fix iterations)
 
 ---
 
@@ -137,7 +137,7 @@ const broken = html.replace(/cdn\.mathai\.ai/g, 'storage.googleapis.com/test-dyn
 | #409 | Failed — orphaned: worker restarted while build running | Worker infra issue | Failed |
 | #426 | Failed — Step 1d: 12× "Failed to load resource: 404" | LLM hallucinated wrong audio paths (`/audio/success.mp3`); CDN load order wrong | Failed |
 | #449 | Killed — "running on old code — CDN load order + 404 fix deployed" | CDN load order fix deployed; killed before result | Killed |
-| #461 | Queued | Lesson 104 fix applied — audio URL mangling resolved; T1 typeof ERRORs active | Queued |
+| #461 | APPROVED (10/10: game-flow 2/2, mechanics 4/4, level-prog 2/2, edge-cases 1/1, contract 1/1) — all at iter=1, zero fix iterations | Lessons 104+106+110 in effect; perfect clean run — validates audio URL domain fix, typeof-check ERRORs, and contract-fix Sentry verify checklist | approved |
 
 ---
 

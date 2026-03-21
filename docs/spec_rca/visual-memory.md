@@ -7,7 +7,8 @@
 | 422 | Step 1d: "Initialization error: {error: TimerComponent is not defined}" | LLM used TimerComponent but waitForPackages() only checked ScreenLayout; smoke-regen dead code (specMeta.isCdnGame never set) triggered full regen which reproduced error with different phrasing caught by /initialization\s+error/i | Failed |
 | 439 | Step 1d: "Blank page: missing #gameContent element" (after regen attempt) | Same waitForPackages race condition; same smoke-regen dead code bug; second full regen produced blank page in pipeline CDN environment | Failed |
 | 456 | Step 4: 0/0 contract evidence gate — ALL contract tests skip_tested | Contract test directly assigned window.gameState.score = X (direct mutation bypasses game handlers); triage skip_tested all contract tests → 0/0 → gate tripped. Pipeline fix: Lesson 108 (97b1cc0) adds triage + test-gen rules forbidding direct mutation. T1 typeof-check ERRORs (Lesson 106, d2a3324) also deployed — TimerComponent typeof-check now forced by static-fix LLM. | Failed |
-| 470 | (queued) | All pipeline fixes applied (Lessons 106-108): T1 typeof ERRORs force typeof TimerComponent check; triage + test-gen rules forbid direct gameState mutation | Queued |
+| 470 | Orphaned — worker SIGKILL'd (10-min grace period) mid-test-gen | Worker was deactivating; build passed smoke check + started test gen, then SIGKILL'd before tests ran. Not a game bug. | Orphaned (infra) |
+| 476 | (queued) | All pipeline fixes applied (Lessons 106-114): T1 typeof ERRORs, triage/test-gen direct-mutation rules, CDN script tag check, global fix loop fixes | Queued |
 
 ---
 
