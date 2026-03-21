@@ -941,3 +941,15 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 **Evidence:** Confirmed by investigation agent (task a0d098ed34ae74469). gameState shape returned as {} (empty) at snapshot time. game-content.json never written. fallbackContent had wrong shape (question/answer pairs from metadata table, not dotCount/options/correctAnswer from round schema).
 
 **Secondary fix needed:** `extractSpecRounds()` should prefer JSON fenced code blocks over markdown tables when spec round data is in JSON schema format. Markdown table fallback is fragile when spec overview table appears first.
+
+## Lesson 94 — TimerComponent race condition: loads 554ms after ScreenLayout
+
+**Pattern (source: visual-memory #422 + #439, local diagnostic 2026-03-21):** CDN registers components one-by-one. ScreenLayout is ready at +152ms. The game's `waitForPackages()` checked only `typeof ScreenLayout === 'undefined'` and resolved at +152ms. Init sequence ran, reached `new TimerComponent(...)` at +186ms, and crashed with `ReferenceError: TimerComponent is not defined`. TimerComponent only became available at +706ms. This caused a blank transition slot — all tests timed out in `beforeEach`.
+
+**Why it recurred (builds 422 + 439):** Two compounding causes — (1) Gen prompt contradiction: line 85 said "TimerComponent IS in bundle, add typeof check to waitForPackages" while line 185 said "NEVER use TimerComponent — not in CDN bundle." LLM used TimerComponent (correct per PART-006=YES) but skipped the typeof guard (contradicted by line 185). (2) Surgical smoke-regen was dead code — `specMeta.isCdnGame` never set — so both builds got full-regen which reproduced the same bug.
+
+**Fix:** Commit 4899b4e — (1) Line 185 contradiction removed: now says "MUST NOT use unless PART-006=YES; if PART-006=YES, MUST add typeof TimerComponent check to waitForPackages". (2) `buildSmokeRegenFixPrompt()` detects TimerComponent in failing HTML and injects guard instruction. (3) Added `/\binit\s+error\b/i` to SMOKE_FATAL_PATTERNS — "Init error: TimerComponent is not defined" previously silently passed smoke check.
+
+**Evidence:** Console timeline from diagnostic: ScreenLayout at +152ms → crash at +186ms → TimerComponent at +706ms. `#mathai-transition-slot` had 0 children despite `#gameContent` having 2 children (template cloned before crash). Screenshots at `/tmp/visual-memory-debug/`.
+
+**Prevention:** Any PART-006=YES game must check `typeof TimerComponent === 'undefined'` in `waitForPackages()` condition alongside ScreenLayout. T1 validator warns if TimerComponent used without typeof check.
