@@ -829,3 +829,21 @@ HTML generation produced no `#gameContent` element. Caught by smoke-check, trigg
 LLM now sees exactly which URL failed and what domain to replace it with, rather than only seeing "packages failed to load".
 
 **How to apply:** Any time smoke-regen logs show `cdnUrlContext` with HTTP 404/403, the root cause is URL path hallucination (not init sequence). The LLM is now told the exact broken URL. Check that `fixCdnDomainsInFile()` is also running after the regen to catch any domain re-introduction.
+
+---
+
+## Lesson 86 — Two 0/0 false-approval gaps: single-category threshold and global fix loop blind spot
+
+**Date:** 2026-03-21
+
+**Gap 1:** `lib/pipeline.js` line 1107 — `zeroCoverageCats.length >= 2`. A build where exactly ONE non-game-flow category returned 0/0 (page broken, no tests ran) passed this guard because it checked for 2 or more zero-coverage categories. That category contributed nothing to `totalFailed`, keeping `passRate` artificially high → build proceeded to review → could be approved with a broken category.
+
+**Fix:** Changed threshold to `>= 1`. Any single category with 0 tests run now fails the build immediately before review.
+
+**Gap 2:** `lib/pipeline-fix-loop.js` line 967 — `hasCrossFailures` only checked `r.failed > 0`. A batch stuck at 0/0 (page broken) was silently ignored by the global fix loop — no repair attempt was made. The global fix loop would skip it and potentially approve.
+
+**Fix:** Updated to `r.failed > 0 || (r.passed === 0 && r.failed === 0)`. A 0/0 batch now counts as failing for global fix triggering, and `failingCategoryNames` includes it in the fix prompt context.
+
+**DB audit:** No existing approved builds had 0/0 categories — the bug was latent, not yet triggered in production. 6 new unit tests added. 573 total pass.
+
+**How to apply:** Any time a build is approved but a category shows 0/0 in the report, it was approved incorrectly. Post-fix, 0/0 categories halt the build before review (Gap 1) and trigger the global fix loop (Gap 2).
