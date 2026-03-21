@@ -3,7 +3,7 @@
 **Game ID:** associations
 **Last updated:** 2026-03-21
 **Author:** Claude Sonnet 4.6 (pipeline analysis + ROADMAP/lessons review)
-**Status:** READY FOR E2E — spec fixed, pipeline bug fixed, queued as #462
+**Status:** READY FOR E2E — Lessons 111+112 deployed (4f4164c); queue fresh build
 
 ---
 
@@ -68,7 +68,8 @@ Decision: **READY FOR E2E**
 |-------|---------|------------|--------|
 | multiple (pre-446) | Various test failures | lives assertions on non-lives game + wrong fallbackContent | failed |
 | 447 | Step 1d: audio 404 false positive (pre-Lesson 95) | Pipeline bug — audio 404 smoke check | failed |
-| 462 | (queued) | All fixes applied | queued |
+| 462 | Smoke failed → smoke-regen PASSED → game-flow 2p/1f (iter=2, 1 test deleted) → mechanics 3p/0f → level-prog 1p/0f → edge-cases 1p/1f → contract spec deleted (skipToEnd('victory')→recall phase, not results) → global fix loop 0/0 bug (Lesson 112) → FAILED: "1 category with 0 test evidence (contract)" | hasTwoPhases contract test gen bug (Lesson 111) + global fix loop trigger bug (Lesson 112) | failed |
+| 463+ | Fresh build needed after Lessons 111+112 deployed (4f4164c) | Fixes: hasTwoPhases contract uses game_over not victory + global fix loop skips deleted spec batches | queued |
 
 ---
 

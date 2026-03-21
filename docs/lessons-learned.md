@@ -1177,3 +1177,30 @@ function renderRound(index) {
 
 **How to apply:** If a game with PART-030=YES (Sentry) fails with "Contract-fix T1: FORBIDDEN: initSentry() called before waitForPackages()", root cause is the contract-fix LLM, not the gen LLM. The verification checklist should prevent recurrence. If it recurs, consider restricting the contract-fix to targeted patches (not full HTML rewrite).
 
+
+## Lesson 111 — hasTwoPhases contract tests: skipToEnd('victory') → recall phase, not results
+
+**Source:** Pipeline iteration lesson — associations #462, light-up #463 (2026-03-21)
+
+**What happened:** associations and light-up are hasTwoPhases games (learn + recall phases). The generated contract test used `skipToEnd(page, 'victory')` to reach the end state, expecting to land in 'results' phase for postMessage validation. But for hasTwoPhases games, `endGame('victory')` transitions to the RECALL phase (not 'results') because the recall phase must be completed first. The test failed with `waitForPhase('results')` timeout. Triage correctly identified this as a test logic error and deleted the contract spec. The deleted spec left contract with 0 test evidence → pipeline gate failed: "1 category with 0 test evidence (contract)."
+
+**Fix (commit 4f4164c):** Updated hasTwoPhases feature flag in `buildGameFeaturesBlock()` to explicitly warn: "CRITICAL for contract tests: `skipToEnd(page, 'victory')` transitions to RECALL phase first — use `skipToEnd(page, 'game_over')` to reach gameover directly without going through recall phase."
+
+**How to apply:** Any hasTwoPhases game (associations, light-up, face-memory, rapid-challenge) where contract tests use `skipToEnd(page, 'victory')` → wrong phase → spec deleted → 0 evidence → FAILED. With this fix, the test gen LLM will use `skipToEnd(page, 'game_over')` for contract tests on hasTwoPhases games.
+
+---
+
+## Lesson 112 — Global fix loop incorrectly triggered when triage deletes contract spec
+
+**Source:** Pipeline iteration lesson — associations #462, light-up #463 (2026-03-21)
+
+**What happened:** When triage deletes all spec files in a batch (skip_tests), `batchFailed` was still recorded from the pre-deletion test run (e.g., `failed: 1`). After the per-batch loop, `report.category_results['contract'] = { passed: 0, failed: 1 }` — `failed > 0` triggers the global fix loop. Inside the global fix loop, game-flow and other batches returned 0/0 in ~3 seconds. The global fix loop ran 2 LLM fix iterations on the HTML but couldn't improve scores (because the real problem was the test spec, now deleted). This wasted ~10 minutes of LLM calls and made the final build result look worse than it was.
+
+**Root cause of 0/0 in global fix loop:** The edge-cases LLM fix applied during the per-batch loop broke the page HTML. The cross-batch regression guard treated 0/0 as "inconclusive" (not regression) so the broken HTML was kept. Global fix loop then ran game-flow on broken HTML → all tests fail in beforeEach → stats.skipped > 0, stats.expected = 0, stats.unexpected = 0 → 0/0 detection fires.
+
+**Fix (commit 4f4164c):** Two-part fix in `runFixLoop()`:
+1. When triage deletes all spec files in a batch (`!anySpecStillExists`), reset `batchFailed = 0` and add to `deletedSpecBatches` set.
+2. Global fix loop trigger condition now excludes `deletedSpecBatches`: `!deletedSpecBatches.has(cat) && (r.failed > 0 || ...)`.
+
+**How to apply:** The global fix loop should now only trigger for categories where spec files still exist and have real failures. Deleted specs (test logic errors) no longer cause cascading global fix loop invocations.
+
