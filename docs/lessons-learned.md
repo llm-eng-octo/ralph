@@ -991,3 +991,17 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 **Evidence:** Playwright constructor instrumentation confirmed: `[CTOR] TimerComponent(0:object={...})` → `[CTOR ERROR]: Container with id "[object Object]" not found`. CDN loads completed in <500ms (not a race condition — all packages loaded). POC fix: patching constructor call to string ID eliminated error; `#mathai-transition-slot button` visible, `gameState.phase = 'start_screen'`.
 
 **Prevention:** T1 check 5f4 warns before Step 1d. Gen prompt shows correct signature with named options. Applies to any game using PART-006=YES (TimerComponent).
+
+## Lesson 99 — TimerComponent must be initialized AFTER ScreenLayout.inject() + template clone
+
+**Pattern (source: keep-track #427, #452, local diagnostic 2026-03-21):** Two compounding bugs caused every keep-track build to fail with "Blank page: missing #gameContent":
+1. Wrong constructor API (same as Lesson 98): `new TimerComponent({ container: el, ... })` instead of `new TimerComponent('id', { ... })` — crashes before ScreenLayout.inject() runs.
+2. Even with correct string ID, `#timer-container` lives inside `<template id="game-template">`. It does NOT exist in the live DOM until after `ScreenLayout.inject()` + `tpl.content.cloneNode(true)`. Calling `new TimerComponent('timer-container', ...)` before the template clone hits `getElementById` returning null → same crash.
+
+**Why T1 WARNING wasn't enough:** T1 check 5f4 was a WARNING. The static-fix LLM call prioritizes hard errors; WARNING was deprioritized and the wrong constructor repeated across 3 builds.
+
+**Fix:** (1) T1 check 5f4 upgraded to ERROR — now forces static-fix LLM to correct it. Error message includes the ordering requirement. (2) `buildSmokeRegenFixPrompt()` extended: when TimerComponent detected, prompt explicitly states string ID requirement AND ordering after template clone. Commit: 7e8688d.
+
+**Evidence:** diagnostic.js patched both fixes → `gameContentExists: true`, `appPhase: "start"`, start screen renders, no init errors. POC verified before E2E. keep-track #465 queued.
+
+**Prevention:** Any PART-006=YES game: TimerComponent constructor MUST use string ID as first arg AND MUST be called after ScreenLayout.inject() + template clone. T1 ERROR enforces both.
