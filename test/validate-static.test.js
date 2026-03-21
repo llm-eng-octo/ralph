@@ -717,3 +717,38 @@ describe('validate-static.js', () => {
     assert.ok(output.includes('ERROR') && output.includes('ProgressBarComponent'), `Expected ProgressBarComponent error but got: ${output}`);
   });
 });
+
+describe('Mobile viewport scrollability checks (7b)', () => {
+  it('warns when body has overflow:hidden', () => {
+    // Insert body { overflow: hidden } into the style block
+    const html = VALID_HTML.replace(
+      'body { font-family: Arial, sans-serif; background: #f0f0f0; }',
+      'body { font-family: Arial, sans-serif; background: #f0f0f0; overflow: hidden; }',
+    );
+    const { exitCode, output } = runValidator(html);
+    // Should pass (warning only, not error) but emit MOBILE-SCROLL warning
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('MOBILE-SCROLL'), `Expected MOBILE-SCROLL warning but got: ${output}`);
+  });
+
+  it('warns when viewport meta uses user-scalable=no', () => {
+    const html = VALID_HTML.replace(
+      'content="width=device-width, initial-scale=1.0, maximum-scale=1.0"',
+      'content="width=device-width, initial-scale=1.0, user-scalable=no"',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('MOBILE-VIEWPORT'), `Expected MOBILE-VIEWPORT warning but got: ${output}`);
+  });
+
+  it('does not warn when body uses overflow-y:auto', () => {
+    // body with overflow-y: auto should not trigger MOBILE-SCROLL
+    const html = VALID_HTML.replace(
+      'body { font-family: Arial, sans-serif; background: #f0f0f0; }',
+      'body { font-family: Arial, sans-serif; background: #f0f0f0; overflow-y: auto; }',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(!output.includes('MOBILE-SCROLL'), `Unexpected MOBILE-SCROLL warning: ${output}`);
+  });
+});
