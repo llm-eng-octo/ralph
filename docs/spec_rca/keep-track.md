@@ -583,3 +583,25 @@ No targeted fix has been run. Diagnosis complete from local diagnostic run.
 3. Queue build — gen prompt already has the correct API at line 85, so a fresh generation may work with the above safeguards catching regressions
 
 **What NOT to do:** Do not run a targeted fix — the root cause is in generation, not post-generation state. A new full generation with the upgraded T1 check will force the static-fix LLM to correct the API before reaching Step 1d.
+
+---
+
+## Build #482 — CDN Cold-Start (2026-03-21)
+
+### Symptom
+Every test in every batch (game-flow, mechanics, contract, edge-cases, level-progression) timed out in beforeEach with 0/N results. Each batch took 4-7 minutes (CDN cold-start per test).
+
+### Root Cause
+GCP server CDN cold-start = ~150s. The beforeEach CDN poll loop was `Date.now() + 120000` (120s). Each Playwright test gets a fresh BrowserContext with no CDN cache. Since keep-track requires TimerComponent (CDN step 7, loads last), waitForPackages() throws at 120s, transitionScreen never initializes, `#mathai-transition-slot button` never appears, every test times out.
+
+### Fix Applied (commit e4e149b)
+- CDN poll deadline: 120000 → 160000 ms in `pipeline-test-gen.js`
+- Playwright test timeout: 180000 → 240000 ms in `pipeline-utils.js`
+- Gives 160s for CDN + 75s for actual test execution
+
+### Build #483 status: QUEUED — testing fix
+
+| Build | Status | Root Cause | Fix |
+|-------|--------|------------|-----|
+| 482 | killed | CDN cold-start ~150s > 120s poll loop | poll loop → 160s, timeout → 240s |
+| 483 | running | — | fix deployed |
