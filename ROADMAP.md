@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 21, 2026 (phase-name normalization fix shipped 32785d3; page console error capture shipped f6dc634; word-pairs #395 APPROVED first-attempt; first-attempt rate 2/5=40%; global fix 0/0 regression guard now active R&D; 26 games approved total; 26 games queued)
+**Last updated:** March 21, 2026 (CDN classification fix for count-and-tap shipped 54dd4b7; FeedbackManager.init() purged from 20 specs c2b6a36; count-and-tap R&D done; first-attempt approval rate now active R&D; 26 games approved; 15+ builds queued)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -143,6 +143,8 @@
 | Truncated HTML detection + generation retry | done | lib/pipeline.js, lib/validate-static.js | isHtmlTruncated() checks </html>/script tags; retries up to 3x; T1 now errors on missing </html> |
 | Auto-delete stale warehouse HTML on 0% game-flow iter 1 | done | lib/pipeline.js | Detects init-failure pattern + warehouse HTML source → deletes + regenerates; prevents 3-batch waste |
 | CDN URL constraint + auto-fix in generation | done | lib/pipeline.js | Rule 18 in gen prompt; post-gen cleanup replaces cdn.mathai.ai → cdn.homeworkapp.ai |
+| FeedbackManager.init() purge from 20 specs (Lesson 67) | done (2026-03-21, commit c2b6a36) | warehouse/templates/*/spec.md | `FeedbackManager.init()` bullets in 20 spec DOMContentLoaded examples replaced with explicit DO-NOT-CALL comment. Root cause of associations 3x smoke-check failure and 48+ CDN games generating blocking audio popup. |
+| CDN classification fix: ScreenLayout.inject() games (Lesson ~) | done (2026-03-21, commit 54dd4b7) | lib/pipeline-test-gen.js | `hasTransitionSlot` / `hasSlot` extended to detect `ScreenLayout.inject`, CDN package URL, and `TransitionScreenComponent` — catches CDN games whose slot is injected at runtime, not present in raw HTML. count-and-tap was misclassified as Non-CDN causing all game-flow tests to timeout. |
 | Conditional beforeEach post-processing | done | lib/pipeline.js | Post-processing respects hasTransitionSlot; ${transitionSlotId} hallucination cleanup |
 | Orphaned build auto-cleanup at worker startup | done | worker.js, lib/db.js | cleanupOrphanedBuilds() marks running builds failed at startup; getRunningBuilds() in db.js |
 | waitForPackages T1 static check + gen/fix constraints | done | lib/validate-static.js, lib/pipeline.js | T1 validates 10000ms timeout + throw; rules 19/20/21 in gen prompt; all fix prompts updated |
@@ -232,8 +234,8 @@
 | **Non-CDN test gen quality verification** | **done (2026-03-21)** | Build #385 (adjustment-strategy) APPROVED | Hypothesis confirmed: adjusted `startGame()` helper produced valid tests for non-CDN game. adjustment-strategy #385 passed game-flow 2/2, mechanics 6/6 (with fix), level-progression 1/1, edge-cases 1/1 (1 skip), contract 1/1. No all-skip cascade. |
 | **Review rejection rate analysis** | **done (2026-03-21, commit 8d76c48)** | Builds #384–#386 review reports | Analysis complete. 4 patterns found: (1) postMessage payload incomplete — fixed by gen-prompt rule; (2) calcStars never called — fixed; (3) Sentry not initialized — fixed; (4) debug functions on window — fixed (rule conflict reversed). Gen-prompt rules added in commit 8d76c48. bubbles-pairs #386 needed 2 review-fix iterations (3 review calls, 455s) — root-cause confirmed and pre-empted. |
 | **Global fix 0/0 regression guard** | **done (2026-03-21, commit 25ca9e6)** | lib/pipeline-fix-loop.js, lib/prompts.js | See P8 table above. 550 tests pass; active on server via auto-pull. |
-| **count-and-tap failure root cause — tap/timer game start mechanism** | **active (R&D)** | builds #312, #393, #397 | Hypothesis: count-and-tap has a timer or tap-based game start that confounds `startGame()` test helper. Every build fails game-flow with "stuck in start phase after clicking start button" — 3 iterations of per-batch fix + 2 iterations of global fix never resolve it. Investigating spec's game start mechanism: is it a timeout-based auto-start? Does it require a specific tap-gesture vs click? Is `startGame()` clicking the wrong element? Fix: add spec-specific start mechanism to gen-prompt rules for timer games; or add start mechanism detection to `extractTestGenerationHints()`. Measure: count-and-tap #440 with new code should approve within 2 iters. |
-| **First-attempt approval rate measurement** | **measuring** | Builds #388+ | Hypothesis: new gen-prompt rules (postMessage/calcStars/verifySentry) reduce review rejections ~70%. Measuring: track first-attempt approval rate vs baseline ~60%. Data so far: #388 (zip) APPROVED first attempt ✓. #390 (interactive-chat) APPROVED first attempt ✓. #391 (kakuro) APPROVED NOT first attempt — mechanics 3 iters, contract 2 iters. #394 (rapid-challenge) APPROVED NOT first attempt — game-flow phase name wrong ('start' vs 'start_screen'). #395 (word-pairs) APPROVED first attempt ✓ — 11/12 tests, global fix both models failed but final re-test passed. Valid first-attempt events: 5 approvals, 2 not first-attempt → first-attempt rate 3/5=60% (at baseline; phase-name normalization fix 32785d3 should improve further). Next measurement: builds #398+ with phase normalization active. Note: phase-name mismatch was root cause of 2 not-first-attempt; eliminated by 32785d3. |
+| **count-and-tap failure root cause — CDN classification fix** | **done (2026-03-21, commit 54dd4b7)** | lib/pipeline-test-gen.js | Root cause confirmed: count-and-tap uses `ScreenLayout.inject()` which injects `#mathai-transition-slot` at runtime — it is absent from raw HTML. `hasTransitionSlot` detection only checked raw HTML, so count-and-tap was classified as Non-CDN → `startGame()` used 2s timeout fallback path instead of CDN slot click → always timed out before game started. Fix: extended `hasTransitionSlot` / `hasSlot` detection to check for `ScreenLayout.inject`, CDN package URL (`test-dynamic-assets/packages/components`), and `TransitionScreenComponent` reference in HTML. Both boilerplate generation and post-processing beforeEach fixup now use the extended detection. Measure: count-and-tap #440+ should approve in ≤2 iterations. |
+| **First-attempt approval rate measurement** | **active (R&D)** | Builds #388+ | Hypothesis: phase-name normalization (32785d3) + CDN classification fix (54dd4b7) + FeedbackManager spec purge (c2b6a36) collectively raise first-attempt approval rate from 60% → 80%+. Baseline data: #388 (zip) ✓, #390 (interactive-chat) ✓, #391 (kakuro) ✗ mechanics 3 iters, #394 (rapid-challenge) ✗ phase-name mismatch (now fixed), #395 (word-pairs) ✓ — rate 3/5=60%. Post-fix builds: #398+ (crazy-maze, count-and-tap, and 15 queued games). Track: first-attempt vs non-first-attempt for each APPROVED build in the current queue. Success criterion: 5 consecutive builds at ≥80% first-attempt rate. Action if hypothesis fails: trace rejection reasons, identify new top pattern, ship fix. |
 | **Include full error messages in fix loop failure descriptions** | **done (2026-03-20, commit d436b2c)** | lib/pipeline-fix-loop.js | Fix loop failure descriptions now include full error messages instead of truncated summaries — LLM fix prompt has full context for root-cause diagnosis. Previously, error messages were being summarized, causing the fix LLM to diagnose based on partial information. |
 | **Enforce test.describe() API in Playwright test gen** | **done (2026-03-20, commit 4a6314c)** | lib/pipeline-test-gen.js, lib/prompts.js | Test generation prompt now explicitly enforces `test.describe()` wrapper API — prevents LLM from generating flat `test()` calls at the top level, which Playwright rejects with "test() not expected here" when run outside a describe block. |
 | **Show pipeline errors in Slack failure messages** | **done (2026-03-20, commit 948e455)** | worker.js, lib/slack.js | Worker now includes pipeline error details in Slack failure notifications — operators see the actual error reason (e.g., "Step 1d: Page load failed") in Slack instead of just "FAILED". Eliminates needing to SSH and check logs to know why a build failed. |
@@ -256,7 +258,7 @@
 
 ## P7 — Code Architecture & Best Practices
 
-> Audit date: 2026-03-20. All items identified from reading lib/pipeline.js (4105 lines → now 1263 lines), pipeline-fix-loop.js (1036), pipeline-test-gen.js (627), pipeline-targeted-fix.js (392), worker.js (1111 lines), server.js (572 lines), lib/db.js (468 lines), lib/slack.js (561 lines). P7 split complete — no single file exceeds 2000 lines.
+> Audit date: 2026-03-21. lib/pipeline.js (4105 → 1270 lines), pipeline-fix-loop.js (1251), pipeline-test-gen.js (662), pipeline-targeted-fix.js (392), worker.js (~1111 lines), server.js (~572 lines), lib/db.js (~468 lines), lib/slack.js (~561 lines). P7 split complete — no single file exceeds 2000 lines.
 
 | Item | Status | File(s) | Notes |
 |------|--------|---------|-------|
@@ -292,10 +294,10 @@
 | P3 DevOps & Operations | 13 | 0 | 13 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 53 | 7 | 60 |
+| P6 Test Generation Quality | 55 | 5 | 60 |
 | P7 Code Architecture | 9 | 6 | 15 |
 | P8 Build Reliability | 5 | 3 | 8 |
-| **Total** | **125** | **14** | **142** |
+| **Total** | **127** | **12** | **142** |
 
 ## What's Next
 
@@ -338,7 +340,9 @@
 30. **[R&D — ACTIVE] Claude CLI auth reliability** — On 2026-03-20 ~19:07, `claude auth status` showed loggedIn=true but `claude -p` returned "Your organization does not have access to Claude." — 20+ builds failed immediately. Root cause unknown (session expiry vs usage limit). Need: (1) reproduce reliably, (2) add server-side auth health check before pipeline starts (minimal `claude -p "ping"` probe), (3) consider fallback to proxy LLM for HTML gen when `claude -p` fails. Lesson 61 in docs/lessons-learned.md.
 31. **[SHIPPED] Fix smoke-regen context: CDN packages failed vs missing static div** — commit a4a7903; associations #392 CDN smoke triggered path; correct instructions now explain ScreenLayout.inject() failure root cause, not just "add a div".
 32. **[R&D — ACTIVE] First-attempt approval rate measurement** — 3 valid data points collected (builds #388, #390, #394 approved; #391 kakuro NOT first-attempt — mechanics 3 iters; #394 rapid-challenge NOT first-attempt — game-flow phase name 'start' vs 'start_screen'). Current measured rate: 1/3 = 33% first-attempt. Phase-name normalization gap identified as top cause. Investigating P6 planned fix.
-33. **[PLANNED — P6] Page console error capture on 0/0 batch failures** — count-and-tap #393 + associations #392 both failed with 0/0 cascade after global fix; fix LLM had no signal. Implementation: capture page.on('console') + page.on('pageerror') events; emit in test harness; collect in fix-loop failure context.
-34. **[PLANNED — P8] Global fix 0/0 regression investigation** — global fix loop (Step 3c) produced HTML causing all subsequent tests to time out in count-and-tap #393 + associations #392. Need rollback guard + more constrained fix prompt when pre-fix pass count drops to 0 post-fix.
+33. **[SHIPPED] Page console error capture on 0/0 batch failures** — commit f6dc634; `capturePageConsoleErrors()` injected into fix prompt as `brokenPageErrorContext`; 550 tests pass.
+34. **[SHIPPED] Global fix 0/0 regression guard** — commit 25ca9e6; rollback to pre-fix HTML when previously-passing batch regresses to 0/0 after global fix; 550 tests pass.
+35. **[SHIPPED] CDN classification fix: ScreenLayout.inject() games** — commit 54dd4b7; `hasTransitionSlot` / `hasSlot` now checks for `ScreenLayout.inject` and CDN package URL in HTML — catches count-and-tap and similar CDN games that inject the transition slot at runtime.
+36. **[SHIPPED] FeedbackManager.init() purge from 20 specs** — commit c2b6a36; removed blocking audio popup code from all 20 CDN game specs; eliminates smoke-check failures caused by FeedbackManager blocking ScreenLayout.inject().
 11. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
 12. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
