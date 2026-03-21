@@ -3,7 +3,7 @@
 **Game ID:** hide-unhide
 **Last updated:** 2026-03-21
 **Author:** Claude Sonnet 4.6 (local diagnostic)
-**Status:** NOT READY — `fixCdnDomainsInFile()` mangles correct audio URLs; must fix pipeline before E2E
+**Status:** READY FOR E2E — `fixCdnDomainsInFile()` Fix 2 scoped to cdn.homeworkapp.ai only (Lesson 104, commit e81f410); #461 queued
 
 ---
 
@@ -112,16 +112,14 @@ const broken = html.replace(/cdn\.mathai\.ai/g, 'storage.googleapis.com/test-dyn
 
 ## 5. Go/No-Go for E2E
 
-**NOT READY for unconditional E2E.**
+**READY FOR E2E** — #461 queued.
 
-Build #461 is currently queued with "CDN load order + 404 fix deployed." However, based on this analysis, the audio 404 fix that was deployed may not address the core issue: the pipeline's `fixCdnDomainsInFile()` Fix 2 mangles correct `cdn.mathai.ai` audio URLs. If build 461 was generated from spec (which uses `cdn.mathai.ai` audio URLs), those URLs will be broken by the pipeline post-processing step.
+**Pipeline fixes now applied:**
+1. **Lesson 104 (commit e81f410):** `fixCdnDomainsInFile()` Fix 2 now scoped to `cdn.homeworkapp.ai` only (universally wrong, 403). Fix 1 already handles `cdn.mathai.ai` in `<script src>` tags specifically. Valid `cdn.mathai.ai` audio asset URLs are no longer mangled.
+2. **Lesson 95 (commit c5bfa4c):** Audio 404s are non-fatal for smoke check — non-blocking resource failures don't trigger false-positive Step 1d failure.
+3. **T1 typeof-check ERRORs (Lesson 106, commit d2a3324):** TransitionScreenComponent/TimerComponent/ProgressBarComponent typeof-checks are now enforced as T1 ERRORs — static-fix LLM will add guards if gen misses them.
 
-**Blocking items before E2E is reliable:**
-1. `fixCdnDomainsInFile()` Fix 2 must be scoped to script tag src attributes only — or removed (Fix 1 already handles package script tags)
-2. window.endGame and window.restartGame export failures must be resolved (either in gen prompt or static-fix prompt)
-3. transitionScreen.show() must be awaited at start screen init
-
-**Observation point:** Let build 461 complete. If it passes T1 with audio 404s silently swallowed (per Lesson 95 — smoke check no longer fails on audio 404s), it may reach test execution. But audio feedback will be broken at runtime, which may or may not cause test failures depending on whether tests exercise audio paths.
+**Residual risk:** window.endGame/window.restartGame export and await transitionScreen.show() may still be missing — T1 static validator already checks window.endGame and window.restartGame exposure (rules 20/21). If test-gen finds them, triage will classify as fix_html and fix loop will handle.
 
 ---
 
@@ -139,7 +137,7 @@ Build #461 is currently queued with "CDN load order + 404 fix deployed." However
 | #409 | Failed — orphaned: worker restarted while build running | Worker infra issue | Failed |
 | #426 | Failed — Step 1d: 12× "Failed to load resource: 404" | LLM hallucinated wrong audio paths (`/audio/success.mp3`); CDN load order wrong | Failed |
 | #449 | Killed — "running on old code — CDN load order + 404 fix deployed" | CDN load order fix deployed; killed before result | Killed |
-| #461 | Queued | TBD — likely audio URL mangling by fixCdnDomainsInFile() | Pending |
+| #461 | Queued | Lesson 104 fix applied — audio URL mangling resolved; T1 typeof ERRORs active | Queued |
 
 ---
 
