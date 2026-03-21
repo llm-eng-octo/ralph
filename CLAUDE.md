@@ -320,6 +320,27 @@ One item must always be present in `ROADMAP.md` under `## R&D` with status `acti
 - R&D runs in a sub-agent so the main context stays free for the user and for monitoring.
 - R&D must produce a measurable result (test count, iteration count, pass rate) — "made it cleaner" is not R&D, it's housekeeping.
 
+### 13. Always maintain one active local test slot — MANDATORY, same as R&D slot
+
+**Local testing is always running. This is not optional.** One sub-agent must ALWAYS be actively running `diagnostic.js` against a recently failed build to find insights that pipeline logs cannot reveal. The moment one local test session completes (producing findings for the RCA doc), immediately pick the next highest-value failed build and launch a new local test sub-agent.
+
+**Purpose:** Server build failures are diagnosed in ~30s with browser screenshots + console output. Pipeline logs only show test failure messages — they cannot show blank screens, overlay blocks, wrong phase, CDN timing, or selector mismatches. Local testing is the only way to see what the browser actually sees.
+
+**How to pick the next build to test locally:**
+1. Query DB for recent failures: `SELECT id, game_id, error_message FROM builds WHERE status='failed' ORDER BY id DESC LIMIT 10`
+2. Skip: cancelled builds, games already approved, games currently queued
+3. Prioritise: (a) games with `docs/spec_rca/<game-id>.md` missing §2 Evidence or §3 POC, (b) games that failed 2+ times with same symptom, (c) smoke-regen failures (blank page / missing #gameContent)
+4. Download HTML from GCP: `curl -s "https://storage.googleapis.com/mathai-temp-assets/games/<gameId>/builds/<buildId>/index.html"`
+5. Run `node diagnostic.js` from repo root — it serves locally, injects harness, screenshots every step
+
+**What to produce:** For each local test session, update `docs/spec_rca/<game-id>.md` with §2 (evidence with screenshots) and §3 (POC verification). Mark the game ready or not ready for E2E.
+
+**Non-negotiable constraints:**
+- Local test slot runs in a sub-agent so main context stays free
+- Must produce a concrete finding: screenshot + console output + hypothesis confirmed/refuted
+- "Reading the HTML" does not count — must actually run the browser
+- If the game passes locally (like count-and-tap), that IS a finding: root cause is server-side infra, not HTML
+
 ### 12. At session start and after every context compaction — restore background task continuity
 
 When starting a new session or resuming after context compaction:
@@ -327,6 +348,7 @@ When starting a new session or resuming after context compaction:
 2. **Check running sub-agents** — review the conversation summary or task notifications to identify any agents that were mid-flight. If their results are pending, relaunch them with the same brief.
 3. **Check build pipeline** — SSH to server and confirm worker is running and no build has been stuck >45 min.
 4. **Check ROADMAP.md R&D slot** — confirm one R&D task is marked `active`. If the slot is empty or passive, pick the next highest-leverage item and launch a sub-agent immediately.
+5. **Check local test slot** — confirm one sub-agent is actively running `diagnostic.js` against a failed build. If not, pick the highest-priority failed build and launch one immediately.
 
 This rule exists because session compaction silently kills all crons, loses agent context, and can leave background work orphaned. Any future agent starting a session must run this checklist before doing anything else.
 
