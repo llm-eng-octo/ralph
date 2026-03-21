@@ -364,6 +364,143 @@ await expect(page.locator(`.cup-container[data-testid="option-${correctPos}"]`))
 
 ---
 
+---
+
+## Build #477 Analysis (2026-03-21)
+
+### Overview
+
+Build 477 result: **4/7 tests passed, 1 iteration, review SKIPPED** (2 categories with 0 test evidence).
+- mechanics: 2/2 PASS
+- edge-cases: 1/1 PASS
+- game-flow: 1/2 (1 pass, 1 triage-skipped)
+- level-progression: 0/1 FAIL → triage-deleted
+- contract: 0/1 FAIL → triage-deleted
+
+Final error: `"Tests failed: 4/7 passed after 1 iteration(s). Review: SKIPPED"`
+
+The HTML itself is functionally correct (mechanics pass, all `transitionScreen.show()` calls are properly `await`ed). All failures are test generation bugs.
+
+---
+
+### Failure A — level-progression: `#mathai-transition-slot button` hidden
+
+**Error from DB `test_results`:**
+```
+[level-progression.spec.js] Level Progression - Cup Count and Difficulty
+Error: expect(locator).toBeVisible() failed
+Locator: locator('#mathai-transition-slot button')
+Expected: visible
+Timeout: 10000ms
+5 × locator resolved to <button data-index="0" class="mathai-transition-btn primary">Let's go!</button>
+  - unexpected value "hidden"
+```
+
+**Root cause:** The level-progression test used `clickNextLevel()` (which calls `await expect(#mathai-transition-slot button).toBeVisible({ timeout: 10000 })`) to advance through rounds to reach Round 3. However, the game's inter-round transition at line 780 uses:
+
+```js
+await transitionScreen.show({ type: 'level-transition', title: `Round ${gameState.currentRound + 1}` });
+```
+
+This call has **no `buttons` config**. The CDN's `TransitionScreenComponent` for `type: 'level-transition'` auto-advances after a brief animation — it does NOT wait for a user button click. The promise resolves automatically after the animation plays. The test then calls `clickNextLevel()` which expects `#mathai-transition-slot button` to be visible, but the button present in the DOM is the ORIGINAL start-screen button (`"Let's go!"` at `data-index="0"`), which is always hidden after game start.
+
+The test generator incorrectly assumed `level-transition` type shows a clickable "Continue" button (as it does in games where `buttons: [...]` is explicitly passed). For `keep-track`, the inter-round transition is auto-advancing: no user input required. `clickNextLevel()` is the wrong helper to advance between rounds in this game.
+
+**What the test should do instead:** Wait for `waitForPhase(page, 'reveal')` after completing a round — the game auto-advances from `transition` to `reveal` after the `level-transition` animation.
+
+**Why triage deleted it:** 0/1 at iteration 1 with same error pattern → triage treated as permanently broken assertion → deleted. Correct call per triage rules, but the underlying cause was test gen, not HTML.
+
+---
+
+### Failure B — contract: `#mathai-transition-slot button` hidden (same root cause)
+
+**Error from DB `test_results`:**
+```
+[contract.spec.js] Game Complete PostMessage Contract
+Error: expect(locator).toBeVisible() failed
+Locator: locator('#mathai-transition-slot button')
+Expected: visible
+Timeout: 10000ms
+5 × locator resolved to <button data-index="0" class="mathai-transition-btn primary">Let's go!</button>
+  - unexpected value "hidden"
+```
+
+**Root cause:** The contract test used `clickNextLevel()` or `skipToEnd()` to reach the results screen and capture the postMessage. The exact same `#mathai-transition-slot button` hidden issue — the test attempted to click through level transitions that auto-advance without buttons.
+
+The behavioral transcript captured the correct postMessage structure:
+```json
+{
+  "type": "game_complete",
+  "data": {
+    "metrics": {
+      "score": 0,
+      "totalRounds": 5,
+      "stars": 3,
+      "accuracy": 0,
+      "timeTaken": 10,
+      ...
+    }
+  }
+}
+```
+
+The postMessage payload IS correct — `type: "game_complete"` with all required fields. The contract test failed on navigation/setup (reaching the results screen), not on the payload assertions themselves.
+
+**Correct approach:** Use `await skipToEnd(page, 'victory')` (which calls `window.__ralph.endGame('victory')` directly) to reach results screen, THEN assert the postMessage — no need to click through 5 rounds of transitions.
+
+**Why triage deleted it:** 0/1 at iteration 1 → triage rule triggered → deleted. The HTML contract is correct; the test setup path was wrong.
+
+---
+
+### Failure C — game-flow: "Game Over Transition on Zero Lives" skipped
+
+**Error from DB `test_results`:**
+```
+[game-flow.spec.js] Game Over Transition on Zero Lives
+locator.click: Element is not visible
+Waiting for locator('[data-signal-id="cup-1"]')
+  - locator resolved to <div data-signal-id="cup-1" data-testid="option-1" class="cup-container clickable">...</div>
+  - attempting click action
+  - scrolling into view if needed
+```
+
+**Root cause:** The element is found (`.cup-container.clickable` present) but Playwright reports "Element is not visible". This is the same class of bug as build 465 Failure 1 — the test clicks a cup before the guess phase is fully active. The game must pass through `reveal` (1.5s) and `shuffling` (N × shuffleSpeed seconds) before entering `guess` phase. If the test clicks during `shuffling`, the element is `.clickable` in class but Playwright considers it obscured by the animation overlay or the DOM swap is mid-flight.
+
+Specifically: the test tried clicking `[data-signal-id="cup-1"]` which resolved correctly, but the cup was not interactable. This happens when:
+1. The cup's parent container has an animation/overlay blocking interaction
+2. The game is still in `shuffling` phase (cups are being physically moved via `swapCups()`)
+
+The test was triage-skipped (not deleted), consistent with game-flow.spec.js showing `// SKIPPED (triage): Game Over Transition on Zero Lives`.
+
+**Fix needed:** Test must `await waitForPhase(page, 'guess')` before attempting any cup click. The `guess` phase is only set AFTER all shuffles complete at line 637:
+```js
+gameState.phase = 'guess';
+```
+
+---
+
+### Summary of build 477 failures
+
+| Failure | Category | Root Cause | HTML Bug? | Fix Location |
+|---------|----------|------------|-----------|--------------|
+| level-progression: `#mathai-transition-slot button` hidden | Test gen | `level-transition` type auto-advances — no button click needed; `clickNextLevel()` is wrong helper | No | Test gen prompt: after completing a round, wait for `waitForPhase(page, 'reveal')` instead of `clickNextLevel()` |
+| contract: `#mathai-transition-slot button` hidden | Test gen | Same — test used click-based navigation to reach results screen instead of `skipToEnd()` | No | Test gen prompt: contract tests MUST use `skipToEnd(page, 'victory')` to reach results screen |
+| game-flow: cup not visible during click | Test gen | Cup clicked before `phase='guess'`; cup is `.clickable` but Playwright considers it blocked during shuffle animation | No | Test gen prompt: always `waitForPhase(page, 'guess')` before any cup click |
+
+**The HTML game is functionally correct.** mechanics 2/2 + edge-cases 1/1 confirm the core guess/feedback/scoring loop works. All 3 failures are test generation bugs involving incorrect navigation patterns and missing phase-wait guards.
+
+---
+
+### Required pipeline fixes before re-queuing
+
+1. **Test gen prompt — inter-round transition navigation rule:** For games where `transitionScreen.show({ type: 'level-transition' })` is called WITHOUT a `buttons` config, the transition auto-advances. Tests MUST NOT use `clickNextLevel()` between rounds. Use `waitForPhase(page, 'reveal')` instead after completing a round. The test gen prompt should detect this pattern from the DOM snapshot / behavioral transcript.
+
+2. **Test gen prompt — contract test pattern:** Contract tests must reach results screen via `skipToEnd(page, 'victory')` (harness API), NOT by clicking through all rounds. This prevents contract tests from depending on the multi-round navigation path.
+
+3. **Test gen prompt — shell game cup click guard:** For shuffle-and-guess games, ALWAYS `await waitForPhase(page, 'guess')` before clicking any cup. `phase='guess'` is set only after all shuffle animations complete (line 637 in build 477 HTML).
+
+---
+
 ## Failure History
 
 | Build | Symptom | Root Cause | Status |
@@ -374,7 +511,8 @@ await expect(page.locator(`.cup-container[data-testid="option-${correctPos}"]`))
 | 427 | Step 1d: Blank page: missing #gameContent | Same — smoke regen did not fix it | Failed |
 | 452 | Step 1d: Blank page: missing #gameContent | Same — smoke regen did not fix it | Failed |
 | 465 | Contract-fix T1: "initSentry() called before waitForPackages()" — iteration 3 fail | Root cause D: original gen had initSentry INSIDE waitForPackages (correct), but contract-fix LLM moved it outside while fixing other contract errors. CDN_CONSTRAINTS_BLOCK has the rule but LLM ignored it during full-HTML contract fix rewrite. | Failed |
-| 468 | Queued — Lessons 108/109 deployed | Fresh gen with updated prompts (contract mutation triage rule, M8 reveal-phase rule, ROUND LIFECYCLE RESET exception) | Queued |
+| 468 | Orphaned — worker SIGKILL'd mid-mechanics-iter-1 | Worker was deactivating; passed smoke check, reached mechanics iter 1 (1/2 passed), then SIGKILL'd. Not a game bug. | Orphaned (infra) |
+| 477 | 4/7 passed: level-progression 0/1 + contract 0/1 triage-deleted; game-flow 1/2 (skipped); mechanics 2/2 pass | test gen assumed `level-transition` type requires button click + test assumed transition appears AFTER skipToEnd(); both tests deleted by triage. game-flow failure: cup element not visible during guess phase (timing) | Failed |
 
 ---
 
