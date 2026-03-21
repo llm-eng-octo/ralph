@@ -323,9 +323,85 @@ One item must always be present in `ROADMAP.md` under `## R&D` with status `acti
 ### 12. At session start and after every context compaction — restore background task continuity
 
 When starting a new session or resuming after context compaction:
-1. **Check CronList** — verify the 15-minute Slack update cron is running. If missing, recreate it immediately using the prompt from Rule 10.
+1. **Check CronList** — if ANY cron is missing, recreate ALL 5 immediately (see exact prompts below).
 2. **Check running sub-agents** — review the conversation summary or task notifications to identify any agents that were mid-flight. If their results are pending, relaunch them with the same brief.
 3. **Check build pipeline** — SSH to server and confirm worker is running and no build has been stuck >45 min.
 4. **Check ROADMAP.md R&D slot** — confirm one R&D task is marked `active`. If the slot is empty or passive, pick the next highest-leverage item and launch a sub-agent immediately.
 
 This rule exists because session compaction silently kills all crons, loses agent context, and can leave background work orphaned. Any future agent starting a session must run this checklist before doing anything else.
+
+#### Required crons — recreate ALL if CronList shows fewer than 5:
+
+**Cron 1 — Build Doctor (every 5 min):**
+```
+You are the Build Doctor — expert in Ralph pipeline build health. Your job: monitor the currently running build and intervene if kill criteria are met.
+
+SSH: ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206
+
+1. Check running build: node -p "const Database = require('better-sqlite3'); const db = new Database('data/builds.db'); JSON.stringify(db.prepare('SELECT id,game_id,status,iterations,created_at FROM builds WHERE status=?').get('running') || 'IDLE')"
+2. If running >45min with no Slack thread progress → flag for kill
+3. Check: same test failing iter 1+2 with identical error → kill immediately
+4. Check: iter 1 at 0% game-flow with obvious init failure → kill immediately
+5. Report status in 3 lines: game/build, current state, action taken or "no action".
+```
+Schedule: `*/5 * * * *`
+
+**Cron 2 — Slack update to Mithilesh (every 15 min):**
+```
+Send a Slack progress update to Mithilesh (U0242GULG48) in channel C09J341LC2K using SLACK_TOKEN from /Users/the-hw-app/Projects/slack-helpers/.env
+
+Spawn a sub-agent to:
+1. SSH to server: ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206
+2. Get current running build + queue depth from DB
+3. Get recent approvals/failures (last 3 each)
+4. Post to Slack with format:
+   - Running: Build #X (game) at step Y — Value if completes: <what we learn/gain>. Not killed because: <kill criteria not met>
+   - Queue: N builds
+   - ✅ Approved since last update: [list]
+   - ❌ Failed: [list with 1-line reason]
+   - 🔬 R&D: [current task + status]
+   - 🚢 Shipped: [improvements since last update]
+   - 🚨 Needs attention: [any flag or "none"]
+Tag @U0242GULG48
+```
+Schedule: `*/15 * * * *`
+
+**Cron 3 — Queue Strategist (hourly at :13):**
+```
+You are the Queue Strategist — expert in Ralph pipeline throughput and spec coverage.
+
+SSH: ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206
+
+1. Check queue depth and what's queued
+2. Check which games have never been approved (query builds table: games with no approved builds)
+3. If queue < 5 builds and there are unattempted or long-failed games, queue the highest-priority ones
+4. Priority order: (1) games never attempted, (2) games that failed >30 days ago, (3) games with only 1 failed attempt
+5. Use: curl -s -X POST http://localhost:3000/api/build -H 'Content-Type: application/json' -d '{"gameId":"GAME_ID","force":true}'
+6. Report: queue depth before/after, what was queued and why
+```
+Schedule: `13 * * * *`
+
+**Cron 4 — Roadmap Manager (hourly at :47):**
+```
+You are the Roadmap Manager — expert in Ralph pipeline strategy and prioritization.
+
+Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md and /Users/the-hw-app/Projects/mathai/ralph/docs/lessons-learned.md
+
+1. Check if any planned items are now complete based on recent commits (git log --oneline -10)
+2. Check if the R&D slot has an active task — if not, identify the highest-leverage next R&D task from recent build data
+3. Update ROADMAP.md if needed (mark items done, update R&D slot)
+4. Report: what changed, what's the active R&D task
+```
+Schedule: `47 * * * *`
+
+**Cron 5 — Roadmap task check (hourly at :23):**
+```
+Roadmap task queue check. Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md
+
+Check: is there exactly one R&D task marked 'active'? If not, identify the highest-leverage pending R&D item (look at recent build failure patterns, iteration counts, which failures are most common) and mark it active.
+
+Also check: are there any P8 priority items in the backlog that can be implemented now (no blockers, clear scope)? If yes, report which one should be next.
+
+Report in 3 lines: R&D slot status, active task, recommended next action.
+```
+Schedule: `23 * * * *`
