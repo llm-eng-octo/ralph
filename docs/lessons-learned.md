@@ -971,3 +971,13 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 **Fix:** Extended the negative lookahead to exclude both 403 AND 404: `(?!.*status of 40[34])`. Real CDN package failures always manifest as "Packages failed to load" or "X is not defined" — caught by other patterns. Audio/media 404s are non-blocking for game functionality. Commit: c5bfa4c. expression-completer re-queued as #458.
 
 **Evidence:** error_message field in DB was 12× identical "Failed to load resource: 404" strings. No other errors. CDN package URLs in HTML were correct (storage.googleapis.com/test-dynamic-assets/packages/). Unit test updated: 404 resource error → result.length = 0 (non-fatal).
+
+## Lesson 97 — ScreenLayout.inject() missing slots: wrapper → silent blank page
+
+**Pattern (source: disappearing-numbers #400, local diagnostic 2026-03-21):** LLM generated `ScreenLayout.inject('app', { progressBar: true, transitionScreen: true })` without the required `slots:` key. Without `{ slots: { ... } }`, ScreenLayout receives options in the wrong argument shape — it silently ignores them. #gameContent, #mathai-transition-slot, #mathai-progress-slot are never created. `document.getElementById('gameContent').appendChild(...)` throws `TypeError: null.appendChild`, caught as `Init error: {}`, window.__initError set, page blank.
+
+**Fix:** T1 check 5e2 added: warns when ScreenLayout.inject() is present but `slots:` keyword is absent in the call region. Commit: aa3a503. Correct form: `ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } })`.
+
+**Evidence:** diagnostic.js against build #400: `#gameContent: false`, `window.__initError: 'Init error: {}'`, `window.gameState: null`. HTML line 949: `ScreenLayout.inject('app', { progressBar: true, transitionScreen: true })` — confirmed no `slots:` key. Secondary failure in build #442: added slots: wrapper, but TransitionScreenComponent called with `{ containerId: 'mathai-transition-slot' }` instead of correct `{ autoInject: true }` API → `'Container with id [object Object] not found'`.
+
+**Prevention:** T1 check 5e2 warns before Step 1d smoke check. Gen prompt CDN_CONSTRAINTS_BLOCK already shows correct `slots:` form with exact code example. Future builds will also surface this earlier via T1 static validation.
