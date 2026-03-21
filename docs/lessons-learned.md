@@ -1127,3 +1127,40 @@ M7. For games where the CORRECT TARGET changes position after shuffling (shell g
 **Prevention:** Contract tests must reach game-over state by interacting through the game (click buttons, call `answer()`) or by calling `skipToEnd(page, 'victory')`. Then read the postMessage via `window.__ralph.getLastPostMessage()`. Direct `window.gameState.x = value` is always wrong — the game's internal handlers must process state changes.
 
 **Cost:** visual-memory #456 wasted a full pipeline run (~$0.50). The rules prevent recurrence on any future contract test gen.
+
+## Lesson 109 — Dot/card reveal phase: renderRound() must keep isProcessing=true until options are rendered
+
+**Pattern (source: count-and-tap #457, 2026-03-21 HTML analysis):** Games with a preview/reveal animation before player interaction (dots display, card flip, memory reveal, shuffle) set `gameState.isProcessing = false` in `renderRound()` — but the option buttons aren't rendered yet. The harness `answer()` polls `isProcessing !== true`, finds it false immediately, calls `querySelectorAll('.option-btn')` → empty list (no buttons rendered yet). Click fails silently. Later the 10s timer fires and the game moves on, but the test is completely desync'd — it thinks the answer was registered when it wasn't. Tests report "phase remained 'playing'" because the game never actually received a player answer.
+
+**Root cause in count-and-tap #457:**
+```javascript
+function renderRound(index) {
+  gameState.isProcessing = false;  // Set FALSE immediately — options not rendered yet!
+  ...
+  setTimeout(() => {
+    hideDots(); showCover(); renderOptions(roundData); startRoundTimer();  // Options rendered 1.5s later
+  }, 1500);
+}
+```
+`answer()` helper fires when `isProcessing = false`, but buttons exist only after 1500ms.
+
+**Required fix pattern:**
+```javascript
+function renderRound(index) {
+  gameState.isProcessing = true;  // Keep TRUE until options are ready
+  gameState.isActive = true;
+  gameState.currentRound = index;
+  gameState.phase = 'playing';
+  syncDOMState();  // Update DOM with playing phase
+  // ... show dots ...
+  setTimeout(() => {
+    hideDots(); showCover(); renderOptions(roundData); startRoundTimer();
+    gameState.isProcessing = false;  // NOW options are rendered — harness can click
+    syncDOMState();
+  }, REVEAL_DURATION_MS);  // e.g. 1500 for count-and-tap
+}
+```
+
+**Gen prompt rule needed (Lesson 109):** "If the game shows a reveal/preview phase in renderRound() before the player can interact (dots appear, cards flip, memory tiles show), set `gameState.isProcessing = true` at the START of renderRound() and only set it to `false` AFTER the reveal setTimeout fires and option buttons are rendered. The test harness waits for `isProcessing = false` before clicking — if set too early, answer() runs when no buttons exist, click is silently ignored, and the game timer advances without a player answer."
+
+**How to apply:** Any game with a `setTimeout` delay between `renderRound()` and when interaction becomes possible (dots, card reveal, memory tiles, pattern display) needs this pattern. Set `isProcessing = true` at start, clear it inside the reveal timeout.
