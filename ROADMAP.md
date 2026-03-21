@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 21, 2026 (Sentry.CaptureConsole fix done 14b15d1; smoke-regen #gameContent failure pattern added as P6 planned; first-attempt approval rate still active R&D; P7 pipeline.js 1270 lines — no escalation needed; Summary 130 done / 146 total)
+**Last updated:** March 21, 2026 (Lesson 69 + smoke-regen ScreenLayout.inject slots fix shipped 2666e36; first-attempt approval rate still active R&D; P7 pipeline.js 1270 lines — no escalation needed; Summary 131 done / 146 total)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -123,7 +123,7 @@
 | DOM snapshot for test generation context | done | lib/pipeline.js | Headless Playwright captures actual element IDs/classes from running game; injected into test-gen prompts |
 | Per-category pass rate tracking | done | lib/pipeline.js, ralph-report.json | category_results in report; identifies which category consistently fails |
 | Human-run Playwright traces as gold standard | planned | — | Record --trace from a correct human test run; use trace viewer output as ground truth for test generation |
-| Smoke-regen: recurring "missing #gameContent" after regen (disappearing-numbers, associations, kakuro) | planned | lib/pipeline.js, lib/prompts.js | 4 of last 10 failed builds failed at Step 1d with "Blank page: missing #gameContent element" AFTER the smoke-regen attempt. Smoke-regen context instructs LLM to add ScreenLayout.inject() but LLM keeps generating games without it or with broken CDN packages. Fix candidates: (1) inject the exact ScreenLayout.inject() code snippet into smoke-regen prompt; (2) add a T1 static check for missing ScreenLayout.inject() call in CDN games; (3) on second smoke failure, force-switch to non-CDN template. |
+| Smoke-regen: recurring "missing #gameContent" after regen (disappearing-numbers, associations, kakuro) | **done (2026-03-21, commit 2666e36)** | lib/pipeline.js, lib/prompts.js | Root cause: LLM omitted `slots` wrapper in ScreenLayout.inject() call — options passed directly are silently ignored, #gameContent never created. Fix: CDN_CONSTRAINTS_BLOCK updated with exact CORRECT/WRONG example; smoke-regen prompt now includes correct call snippet; gen prompt Rule 2 uses exact call. See Lesson 69. |
 | `data-testid` attributes in gen prompt | done | lib/pipeline.js | Rule 15: LLM adds data-testid to all interactive/observable elements; test gen uses them as primary selectors |
 | Force-regenerate missing test categories | done | lib/pipeline.js | Per-category check: only missing/empty categories regenerate; existing valid specs kept |
 | Review rejection → targeted fix loop | done | lib/pipeline.js | REJECTED triggers up to 2 targeted HTML fix iterations using rejection reason, then re-reviews |
@@ -240,7 +240,7 @@
 | **Global fix 0/0 regression guard** | **done (2026-03-21, commit 25ca9e6)** | lib/pipeline-fix-loop.js, lib/prompts.js | See P8 table above. 550 tests pass; active on server via auto-pull. |
 | **count-and-tap failure root cause — CDN classification fix** | **done (2026-03-21, commit 54dd4b7)** | lib/pipeline-test-gen.js | Root cause confirmed: count-and-tap uses `ScreenLayout.inject()` which injects `#mathai-transition-slot` at runtime — it is absent from raw HTML. `hasTransitionSlot` detection only checked raw HTML, so count-and-tap was classified as Non-CDN → `startGame()` used 2s timeout fallback path instead of CDN slot click → always timed out before game started. Fix: extended `hasTransitionSlot` / `hasSlot` detection to check for `ScreenLayout.inject`, CDN package URL (`test-dynamic-assets/packages/components`), and `TransitionScreenComponent` reference in HTML. Both boilerplate generation and post-processing beforeEach fixup now use the extended detection. Measure: count-and-tap #440+ should approve in ≤2 iterations. |
 | **First-attempt approval rate measurement** | **active (R&D)** | Builds #388+ | Hypothesis: phase-name normalization (32785d3) + CDN classification fix (54dd4b7) + FeedbackManager spec purge (c2b6a36) + debug-window contradiction fix (cc8eb56+4e0bf96) + Sentry CaptureConsole fix (14b15d1) collectively raise first-attempt approval rate from 60% → 80%+. Baseline data: #388 (zip) ✓, #390 (interactive-chat) ✓, #391 (kakuro) ✗ mechanics 3 iters, #394 (rapid-challenge) ✗ phase-name mismatch (now fixed), #395 (word-pairs) ✓ — rate 3/5=60%. Post-fix builds: #398+ (crazy-maze, count-and-tap, and 15 queued games). Additional leverage: debug-window fix eliminates 29% review rejection class; BullMQ lock fix eliminates double-execution race. Track: first-attempt vs non-first-attempt for each APPROVED build in current queue. Success criterion: 5 consecutive builds at ≥80% first-attempt rate. Action if hypothesis fails: trace rejection reasons, identify new top pattern, ship fix. |
-| **Smoke-regen effectiveness: improve #gameContent recovery rate** | **next** | lib/pipeline.js, lib/prompts.js | Hypothesis: 4/10 recent failed builds hit "missing #gameContent" AFTER smoke-regen — regen is not fixing the CDN init failure. Root cause: smoke-regen context describes the problem but does not provide the fix pattern. Proposed: inject exact ScreenLayout.inject() call snippet + CDN package list into smoke-regen prompt so LLM has copy-pasteable correct code. Expected: reduce smoke-regen repeat-failure rate from ~40% to <10%. Metric: track `smoke-check-failed` vs `smoke-regen-success` events in Slack across next 10 CDN builds. |
+| **Smoke-regen effectiveness: improve #gameContent recovery rate** | **measuring (fix shipped 2026-03-21, commit 2666e36)** | lib/pipeline.js, lib/prompts.js | Fix shipped: CDN_CONSTRAINTS_BLOCK updated with exact ScreenLayout.inject() format (slots wrapper); smoke-regen prompt includes CORRECT/WRONG example. Now tracking whether `smoke-check-failed` events drop in upcoming CDN builds. Metric: compare smoke-regen repeat-failure rate before fix (~40%) vs post-fix across next 10 CDN builds. Success criterion: repeat-failure rate <10%. |
 | **Include full error messages in fix loop failure descriptions** | **done (2026-03-20, commit d436b2c)** | lib/pipeline-fix-loop.js | Fix loop failure descriptions now include full error messages instead of truncated summaries — LLM fix prompt has full context for root-cause diagnosis. Previously, error messages were being summarized, causing the fix LLM to diagnose based on partial information. |
 | **Enforce test.describe() API in Playwright test gen** | **done (2026-03-20, commit 4a6314c)** | lib/pipeline-test-gen.js, lib/prompts.js | Test generation prompt now explicitly enforces `test.describe()` wrapper API — prevents LLM from generating flat `test()` calls at the top level, which Playwright rejects with "test() not expected here" when run outside a describe block. |
 | **Show pipeline errors in Slack failure messages** | **done (2026-03-20, commit 948e455)** | worker.js, lib/slack.js | Worker now includes pipeline error details in Slack failure notifications — operators see the actual error reason (e.g., "Step 1d: Page load failed") in Slack instead of just "FAILED". Eliminates needing to SSH and check logs to know why a build failed. |
@@ -299,10 +299,10 @@
 | P3 DevOps & Operations | 13 | 0 | 13 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 57 | 6 | 63 |
+| P6 Test Generation Quality | 58 | 5 | 63 |
 | P7 Code Architecture | 9 | 6 | 15 |
 | P8 Build Reliability | 6 | 3 | 9 |
-| **Total** | **130** | **13** | **146** |
+| **Total** | **131** | **12** | **146** |
 
 ## What's Next
 

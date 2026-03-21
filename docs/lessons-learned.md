@@ -478,3 +478,17 @@ So when the test called `waitForPhase(page, 'start_screen')`, `data-phase` was `
 **Proof:** Colour-coding-tool #398 triage confirmed the pattern: "game initially uses 'start_screen' for data-phase, but restart button sets 'start' instead of 'start_screen', causing test's expectation to fail." With the fix active on subsequent builds (crazy-maze #399+), phase-name mismatches should be eliminated.
 
 **Pattern to watch:** If triage says "waitForPhase timeout: Expected 'X', Received 'Y'" where Y is the normalized form of X, this is the same root cause.
+
+## Lesson 69: ScreenLayout.inject() requires `slots` wrapper — omitting it causes blank page at Step 1d
+
+**Pattern:** CDN games fail smoke check with "missing #gameContent element" even after smoke-regen.
+
+**Root cause:** LLM generates `ScreenLayout.inject('app', { progressBar: true, transitionScreen: true })` — the outer key must be `slots`: `ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } })`. Without `slots`, ScreenLayout runs without error but never creates `#gameContent`; smoke check times out after 8s waiting for the element.
+
+**Why smoke-regen also failed:** The smoke-regen prompt described the symptom ("missing #gameContent") but did not show the correct call format. The LLM reproduced the same broken structure on regen because it had no example of what correct looks like.
+
+**Fix:** `CDN_CONSTRAINTS_BLOCK` in `lib/prompts.js` updated with the exact required format including a CORRECT/WRONG example pair. Smoke-regen error context in `lib/pipeline.js` now includes the canonical call snippet. Gen prompt Rule 2 uses the exact call with `slots` wrapper.
+
+**Proof:** Commit 2666e36; affects disappearing-numbers, kakuro, face-memory, associations builds.
+
+**Pattern to watch:** Any CDN game that hits "missing #gameContent element" at Step 1d with a smoke-regen that also fails — check whether `ScreenLayout.inject()` is called with `slots` wrapper. The outer options object must have a `slots` key; passing slot flags directly at the top level is silently ignored by ScreenLayout.
