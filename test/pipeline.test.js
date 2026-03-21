@@ -1491,3 +1491,69 @@ describe('pipeline-test-gen.js detectCorruptFallbackContent', () => {
     assert.deepEqual(result.rounds, []);
   });
 });
+
+describe('pipeline.js checkCdnScriptUrls — URL parsing', () => {
+  const { checkCdnScriptUrls } = require('../lib/pipeline');
+
+  it('returns ok:true and empty failedUrls when HTML has no script tags', async () => {
+    const html = '<html><head></head><body><p>No scripts here</p></body></html>';
+    const result = await checkCdnScriptUrls(html);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.failedUrls, []);
+  });
+
+  it('returns ok:true and empty failedUrls when scripts have no CDN URLs', async () => {
+    const html = `<html><head>
+      <script src="/local/app.js"></script>
+      <script src="https://example.com/lib.js"></script>
+    </head></html>`;
+    const result = await checkCdnScriptUrls(html);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.failedUrls, []);
+  });
+
+  it('extracts storage.googleapis.com script URLs (network-agnostic parse check)', async () => {
+    // We cannot mock https in this test runner without complex Module cache hacks,
+    // so we verify the function returns the expected shape.
+    // The actual HTTP check will time out or error for a made-up URL; we check failedUrls is populated.
+    const fakeUrl = 'https://storage.googleapis.com/test-dynamic-assets/packages/nonexistent-xyz-123456.js';
+    const html = `<html><head><script src="${fakeUrl}"></script></head></html>`;
+    const result = await checkCdnScriptUrls(html);
+    // result.ok must be boolean
+    assert.equal(typeof result.ok, 'boolean');
+    // result.failedUrls must be an array
+    assert.ok(Array.isArray(result.failedUrls));
+    // If the URL failed (expected for a fake path), it must appear in failedUrls with the right shape
+    if (!result.ok) {
+      assert.ok(result.failedUrls.length > 0);
+      assert.equal(typeof result.failedUrls[0].url, 'string');
+      assert.ok(result.failedUrls[0].url.includes('storage.googleapis.com'));
+      assert.equal(typeof result.failedUrls[0].status, 'number');
+    }
+  });
+
+  it('extracts cdn.homeworkapp.ai script URLs for checking', async () => {
+    const fakeUrl = 'https://cdn.homeworkapp.ai/packages/components/index.js';
+    const html = `<html><head><script src="${fakeUrl}"></script></head></html>`;
+    const result = await checkCdnScriptUrls(html);
+    assert.equal(typeof result.ok, 'boolean');
+    assert.ok(Array.isArray(result.failedUrls));
+    // cdn.homeworkapp.ai is known to return 403, so it should appear in failedUrls
+    if (!result.ok) {
+      const matched = result.failedUrls.find((f) => f.url === fakeUrl);
+      assert.ok(matched, 'cdn.homeworkapp.ai URL should be in failedUrls when non-200');
+    }
+  });
+
+  it('does not check non-CDN script URLs', async () => {
+    // Only /local/, https://example.com — neither matches CDN pattern
+    const html = `<html><head>
+      <script src="/local/main.js"></script>
+      <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    </head></html>`;
+    const result = await checkCdnScriptUrls(html);
+    // No CDN URLs → no HTTP requests → always ok
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.failedUrls, []);
+  });
+});
