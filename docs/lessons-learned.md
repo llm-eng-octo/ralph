@@ -981,3 +981,13 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 **Evidence:** diagnostic.js against build #400: `#gameContent: false`, `window.__initError: 'Init error: {}'`, `window.gameState: null`. HTML line 949: `ScreenLayout.inject('app', { progressBar: true, transitionScreen: true })` — confirmed no `slots:` key. Secondary failure in build #442: added slots: wrapper, but TransitionScreenComponent called with `{ containerId: 'mathai-transition-slot' }` instead of correct `{ autoInject: true }` API → `'Container with id [object Object] not found'`.
 
 **Prevention:** T1 check 5e2 warns before Step 1d smoke check. Gen prompt CDN_CONSTRAINTS_BLOCK already shows correct `slots:` form with exact code example. Future builds will also surface this earlier via T1 static validation.
+
+## Lesson 98 — TimerComponent constructor: first arg must be ID string, not object
+
+**Pattern (source: disappearing-numbers #442 base HTML, local diagnostic 2026-03-21):** LLM generated `new TimerComponent({ container: document.getElementById('timer-container'), timerType: 'increase', ... })`. TimerComponent's constructor expects the container element ID as the first positional string argument. Passing an object causes the component to coerce it to `"[object Object]"`, call `document.getElementById("[object Object]")`, get null, and throw `'Container with id "[object Object]" not found'` — crashing DOMContentLoaded before `transitionScreen.show()`. Start screen never appears.
+
+**Fix:** Gen prompt updated with constructor signature: `new TimerComponent('container-id', { timerType: ..., startTime: ..., endTime: ..., autoStart: ..., format: ... })`. T1 check 5f4 warns when `new TimerComponent({` or `new TimerComponent(document.` detected. Commit: 3ce80aa.
+
+**Evidence:** Playwright constructor instrumentation confirmed: `[CTOR] TimerComponent(0:object={...})` → `[CTOR ERROR]: Container with id "[object Object]" not found`. CDN loads completed in <500ms (not a race condition — all packages loaded). POC fix: patching constructor call to string ID eliminated error; `#mathai-transition-slot button` visible, `gameState.phase = 'start_screen'`.
+
+**Prevention:** T1 check 5f4 warns before Step 1d. Gen prompt shows correct signature with named options. Applies to any game using PART-006=YES (TimerComponent).
