@@ -1015,3 +1015,79 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 **Secondary bug (two-player-race #438):** LLM hallucinated `audio/success.mp3` and `audio/error.mp3` (generic local paths) instead of spec's actual `cdn.mathai.ai/mathai-assets/dev/.../XXXX.mp3` URLs. FeedbackManager retried each 6× = 12 console 404 errors → smoke check false-positive (same pattern as Lesson 95 but from wrong URLs in generated code, not CDN path). Fix: audio 404 smoke check exclusion already in place (c5bfa4c). Root cause is LLM hallucinating audio IDs — spec's audio preload block has the correct URLs, LLM must copy them exactly.
 
 **Prevention:** Spec PART-006=YES must unambiguously mean "use TimerComponent CDN class." If the intent is plain setInterval, use PART-006=NO. Any PART table YES/NO must agree with the implementation note.
+
+## Lesson 101 — Unawaited transitionScreen.show() corrupts CDN state machine on ALL calls
+
+**Pattern (source: keep-track #465, local diagnostic 2026-03-21):** keep-track was unawaiting the *initial* start-screen call: `transitionScreen.show({ ... })` without `await`. The CDN TransitionScreenComponent is an async state machine. An unawaited first `show()` queues a state transition that hasn't resolved when the second `await show()` (after game data loads) fires. The second call's internal lock sees a pending transition and silently hangs with the button at `visibility: hidden`. The screen "shows" visually in some tests but its button is never clickable. `waitForPhase()` times out on every single test.
+
+**Why the gen prompt exception made it worse:** Gen prompt Rule 25 had an EXCEPTION: "the first show() call to render the start screen may be unawaited." LLM faithfully followed this exception — and generated exactly the broken pattern.
+
+**Fix:** Commit 42830fd. (1) T1 check upgraded WARNING → ERROR with message explaining the CDN state machine corruption and that ALL calls must use await. (2) Gen prompt Rule 25 rewritten: "await is REQUIRED on ALL calls including the initial start-screen call — there are NO exceptions." (3) Review RULE-008 updated from "await is optional on initial call" to "await is REQUIRED on ALL calls." 47/47 validate-static tests pass.
+
+**Evidence:** keep-track #465 — game-flow 0/3 at iteration 1, 2, 3. Local diagnostic: `startScreenVisible: true` but `startButtonVisible: false` and `startButtonComputedVisibility: 'hidden'`. No console errors. Removing `await` from the initial show() replicated exact failure. Adding `await` to initial call → button visibility:visible → tests pass.
+
+**Prevention:** Any CDN game with TransitionScreenComponent: `await transitionScreen.show({ ... })` on EVERY call site, with no exceptions. T1 ERROR enforces this before Step 1d.
+
+## Lesson 102 — Shuffle/animation games: never call answer() before gameState.isActive===true
+
+**Pattern (source: keep-track #465, local diagnostic 2026-03-21):** keep-track has an initial shuffle animation phase before player interaction. During shuffle, `window.gameState.isActive === false`. Test called `answer(page, true)` immediately after `startGame()`, but the game ignores all clicks while `isActive===false` — they are silently swallowed, no state change, transition button never appears, `waitForPhase(page, 'results')` times out after 30s.
+
+**Why hard to diagnose from logs alone:** The test output shows "Timeout: waiting for 'results' phase" — identical to a click-selector mismatch or wrong phase string. Only running the game live with browser reveals the shuffle animation playing while clicks do nothing.
+
+**Fix:** Commit 42830fd. M6 rule added to `buildTestGenCategoryPrompt()`:
+```
+M6. For games with ANIMATION or REVEAL phases before player interaction (shuffle games, memory-reveal games):
+    NEVER call answer() or click an option immediately after startGame(). The game has reveal/shuffle phases
+    where gameState.isActive = false — clicks are silently swallowed. ALWAYS wait for isActive=true first:
+    await expect.poll(() => page.evaluate(() => window.gameState?.isActive === true), { timeout: 15000 }).toBeTruthy();
+```
+DOM snapshot gameState shape now also reveals `isActive: boolean` — test-gen LLM can see this directly.
+
+**Evidence:** keep-track DOM snapshot showed `isActive: boolean` in gameState shape. Local diagnostic: clicking start → shuffle animation plays for ~2s → `gameState.isActive` transitions false→true → only then do clicks register.
+
+**Prevention:** Any game spec mentioning "shuffle," "reveal," "animation," "memorize phase," or "study phase" — generated tests must poll for `isActive===true` before interacting. M6 enforced in test-gen prompt.
+
+## Lesson 103 — Shell/shuffle games: read correctCup from gameState dynamically, never hardcode
+
+**Pattern (source: keep-track #465, local diagnostic 2026-03-21):** keep-track tracks correct cup by original position (`data-signal-id`). After shuffle, the cup moves to a different visual position. Test was clicking `[data-signal-id="0"]` (original position) — but after shuffle the correct cup is now at position 2. `window.gameState.correctCup` holds the current correct position index, not the original. Using a hardcoded `data-signal-id` means the test clicks the wrong cup ~67% of the time (2/3 cups are wrong).
+
+**Fix:** Commit 42830fd. M7 rule added to `buildTestGenCategoryPrompt()`:
+```
+M7. For games where the CORRECT TARGET changes position after shuffling (shell games, card-swap games):
+    NEVER use a hardcoded data-signal-id or fixed index to identify the correct element after shuffles.
+    ALWAYS read the current correct position from gameState dynamically:
+    const correctPos = await page.evaluate(() => window.gameState?.correctCup ?? window.gameState?.correctIndex ?? 0);
+    const correctBtn = page.locator(`[data-testid="option-${correctPos}"]`);
+```
+
+**Evidence:** keep-track DOM snapshot showed `correctCup: number` in gameState shape. Local diagnostic: shuffle animation reorders cups visually; `gameState.correctCup` updates to reflect new position after each shuffle. Clicking cup at original `data-signal-id` index = wrong cup after shuffle.
+
+**Prevention:** M7 enforced in test-gen prompt. DOM snapshot `gameState` shape now injected into test-gen context — LLM sees `correctCup: number` directly and should use it. Applies to any spec with "shuffle," "swap," "hidden position," or "find the correct X" mechanics.
+
+## Lesson 104 — fixCdnDomainsInFile Fix 2 was replacing valid cdn.mathai.ai audio URLs
+
+**Pattern (source: hide-unhide #426/#449, pipeline investigation 2026-03-21):** `fixCdnDomainsInFile()` has two passes:
+- Fix 1: replaces `cdn.mathai.ai/games/...` in `<script src>` tags → correct domain for CDN packages
+- Fix 2 (bug): replaced ALL `cdn.mathai.ai` occurrences globally, including audio/media asset URLs like `cdn.mathai.ai/mathai-assets/dev/.../sound.mp3`
+
+`cdn.mathai.ai` is a VALID CDN for audio/media assets (returns HTTP 200). Specs explicitly reference it for `FeedbackManager.init()` audio preloads. Fix 2 converted these valid URLs to `storage.googleapis.com/test-dynamic-assets/mathai-assets/...` — which 404s. The game would then fail Step 1d with 404 resource errors from FeedbackManager preload, triggering the smoke check.
+
+**Root cause of 3 hide-unhide failures:** hide-unhide spec has `FeedbackManager.init()` with `cdn.mathai.ai` audio URLs. Pipeline was destroying them every build.
+
+**Fix:** Commit e81f410. Fix 2 now only replaces `cdn.homeworkapp.ai` (universally wrong — returns 403 due to old auth scheme). Fix 1 already handles `cdn.mathai.ai` in `<script src>` tags specifically and correctly. Non-script `cdn.mathai.ai` references (audio, images, other media) are left untouched. 573 tests pass.
+
+**Evidence:** hide-unhide build #426 error: 12× "Failed to load resource: 404" on `cdn.mathai.ai/mathai-assets/...` URLs. These were valid audio URLs in the spec — pipeline was replacing them. Local inspection of pipeline.js Fix 2 confirmed the global replace. POC: removing Fix 2 from cdn.mathai.ai → audio URLs preserved → smoke check passes.
+
+**Prevention:** Any CDN game with PART-017=YES (FeedbackManager) and audio URLs from `cdn.mathai.ai` — Fix 2 no longer corrupts them. Rule: Fix 2 = `cdn.homeworkapp.ai` only. Fix 1 handles script-tag CDN domains case-by-case.
+
+## Lesson 105 — Sentry.captureConsoleIntegration() also not in CDN bundle — T1 gave wrong fix
+
+**Pattern (source: light-up #428, local diagnostic 2026-03-21):** T1 warning 5f2 said: "use `Sentry.captureConsoleIntegration()` instead of `new Sentry.Integrations.CaptureConsole()`." But `captureConsoleIntegration` is in `@sentry/browser` v7+ — also not in the CDN bundle. When the static-fix LLM followed T1's advice and generated `Sentry.captureConsoleIntegration({...})`, calling it threw `TypeError: Sentry.captureConsoleIntegration is not a function`, aborting `initSentry()` before `ScreenLayout.inject()` ran — blank page, 0/2 game-flow at every iteration.
+
+**Compound effect:** T1 5f2 was a WARNING — LLM received it but prioritized hard errors. The fix for the WARNING introduced a new hard crash. The new crash had no T1 check, so it would silently pass T1 and only fail at Step 1d smoke check or test runtime.
+
+**Fix:** Commit 3d8528c. (1) T1 5f2 message corrected: "OMIT the integrations array entirely — pass `[]` or no argument. Both `Sentry.Integrations.CaptureConsole` AND `Sentry.captureConsoleIntegration` are absent from the CDN bundle." (2) New T1 check: warns when `/Sentry\s*\.\s*captureConsoleIntegration\s*\(/` detected. 47/47 validate-static tests pass.
+
+**Evidence:** light-up #428 — game-flow 0/2. Local diagnostic: `window.__initError: 'Sentry.captureConsoleIntegration is not a function'`. T1 run on failing HTML confirmed only the captureConsoleIntegration WARNING — it passed T1 despite crashing at runtime. POC: changing to `Sentry.init({ dsn: '...' })` (no integrations) → initSentry completes → start screen renders → tests pass.
+
+**Prevention:** Any CDN game with PART-015=YES (Sentry): use bare `Sentry.init({ dsn: '...' })` with no integrations. T1 WARNING catches both CaptureConsole variants before Step 1d. New rule in T1: "If you see a Sentry integration error, fix by removing integrations entirely — not by switching to a different integration API."
