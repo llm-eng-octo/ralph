@@ -1635,3 +1635,75 @@ describe('pipeline.js checkCdnScriptUrls — URL parsing', () => {
     assert.deepEqual(result.failedUrls, []);
   });
 });
+
+describe('pipeline-fix-loop.js getMatchingLessons (R&D #56)', () => {
+  const { getMatchingLessons, LESSON_PATTERNS } = require('../lib/pipeline-fix-loop');
+
+  it('exports getMatchingLessons as a function', () => {
+    assert.equal(typeof getMatchingLessons, 'function');
+  });
+
+  it('exports LESSON_PATTERNS as a non-empty array', () => {
+    assert.ok(Array.isArray(LESSON_PATTERNS));
+    assert.ok(LESSON_PATTERNS.length > 0);
+    // Each entry must have pattern (RegExp) and lesson (string)
+    for (const entry of LESSON_PATTERNS) {
+      assert.ok(entry.pattern instanceof RegExp, 'pattern must be a RegExp');
+      assert.equal(typeof entry.lesson, 'string', 'lesson must be a string');
+      assert.ok(entry.lesson.length > 0, 'lesson must not be empty');
+    }
+  });
+
+  it('matches Packages failed to load → lesson about 120s timeout', () => {
+    const results = getMatchingLessons('Packages failed to load within 10s — timeout exceeded');
+    assert.ok(results.length > 0);
+    assert.ok(results[0].includes('120'), 'should mention 120s timeout');
+    assert.ok(results[0].includes('Lesson 117') || results[0].includes('waitForPackages'), 'should reference waitForPackages lesson');
+  });
+
+  it('matches FeedbackManager.sound.playDynamicFeedback → namespace lesson', () => {
+    const results = getMatchingLessons('FeedbackManager.sound.playDynamicFeedback is not a function');
+    assert.ok(results.length > 0);
+    assert.ok(results[0].includes('FeedbackManager.playDynamicFeedback'), 'should show correct namespace');
+    assert.ok(results[0].includes('isProcessing') || results[0].includes('Lesson 115'), 'should reference isProcessing deadlock');
+  });
+
+  it('returns empty array for completely unrelated error', () => {
+    const results = getMatchingLessons('completely unrelated error that matches nothing');
+    assert.deepEqual(results, []);
+  });
+
+  it('returns empty array for empty string input', () => {
+    assert.deepEqual(getMatchingLessons(''), []);
+  });
+
+  it('returns empty array for null/undefined input', () => {
+    assert.deepEqual(getMatchingLessons(null), []);
+    assert.deepEqual(getMatchingLessons(undefined), []);
+  });
+
+  it('caps results at 3 even when many patterns match', () => {
+    // Construct a string that matches many patterns at once
+    const text = 'Packages failed to load FeedbackManager.sound.playDynamicFeedback isProcessing window.gameState waitForPhase timeout ScreenLayout.inject slots: #gameContent missing TimerComponent window.endGame undefined';
+    const results = getMatchingLessons(text);
+    assert.ok(results.length <= 3, `should return at most 3 lessons, got ${results.length}`);
+  });
+
+  it('matches waitForPhase timeout → syncDOMState lesson', () => {
+    const results = getMatchingLessons('waitForPhase timeout: waiting for data-phase=playing');
+    assert.ok(results.length > 0);
+    assert.ok(
+      results.some((r) => r.includes('syncDOMState') || r.includes('data-phase') || r.includes('Lesson 50')),
+      'should reference syncDOMState lesson',
+    );
+  });
+
+  it('matches missing #gameContent → ScreenLayout slots lesson', () => {
+    const results = getMatchingLessons('gameContent missing from DOM — ScreenLayout.inject was called');
+    assert.ok(results.length > 0);
+    assert.ok(
+      results.some((r) => r.includes('slots') || r.includes('Lesson 69') || r.includes('#gameContent')),
+      'should reference slots wrapper lesson',
+    );
+  });
+});
