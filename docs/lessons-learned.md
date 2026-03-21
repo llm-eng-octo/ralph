@@ -695,3 +695,19 @@ Only fires when: (1) dom-snapshot.json exists, (2) the actual phase is non-stand
 **Fix (commit 576f3a2):** R6 rule added to test-gen prompt: "For CDN games, use `{ timeout: 10000 }` on toBeVisible() assertions immediately after startGame(). Default 5s timeout will flake on slow CDN loads."
 
 **How to apply:** If a CDN game's mechanics or game-flow tests flake with `toBeVisible()` timeout immediately after startGame() but pass on retry, increase the timeout to 10000ms on those specific assertions.
+
+---
+
+## Lesson 79 — Contract auto-fix T1 re-check used wrong property (errors.length on undefined)
+
+**Date:** 2026-03-21
+
+**Pattern:** After applying a contract auto-fix (Step 1b), the pipeline re-ran T1 static validation and accessed `reStaticResult.errors.length`. `runStaticValidation()` returns `{ passed: boolean, output: string }` — there is NO `errors` array. Every call threw `TypeError: Cannot read properties of undefined (reading 'length')`.
+
+**Why it was silent:** The error was caught by the Step 1b `catch (e)` block and logged as a warning. The pipeline continued without the re-check functioning. The contract auto-fix T1 re-validation was completely non-functional in all builds.
+
+**Impact:** Potentially many builds silently skipped the T1 re-check after contract fix, allowing contract-fixed HTML with lingering static errors to proceed to test-gen.
+
+**Fix (commit cc5fae7):** Changed `reStaticResult.errors.length > 0` → `!reStaticResult.passed`. Error lines extracted from `reStaticResult.output.split('\n').filter(l => l.includes('✗'))`, consistent with the rest of the file.
+
+**How to apply:** If future code accesses properties on `runStaticValidation()` output, always use `.passed` (boolean) and `.output` (string) — never `.errors` (does not exist).
