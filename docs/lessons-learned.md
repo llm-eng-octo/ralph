@@ -1164,3 +1164,16 @@ function renderRound(index) {
 **Gen prompt rule needed (Lesson 109):** "If the game shows a reveal/preview phase in renderRound() before the player can interact (dots appear, cards flip, memory tiles show), set `gameState.isProcessing = true` at the START of renderRound() and only set it to `false` AFTER the reveal setTimeout fires and option buttons are rendered. The test harness waits for `isProcessing = false` before clicking — if set too early, answer() runs when no buttons exist, click is silently ignored, and the game timer advances without a player answer."
 
 **How to apply:** Any game with a `setTimeout` delay between `renderRound()` and when interaction becomes possible (dots, card reveal, memory tiles, pattern display) needs this pattern. Set `isProcessing = true` at start, clear it inside the reveal timeout.
+
+---
+
+## Lesson 110 — Contract-fix LLM breaks Sentry ordering despite CDN constraints rule
+
+**Source:** Pipeline iteration lesson — keep-track #465 (2026-03-21)
+
+**What happened:** keep-track #465 generated HTML with initSentry() correctly INSIDE waitForPackages() (local diagnostic confirmed correct ordering at line 375). Contract validation found other errors and ran `buildContractFixPrompt`. The contract-fix LLM rewrote the full HTML to fix the contract errors and accidentally moved initSentry() BEFORE waitForPackages(). The T1 validator then caught: "FORBIDDEN: initSentry() called before waitForPackages()". Build failed after 3 iterations. The `CDN_CONSTRAINTS_BLOCK` included in the contract-fix prompt has "SENTRY ORDER: initSentry() MUST be called INSIDE the waitForPackages() callback" — but the LLM ignored it during a full-HTML rewrite focused on fixing contract errors.
+
+**Fix (commit this session):** Added a VERIFY BEFORE RETURNING checklist to `buildContractFixPrompt` that explicitly calls out: "initSentry() (if present) is INSIDE the waitForPackages() callback, NOT called before it". The checklist also covers window.gameState/endGame/restartGame/nextRound exports and CDN script order.
+
+**How to apply:** If a game with PART-030=YES (Sentry) fails with "Contract-fix T1: FORBIDDEN: initSentry() called before waitForPackages()", root cause is the contract-fix LLM, not the gen LLM. The verification checklist should prevent recurrence. If it recurs, consider restricting the contract-fix to targeted patches (not full HTML rewrite).
+
