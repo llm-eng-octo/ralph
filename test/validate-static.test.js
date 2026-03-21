@@ -528,6 +528,9 @@ describe('validate-static.js', () => {
 
   it('passes when waitForPackages has correct 10000ms timeout and throw', () => {
     const html = VALID_HTML.replace(
+      '<script>',
+      '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n<script>'
+    ).replace(
       'function initGame()',
       `async function waitForPackages() {
     const timeout = 10000;
