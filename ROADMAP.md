@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 21, 2026 (R&D #65 done: first-attempt analysis shows fix loop doesn't rescue bad gens; waitForPackages PART-017=NO bug fixed (fd7a36c) + Lesson 72 written; silent failure error capture fixed (4131eca); review rejection patterns fixed (cec1926); R&D now active on never-approved games; 558 tests pass; Summary 133 done / 148 total)
+**Last updated:** March 21, 2026 (~04:10 UTC: simon-says #416 APPROVED iterations=0 — first ever; mcq-multi-select, matrix-memory, loop-the-loop, hidden-sums also recently approved; 33/51 games approved; CDN constraints added to contract-fix prompt (dd1230f); T1 re-check after contract-fix (dd1230f); keep-track smoke-regen running; Summary 133 done / 148 total)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
