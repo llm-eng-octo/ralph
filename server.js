@@ -260,13 +260,23 @@ function createApp(deps = {}) {
     }
 
     const buildId = db.createBuild(gameId, null, { requestedBy: requestedBy || null });
-    await queue.add('build-game', {
-      gameId,
-      buildId,
-      specPath: specPath || null,
-      specUrl: specUrl || null,
-      requestedBy: requestedBy || null,
-    });
+    try {
+      await queue.add('build-game', {
+        gameId,
+        buildId,
+        specPath: specPath || null,
+        specUrl: specUrl || null,
+        requestedBy: requestedBy || null,
+      });
+    } catch (queueErr) {
+      // BullMQ/Redis failure after DB record was created — cancel the orphaned
+      // queued build immediately so it is not left in 'queued' forever.
+      // requeueOrphanedQueuedBuilds() at worker startup is the recovery path for
+      // jobs that fail to enqueue due to transient Redis issues, but an immediate
+      // cancel avoids confusion (and extra retries) when the queue is truly down.
+      db.cancelBuild(buildId, `queue-enqueue failed: ${queueErr.message}`);
+      throw queueErr; // re-throw so Express 5 returns a 500
+    }
 
     logger.info(`Build queued for ${gameId}`, { gameId, buildId, event: 'manual_build' });
     return res.json({ queued: true, buildId, gameId });

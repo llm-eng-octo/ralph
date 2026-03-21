@@ -91,6 +91,31 @@ describe('db', () => {
     assert.equal(build.error_message, 'ralph.sh crashed');
   });
 
+  it('failBuild with null errorMessage stores sentinel (never NULL)', () => {
+    const id = db.createBuild('fail-null-msg', null);
+    db.failBuild(id, null);
+    const build = db.getBuild(id);
+    assert.equal(build.status, 'failed');
+    assert.ok(build.error_message, 'error_message must not be null even when caller passes null');
+    assert.ok(build.error_message.length > 0, 'error_message must be a non-empty string');
+  });
+
+  it('failBuild with undefined errorMessage stores sentinel (never NULL)', () => {
+    const id = db.createBuild('fail-undef-msg', null);
+    db.failBuild(id, undefined);
+    const build = db.getBuild(id);
+    assert.equal(build.status, 'failed');
+    assert.ok(build.error_message, 'error_message must not be null even when caller passes undefined');
+  });
+
+  it('failBuild with empty string errorMessage stores sentinel (never NULL)', () => {
+    const id = db.createBuild('fail-empty-msg', null);
+    db.failBuild(id, '');
+    const build = db.getBuild(id);
+    assert.equal(build.status, 'failed');
+    assert.ok(build.error_message, 'error_message must not be null even when caller passes empty string');
+  });
+
   it('completeBuild sets error_message from report.errors for failed builds', () => {
     const id = db.createBuild('fail-with-errors', null);
     db.completeBuild(id, {
