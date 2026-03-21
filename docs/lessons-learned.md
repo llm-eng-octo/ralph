@@ -767,3 +767,25 @@ HTML generation produced no `#gameContent` element. Caught by smoke-check, trigg
 2. `lib/prompts.js` CDN_CONSTRAINTS_BLOCK: new rule "DOMContentLoaded catch block MUST set `window.__initError = e.message`" so generated HTML always includes this assignment.
 
 **How to apply:** If triage logs show `[test-harness] DOMContentLoaded init error: Packages failed to load within 10s`, the root cause is CDN package load timeout on the test server. Options: (a) re-queue and hope CDN is faster, (b) check CDN script URLs for 404s, (c) check if waitForPackages() is checking the correct package (Lesson 72: PART-017=NO → check ScreenLayout not FeedbackManager).
+
+---
+
+## Lesson 83 — Smoke-regen repeat-failure rate is 38.5%, far above 10% target
+
+**Date:** 2026-03-21
+
+**Measurement:** R&D agent analyzed all CDN smoke-regen events in builds >= 420 (post-ScreenLayout slots fix, commit 2666e36). 13 definitive cases; 8 passed post-regen, 5 failed again. Repeat-failure rate: 38.5%.
+
+**Root causes of post-regen failures:**
+
+1. **Missing #gameContent after regen (4/5 failures)**: smoke-regen uses `genPrompt + smokeErrorContext` — asks the LLM to regenerate from scratch with the error appended. The LLM generates a new game and can still produce broken ScreenLayout.inject() calls. The smokeErrorContext has correct rules but they apply at the end of a full generation prompt and can be overridden by the LLM's own generation path. Key: a from-scratch regen re-introduces the same CDN init mistakes.
+
+2. **HTTP 403 on CDN resources (affects loop-the-loop, bubbles-pairs)**: Some CDN script URLs return 403. `fixCdnDomainsInFile()` fixes wrong domain names but does not fix wrong paths. If a script URL has the right domain but wrong path, it 403s, packages fail to load, ScreenLayout.inject() never runs, #gameContent never created.
+
+3. **Regen introduces new CDN API bugs (face-memory)**: The regen LLM changed something else incorrectly while fixing the init issue (Sentry.captureConsoleIntegration call introduced). Fixed by Sentry ban in commit 562387c — this specific failure mode should not recur.
+
+**Fix needed:** Change smoke-regen from "regenerate from scratch" to "surgical CDN init fix": show the failing HTML to the LLM, ask it to fix ONLY the CDN init sequence (waitForPackages → FeedbackManager.init → initSentry → ScreenLayout.inject). This avoids re-introducing bugs in the rest of the game logic while precisely fixing the root cause.
+
+**Expected impact:** If 4/5 failures are caused by the from-scratch regen approach, switching to a surgical fix prompt could reduce repeat-failure rate from 38.5% to ~8% (1/13 — just the CDN URL 403 case which requires a different fix).
+
+**How to apply:** When investigating a smoke-regen failure where the post-regen HTML still lacks #gameContent, check if the HTML's CDN script URLs return 403. If yes, this is a URL path issue, not a prompt issue. If no, the LLM generated broken ScreenLayout.inject() again — switch to surgical fix prompt approach.
