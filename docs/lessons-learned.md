@@ -1277,3 +1277,27 @@ function renderRound(index) {
 **Fix:** Increased `waitForPackages()` timeout from `10000` to `120000` (2 min) everywhere in `lib/prompts.js` — gen prompt template, CDN constraints block, smoke-regen prompt, inline rule at line 91. 120s matches beforeEach CDN poll (Lesson 107) and gives CDN adequate cold-start window.
 
 **Commit:** c32e39f
+
+---
+
+## Lesson 118 — TransitionScreen.show() buttons API: NEVER hasButton/buttonText/onComplete
+
+**Source:** disappearing-numbers #475 (2026-03-21)
+
+**Pattern:** CDN game passes smoke check but ALL game-flow tests timeout in beforeEach — "transition slot button never visible." No `__initError`, game initializes correctly up to the TransitionScreen show call.
+
+**Root cause:** `transitionScreen.show()` was called with `{ hasButton: true, buttonText: 'Start', onComplete: fn }` — properties that don't exist in the TransitionScreenComponent API. The component renders `#transitionButtons` div but leaves it empty (no recognized button config), so no button appears in `#mathai-transition-slot`. Tests poll for transition slot button up to 120s and timeout.
+
+**Correct API:**
+```js
+await transitionScreen.show({
+  icons: ['...'],
+  title: '...',
+  subtitle: '...',
+  buttons: [{ text: "Let's go!", type: 'primary', action: () => startGame() }]
+});
+```
+
+**Fix:** Added explicit anti-pattern warning to gen prompt CDN rules and smoke-regen prompt: NEVER use `hasButton`, `buttonText`, or `onComplete` — ALWAYS use `buttons: [{ text, type, action }]`.
+
+**Commit:** 6d8411b
