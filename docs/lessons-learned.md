@@ -1235,3 +1235,17 @@ function renderRound(index) {
 
 **How to apply:** Any CDN game that fails with "Packages failed to load within 10s" with a blank page — check if CDN script tags are present in the HTML. If not, the LLM dropped them during a fix pass. T1 check 5c2 now catches this before test gen runs.
 
+---
+
+## Lesson 115 — FeedbackManager.sound.playDynamicFeedback does not exist
+
+**Source:** Local diagnostic lesson — count-and-tap #471 (2026-03-21)
+
+**Pattern:** LLM calls `FeedbackManager.sound.playDynamicFeedback()` (wrong namespace). The method lives on `FeedbackManager` (top-level), NOT on `FeedbackManager.sound`. The `.sound` sub-object has: audioKit, sounds, pauseSound, pausedAudioId, pendingPlayQueue, config, unlocked, unlockAttempted — no `playDynamicFeedback`.
+
+**Effect:** Synchronous TypeError thrown inside `showFeedback()` → `handleAnswer()` exits before calling `scheduleNextRound()` → `isProcessing` stuck `true` → round lifecycle deadlocked permanently → level-progression test sees round never advance → fails all 3 fix iterations.
+
+**Fix:** Gen prompt rule added in both CDN_CONSTRAINTS_BLOCK (fix prompts) and the gen prompt FeedbackManager rules section: always call `FeedbackManager.playDynamicFeedback(...)` not `FeedbackManager.sound.playDynamicFeedback(...)`. Also corrected the misleading line 102 which previously listed `FeedbackManager.sound.play()/playDynamicFeedback()` as valid (only `.sound.play()` is valid; `.sound.playDynamicFeedback` is not).
+
+**Proof:** Local Playwright diagnostic confirmed PAGE_ERROR "FeedbackManager.sound.playDynamicFeedback is not a function". POC: patching 2 occurrences → rounds advance correctly.
+
