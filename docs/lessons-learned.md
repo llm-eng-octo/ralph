@@ -1249,3 +1249,15 @@ function renderRound(index) {
 
 **Proof:** Local Playwright diagnostic confirmed PAGE_ERROR "FeedbackManager.sound.playDynamicFeedback is not a function". POC: patching 2 occurrences → rounds advance correctly.
 
+## Lesson 116 — DOM snapshot CDN cold-start timeout
+
+**Source:** disappearing-numbers #475 (2026-03-21), R&D #53
+
+**Pattern:** `captureGameDomSnapshot()` in `lib/pipeline-utils.js` polls for `#mathai-transition-slot button` visibility with a 65s deadline, then does a **final `waitFor` with only 5000ms timeout**. CDN games open a fresh Playwright browser for the snapshot — CDN packages load cold (30-120s on GCP) even after the smoke check already warmed the CDN in a separate browser instance. When CDN takes exactly 65s+ to load, the poll loop exhausts without finding the button, then the 5s final check fires immediately and throws: "locator('#mathai-transition-slot button').first() to be visible". Pipeline falls back to static HTML analysis, losing `window.gameState` shape capture — test-gen has to guess data structures instead of knowing them.
+
+**Fix:** Detect CDN games by reading `index.html` and checking for `storage.googleapis.com`, `cdn.homeworkapp.ai`, or `cdn.mathai.ai` script tags. For CDN games: increase poll deadline 65s → 120s, increase final `waitFor` timeout 5s → 60s. For non-CDN games: keep 65s + 5s (sufficient for any non-CDN init). Logs `[snapshot] CDN game detected — using extended timeouts (poll=120s, finalWait=60s)`.
+
+**Impact:** Eliminates static-fallback on CDN games when CDN loads in <180s (120s poll + 60s final). Preserves `window.gameState` shape injection into test-gen prompts, producing stronger tests with correct data structures.
+
+**Commit:** ce79a04
+
