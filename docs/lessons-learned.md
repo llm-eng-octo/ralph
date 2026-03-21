@@ -954,6 +954,16 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 
 **Prevention:** Any PART-006=YES game must check `typeof TimerComponent === 'undefined'` in `waitForPackages()` condition alongside ScreenLayout. T1 validator warns if TimerComponent used without typeof check.
 
+## Lesson 96 — CDN bundle load order: TransitionScreenComponent (step 4), ProgressBarComponent (step 3)
+
+**Pattern (source: face-memory #446, #232, #161, local diagnostic 2026-03-21):** CDN bundle loads components in sequential steps: (2) ScreenLayout → (3) ProgressBarComponent → (4) TransitionScreenComponent → (7) TimerComponent. `waitForPackages()` was only checking `typeof ScreenLayout`. Init ran, hit `new TransitionScreenComponent(...)` at ~186ms, crashed with ReferenceError. Transition slot empty → `beforeEach` timeout → 0/2 game-flow at iterations 1 AND 2. LLM fixers received "transition button never appears" triage — too vague to identify the specific missing typeof check.
+
+**Fix:** (1) Gen prompt CDN load order table added — rule to include typeof check for every CDN component instantiated (ProgressBar step 3, TransitionScreen step 4, Timer step 7). (2) Static validator adds checks 5f3b/5f3c for TransitionScreenComponent and ProgressBarComponent. (3) Smoke-regen prompt detects these components in failing HTML and injects guard instruction. Commit: 274796a.
+
+**Evidence:** Local diagnostic: `window.__initError = 'TransitionScreenComponent is not defined'` in <1s. `#mathai-transition-slot` had 0 children. `gameState.phase = 'start_screen'` but no visible button. Confirmed CDN bundle loads ScreenLayout at step 2 and TransitionScreenComponent at step 4 (step 2+2 gap = race window).
+
+**Prevention:** Add typeof check for EVERY CDN component the game calls `new X()` on. ScreenLayout only is insufficient for any game that uses TransitionScreen, ProgressBar, or Timer.
+
 ## Lesson 95 — Audio/media 404s are non-fatal; smoke pattern too aggressive
 
 **Pattern (source: expression-completer #444, 2026-03-21):** `FeedbackManager.sound.preload()` references audio files at `storage.googleapis.com/test-dynamic-assets/audio/*.mp3`. These files don't exist on the CDN. Playwright logs 12× "Failed to load resource: the server responded with a status of 404 ()". SMOKE_FATAL_PATTERNS matched `/failed\s+to\s+load\s+resource(?!.*status of 403)/i` — the 403 exclusion only covered cdn.homeworkapp.ai auth failures. 404s were not excluded. Build failed at Step 1d with 12 "fatal" 404 errors. The game HTML itself was correct.
