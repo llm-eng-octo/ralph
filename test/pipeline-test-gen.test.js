@@ -172,6 +172,96 @@ describe('lintGeneratedTests — TRANSITION_SLOT: #mathai-transition-slot button
     const ts = violations.filter((v) => v.rule === 'TRANSITION_SLOT');
     assert.equal(ts.length, 0, 'Should not flag #mathai-transition-slot without button');
   });
+
+  it('does not flag TRANSITION_SLOT inside startGame(page) helper body', () => {
+    const content = `async function startGame(page) {
+  await page.locator('#mathai-transition-slot button').first().click();
+  await page.waitForTimeout(400);
+}`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const ts = violations.filter((v) => v.rule === 'TRANSITION_SLOT');
+    assert.equal(ts.length, 0, 'TRANSITION_SLOT inside startGame() boilerplate should be suppressed');
+  });
+
+  it('does not flag TRANSITION_SLOT inside clickNextLevel(page) helper body', () => {
+    const content = `async function clickNextLevel(page) {
+  await expect(page.locator('#mathai-transition-slot button')).toBeVisible({ timeout: 10000 });
+  await page.locator('#mathai-transition-slot button').first().click();
+  await page.waitForTimeout(500);
+}`;
+    const { violations } = lintGeneratedTests({ 'level-progression': content }, silentLog);
+    const ts = violations.filter((v) => v.rule === 'TRANSITION_SLOT');
+    assert.equal(ts.length, 0, 'TRANSITION_SLOT inside clickNextLevel() boilerplate should be suppressed');
+  });
+
+  it('still flags TRANSITION_SLOT in LLM-generated test code outside helpers', () => {
+    const content = `async function startGame(page) {
+  await page.locator('#mathai-transition-slot button').first().click();
+}
+
+test('some test', async ({ page }) => {
+  await page.locator('#mathai-transition-slot button').click();
+});`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const ts = violations.filter((v) => v.rule === 'TRANSITION_SLOT');
+    assert.equal(ts.length, 1, 'TRANSITION_SLOT outside helper bodies must still be flagged');
+  });
+});
+
+describe('lintGeneratedTests — helper context suppresses HARDCODED_TIMEOUT', () => {
+  it('does not flag HARDCODED_TIMEOUT inside startGame(page) helper body', () => {
+    const content = `async function startGame(page) {
+  await page.locator('#mathai-transition-slot button').first().click();
+  await page.waitForTimeout(400);
+}`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
+    assert.equal(ht.length, 0, 'HARDCODED_TIMEOUT inside startGame() boilerplate should be suppressed');
+  });
+
+  it('does not flag HARDCODED_TIMEOUT inside clickNextLevel(page) helper body', () => {
+    const content = `async function clickNextLevel(page) {
+  await page.locator('#mathai-transition-slot button').first().click();
+  await page.waitForTimeout(500);
+}`;
+    const { violations } = lintGeneratedTests({ 'level-progression': content }, silentLog);
+    const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
+    assert.equal(ht.length, 0, 'HARDCODED_TIMEOUT inside clickNextLevel() boilerplate should be suppressed');
+  });
+
+  it('still flags HARDCODED_TIMEOUT in LLM-generated test code outside helpers', () => {
+    const content = `async function startGame(page) {
+  await page.waitForTimeout(400);
+}
+
+test('some test', async ({ page }) => {
+  await page.waitForTimeout(1000);
+});`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
+    assert.equal(ht.length, 1, 'HARDCODED_TIMEOUT outside helper bodies must still be flagged');
+  });
+
+  it('suppresses both TRANSITION_SLOT and HARDCODED_TIMEOUT inside full boilerplate block', () => {
+    const content = `async function startGame(page) {
+  await page.locator('#mathai-transition-slot button').first().click();
+  await page.waitForTimeout(400);
+  while (Date.now() < deadline) {
+    await page.locator('#mathai-transition-slot button').first().click();
+    await page.waitForTimeout(400);
+  }
+}
+
+async function clickNextLevel(page) {
+  await page.locator('#mathai-transition-slot button').first().click();
+  await page.waitForTimeout(500);
+}`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const ts = violations.filter((v) => v.rule === 'TRANSITION_SLOT');
+    const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
+    assert.equal(ts.length, 0, 'No TRANSITION_SLOT violations expected inside helper bodies');
+    assert.equal(ht.length, 0, 'No HARDCODED_TIMEOUT violations expected inside helper bodies');
+  });
 });
 
 describe('lintGeneratedTests — RULE-DUP: duplicate data-testid across categories', () => {
