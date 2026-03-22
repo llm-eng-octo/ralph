@@ -2357,3 +2357,15 @@ CT9. NEVER assert '#mathai-transition-slot button' visibility (toBeVisible OR no
 Also fix timeout inconsistency: C1 rule uses `waitForPhase('results', 10000)` but CT4 mandates 20000ms. C1's 10s example must be updated to 20s to avoid generated tests using the shorter timeout seen in C1 example.
 
 **Status:** Proposed — needs implementation in lib/prompts.js contract section + verification build
+
+## Lesson 183 — CT9 + C1 + RULE-003: Contract test gen rules shipped 2026-03-23
+
+**Source:** prompts.js fix | **Date:** 2026-03-23
+
+**CT9 (contract transition-slot visibility ban):** Lesson 182's proposed CT9 fix has been shipped. `lib/prompts.js` contract section now has CT9 rule banning all `#mathai-transition-slot button` visibility assertions (toBeVisible OR not.toBeVisible) in contract tests — both as precondition checks and as state assertions. Use ONLY `waitForPhase(page, 'results', 20000)` to verify game completion. Addresses Root Cause B of the 30.8% contract pass rate (5 occurrences in builds #547 and #553 post-CT8).
+
+**C1 timeout fix (10000→20000ms):** C1 and C2 rules in the contract section were using `waitForPhase('results', 10000)` as the example timeout — inconsistent with CT4's mandated 20000ms. Both C1 and C2 examples updated to 20000ms so LLM follows the correct value when generating new contract tests.
+
+**RULE-003 TRANSITION (transitionScreen try/catch):** `transitionScreen.hide()` and `transitionScreen.show()` calls without try/catch cause uncaught promise rejections during game-over transition. Both CDN_CONSTRAINTS_BLOCK (gen prompt) and REVIEW_SHARED_GUIDANCE (review prompt) updated with explicit WRONG/RIGHT examples. Root cause: build #560 review rejection for unguarded transitionScreen calls.
+
+**Commit:** 4e8fca8 — deployed to server, ralph-worker restarted.
