@@ -1252,13 +1252,18 @@ const worker = new Worker(
     // resolveFailurePattern() was never called on the approval path — fix loop patterns accumulated
     // indefinitely, degrading cross-build pattern injection with noise. Resolve all unresolved
     // patterns for the game so the pattern DB stays clean after a successful build.
+    // CR-015: wrapped in try/catch so a DB error here cannot skip warehouse sync below.
     if (report.status === 'APPROVED') {
-      const openPatterns = db.getFailurePatterns(gameId).filter((p) => !p.resolved);
-      for (const fp of openPatterns) {
-        db.resolveFailurePattern(gameId, fp.pattern);
-      }
-      if (openPatterns.length > 0) {
-        logger.info(`[worker] Resolved ${openPatterns.length} failure pattern(s) for ${gameId} after approval`);
+      try {
+        const openPatterns = db.getFailurePatterns(gameId).filter((p) => !p.resolved);
+        if (openPatterns.length > 0) {
+          for (const fp of openPatterns) {
+            db.resolveFailurePattern(gameId, fp.pattern);
+          }
+          logger.info(`[worker] Resolved ${openPatterns.length} failure pattern(s) for ${gameId}`);
+        }
+      } catch (err) {
+        logger.warn(`[worker] Could not resolve failure patterns for ${gameId}: ${err.message}`);
       }
     }
 
