@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Investigating `unknown` category (33.0%, 466 tests) — analytics #1 priority. Root cause: tests not receiving batch label. Trace which test-gen path produces unbatched tests. Separately: M16 .option-btn extension in progress (agent a44708e0d7934a362). |
-| Status | Analytics: unknown 33% > game-flow 62.6% > level-progression 66.8% > mechanics 67.9% > contract 69% > edge-cases 69.6%. First-attempt rate: 47.9%. |
-| Waiting on | M16 agent result |
+| Current task | Investigating `unknown` category (33.0%, 466 tests) — root cause analysis in progress. M16 .option-btn SHIPPED (a8524a0, 986 tests). |
+| Status | Analytics: unknown 33% > game-flow 62.6% > level-progression 66.8% > mechanics 67.9% > contract 69% > edge-cases 69.6%. First-attempt: 47.9%. |
+| Waiting on | unknown category root cause agent |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
