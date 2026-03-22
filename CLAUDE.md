@@ -267,6 +267,12 @@ Slots are not independent. Every slot produces outputs that other slots must act
 
 ### 13. Always maintain one active Gen Quality task — MANDATORY
 
+**State tracking (always maintain in ROADMAP.md):**
+Each session, the Gen Quality slot must have ONE row in ROADMAP.md marked with exactly these fields visible at the top of the R&D table:
+- **Current task:** [what the active R&D task is — one sentence]
+- **Waiting on:** [what result, build completion, or data point is needed before this task can advance — or "unblocked"]
+- **Blocked by:** [any hard blocker, or "none"]
+
 **Gen Quality is always running.** One sub-agent must ALWAYS be actively working on a Gen Quality task. The moment one completes, immediately pick the next and launch a new sub-agent in the same response. One item must always be marked `active` in `ROADMAP.md` under `## R&D`.
 
 **Gen Quality inputs — four channels:**
@@ -283,9 +289,24 @@ Slots are not independent. Every slot produces outputs that other slots must act
 
 **Build verification required:** Every hypothesis touching game quality MUST be verified with at least one real build showing a before/after metric.
 
+**WebFetch mandate — use external sources aggressively:**
+Gen Quality sub-agents must pull real documentation rather than reasoning from memory. Key sources to fetch before implementing any CDN rule:
+- CDN package docs: fetch the actual API documentation for CDN components being constrained (ProgressBarComponent, FeedbackManager, VisibilityTracker, ScreenLayout, TimerComponent)
+- Browser compatibility: MDN for any CSS/JS feature being required or banned
+- WCAG accessibility: `https://www.w3.org/WAI/WCAG21/quickref/` for accessibility rule grounding
+- Past failure patterns: read `docs/lessons-learned.md` and `docs/failure-patterns-tracker.md` before proposing any new rule
+
+Every Gen Quality sub-agent must start with a WebFetch or file read pass before writing any rule. "I believe X" is not acceptable — fetch the source.
+
 **Constraints:** Gen Quality never blocks critical work. Must produce a measurable result — "made it cleaner" is not Gen Quality.
 
 ### 14. Always maintain one active Test Engineering Slot — MANDATORY
+
+**State tracking (always maintain in ROADMAP.md):**
+Each session, the Test Engineering slot must have ONE row in ROADMAP.md under the Test Engineering section marked with exactly these fields:
+- **Current task:** [what the active diagnosis or category-improvement task is — one sentence]
+- **Waiting on:** [what result, build completion, or data point is needed before this task can advance — or "unblocked"]
+- **Blocked by:** [any hard blocker, or "none"]
 
 **Test Engineering is always running.** Diagnosis and test gen improvement are one slot, not two — every diagnosis finding feeds directly into a test gen fix. The slot's purpose is threefold: (1) reduce test execution time, (2) improve reliability — all cases passing on a correct game, (3) ensure tests represent real user behaviour — coverage of meaningful interactions, not just happy path.
 
@@ -320,15 +341,58 @@ Slots are not independent. Every slot produces outputs that other slots must act
 - Approved builds — compare their test assertions against failed builds to identify what good tests look like
 - Timing analysis — which tests have flaky timing, which assertions use hard sleeps instead of waitForPhase
 
+**WebFetch mandate — use external sources aggressively:**
+Test Engineering sub-agents must ground test rules in real documentation rather than guessing at correct behavior. Key sources to fetch before writing any test-gen rule or lint rule:
+- Playwright docs: fetch the actual Playwright assertion API docs to verify correct syntax before adding a CT rule (e.g., `expect.poll()`, `waitForSelector`, `toBeVisible` semantics)
+- Accessibility testing: `https://www.w3.org/WAI/WCAG21/quickref/` — WCAG 2.1 criteria for any accessibility assertion being added
+- a11y testing patterns: search for documented patterns for testing ARIA live regions, focus management, keyboard navigation in browser automation
+- CDN component behavior: fetch any CDN component documentation to understand correct event sequences before writing assertions about them
+
+Every test-gen rule must be grounded in either: (a) a fetched Playwright/CDN doc confirming correct API usage, or (b) observed failure evidence from a real build. "I think the selector should be X" is not acceptable.
+
 **Constraints:** Never blocks critical pipeline work. "No new failures to diagnose" is not idle — switch to Phase B immediately.
 
 ### 15. Always maintain one active Education Implementation Slot — MANDATORY
 
+**State tracking (always maintain in ROADMAP.md):**
+Each session, the Education slot must have ONE row in ROADMAP.md under the Education section marked with exactly these fields:
+- **Current task:** [what the active education task is — one sentence]
+- **Waiting on:** [what result, build completion, or data point is needed before this task can advance — or "unblocked"]
+- **Blocked by:** [any hard blocker, or "none"]
+
 **Education implementation is always running.** One sub-agent must ALWAYS be actively implementing educational improvements. R&D targets pipeline reliability; Education targets learning science and content quality.
+
+**The Education slot is never idle.** The slot's scope is not "build the next game" — it is "build the capability to autonomously generate complete learning sessions for any curriculum area." That scope is unbounded. A running build is irrelevant to Education slot work — the spec review, session planning, pedagogical audit, and interaction pattern work proceed independently.
 
 **Priorities:** (1) Next unbuilt game in active session sequence, (2) New interaction patterns at apply/analyze/create Bloom's level, (3) New session plan for a different curriculum area.
 
 **Process:** Research → Spec draft (check CDN compliance) → Build verification → Measure learning quality → Ship or iterate.
+
+**Always-available Education work (no build required):**
+- **Spec review** — review pending game specs (real-world-problem, future games) for Bloom level accuracy, misconception coverage, production vs recognition demand, CDN compliance, test hook clarity
+- **Session planning** — identify and plan the next curriculum area (Session 2, Session 3). Ground in NCERT/CC standards, draft prerequisite DAG, identify required interaction patterns
+- **Interaction patterns** — `docs/education/interaction-patterns.md` is always incomplete at L3/L4 Bloom levels. Every session adds proven patterns; document them immediately after approval
+- **Pedagogical quality audit** — any approved game that hasn't had a pedagogy audit (separate from UI/UX audit) is active work. Check: does the game require the learner to *produce* the cognitive operation, or just recognize the answer?
+- **Misconception coverage** — does each game target at least one documented misconception? Check games/<game>/spec.md for explicit misconception targeting
+- **Session Planner architecture** — `docs/education/README.md` §7 describes the long-term vision. Each subsystem (goal parsing, prerequisite analysis, session design, spec generation) can be designed independently of pipeline readiness
+- **Curriculum alignment** — map approved games to NCERT chapter/section and CC standard codes. This becomes the retrieval index for Step 1 of the Session Planner
+
+**WebFetch mandate — use external sources aggressively:**
+Education sub-agents must ground all curriculum work in real sources rather than LLM knowledge. Key sources to fetch for every session planning task:
+- NCERT textbooks: Class 9/10 Mathematics chapters from NCERT official site for curriculum alignment
+- Common Core standards: CC Math standards for the relevant grade band
+- Cognitive science research: papers on worked examples (Sweller), ZPD (Vygotsky applied to math), spaced repetition, Bloom's taxonomy application
+- Khan Academy / BYJU's: check how leading platforms teach the target concept — what interaction patterns do they use?
+- Wikipedia: for concept prerequisites and curriculum progression
+- Misconception databases: search for documented student misconceptions in the target concept area
+
+Every Education sub-agent planning a new session or game must fetch at least 2 external sources before writing any spec or session plan. Grounded specs produce better games.
+
+Example workflow for planning Session 2 (after trig):
+1. Fetch NCERT Class 9/10 chapter list → identify what follows trig in Indian curriculum
+2. Fetch Common Core HS Math standards → find the US progression
+3. Fetch 1-2 misconception papers/articles for the target concept
+4. THEN draft the session plan
 
 **Documentation mandate — after every Education build result, update ALL of:**
 1. `docs/education/trig-session.md` (or relevant session file)
@@ -341,6 +405,12 @@ Slots are not independent. Every slot produces outputs that other slots must act
 
 ### 16. Always maintain one active UI/UX Slot — MANDATORY
 
+**State tracking (always maintain in docs/ui-ux/audit-log.md):**
+Each session, the UI/UX slot must have ONE entry in docs/ui-ux/audit-log.md marked with exactly these fields:
+- **Current task:** [what game is being audited and what phase of the audit — one sentence]
+- **Waiting on:** [what result, build completion, or data point is needed before this task can advance — or "unblocked"]
+- **Blocked by:** [any hard blocker, or "none"]
+
 **UI/UX review is always running.** One sub-agent must ALWAYS be actively auditing the visual and interaction quality of approved games. R&D targets pipeline reliability; Education targets learning science; UI/UX targets the learner's sensory and interaction experience.
 
 **What UI/UX covers:** visual layout and spacing, mobile responsiveness (480px), colour contrast and accessibility, feedback clarity (correct/incorrect states), animation and transition quality, progress indicators, button affordance, error states, loading states, and consistency across games in a session.
@@ -351,6 +421,16 @@ Slots are not independent. Every slot produces outputs that other slots must act
 1. Screenshot audit — run `diagnostic.js` against the approved HTML, capture screenshots at every phase
 2. Issue list — categorise as: (a) gen prompt rule, (b) spec addition, (c) CDN constraint, (d) test coverage gap
 3. Update `games/<game>/ui-ux.md` with game, date, issues found, and resolution path
+
+**WebFetch mandate — ground audits in real standards:**
+UI/UX sub-agents must reference real design and accessibility standards rather than subjective judgment. Key sources to fetch before or during every audit:
+- WCAG 2.1 quickref: `https://www.w3.org/WAI/WCAG21/quickref/` — for any contrast, focus, ARIA, or keyboard finding
+- Apple HIG touch targets: minimum 44×44pt touch target specification (fetch or recall from HIG)
+- Material Design: spacing, elevation, and typography guidelines for mobile-first design
+- Color contrast checker: use the WCAG contrast ratio formula (4.5:1 for normal text, 3:1 for large) when flagging color issues — report the actual ratio, not just "low contrast"
+- MDN: for any CSS property behavior being evaluated (position:fixed, z-index stacking, viewport units)
+
+Every UI/UX finding must cite the standard it violates (WCAG SC X.X.X, HIG touch target spec, etc.) — not just "this looks wrong."
 
 **Cross-slot handoffs (mandatory — UI/UX findings actively improve other slots):**
 
@@ -383,6 +463,8 @@ Slots are not independent. Every slot produces outputs that other slots must act
 
 ### 18. Always maintain one active Local Verification Slot — MANDATORY
 
+**State tracking:** After each verification action, log one line in ROADMAP.md under the Local Verification section: "[date] [what was verified] | Waiting: [what's next]"
+
 **Local verification closes the fix cycle.** Every fix we ship to `lib/prompts.js` or `lib/validate-static.js` currently requires a full build (25-35 min) to verify. Local verification reduces this to 5-10 min.
 
 **Trigger:** Any time a gen rule, T1 check, or test-gen rule is shipped.
@@ -404,6 +486,8 @@ Slots are not independent. Every slot produces outputs that other slots must act
 **Never queue a build without local verification first** (exception: builds where the fix is to the gen prompt itself and there's no existing HTML to test against — document this explicitly).
 
 ### 19. Always maintain one active Analytics Slot — MANDATORY
+
+**State tracking:** After each Analytics run, log one line in ROADMAP.md under the Analytics section: "[date] [what queries ran + top finding] | Waiting: [what's next]"
 
 **Analytics is the prioritization brain.** Without it, each slot picks its own next task based on local knowledge. With it, all slots receive a globally-optimal ranked next-action based on real DB data.
 
@@ -428,6 +512,8 @@ ANALYTICS UPDATE (HH:MM):
 
 ### 20. Always maintain one active Code Review Slot — MANDATORY
 
+**State tracking:** After each code review action, log one line in ROADMAP.md under the Code Review section: "[date] [file reviewed + finding] | Waiting: [what's next]"
+
 **Code review is always running.** The Ralph pipeline codebase (`worker.js`, `server.js`, `lib/*.js`) is modified frequently and under continuous development. Without proactive code review, bugs surface only when builds fail (30-min feedback cycle). Code Review catches them before that.
 
 **This is NOT review of generated game HTML.** This slot reviews the pipeline source code itself.
@@ -444,6 +530,16 @@ ANALYTICS UPDATE (HH:MM):
 - **Prompt rule coherence:** In `lib/prompts.js` — do any rules contradict each other? Does rule X undo what rule Y requires?
 - **Test coverage gaps:** Is every new function tested? Are error paths tested or only happy paths?
 - **Race conditions:** In `worker.js` — could two concurrent operations write to the same DB row? Could a stalled build lock prevent cleanup?
+
+**WebFetch mandate — verify against authoritative sources:**
+Code Review sub-agents must check real documentation before flagging issues or suggesting fixes. Key sources to fetch:
+- MDN: for any JavaScript/Node.js API behavior being reviewed (Promise semantics, async/await edge cases, Buffer handling)
+- Node.js docs: `https://nodejs.org/api/` for built-in module APIs (fs, child_process, http)
+- better-sqlite3 docs: for any DB query pattern being reviewed — verify transaction semantics, WAL mode behavior, prepared statement reuse
+- BullMQ docs: for any job queue behavior — lock semantics, stall detection, retry configuration
+- OWASP: for any security-relevant code path (input validation, SQL construction, file path handling)
+
+Every code review finding that involves an API behavior claim must cite the source. "I think Node.js does X" is not acceptable — fetch the docs.
 
 **Output per review cycle:**
 1. Files reviewed (list)

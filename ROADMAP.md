@@ -114,6 +114,14 @@
 
 ## P6 — Test Generation Quality
 
+**Active slot state:**
+| Field | Value |
+|-------|-------|
+| Current task | PART-028 CSS integrity — tests added (b65fdb7); T1 re-validation confirmed in pipeline-targeted-fix.js |
+| Status | Complete — awaiting next diagnosis target |
+| Waiting on | Category pass rate query from Analytics cron (next scheduled :15/:45) |
+| Blocked by | none |
+
 | Item | Status | File(s) | Notes |
 |------|--------|---------|-------|
 | Categorized spec files (per category) | done | lib/pipeline.js | game-flow, mechanics, level-progression, edge-cases, contract — each with own fix loop |
@@ -188,6 +196,14 @@
 ## R&D
 
 > One task always active. Target: highest-leverage improvement for reliability / availability / power / scalability.
+
+**Active slot state:**
+| Field | Value |
+|-------|-------|
+| Current task | Post-GEN-116/117/118 first-attempt approval rate measurement |
+| Status | 3/5 data points collected — #561 APPROVED iter=3, pattern holds |
+| Waiting on | 2 more CDN builds with ScreenLayout.inject() to confirm pattern |
+| Blocked by | none |
 
 | Task | Status | Hypothesis | Expected Impact |
 |------|--------|-----------|-----------------|
@@ -365,7 +381,7 @@
 | **Slack parent message live updates** | **done (2026-03-23, commit 9101650)** | worker.js, lib/slack.js | Parent Slack thread message now updated in real-time at each pipeline step boundary and on failure — progress visible in channel without scrolling thread. Previously only posted at build start and end. |
 | **Cross-slot feed links** | **done (2026-03-23, commit 4f96009)** | worker.js, lib/slack.js | UI/UX findings now route to R&D slot (gen prompt rules), test quality slot (test-gen fixes), and education slot (spec revisions) via Slack thread links. Closes the loop between audit findings and implementation. |
 | **Cron 7 Slot Watchdog** | **done (2026-03-23, commit c57447d)** | .claude/settings.json | Detect and act on idle slots every 5 min — checks if any of the 4 mandatory slots (R&D, test quality, education, UI/UX) has gone silent, and triggers re-activation with next-task prompt. Prevents slots from silently stalling between user messages. |
-| **Post-GEN-116/117/118 first-attempt approval rate measurement** | **active — 2 data points collected, need 3 more CDN builds** | analysis | GEN-116 (drag prohibition false-positive), GEN-117 (transitionScreen.hide() mandate), and GEN-118 (explicit #gameContent show) are the three highest-impact gen-level init fixes shipped in this session. Hypothesis: these three rules together eliminate the class of "startGame init failure → all game-flow 0/N on every iteration" which caused name-the-sides to require 7 builds across 5 independent failure layers. Data point 1: build #557 (name-the-sides) APPROVED iter=3 — init failure class resolved, GEN-119 (fallbackContent SyntaxError) discovered as new blocking bug. Data point 2: build #559 (which-ratio) APPROVED 8/10 by reviewer — EACCES infra failure post-approval, not an HTML bug; #560 re-queued. Both approved without game-flow 0/N init failure, supporting hypothesis. Measure: track game-flow iter-1 pass rate + first-attempt approval rate across next 5 CDN builds using ScreenLayout.inject(). Success: ≥3/5 CDN builds with ScreenLayout approve in ≤2 iterations AND no game-flow 0/N iter-1 failures caused by missing #gameContent show. |
+| **Post-GEN-116/117/118 first-attempt approval rate measurement** | **active — 3 data points collected, need 2 more CDN builds** | analysis | GEN-116 (drag prohibition false-positive), GEN-117 (transitionScreen.hide() mandate), and GEN-118 (explicit #gameContent show) are the three highest-impact gen-level init fixes shipped in this session. Hypothesis: these three rules together eliminate the class of "startGame init failure → all game-flow 0/N on every iteration" which caused name-the-sides to require 7 builds across 5 independent failure layers. Data point 1: build #557 (name-the-sides) APPROVED iter=3 — init failure class resolved, GEN-119 (fallbackContent SyntaxError) discovered as new blocking bug. Data point 2: build #559 (which-ratio) APPROVED 8/10 by reviewer — EACCES infra failure post-approval, not an HTML bug; #560 re-queued. Both approved without game-flow 0/N init failure, supporting hypothesis. Data point 3: build #561 (which-ratio) APPROVED iter=3 — no game-flow 0/N init failure. Pattern holds: all 3 recent CDN builds with ScreenLayout.inject() approved without init failure class. 2 more data points needed. Measure: track game-flow iter-1 pass rate + first-attempt approval rate across next 5 CDN builds using ScreenLayout.inject(). Success: ≥3/5 CDN builds with ScreenLayout approve in ≤2 iterations AND no game-flow 0/N iter-1 failures caused by missing #gameContent show. |
 | **T1 §5f6: Canvas API CSS variable check** | **done (2026-03-22, commit cd04177)** | lib/validate-static.js | Lesson 158 (build #540 right-triangle-area): LLM passed `'var(--color-sky)'` to `addColorStop()` — Canvas2D API does not resolve CSS custom properties, only literal color strings work. T1 §5f6 detects `addColorStop\s*\(\s*[\d.]+\s*,\s*['"]var(` pattern and flags as ERROR. Also checks `fillStyle\s*=\s*['"]var(` and `strokeStyle\s*=\s*['"]var(`. Gen prompt rule: "Canvas API does not resolve CSS variables — use literal hex/rgba". |
 | **T1 §5f8: TimerComponent slot not in ScreenLayout** | **done (2026-03-22, commits 8657a6d + ad4a15a, 762 tests)** | lib/validate-static.js, lib/prompts.js | Lesson 160/162 (build #542 right-triangle-area): `new TimerComponent('mathai-timer-slot', ...)` with `timer: true` missing from ScreenLayout slots — div never created, constructor throws 'Container with id "mathai-timer-slot" not found' → blank page. T1 §5f8 detects this pattern. Gen prompt rule + smoke-regen BUG 5 provide defense in depth. 762 tests pass. |
 | **T1 §5f9: progressBar.init() hallucination** | **done (2026-03-22, commit ede9df4, 764 tests)** | lib/validate-static.js, lib/prompts.js | Lesson 163 (build #543 right-triangle-area Layer 7): early-review-fix introduced `progressBar.init()` — method does not exist on ProgressBarComponent. API is EXACTLY: constructor(slotId, config) + .update(currentRound, totalRounds) + .destroy(). No .init(), .start(), .reset(), .setLives(). T1 §5f9 catches `progressBar.init(` pattern as ERROR. Gen prompt rule lists all 3 allowed methods explicitly. Smoke-regen BUG 6 added as defense in depth. Smoke PASSED in build #543 — first time in 13 builds. 764 tests pass. |
@@ -422,6 +438,14 @@
 
 > Goal: move generated games from Bloom L1 recall (67% of current games) toward higher-order learning interactions. Tracked separately from pipeline reliability R&D.
 
+**Active slot state:**
+| Field | Value |
+|-------|-------|
+| Current task | real-world-problem spec review + Session 2 area identification |
+| Status | which-ratio #561 APPROVED; real-world-problem spec review in progress |
+| Waiting on | real-world-problem spec review findings → then queue real-world-problem build |
+| Blocked by | none |
+
 | Task | Status | Notes |
 |------|--------|-------|
 | **Pedagogical analysis of warehouse games** | **done (2026-03-22)** | `docs/rnd-educational-interactions.md` (945 lines). Key finding: 67% of current warehouse games are Bloom L1 recall only — answer a question, get feedback, repeat. No worked examples, no scaffolding, no error analysis. Top opportunity: PART-036 Worked Example Component — highest-leverage pedagogical upgrade available in CDN bundle. |
@@ -429,8 +453,9 @@
 | **Replicate PART-036 pattern — algebra worked example (quadratic formula)** | **done (2026-03-22, build #546 APPROVED)** | Build on soh-cah-toa-worked-example approval to write a spec for a quadratic formula worked-example game using the same PART-036 sub-phase structure. Build #545 FAILED: prompts.js line 550 taught wrong postMessage field names (Lesson 169, commit 9eff5e6). Build #546 APPROVED (2264s, review-fix-1 for MCQ shuffle + trackEvent). CDN timing stall early-exit confirmed in production. Contract tests triage-deleted (test logic errors → led to CT8 rule). |
 | **Rule 14: Education Implementation Slot** | **done (2026-03-22)** | New mandatory rule added to CLAUDE.md — one active education task must always be tracked in this section, same non-negotiable status as R&D slot. |
 | **name-the-sides spec — trig session Game 1 (Bloom L2)** | **APPROVED #557 (2026-03-22, iter=3)** | 785-line spec for label-assignment game: learner assigns Hypotenuse/Opposite/Adjacent to 3 sides of a right triangle relative to a marked reference angle. 9 rounds (3 difficulty tiers: standard → rotated → two-angle). No lives, no timer (rounds 1-6), optional inline JS timer (7-9). Star logic based on skipped rounds. Simplification: CSS-drawn triangle + 3 MCQ button rows per side (no custom SVG CDN). Session plan position: FIRST game in trig sequence — prerequisite for soh-cah-toa-worked-example. NCERT Ch 8 §8.1 / CC HSG-SRT.C.6. 7 builds required across 5 independent failure layers (GEN-114/115/116/117/118). Build #557 APPROVED at iter=3 — GEN-116+117+118 compound fix resolved init failure class. |
-| **which-ratio spec — trig session Game 4 (Bloom L2–L3)** | **active — #559 APPROVED (reviewer) but EACCES post-approval (infra), #560 re-queued** | MCQ + worked example panel on first wrong attempt. Given a triangle with two sides labeled and an angle marked, identify which ratio (sin/cos/tan) relates those two sides to that angle. No lives — learning mode. Stars by accuracy. Bridges ratio recognition (Game 2) and computation (Game 3). NCERT Ch 8 §8.3 / CC HSG-SRT.C.7. Build #558 queued (2026-03-22). #559 APPROVED 8/10 tests by reviewer but FAILED post-approval EACCES (same root-owned infra bug as name-the-sides #555) — permissions fixed, #560 re-queued. |
-| **real-world-problem spec — trig session Game 6 (Bloom L4)** | **spec draft complete (2026-03-23)** | 714-line spec: 4 rounds (ladder/ramp/flagpole/cable), word-problem-three-step interaction, cognitive-demand test category, no new CDN parts. Ready to queue after which-ratio #560 approves. |
+| **which-ratio spec — trig session Game 4 (Bloom L2–L3)** | **APPROVED #561 (2026-03-23, iter=3)** | MCQ + worked example panel on first wrong attempt. Given a triangle with two sides labeled and an angle marked, identify which ratio (sin/cos/tan) relates those two sides to that angle. No lives — learning mode. Stars by accuracy. Bridges ratio recognition (Game 2) and computation (Game 3). NCERT Ch 8 §8.3 / CC HSG-SRT.C.7. Build #558 queued (2026-03-22). #559 APPROVED 8/10 tests by reviewer but FAILED post-approval EACCES (same root-owned infra bug as name-the-sides #555) — permissions fixed, #560 re-queued. #561 APPROVED iter=3. |
+| **real-world-problem spec — trig session Game 6 (Bloom L4)** | **active — spec review in progress** | 714-line spec: 4 rounds (ladder/ramp/flagpole/cable), word-problem-three-step interaction, cognitive-demand test category, no new CDN parts. which-ratio #561 APPROVED; real-world-problem spec review in progress → queue build after review findings resolved. Waiting on: spec review findings. Blocked by: none. |
+| **which-ratio spec — add feedback timing requirements** | **pending** | games/which-ratio/spec.md | Source: UI/UX audit which-ratio #561 (Issues 5+6). (1) Correct feedback must display for at least 1500ms before auto-advance — current implementation uses 1200ms. (2) Skip feedback duration must be consistent across all skip paths (worked-example Skip vs second-attempt paths currently use 1500ms vs 2000ms). Add a single `FEEDBACK_DURATION_MS` constant and apply to all paths. |
 
 ---
 

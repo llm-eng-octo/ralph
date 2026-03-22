@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Game:** name-the-sides (Build #557)
-**Status:** COMPLETE — 2026-03-23
+**Game:** soh-cah-toa-worked-example (next in session sequence)
+**Status:** PENDING — queue after which-ratio #561 audit complete
 
 ---
 
@@ -29,6 +29,7 @@ Track visual and interaction quality audits of generated games. Each entry recor
 |------|------|-------|-------------|---------------|
 | 2026-03-23 | name-the-sides | #557 | 10 issues (5a, 3b, 2 low) | 5 gen prompt rules proposed; 3 spec additions documented; rebuild needed |
 | 2026-03-23 | which-ratio | #560 | 8 issues (4a, 2b, 2c) | 4 gen prompt rules proposed; 2 spec additions documented; 2 CDN constraints noted |
+| 2026-03-23 | which-ratio | #561 | 7 issues (4a, 2b, 1c) | CSS stripping resolved; 4 gen prompt rules confirmed pending in ROADMAP.md; 2 spec additions proposed; 1 CDN constraint unchanged |
 
 ---
 
@@ -38,9 +39,15 @@ See [warehouse/templates/name-the-sides/ui-ux.md](../../warehouse/templates/name
 
 ---
 
-## which-ratio Audit (2026-03-23)
+## which-ratio Audit #560 (2026-03-23)
 
-See [warehouse/templates/which-ratio/ui-ux.md](../../warehouse/templates/which-ratio/ui-ux.md)
+See [games/which-ratio/ui-ux.md](../../games/which-ratio/ui-ux.md) — Build #560 section
+
+## which-ratio Audit #561 (2026-03-23)
+
+See [games/which-ratio/ui-ux.md](../../games/which-ratio/ui-ux.md) — Build #561 section (latest)
+
+**CSS stripping resolved.** 7 remaining issues: 4 gen prompt rules (all already in ROADMAP.md R&D backlog), 2 spec additions, 1 CDN constraint. No re-queue needed.
 
 ---
 

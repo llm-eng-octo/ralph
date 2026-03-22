@@ -30,7 +30,7 @@ Spawn a sub-agent to:
 1. SSH to server: ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206
 2. Get current running build + queue depth from DB
 3. Get recent approvals/failures (last 3 each)
-4. Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md — extract active R&D task, active Education task
+4. Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md — for each slot section, extract the "Current task" and "Waiting on" fields from the Active slot state table. If the table is absent, fall back to the first **active** row in the slot's task table.
 5. Read /Users/the-hw-app/Projects/mathai/ralph/docs/ui-ux/audit-log.md — extract active UI/UX audit target
 6. Read latest rca.md for any game diagnosed this session — check games/<game>/rca.md first (primary; symlinked from warehouse/templates/<game>/rca.md), fall back to docs/spec_rca/<game>.md for very old games not yet migrated to games/ — extract local test verdict
 7. Post to Slack with format:
@@ -38,10 +38,13 @@ Spawn a sub-agent to:
    - Queue: N builds
    - ✅ Approved since last update: [list]
    - ❌ Failed: [list with 1-line reason]
-   - 🔬 R&D: [current task + status]
-   - 🧪 Test quality: [diagnosis target if any + category being improved + latest finding]
-   - 🎓 Education: [current task + status]
-   - 🎨 UI/UX: [current audit target + status]
+   - 🔬 Gen Quality: [current active task — 1 line] | Waiting: [what result/build/decision it needs next, or "nothing — unblocked"]
+   - 🧪 Test Engineering: [current active task — 1 line] | Waiting: [what it needs, or "nothing — unblocked"]
+   - ✅ Local Verification: [last fix verified, or "N/A — no fixes deployed this session"]
+   - 🔍 Code Review: [last file reviewed this session, or "none this session"]
+   - 🎓 Education: [current active task — 1 line] | Waiting: [what it needs, or "nothing — unblocked"]
+   - 🎨 UI/UX: [current audit target — 1 line] | Waiting: [what it needs, or "nothing — unblocked"]
+   - 📊 Analytics: [last ANALYTICS UPDATE summary — 1 line, or "not yet run this session"]
    - 🚢 Shipped: [improvements since last update]
    - 🚨 Needs attention: [any flag or "none"]
 Tag @U0242GULG48
@@ -120,7 +123,8 @@ IDLE DETECTION — check each slot:
    ACTION: Spawn sub-agent — use last Analytics output lowest-category finding if available; otherwise SSH to server, query DB for lowest category pass rate, begin Phase B improvement (draft CT rule, implement in lib/prompts.js, run tests, deploy).
 
 3. Education slot: Read /Users/the-hw-app/Projects/mathai/ralph/docs/education/trig-session.md and ROADMAP.md Education section.
-   IDLE if: next unbuilt game has no active build queued AND no spec work in progress.
+   IDLE if: no spec review, session planning, pedagogical audit, interaction pattern work, or curriculum alignment work has been done in the last 30 min. A running build does NOT make this slot active — the slot must be doing actual Education work, not build-watching.
+   ALWAYS-AVAILABLE: real-world-problem spec review, Session 2 area identification, soh-cah-toa-worked-example pedagogy audit, interaction-patterns.md L3/L4 gaps, Session Planner architecture design.
    ACTION: Spawn sub-agent — advance education slot (draft/review spec for next game, or document findings from last approved game, or audit interaction-patterns.md for gaps).
 
 4. UI/UX slot: Read /Users/the-hw-app/Projects/mathai/ralph/docs/ui-ux/audit-log.md (or games/<game>/ui-ux.md).

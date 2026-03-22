@@ -1,131 +1,145 @@
 # UI/UX Audit — which-ratio
 
-**Build:** #560
+**Build:** #561 (latest approved)
 **Date:** 2026-03-23
-**URL:** https://storage.googleapis.com/mathai-temp-assets/games/which-ratio/builds/560/index.html
-**Method:** Code-level audit (HTML + JS analysis; CSS was stripped — see Issue 1)
+**URL:** https://storage.googleapis.com/mathai-temp-assets/games/which-ratio/builds/561/index.html
+**Method:** Full HTML + CSS + JS static analysis (CSS present in #561 — prior stripped-CSS issue resolved)
+**Prior audit:** Build #560 (2026-03-23) — 8 issues including CRITICAL CSS stripping. All #560 issues re-checked below.
 
 ---
 
-## Issue 1 — CRITICAL: Entire CSS stylesheet was stripped (a) Gen prompt rule
+## Status vs Build #560
 
-**Observation:** The `<style>` block contains only a placeholder comment:
-```html
-<style>
-/* [CSS stripped — 100 chars, not relevant to JS fix] */
-</style>
-```
-All game-specific styles (layout, colours, button sizing, feedback states, worked-example card, SVG container) were removed. No inline `style=` attributes exist. No external CSS `<link>` is present.
-
-**Impact:** The game renders with zero custom styling. `#triangle-diagram`, `#question-panel`, `#option-buttons`, `.option-btn`, `.correct`, `.incorrect`, `.visible` toggle on `#correct-feedback` and `#worked-example-panel` — all rely on CSS classes that have no definitions. The game is visually broken: buttons have no sizing, layout has no structure, the worked-example panel has no appearance or visibility state.
-
-**Root cause:** A previous pipeline fix (Lesson 91/92 smoke-regen dead code) stripped the CSS as part of a surgical JS-only re-generation. The CSS was labelled "not relevant to JS fix" and removed, but it was never restored.
-
-**Classification:** (a) Gen prompt rule — the LLM must never strip the `<style>` block during a targeted fix. Also (c) CDN constraint / T1 check — validate-static.js should flag a `<style>` block containing only a comment with no actual rules.
-
-**Proposed gen prompt rule:**
-```
-NEVER remove or replace the <style> block during a targeted fix. If the fix is JS-only, preserve the entire CSS verbatim. A <style> block containing only comments (no actual rules) is always a bug — do not generate or accept one.
-```
-
-**Proposed T1 check addition (validate-static.js):**
-Detect `<style>` blocks whose text content (after stripping comments) is empty or fewer than 20 characters of actual CSS rules. Emit a `CRITICAL` static validation error.
+| #560 Issue | #561 Status |
+|------------|-------------|
+| CRITICAL: CSS stylesheet stripped | **FIXED** — full `<style>` block present (291 lines) |
+| Option buttons no explicit 44px touch target | **Still present** — `padding: 12px 20px`, no `min-height` |
+| No ARIA live regions on feedback elements | **Still present** — no `aria-live` on `#correct-feedback` / `#skip-note` |
+| SVG no fallback width/height + tiny labels | **Partially fixed** — CSS sets `#triangle-diagram svg { width: 100%; height: auto }` via container; labels still `font-size="5"` |
+| Correct feedback 1200ms auto-dismiss | **Still present** |
+| Skip note duration inconsistent (1500ms/2000ms) | **Still present** |
+| No live score display | **Still present** (CDN constraint — not fixable) |
+| Muted SVG lines #94a3b8 below WCAG AA | **Still present** — `const mutedColor = '#94a3b8'` hardcoded in JS |
 
 ---
 
-## Issue 2 — No min-height/min-width on option buttons (a) Gen prompt rule
+## Issue 1 — Option buttons lack explicit min-height: 44px (a) Gen prompt rule
 
-**Observation:** Option buttons are created dynamically as `<button class="option-btn">`. Since the CSS is stripped we cannot verify the computed size, but even reviewing the game template, there is no explicit `min-height: 44px` or `padding` value visible in the source. The only sizing comes from whatever CSS was stripped.
+**Observation:** `.option-btn` CSS defines `padding: 12px 20px` and `font-size: 1rem`. There is no `min-height` or `min-width` declaration. At 1rem ≈ 16px, line-height ≈ 1.5, plus 24px padding = ~48px total — borderline on desktop. However: on small screens or when font-size is scaled down by browser, the computed height can drop below 44px. More critically, the `we-btn` class (Got it / Skip buttons) defines only `padding: 10px 20px` at `font-size: 1rem` — total height ≈ 44px, with zero margin. Any browser font-size reduction pushes these below minimum.
 
-**Impact:** On mobile (480px), tap targets below 44px violate iOS/Android HIG minimums and cause miss-taps.
+**Impact:** Tap targets below 44px violate iOS HIG and Android Material Design minimums. Miss-taps on mobile cause accidental option selections.
 
-**Classification:** (a) Gen prompt rule — even if CSS is present, buttons should have explicit minimum touch target sizing.
+**Classification:** (a) Gen prompt rule
 
-**Proposed gen prompt rule:**
+**Proposed rule (already in ROADMAP.md R&D backlog — confirm not yet implemented):**
 ```
 All interactive buttons (option-btn, we-btn, any clickable element) MUST have min-height: 44px and min-width: 44px. Tap target sizing must be explicit in the CSS, not inherited or implicit.
 ```
 
 ---
 
-## Issue 3 — No ARIA live regions for feedback announcements (a) Gen prompt rule
+## Issue 2 — No ARIA live regions on dynamic feedback elements (a) Gen prompt rule
 
-**Observation:** The `#correct-feedback` div and `#skip-note` div are shown/hidden via classList toggling `visible`. Neither has `aria-live="polite"` or `role="alert"`. Screen readers will not announce "Correct! sin θ is the right ratio." or the skip feedback text.
+**Observation:** `#correct-feedback` and `#skip-note` are toggled via `classList.add('visible')` / `classList.remove('visible')`. Neither element has `aria-live="polite"` or `role="alert"`. Screen readers will not announce "Correct! sin θ is the right ratio." when it appears.
 
-**Impact:** The game is inaccessible to screen reader users. Correct/incorrect state changes are invisible to assistive technology.
-
-**Classification:** (a) Gen prompt rule.
-
-**Proposed gen prompt rule:**
-```
-Feedback elements that appear dynamically (correct/incorrect messages, skip notes, score updates) MUST have aria-live="polite" (or role="alert" for immediate errors). Example: <div id="correct-feedback" aria-live="polite" ...>. This applies to any element whose content changes or visibility toggles after user interaction.
+**HTML (line 321–323):**
+```html
+<div id="correct-feedback" data-testid="correct-feedback">Correct!</div>
+<div id="skip-note" data-testid="game-skip-note">Skipping round.</div>
 ```
 
----
+**Impact:** Inaccessible to screen reader users. Correct/incorrect state changes are invisible to assistive technology.
 
-## Issue 4 — SVG triangle labels use SVG font-size="5" (unitless, tiny) (a) Gen prompt rule
+**Classification:** (a) Gen prompt rule
 
-**Observation:** All SVG text labels (A, O, H, θ) use `font-size="5"` as a raw SVG attribute in a 100×60 viewBox. While SVG units scale with the viewBox, a font-size of 5 in a 100-unit-wide canvas renders the labels very small — approximately 5% of the viewBox width. On a 300px rendered canvas that is 15px, but the labels sit at the edge of the triangle and may be clipped or hard to read on small screens.
-
-**Additional concern:** The SVG has no explicit `width`/`height` attributes — it relies purely on the container to size it. Without CSS to define the container dimensions (Issue 1), the SVG may collapse to zero or render at intrinsic size.
-
-**Classification:** (a) Gen prompt rule — SVG diagrams should have explicit `width` and `height` attributes as a fallback, and labels should use relative font-size values.
-
-**Proposed gen prompt rule:**
+**Proposed rule (already in ROADMAP.md R&D backlog — confirm not yet implemented):**
 ```
-SVG elements used as diagrams MUST have explicit width and height attributes (e.g., width="100%" height="auto" or fixed pixel values) as a fallback for when CSS is unavailable. SVG text labels should use font-size values that are at least 8% of the viewBox height to remain legible at small canvas sizes.
+Feedback elements that appear dynamically (correct/incorrect messages, skip notes, score updates) MUST have aria-live="polite" (or role="alert" for immediate errors). Example: <div id="correct-feedback" aria-live="polite" ...>
 ```
 
 ---
 
-## Issue 5 — Correct feedback auto-dismisses in 1200ms with no visual persistence option (b) Spec addition
+## Issue 3 — SVG text labels use font-size="5" (unitless raw SVG) (a) Gen prompt rule
 
-**Observation:** On correct answer, the feedback `"Correct! sin θ is the right ratio."` is shown for exactly 1200ms then removed, and the next round begins automatically. There is no way for the learner to linger on the correct answer.
+**Observation:** All four SVG labels (A, O, H, θ) use `font-size="5"` as a raw attribute in a `viewBox="0 0 100 60"`. This renders at 5/100 = 5% of viewBox width. On a 300px canvas, labels are 15px — readable. On a 200px canvas (common on 320px screens with margin), labels are 10px — below legibility threshold.
 
-**Impact:** For slower readers or learners who want to confirm their understanding, 1200ms may be insufficient. This is a pedagogical concern — "correct" should feel rewarding, not rushed.
+**Additional concern:** The SVG element itself has no `width`/`height` attributes — it relies entirely on `#triangle-diagram svg { width: 100%; height: auto }` in CSS. The CSS is now present, so this is not a critical failure, but is fragile: any future CSS-stripping incident would collapse the SVG.
 
-**Classification:** (b) Spec addition — the game spec should specify minimum feedback display duration and whether the learner can control progression.
+**Classification:** (a) Gen prompt rule
 
-**Spec addition proposed:** Add to the which-ratio spec: "Correct feedback must display for a minimum of 1500ms. Consider whether auto-advance vs. learner-controlled advance is appropriate for this game type."
-
----
-
-## Issue 6 — Skip note uses two different timers (1500ms vs 2000ms) depending on code path (b) Spec addition
-
-**Observation:** When the worked-example "Skip" button is clicked, the skip note auto-dismisses after 1500ms (`handleWorkedExampleSkip`). When a second incorrect attempt is made directly (no worked example shown), the skip note auto-dismisses after 2000ms (`handleOptionClick` else-branch). These are inconsistent for the same user experience (round skipped → skip note shown).
-
-**Impact:** Minor inconsistency but creates a jarring experience if a learner notices the different "feel" between the two paths.
-
-**Classification:** (b) Spec addition — spec should define a single canonical skip-feedback duration.
-
-**Spec addition proposed:** Add to the which-ratio spec: "Skip feedback duration must be consistent across all skip paths (worked-example skip and second-attempt skip). Use a single constant, minimum 1500ms."
-
----
-
-## Issue 7 — No score or stars shown during gameplay (c) CDN constraint
-
-**Observation:** The `gameState.score` and `gameState.totalFirstAttemptCorrect` (stars) are tracked in state but never displayed in the game UI during play. The CDN `ProgressBarComponent` is configured with `totalLives: 0` and does not expose score. Stars are only revealed on the `TransitionScreenComponent` victory screen at the end.
-
-**Impact:** Learners have no mid-game feedback on their performance. This reduces motivation and makes it hard to know if you are doing well.
-
-**Classification:** (c) CDN constraint — the CDN ProgressBarComponent does not currently support live score display during play. This is a limitation of the component API, not something fixable via gen prompt.
-
-**Note for future CDN update:** If ProgressBarComponent ever exposes a `score` prop, add a gen prompt rule to always pass the live score.
-
----
-
-## Issue 8 — No visual distinction between muted and highlighted triangle sides' stroke colors (a) Gen prompt rule
-
-**Observation:** The SVG uses `#94a3b8` (slate-400) for muted sides and `#f97316` (orange-500) for highlighted sides. The right-angle symbol and angle arc are hardcoded `stroke="black"` and do not participate in the highlighting system. The SVG lines themselves use `stroke-width="1"` for sides and `stroke-width="0.5"` for decorative elements — these are SVG units, not pixels.
-
-**Impact:** On a small rendered canvas (e.g., 200px wide), a 1-unit stroke in a 100-unit viewBox = 2px. This is borderline legible. The highlighted sides at orange are visually clear, but muted sides at `#94a3b8` on a white background have a contrast ratio of approximately 2.7:1, below the WCAG AA minimum of 3:1 for non-text graphical elements.
-
-**Classification:** (a) Gen prompt rule — SVG decorative/structural lines in diagrams should use sufficient contrast for muted states.
-
-**Proposed gen prompt rule:**
+**Proposed rule (already in ROADMAP.md R&D backlog as SVG constraint):**
 ```
-SVG diagram lines used to convey information (triangle sides, graph axes, bar outlines) must use a muted stroke color with contrast ratio ≥ 3:1 against the background. #94a3b8 on white fails this threshold. Use #64748b (slate-500) or darker for muted diagram elements.
+SVG elements used as diagrams MUST have explicit width and height attributes (e.g., width="100%" height="auto") as a fallback. SVG text labels should use font-size values that are at least 8% of the viewBox height.
 ```
+
+---
+
+## Issue 4 — Muted SVG lines use #94a3b8 — contrast ratio ~2.7:1 (a) Gen prompt rule
+
+**Observation:** `renderTriangle()` hardcodes `const mutedColor = '#94a3b8'` (slate-400). Against white background (`--page-bg: #f8fafc`, effectively white), contrast ratio is approximately 2.7:1 — below the WCAG AA minimum of 3:1 for non-text graphical elements.
+
+**Classification:** (a) Gen prompt rule
+
+**Proposed rule (already in ROADMAP.md R&D backlog):**
+```
+SVG diagram lines that convey information (triangle sides, graph axes, bar outlines) must use a muted stroke color with contrast ratio >= 3:1 against the background. #94a3b8 on white fails this. Use #64748b (slate-500) or darker.
+```
+
+---
+
+## Issue 5 — Correct feedback auto-dismisses in 1200ms — no learner control (b) Spec addition
+
+**Observation:** `setTimeout(() => { feedbackEl.classList.remove('visible'); nextRound(); }, 1200)` — 1200ms is below the recommended minimum of 1500ms for feedback a learner may wish to read.
+
+**Classification:** (b) Spec addition
+
+**Proposed spec addition:** "Correct feedback must display for at least 1500ms. The game should not auto-advance in under 1500ms."
+
+---
+
+## Issue 6 — Skip note duration inconsistent across two code paths (b) Spec addition
+
+**Observation:**
+- `handleWorkedExampleSkip()` → `setTimeout(..., 1500)` (line 707)
+- `handleOptionClick()` second-incorrect branch → `setTimeout(..., 2000)` (line 680)
+
+Both paths display the skip note and advance to the next round. The durations differ by 500ms — perceptible inconsistency.
+
+**Classification:** (b) Spec addition
+
+**Proposed spec addition:** "Skip feedback duration must be consistent across all skip paths. Use a single constant; minimum 1500ms."
+
+---
+
+## Issue 7 — No live score display during gameplay (c) CDN constraint
+
+**Observation:** `ProgressBarComponent` is configured with `totalLives: 0`. Score is tracked in `gameState.score` but never displayed mid-game. Score and stars are only revealed at the end via `TransitionScreenComponent`.
+
+**Classification:** (c) CDN constraint — ProgressBarComponent API does not expose a live score prop. Not fixable via gen prompt.
+
+---
+
+## NOT an issue — Results screen (CDN TransitionScreenComponent is fixed overlay)
+
+**Observation from prior audit template:** The results screen concern from name-the-sides (position:static) does NOT apply here. `which-ratio` uses `TransitionScreenComponent` with `autoInject: true`, which renders as a full-screen fixed overlay via CDN implementation. This is the correct pattern. No issue.
+
+---
+
+## NOT an issue — progressBar.update() arguments
+
+**Observation:** `progressBar.update(gameState.currentRound, gameState.totalRounds)` — `currentRound` starts at 1 (after `nextRound()` increments it) and maxes at `totalRounds`. No negative values possible in the normal flow path.
+
+---
+
+## NOT an issue — Mobile layout at 480px
+
+**Observation:** `@media (max-width: 600px)` switches `#option-buttons` to `grid-template-columns: 1fr` (single column) and reduces `#triangle-diagram max-width` to 250px. At 480px this breakpoint is active. Layout stacks vertically without horizontal scroll. The `overflow: hidden` on `html, body` prevents scroll. No issue.
+
+---
+
+## NOT an issue — CSS stylesheet present
+
+**Build #561 has full CSS** (291 lines of real rules). The CRITICAL issue from build #560 is resolved. T1 check PART-028 (detect comment-only `<style>` blocks) would correctly pass this build.
 
 ---
 
@@ -133,39 +147,33 @@ SVG diagram lines used to convey information (triangle sides, graph axes, bar ou
 
 | # | Issue | Severity | Classification |
 |---|-------|----------|---------------|
-| 1 | Entire CSS stylesheet stripped — game visually broken | CRITICAL | (a) Gen prompt rule + T1 check |
-| 2 | Option buttons have no explicit min touch target (44px) | High | (a) Gen prompt rule |
-| 3 | No ARIA live regions on feedback elements | High | (a) Gen prompt rule |
-| 4 | SVG has no fallback width/height attributes; labels may be tiny | Medium | (a) Gen prompt rule |
-| 5 | Correct feedback auto-dismisses in 1200ms — no learner control | Medium | (b) Spec addition |
-| 6 | Skip note duration inconsistent across two code paths | Low | (b) Spec addition |
+| 1 | Option buttons lack explicit min-height: 44px | High | (a) Gen prompt rule |
+| 2 | No ARIA live regions on dynamic feedback elements | High | (a) Gen prompt rule |
+| 3 | SVG labels use font-size="5" — may be too small at 200px canvas | Medium | (a) Gen prompt rule |
+| 4 | Muted SVG lines #94a3b8 — contrast ratio ~2.7:1, below WCAG AA 3:1 | Medium | (a) Gen prompt rule |
+| 5 | Correct feedback auto-dismisses in 1200ms — below 1500ms minimum | Low | (b) Spec addition |
+| 6 | Skip note duration inconsistent: 1500ms vs 2000ms across two paths | Low | (b) Spec addition |
 | 7 | No live score/stars display during gameplay | Low | (c) CDN constraint |
-| 8 | Muted SVG lines use #94a3b8 — contrast ratio ~2.7:1, below WCAG AA | Medium | (a) Gen prompt rule |
 
-**Total: 8 issues** — 4 gen prompt rules, 2 spec additions, 2 CDN constraints/T1 checks
+**Total: 7 issues** — 4 gen prompt rules (Issues 1–4), 2 spec additions (Issues 5–6), 1 CDN constraint (Issue 7)
+
+**Issues resolved from #560:** 1 (CRITICAL CSS stripping fixed)
+
+**All 4 gen prompt rules are already in ROADMAP.md R&D backlog** — added during which-ratio #560 and name-the-sides #557 audits. Status: pending implementation in lib/prompts.js.
 
 ---
 
-## Gen Prompt Rules Proposed via this Audit
+## Cross-Slot Handoffs
 
-These are proposed additions to CDN_CONSTRAINTS_BLOCK in lib/prompts.js — not yet applied, pending review:
+### → R&D (gen prompt rules — pending in ROADMAP.md)
+- Issue 1: min-height 44px on all buttons — ROADMAP entry exists, pending
+- Issue 2: ARIA live regions on feedback elements — ROADMAP entry exists, pending
+- Issue 3: SVG fallback dimensions + label font-size — ROADMAP entry exists, pending
+- Issue 4: SVG muted line contrast (#94a3b8 → #64748b) — ROADMAP entry exists, pending
 
-### Rule A: Never strip the CSS stylesheet
-```
-NEVER remove or replace the <style> block during a targeted fix. If the fix is JS-only, preserve the entire CSS verbatim. A <style> block containing only comments (no actual rules) is always a bug — do not generate or accept one.
-```
+### → Education (spec additions)
+- Issue 5: Correct feedback minimum duration (1500ms) — add to which-ratio spec
+- Issue 6: Skip note duration consistency — add to which-ratio spec
 
-### Rule B: Explicit touch target sizing on all buttons
-```
-All interactive buttons (option-btn, we-btn, any clickable element) MUST have min-height: 44px and min-width: 44px. Tap target sizing must be explicit in the CSS, not inherited or implicit.
-```
-
-### Rule C: ARIA live regions on dynamic feedback elements
-```
-Feedback elements that appear dynamically (correct/incorrect messages, skip notes, score updates) MUST have aria-live="polite" (or role="alert" for immediate errors). Example: <div id="correct-feedback" aria-live="polite" ...>. This applies to any element whose content changes or visibility toggles after user interaction.
-```
-
-### Rule D: SVG diagram contrast and fallback dimensions
-```
-SVG elements used as diagrams MUST have explicit width and height attributes as a fallback. SVG text labels should use font-size values that are at least 8% of the viewBox height. Muted diagram lines must use #64748b or darker (contrast ≥ 3:1 against white) — do NOT use #94a3b8 for muted diagram strokes.
-```
+### → Build queue
+No visual bugs requiring re-queue. Build #561 is structurally sound. Gen prompt rules above are the correct fix path for the remaining issues.
