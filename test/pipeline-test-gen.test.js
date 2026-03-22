@@ -175,12 +175,24 @@ describe('lintGeneratedTests — TRANSITION_SLOT: #mathai-transition-slot button
 });
 
 describe('lintGeneratedTests — RULE-DUP: duplicate data-testid across categories', () => {
-  it('flags duplicate data-testid values across two categories', () => {
+  it('does NOT flag duplicate data-testid values across only two categories (legitimate cross-reference)', () => {
     const mechanics = `  await page.locator('[data-testid="answer-btn"]').click();`;
     const contract = `  const btn = page.locator('[data-testid="answer-btn"]');`;
     const { violations } = lintGeneratedTests({ mechanics, contract }, silentLog);
     const dups = violations.filter((v) => v.rule === 'RULE-DUP');
-    assert.equal(dups.length, 1, 'Should flag one RULE-DUP violation for duplicate testid');
+    assert.equal(dups.length, 0, 'Two categories sharing a testid is a legitimate cross-reference — should not flag');
+  });
+
+  it('flags duplicate data-testid values appearing in 3+ categories (invented generic testid)', () => {
+    const mechanicsContent = `  await page.locator('[data-testid="answer-btn"]').click();`;
+    const contractContent = `  const btn = page.locator('[data-testid="answer-btn"]');`;
+    const gameFlowContent = `  await page.locator('[data-testid="answer-btn"]').isVisible();`;
+    const { violations } = lintGeneratedTests(
+      { mechanics: mechanicsContent, contract: contractContent, 'game-flow': gameFlowContent },
+      silentLog,
+    );
+    const dups = violations.filter((v) => v.rule === 'RULE-DUP');
+    assert.ok(dups.length > 0, 'Should flag RULE-DUP when same testid appears in 3+ category files');
   });
 
   it('does not flag unique data-testid values', () => {
