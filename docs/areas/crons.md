@@ -30,13 +30,17 @@ Spawn a sub-agent to:
 1. SSH to server: ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206
 2. Get current running build + queue depth from DB
 3. Get recent approvals/failures (last 3 each)
-4. Post to Slack with format:
+4. Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md — extract active R&D task, active Education task
+5. Read /Users/the-hw-app/Projects/mathai/ralph/docs/ui-ux/audit-log.md — extract active UI/UX audit target
+6. Read latest spec_rca file for any game diagnosed this session — extract local test verdict
+7. Post to Slack with format:
    - Running: Build #X (game) at step Y — Value if completes: <what we learn/gain>. Not killed because: <kill criteria not met>
    - Queue: N builds
    - ✅ Approved since last update: [list]
    - ❌ Failed: [list with 1-line reason]
    - 🔬 R&D: [current task + status]
-   - 🎓 Education slot: [current task + status]
+   - 🔍 Local test: [current diagnosis target + HTML-bug or test-bug verdict if known]
+   - 🎓 Education: [current task + status]
    - 🎨 UI/UX: [current audit target + status]
    - 🚢 Shipped: [improvements since last update]
    - 🚨 Needs attention: [any flag or "none"]
