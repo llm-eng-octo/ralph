@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests for lib/pipeline-fix-loop.js helper functions
 //
-// Covers: isCdnTimingFailure, tokenOverlap, CDN_TIMING_HINT
+// Covers: isCdnTimingFailure, tokenOverlap, CDN_TIMING_HINT, detectCdnTimingStall
 // No LLM calls, no filesystem access — pure unit tests.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -21,6 +21,7 @@ const {
   LESSON_PATTERNS,
   verifyE8MergeIntegrity,
   shouldSuppressGlobalFix,
+  detectCdnTimingStall,
 } = require('../lib/pipeline-fix-loop');
 
 // ─── Sample HTML fixtures ────────────────────────────────────────────────────
@@ -517,5 +518,142 @@ describe('shouldSuppressGlobalFix', () => {
     assert.equal(result.suppress, false);
     assert.equal(result.passingCategories, 0);
     assert.equal(result.totalCategories, 2);
+  });
+});
+
+// ─── detectCdnTimingStall tests ──────────────────────────────────────────────
+
+// Shared CDN timing failure objects used across tests
+const CDN_STALL_FAILURE_A = {
+  testName: '[game-flow.spec.js] game loads start screen',
+  error: 'locator.click: Timeout 30000ms exceeded',
+  errorMessage: 'start button never appears — locator.click: Timeout 30000ms exceeded',
+};
+const CDN_STALL_FAILURE_B = {
+  testName: '[game-flow.spec.js] game initializes correctly',
+  error: 'TimeoutError: waiting for element to be visible',
+  errorMessage: 'start button never appears — TimeoutError: waiting for element to become visible',
+};
+const NON_CDN_FAILURE = {
+  testName: '[scoring.spec.js] calcStars returns correct stars',
+  error: 'Expected 2 received 0',
+  errorMessage: 'calcStars returned 0 instead of 2 for game_over outcome',
+};
+
+describe('detectCdnTimingStall', () => {
+  it('returns false when failures array is empty', () => {
+    assert.equal(detectCdnTimingStall([], [CDN_STALL_FAILURE_A, CDN_STALL_FAILURE_B]), false);
+  });
+
+  it('returns false when failures has only 1 item (could be coincidence)', () => {
+    assert.equal(detectCdnTimingStall([CDN_STALL_FAILURE_A], [CDN_STALL_FAILURE_A]), false);
+  });
+
+  it('returns false when prevFailures is null (first iteration — no prior data)', () => {
+    assert.equal(detectCdnTimingStall([CDN_STALL_FAILURE_A, CDN_STALL_FAILURE_B], null), false);
+  });
+
+  it('returns false when prevFailures is empty array (no prior data)', () => {
+    assert.equal(detectCdnTimingStall([CDN_STALL_FAILURE_A, CDN_STALL_FAILURE_B], []), false);
+  });
+
+  it('returns true when identical CDN timing errors appear across 2 iterations (happy path)', () => {
+    const failures = [CDN_STALL_FAILURE_A, CDN_STALL_FAILURE_B];
+    const prevFailures = [CDN_STALL_FAILURE_A, CDN_STALL_FAILURE_B];
+    assert.equal(detectCdnTimingStall(failures, prevFailures), true);
+  });
+
+  it('returns true for "packages failed to load" pattern across iterations', () => {
+    const failures = [
+      { error: 'Packages failed to load within 120s', errorMessage: 'CDN packages failed to load — timeout exceeded' },
+      { error: 'Packages failed to load within 120s', errorMessage: 'CDN packages failed to load — timeout exceeded' },
+    ];
+    const prevFailures = [
+      { error: 'Packages failed to load within 120s', errorMessage: 'CDN packages failed to load — timeout exceeded' },
+      { error: 'Packages failed to load within 120s', errorMessage: 'CDN packages failed to load — timeout exceeded' },
+    ];
+    assert.equal(detectCdnTimingStall(failures, prevFailures), true);
+  });
+
+  it('returns true for "cdn-timing-early-exit" pattern across iterations', () => {
+    const failures = [
+      { error: 'cdn-timing-early-exit', errorMessage: 'CDN slot cdn-timing-early-exit mathai-slot never appeared' },
+      { error: 'cdn-timing-early-exit', errorMessage: 'CDN slot cdn-timing-early-exit mathai-slot never appeared' },
+    ];
+    const prevFailures = [
+      { error: 'cdn-timing-early-exit', errorMessage: 'CDN slot cdn-timing-early-exit mathai-slot never appeared' },
+      { error: 'cdn-timing-early-exit', errorMessage: 'CDN slot cdn-timing-early-exit mathai-slot never appeared' },
+    ];
+    assert.equal(detectCdnTimingStall(failures, prevFailures), true);
+  });
+
+  it('returns true for "waitForPackages timeout" pattern across iterations', () => {
+    const failures = [
+      { error: 'waitForPackages timeout exceeded', errorMessage: 'waitForPackages timeout: CDN took too long' },
+      { error: 'waitForPackages timeout exceeded', errorMessage: 'waitForPackages timeout: CDN took too long' },
+    ];
+    const prevFailures = [
+      { error: 'waitForPackages timeout exceeded', errorMessage: 'waitForPackages timeout: CDN took too long' },
+      { error: 'waitForPackages timeout exceeded', errorMessage: 'waitForPackages timeout: CDN took too long' },
+    ];
+    assert.equal(detectCdnTimingStall(failures, prevFailures), true);
+  });
+
+  it('returns false when current errors are NOT CDN timing patterns (HTML bug being fixed)', () => {
+    const failures = [NON_CDN_FAILURE, { ...NON_CDN_FAILURE, testName: '[scoring.spec.js] test 2', errorMessage: 'lives counter decremented wrong value' }];
+    const prevFailures = [CDN_STALL_FAILURE_A, CDN_STALL_FAILURE_B];
+    assert.equal(detectCdnTimingStall(failures, prevFailures), false);
+  });
+
+  it('returns false when errors differ across iterations (HTML bug being fixed — fixes are working)', () => {
+    // Different errors suggest the fix loop IS making progress — do not break early
+    const failures = [
+      CDN_STALL_FAILURE_A,
+      { testName: '[game-flow.spec.js] round 2', error: 'stars calculation wrong', errorMessage: 'calcStars returned 1 expected 2' },
+    ];
+    const prevFailures = [
+      CDN_STALL_FAILURE_A,
+      CDN_STALL_FAILURE_B,
+    ];
+    // One failure matches CDN pattern but the other is a scoring error — allMatchTiming = false
+    assert.equal(detectCdnTimingStall(failures, prevFailures), false);
+  });
+
+  it('returns false when CDN errors match pattern but previous iteration had different errors (no stall — iter 1 was different)', () => {
+    const failures = [CDN_STALL_FAILURE_A, CDN_STALL_FAILURE_B];
+    const prevFailures = [
+      { error: 'stars calculation wrong', errorMessage: 'calcStars returned 0 expected 2 — completely different error' },
+      { error: 'lives counter banana purple elephant unrelated', errorMessage: 'unrelated failure not matching CDN' },
+    ];
+    // CDN patterns match current, but token similarity vs prev is too low
+    assert.equal(detectCdnTimingStall(failures, prevFailures), false);
+  });
+
+  it('returns true for near-identical CDN errors (slight wording variation still >75% similar)', () => {
+    const failures = [
+      { error: 'locator.click: Timeout 30000ms exceeded waiting for start button', errorMessage: 'start button never appears — locator.click: Timeout 30000ms exceeded waiting for element to be visible' },
+      { error: 'TimeoutError: waiting for start button to be visible', errorMessage: 'start button never appears — TimeoutError: waiting for element to become visible timeout 30000ms' },
+    ];
+    const prevFailures = [
+      { error: 'locator.click: Timeout 30000ms exceeded waiting for start button', errorMessage: 'start button never appears — locator.click: Timeout 30000ms exceeded waiting for element to be visible' },
+      { error: 'TimeoutError: waiting for start button to be visible', errorMessage: 'start button never appears — TimeoutError: waiting for element to become visible timeout 30000ms' },
+    ];
+    assert.equal(detectCdnTimingStall(failures, prevFailures), true);
+  });
+
+  it('works with failure objects that only have testName (no error/errorMessage fields)', () => {
+    const failures = [
+      { testName: 'start button never appears Timeout 30000ms exceeded' },
+      { testName: 'game loads start screen Timeout 30000ms exceeded waiting for element' },
+    ];
+    const prevFailures = [
+      { testName: 'start button never appears Timeout 30000ms exceeded' },
+      { testName: 'game loads start screen Timeout 30000ms exceeded waiting for element' },
+    ];
+    assert.equal(detectCdnTimingStall(failures, prevFailures), true);
+  });
+
+  it('returns false for undefined failures input', () => {
+    assert.equal(detectCdnTimingStall(undefined, [CDN_STALL_FAILURE_A, CDN_STALL_FAILURE_B]), false);
   });
 });
