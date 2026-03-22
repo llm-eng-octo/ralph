@@ -19,6 +19,7 @@ const {
   isInitFailure,
   getMatchingLessons,
   LESSON_PATTERNS,
+  verifyE8MergeIntegrity,
 } = require('../lib/pipeline-fix-loop');
 
 // ─── Sample HTML fixtures ────────────────────────────────────────────────────
@@ -310,5 +311,116 @@ describe('getMatchingLessons', () => {
   it('LESSON_PATTERNS is an array', () => {
     assert.ok(Array.isArray(LESSON_PATTERNS));
     assert.ok(LESSON_PATTERNS.length > 0);
+  });
+});
+
+// ─── verifyE8MergeIntegrity tests ────────────────────────────────────────────
+
+const CDN_SCRIPT_A = 'https://cdn.mathai.ai/packages/screen-layout@2.0.0/dist/index.js';
+const CDN_SCRIPT_B = 'https://cdn.mathai.ai/packages/feedback-manager@1.0.0/dist/index.js';
+
+const ORIGINAL_HTML_WITH_CDNS = `<!DOCTYPE html>
+<html>
+<head>
+  <script src="${CDN_SCRIPT_A}"></script>
+  <script src="${CDN_SCRIPT_B}"></script>
+</head>
+<body>
+<div id="gameContent"></div>
+<script>
+function startGame() {}
+window.gameState = {};
+</script>
+</body>
+</html>`;
+
+describe('verifyE8MergeIntegrity', () => {
+  it('returns valid when merged HTML has the same CDN scripts', () => {
+    // Merged HTML retains both CDN src tags and has a new script block
+    const mergedHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <script src="${CDN_SCRIPT_A}"></script>
+  <script src="${CDN_SCRIPT_B}"></script>
+</head>
+<body>
+<div id="gameContent"></div>
+<script>
+function startGame() { console.log('fixed'); }
+window.gameState = { phase: 'start' };
+</script>
+</body>
+</html>`;
+
+    const result = verifyE8MergeIntegrity(ORIGINAL_HTML_WITH_CDNS, mergedHtml);
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.missingScripts, []);
+    assert.equal(result.originalCount, 2);
+    assert.equal(result.mergedCount, 2);
+  });
+
+  it('returns invalid when merged HTML is missing one CDN script', () => {
+    // LLM dropped CDN_SCRIPT_B during the merge
+    const mergedHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <script src="${CDN_SCRIPT_A}"></script>
+</head>
+<body>
+<div id="gameContent"></div>
+<script>
+function startGame() {}
+window.gameState = {};
+</script>
+</body>
+</html>`;
+
+    const result = verifyE8MergeIntegrity(ORIGINAL_HTML_WITH_CDNS, mergedHtml);
+    assert.equal(result.valid, false);
+    assert.equal(result.missingScripts.length, 1);
+    assert.equal(result.missingScripts[0], CDN_SCRIPT_B);
+    assert.equal(result.originalCount, 2);
+    assert.equal(result.mergedCount, 1);
+  });
+
+  it('returns valid when merged HTML has extra CDN scripts beyond the original', () => {
+    const EXTRA_CDN = 'https://cdn.mathai.ai/packages/extra-lib@1.0.0/dist/index.js';
+    const mergedHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <script src="${CDN_SCRIPT_A}"></script>
+  <script src="${CDN_SCRIPT_B}"></script>
+  <script src="${EXTRA_CDN}"></script>
+</head>
+<body>
+<div id="gameContent"></div>
+<script>
+function startGame() {}
+window.gameState = {};
+</script>
+</body>
+</html>`;
+
+    const result = verifyE8MergeIntegrity(ORIGINAL_HTML_WITH_CDNS, mergedHtml);
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.missingScripts, []);
+    assert.equal(result.originalCount, 2);
+    assert.equal(result.mergedCount, 3);
+  });
+
+  it('returns invalid when mergedHtml is empty', () => {
+    const result = verifyE8MergeIntegrity(ORIGINAL_HTML_WITH_CDNS, '');
+    assert.equal(result.valid, false);
+    assert.equal(result.missingScripts.length, 2);
+    assert.equal(result.originalCount, 2);
+    assert.equal(result.mergedCount, 0);
+  });
+
+  it('returns valid when original has no CDN src scripts and merged has none', () => {
+    const result = verifyE8MergeIntegrity(PLAIN_HTML, PLAIN_HTML);
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.missingScripts, []);
+    assert.equal(result.originalCount, 0);
+    assert.equal(result.mergedCount, 0);
   });
 });
