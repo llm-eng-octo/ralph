@@ -47,6 +47,7 @@
 | Build | Symptom | Root Cause | Status |
 |-------|---------|------------|--------|
 | #558 | Step 1d smoke — "Blank page: missing #gameContent element" | JS SyntaxError in fallbackContent: closing `}` squashed inline at end of rounds array | FAILED — GEN-119 fix shipped, #559 queued |
+| #559 | APPROVED by reviewer (8/10 tests), FAILED post-approval — EACCES: permission denied on warehouse/templates/which-ratio/game/ (root-owned) | Same infra bug as name-the-sides #555: warehouse template dir root-owned, post-approval copy failed. Fix: sudo chown -R the-hw-app:the-hw-app + chmod 775 | FAILED (infra) — permissions fixed, #560 re-queued |
 
 ## Manual Run Findings
 
