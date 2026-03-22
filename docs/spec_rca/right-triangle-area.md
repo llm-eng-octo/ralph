@@ -293,14 +293,23 @@ The game's core HTML logic (canvas triangle rendering, area formula, CDN init st
 | #533 | Blank page: missing #gameContent element (Step 1d, both initial + smoke-regen) | LLM generated `const { ScreenLayout, ... } = window.mira.components` — `window.mira` doesn't exist; components are bare globals (window.ScreenLayout etc.); destructuring yields undefined everywhere; waitForPackages() spins forever; ScreenLayout.inject() never runs; #gameContent never created | NOT FIXED — T1 check for `window.mira.components` + gen prompt clarification needed before build #534 |
 | #534 | T1 fail: window.endGame missing (arrow fn regex) | T1 false positive on `const endGame = async () =>` | FAILED |
 | #536 | Step 1d: Blank page, missing #gameContent | SentryHelper in waitForPackages() hangs forever | FAILED |
-| #538 | Queued 2026-03-22 — awaiting | SentryHelper fix + all T1 rules deployed | PENDING |
+| #538 | Step 1d: ReferenceError: initSentry is not defined | LLM called initSentry() inside waitForPackages callback (correct), but never defined function initSentry() — thought it was CDN-provided. Missing function → ReferenceError → catch → ScreenLayout.inject() never runs → blank page | FAILED — layer 2 of same chain |
+| #540 | Queued 2026-03-22 — awaiting | SentryHelper + initSentry-not-defined + all T1 rules deployed (13b7d7b) | PENDING |
 
-## Root Cause (build #536)
+## Root Cause (build #536 — layer 1)
 `typeof SentryHelper === 'undefined'` in waitForPackages() causes infinite loop — SentryHelper is not a CDN global. Also had `typeof TimerComponent === 'undefined'` (TimerComponent IS real, but still caused hang when not needed). Both the original and regen HTMLs had SentryHelper, causing all smoke checks to fail.
 
-## Fix Applied (88b965d)
+## Fix Applied (88b965d — layer 1)
 - T1 §5h2: bans typeof SentryHelper in waitForPackages()
 - prompts.js: removed SentryHelper from valid CDN globals, updated RULE-SENTRY-ORDER
+
+## Root Cause (build #538 — layer 2)
+After the SentryHelper fix, build #538 generated correct waitForPackages() but called `initSentry()` without defining it. `initSentry()` is NOT a CDN function — it must be defined by the game code when spec includes PART-030 (Sentry). The gen prompt wording "initSentry() checks typeof SentryConfig internally" implied it was pre-existing, so the LLM just called it without a function body → `ReferenceError: initSentry is not defined` at runtime → catch block executes but ScreenLayout.inject() never runs → blank page.
+
+## Fix Applied (13b7d7b — layer 2)
+- T1 §5f0: ERROR if initSentry() is called but function initSentry() is not defined
+- prompts.js RULE-SENTRY-ORDER: added canonical function body template + explicitly says "NOT A CDN FUNCTION"
+- prompts.js CDN INIT ORDER: comment now says "ONLY if PART-030=YES — MUST define it yourself"
 
 ## Manual Run Findings
 
