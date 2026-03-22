@@ -1433,3 +1433,30 @@ describe('waitForPackages() wrong CDN check pattern (5fa)', () => {
     );
   });
 });
+
+describe('FeedbackManager.init() forbidden check (5b2 GEN-113)', () => {
+  it('fails when FeedbackManager.init({}) is called — produces PART-011-INIT error', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); FeedbackManager.init({ popupProps: { title: "Test" } });',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.strictEqual(exitCode, 1, `Expected exit code 1 but got ${exitCode}. Output: ${output}`);
+    assert.ok(
+      output.includes('PART-011-INIT'),
+      `Expected PART-011-INIT error in output: ${output}`,
+    );
+  });
+
+  it('passes when FeedbackManager.playDynamicFeedback is used without init() call', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); FeedbackManager.playDynamicFeedback({ event: 'success' }).catch(e => console.error(e.message));",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('PART-011-INIT'),
+      `Unexpected PART-011-INIT error when no init() is called: ${output}`,
+    );
+  });
+});
