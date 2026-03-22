@@ -695,6 +695,34 @@ describe('validate-static.js', () => {
     assert.ok(!output.includes('TimerComponent') || !output.includes('ERROR'), `Unexpected TimerComponent error: ${output}`);
   });
 
+  it('passes when TimerComponent is guarded via window.components?.TimerComponent form', () => {
+    // CDN games using window.components?.TimerComponent are valid — T1 must not flag them
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'if (typeof window.components?.TimerComponent === "undefined") return; var timer = new window.components.TimerComponent("timer-id", { timerType: "decrease" }); initGame();',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(!output.includes('TimerComponent') || !output.includes('ERROR'), `Unexpected TimerComponent error for window.components form: ${output}`);
+  });
+
+  it('passes when TransitionScreenComponent is guarded via window.components?.TransitionScreenComponent form', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'if (typeof window.components?.TransitionScreenComponent === "undefined") return; var ts = new window.components.TransitionScreenComponent({ autoInject: true }); initGame();',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(!output.includes('TransitionScreenComponent') || !output.includes('ERROR'), `Unexpected TransitionScreenComponent error for window.components form: ${output}`);
+  });
+
+  it('passes when ProgressBarComponent is guarded via window.components?.ProgressBarComponent form', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'if (typeof window.components?.ProgressBarComponent === "undefined") return; var pb = new window.components.ProgressBarComponent({ containerId: "progress" }); initGame();',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(!output.includes('ProgressBarComponent') || !output.includes('ERROR'), `Unexpected ProgressBarComponent error for window.components form: ${output}`);
+  });
+
   it('fails when TransitionScreenComponent used without typeof check', () => {
     // Append TransitionScreenComponent usage without a typeof guard
     const html = VALID_HTML.replace(
