@@ -32,7 +32,7 @@ Spawn a sub-agent to:
 3. Get recent approvals/failures (last 3 each)
 4. Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md — extract active R&D task, active Education task
 5. Read /Users/the-hw-app/Projects/mathai/ralph/docs/ui-ux/audit-log.md — extract active UI/UX audit target
-6. Read latest rca.md for any game diagnosed this session — check warehouse/templates/<game>/rca.md first (primary), fall back to docs/spec_rca/<game>.md for games without a warehouse entry — extract local test verdict
+6. Read latest rca.md for any game diagnosed this session — check games/<game>/rca.md first (primary; symlinked from warehouse/templates/<game>/rca.md), fall back to docs/spec_rca/<game>.md for very old games not yet migrated to games/ — extract local test verdict
 7. Post to Slack with format:
    - Running: Build #X (game) at step Y — Value if completes: <what we learn/gain>. Not killed because: <kill criteria not met>
    - Queue: N builds
@@ -124,11 +124,24 @@ IDLE DETECTION — check each slot:
    IDLE if: last audit entry is >4 hours old AND there are approved games with no audit (check warehouse/templates/* for games missing ui-ux.md).
    ACTION: Spawn sub-agent — run diagnostic.js against next unaudited approved game, produce ui-ux.md with issue list.
 
+5. Cross-slot handoff routing: Read games/*/ui-ux.md for any game audited this session.
+   For each (a) gen-prompt-rule finding NOT yet in ROADMAP.md R&D backlog: add it as a pending R&D task.
+   For each (d) test-coverage-gap finding NOT yet in ROADMAP.md Test Quality backlog: add it.
+   This step runs every fire — UI/UX findings must never sit unrouted.
+
+INTER-SLOT FEED RULES (always apply, not just when idle):
+- UI/UX (a) finding → R&D: "Add gen rule: <exact rule text>" — R&D implements, tests, deploys
+- UI/UX (d) finding → Test Quality: "Add assertion: <what Playwright check was missing>" — Test Quality adds to test-gen prompts
+- UI/UX (b) finding → Education: "Update spec: <visual requirement>" — Education updates games/<game>/spec.md
+- Build diagnosis "HTML bug" verdict → R&D: "New CDN constraint: <rule>" — R&D adds T1 check + gen rule
+- Build diagnosis "test bug" verdict → Test Quality: "Fix test-gen: <category> <rule>" — Test Quality implements immediately
+- Education approved game → UI/UX: audit immediately after approval to catch visual issues before deployment
+
 IMPORTANT CONSTRAINTS:
 - "Waiting for a build to complete" is NOT idle — if a build is running and the slot is actively watching it for a decision, that slot is not idle.
 - Only act if genuinely idle. A slot that produced output in the last 30 min is not idle.
 - Each action must spawn a real sub-agent with a concrete task — not just report.
-- After launching sub-agents, report: one line per slot. Format: "R&D: ACTIVE — [task]" or "R&D: IDLE → launched [action]"
+- After launching sub-agents, report: one line per slot + handoffs routed. Format: "R&D: ACTIVE — [task]" or "R&D: IDLE → launched [action]"
 
-Output: 4 lines (one per slot) + count of sub-agents launched.
+Output: 4 lines (one per slot) + count of sub-agents launched + "N UI/UX handoffs routed".
 ```

@@ -60,7 +60,11 @@ node --test test/db.test.js   # Single file
 | `docs/education/README.md` | Session Planner vision, trig session, interaction patterns |
 | `docs/lessons-learned.md` | Accumulated build lessons (176+) |
 | `docs/resources/spec-rca-template.md` | Per-game RCA template (5-section format) |
-| `warehouse/templates/<game>/rca.md` | Per-game failure history and root cause analysis (primary). `docs/spec_rca/` stubs redirect here for games with warehouse entries. |
+| `games/index.md` | Master table of all games — status, build #, next action (human entry point) |
+| `games/<game>/index.md` | Per-game human decision dashboard — status, build history, action required |
+| `games/<game>/spec.md` | Canonical spec (pipeline reads via symlink from `warehouse/templates/<game>/spec.md`) |
+| `games/<game>/rca.md` | Per-game failure history and root cause analysis (primary). `warehouse/templates/<game>/rca.md` is a symlink here. `docs/spec_rca/` stubs redirect here for older games. |
+| `games/<game>/ui-ux.md` | Per-game UI/UX audit (primary). `warehouse/templates/<game>/ui-ux.md` is a symlink here. |
 | `ROADMAP.md` | Active R&D tasks, education slot, pipeline improvements |
 
 ## Server Operations (GCP: 34.93.153.206)
@@ -130,7 +134,7 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents.
 After every build run, pipeline fix, new failure pattern, or architectural decision:
 
 1. Update `docs/lessons-learned.md` — tag each entry with build number and source
-2. Update `warehouse/templates/<game>/rca.md` (primary) — see `docs/resources/spec-rca-template.md` for format. For games without a warehouse entry yet, use `docs/spec_rca/<game-id>.md`.
+2. Update `games/<game>/rca.md` (primary) — see `docs/resources/spec-rca-template.md` for format. `warehouse/templates/<game>/rca.md` is a symlink here. For very old games without a games/ entry yet, use `docs/spec_rca/<game-id>.md`.
 3. Update `docs/areas/build-management.md` — refine kill criteria from observations
 4. Update `CLAUDE.md` — keep accurate as single source of agent truth
 5. Update `ROADMAP.md` — mark completed, add newly discovered improvements
@@ -223,17 +227,41 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 **The rule:** If the current step requires waiting, that is fine — but the slot must immediately identify the next independent task and start it in the same response. A slot that is only waiting is a slot that is empty.
 
+### Cross-Slot Feed Links (mandatory — slots actively feed each other)
+
+Slots are not independent. Every slot produces outputs that other slots must act on. These feeds are always active:
+
+| Source | Finding | Target slot | Required action |
+|--------|---------|-------------|-----------------|
+| UI/UX | (a) gen prompt rule | **R&D** | Add to ROADMAP.md R&D backlog with exact rule text; R&D implements in `lib/prompts.js`, tests, deploys |
+| UI/UX | (d) test coverage gap | **Test Quality** | Add to ROADMAP.md Test Quality backlog with the specific assertion; Test Quality adds to test-gen prompts |
+| UI/UX | (b) spec addition | **Education** | Update `games/<game>/spec.md` with visual requirement; Education slot owns the update |
+| UI/UX | visual bug in approved HTML | **Build queue** | Re-queue with the UI/UX issue list as targeted fix context |
+| Test Quality | "HTML bug" verdict | **R&D** | New CDN constraint → R&D adds T1 check + gen prompt rule in same response |
+| Test Quality | "test bug" verdict | **Test Quality (self)** | Fix test-gen prompts immediately — do not defer |
+| Education | game approved | **UI/UX** | Trigger UI/UX audit immediately — audit before declaring the game "done" |
+| R&D | new gen rule shipped | **Test Quality** | Verify the rule is tested by at least one unit test; add if missing |
+| Build | iteration >1 failure pattern | **R&D** | Pattern becomes active R&D input — check if it's a known class, update ROADMAP if new |
+
+**Routing protocol:** When a slot produces a handoff, it must:
+1. Write the finding to the target slot's input (ROADMAP.md backlog, games/<game>/spec.md, etc.)
+2. Note "→ handed to [slot]" in its own output doc
+3. Never leave a finding as "noted" — every finding has an owner and a next action
+
+**Cron 7 enforces this** — every 5 minutes it checks for unrouted UI/UX findings and adds them to the appropriate backlogs.
+
 ---
 
 ### 13. Always maintain one active R&D task — MANDATORY
 
 **R&D is always running.** One sub-agent must ALWAYS be actively working on an R&D task. The moment one completes, immediately pick the next and launch a new sub-agent in the same response. One item must always be marked `active` in `ROADMAP.md` under `## R&D`.
 
-**R&D inputs — two channels:**
-1. **Local test slot handoffs** — every local test session ends with a classified verdict (HTML bug or test bug):
+**R&D inputs — three channels:**
+1. **Test Quality handoffs** — every diagnosis session ends with a classified verdict (HTML bug or test bug):
    - HTML bug → new rule in `CDN_CONSTRAINTS_BLOCK` (`lib/prompts.js`) + T1 check in `lib/validate-static.js`
    - Test bug → fix in test-gen category prompts in `lib/prompts.js`
-2. **Live build data** — iteration counts, failure patterns, which test categories fail most
+2. **UI/UX handoffs** — every (a) gen prompt rule finding from a UI/UX audit becomes an R&D task; implement in `lib/prompts.js` and deploy
+3. **Live build data** — iteration counts, failure patterns, which test categories fail most
 
 **Prioritise:** local test slot handoffs > test gen quality > fix loop accuracy > review false positives > infra reliability
 
@@ -253,7 +281,7 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 *Phase A — Diagnosis:* Run `diagnostic.js` against a recently failed build. Must run the browser — reading HTML does not count.
 - How to pick: Query DB for recent failures → skip cancelled/approved/queued → prioritise games with incomplete RCA §2/§3.
-- Output: Update `warehouse/templates/<game>/rca.md` (primary; use `docs/spec_rca/<game-id>.md` if no warehouse entry) with §2 (evidence) and §3 (POC). Classify verdict:
+- Output: Update `games/<game>/rca.md` (primary; symlinked from `warehouse/templates/<game>/rca.md`; use `docs/spec_rca/<game-id>.md` only for games not yet migrated to `games/`) with §2 (evidence) and §3 (POC). Classify verdict:
 
 | Verdict | Meaning | Next action |
 |---------|---------|-------------|
@@ -287,7 +315,7 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 2. `docs/education/interaction-patterns.md`
 3. `docs/education/README.md`
 4. `ROADMAP.md` Education section
-5. `warehouse/templates/<game>/rca.md` (primary; use `docs/spec_rca/<game-id>.md` if no warehouse entry)
+5. `games/<game>/rca.md` (primary; symlinked from `warehouse/templates/<game>/rca.md`; use `docs/spec_rca/<game-id>.md` only for games not yet migrated to `games/`)
 
 **Constraints:** Must produce a measurable artifact per session. Education slot never blocks critical pipeline work.
 
@@ -301,10 +329,23 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 **Required output per session:**
 1. Screenshot audit — run `diagnostic.js` against the approved HTML, capture screenshots at every phase
-2. Issue list — categorise as: (a) gen prompt rule (fix at generation time), (b) spec addition (add visual requirement to spec), or (c) CDN constraint (not fixable without CDN changes)
-3. For each (a) issue: propose a gen prompt rule addition; hand to R&D
-4. For each (b) issue: open a spec revision PR or note in the spec_rca doc
-5. Update `docs/ui-ux/audit-log.md` with game, date, issues found, and resolution path
+2. Issue list — categorise as: (a) gen prompt rule, (b) spec addition, (c) CDN constraint, (d) test coverage gap
+3. Update `games/<game>/ui-ux.md` with game, date, issues found, and resolution path
+
+**Cross-slot handoffs (mandatory — UI/UX findings actively improve other slots):**
+
+| Finding type | Route to | Action |
+|-------------|----------|--------|
+| **(a) Gen prompt rule** | **R&D slot** | Create ROADMAP.md R&D task with exact rule text. R&D implements in `lib/prompts.js` CDN_CONSTRAINTS_BLOCK or GEN rules, runs tests, deploys. |
+| **(b) Spec addition** | **Education slot** | Flag to Education — add visual requirement to `games/<game>/spec.md` and session plan |
+| **(c) CDN constraint** | **Document only** | Note in `games/<game>/ui-ux.md` as CDN-blocked; no action until CDN changes |
+| **(d) Test coverage gap** | **Test Quality slot** | Propose a Playwright assertion that would have caught the issue (e.g., CSS content check, visibility check, aria-live check). Test Quality slot implements in test-gen prompts. |
+| **Visual bug in approved HTML** | **Build queue** | Re-queue with UI/UX audit as the targeted fix context — paste the issue list directly into the fix prompt so the LLM knows exactly what to fix |
+
+**Routing protocol:** After every audit, explicitly create the handoff artifacts:
+- (a) issues → add to ROADMAP.md R&D backlog with "source: UI/UX audit <game>"
+- (d) issues → add to ROADMAP.md Test Quality backlog with the specific assertion that was missing
+- Never leave findings as "noted" — every finding has an owner slot and a next action
 
 **Constraints:** UI/UX never blocks critical pipeline work. Must produce a documented issue list per session — "looks fine" is not an audit.
 
