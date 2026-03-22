@@ -291,6 +291,16 @@ The game's core HTML logic (canvas triangle rendering, area formula, CDN init st
 | #530 | Blank page: missing #gameContent element (Step 1d, both initial + smoke-regen) | T1 validator false-positive for `window.components?.TimerComponent` → static-fix LLM adds broken bare-global checks → waitForPackages spins 120s → #gameContent never created | Fixed: commit 65aed12 corrects T1 validator to accept window.components?.X form |
 | #532 | Init error: signalCollector.trackEvent is not a function (Step 1d) | LLM hallucinates `.trackEvent()` on signalCollector (PART-011); method does not exist in CDN API | Fixed: T1 check + gen prompt prohibition deployed before build #533 |
 | #533 | Blank page: missing #gameContent element (Step 1d, both initial + smoke-regen) | LLM generated `const { ScreenLayout, ... } = window.mira.components` — `window.mira` doesn't exist; components are bare globals (window.ScreenLayout etc.); destructuring yields undefined everywhere; waitForPackages() spins forever; ScreenLayout.inject() never runs; #gameContent never created | NOT FIXED — T1 check for `window.mira.components` + gen prompt clarification needed before build #534 |
+| #534 | T1 fail: window.endGame missing (arrow fn regex) | T1 false positive on `const endGame = async () =>` | FAILED |
+| #536 | Step 1d: Blank page, missing #gameContent | SentryHelper in waitForPackages() hangs forever | FAILED |
+| #538 | Queued 2026-03-22 — awaiting | SentryHelper fix + all T1 rules deployed | PENDING |
+
+## Root Cause (build #536)
+`typeof SentryHelper === 'undefined'` in waitForPackages() causes infinite loop — SentryHelper is not a CDN global. Also had `typeof TimerComponent === 'undefined'` (TimerComponent IS real, but still caused hang when not needed). Both the original and regen HTMLs had SentryHelper, causing all smoke checks to fail.
+
+## Fix Applied (88b965d)
+- T1 §5h2: bans typeof SentryHelper in waitForPackages()
+- prompts.js: removed SentryHelper from valid CDN globals, updated RULE-SENTRY-ORDER
 
 ## Manual Run Findings
 

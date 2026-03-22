@@ -6,6 +6,11 @@
 |-------|---------|------------|--------|
 | 531 | game-flow 0/5, mechanics 0/3 iter 1; mechanics 3/3, LP 1/1, EC 2/2 iter 2; contract 0/2 | `startGame()` uses `setTimeout(0)` — TransitionScreen slot button never dismissed | FAILED |
 | 535 | Rejected at early-review; also `initSentry() called before waitForPackages()` T1 error | LLM used `transitionScreen.show()` for end-game results instead of implementing `showResults()` to populate `#results-screen`; contract-fix LLM introduced sentry order violation | REJECTED (early-review) |
+| #537 | Step 1d: Blank page, missing #gameContent | SentryHelper in waitForPackages() hangs forever | FAILED |
+| #539 | Queued 2026-03-22 — awaiting | SentryHelper fix deployed | PENDING |
+
+## Root Cause (build #537)
+Same as right-triangle-area #536: `typeof SentryHelper === 'undefined'` in waitForPackages() causes infinite loop. RULE-RESULTS-1 and RULE-SENTRY-ORDER were implemented earlier but didn't fix this because the fundamental issue was the non-existent SentryHelper blocking initialization.
 
 ---
 

@@ -2017,3 +2017,21 @@ Source: pipeline iteration (build #535 soh-cah-toa-worked-example, 2026-03-22)
 Pattern: Build #531 failed because startGame() wrapped all logic in setTimeout(() => {...}, 0), preventing CDN TransitionScreen from dismissing the slot. RULE-SYNC-1 (ban setTimeout in startGame, T1 §5i + gen prompt Rule 27) was added in commit 7548048.
 Result: Build #535 generated startGame() WITHOUT setTimeout — T1 §5i was silent (no violation). The build was rejected for a different reason (transitionScreen.show() in results, Lesson 153), NOT for RULE-SYNC-1. Hypothesis confirmed: T1 §5i + gen prompt rule successfully prevents the setTimeout pattern.
 Lesson: RULE-SYNC-1 is working. When a T1 rule + gen prompt combination silences the violation in the very next build, that's confirmation the intervention is effective.
+
+---
+
+**Lesson 155 — SentryHelper is NOT a CDN global — causes silent waitForPackages() hang**
+Source: Build #536/#537 RCA (2026-03-22)
+- `window.SentryHelper` is not exported by any CDN bundle. The CDN sentry script exports `window.SentryConfig` (not SentryHelper). The CDN helpers bundle exports SignalCollector, VisibilityTracker — not SentryHelper.
+- When LLMs include `typeof SentryHelper === 'undefined'` in `waitForPackages()`, the loop polls forever (SentryHelper is always undefined → the while-condition is always true).
+- This causes Step 1d smoke check to fail with "Blank page: missing #gameContent element" — no JS error is logged because the try/catch is never reached (still inside waitForPackages poll loop).
+- Fix: T1 §5h2 now bans `typeof SentryHelper` pattern; prompts.js corrected to remove SentryHelper from valid globals list and RULE-SENTRY-ORDER now explicitly bans it.
+- Commit: 88b965d
+
+---
+
+**Lesson 156 — Silent waitForPackages() hang: no console error, no initError, just blank page**
+Source: Build #536/#537 RCA (2026-03-22)
+- When waitForPackages() hangs (any non-existent package in the while-condition), the smoke check times out after 8s and detects "Blank page: missing #gameContent element" with NO classifySmokeErrors() fatal patterns matched (no "Initialization Error", no "packages failed to load", no "is not defined").
+- This is because the try/catch never executes — the await waitForPackages() call never resolves, so ScreenLayout.inject() and all subsequent code including the catch block are never reached.
+- Diagnosis pattern: "Blank page" with no other classified error in server logs = waitForPackages() hanging. Check: does waitForPackages() include any non-existent globals? (SentryHelper, window.mira, any hallucinated class name)
