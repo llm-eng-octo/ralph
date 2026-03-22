@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** adjustment-strategy (next in stub inventory)
-**Last completed:** addition-mcq — 2026-03-23 (spec-only audit — no build exists)
+**Current task:** associations (next in stub inventory)
+**Last completed:** adjustment-strategy — 2026-03-23 (build #385 approved; browser playthrough; 7 findings)
 **Waiting on:** unblocked
 **Blocked by:** none
 
@@ -41,6 +41,7 @@ addition-mcq, adjustment-strategy, associations, math-cross-grid, math-mcq-quiz,
 
 | Date | Game | Build | Issues Found | Actions Taken |
 |------|------|-------|-------------|---------------|
+| 2026-03-23 | adjustment-strategy | #385 (approved) | 7 issues (5a, 0b, 0c, 2d) | No P0 flow bugs; all phases reachable; adj-btn 36px (8th GEN-UX-002 gap); ARIA-001 absent (11th instance); results static (8th GEN-UX-001); gameState.gameId absent (2nd); no Enter key on answer-input (2nd — ship now); window.nextRound missing (test gap); reset-btn 30.5px (secondary button gap, overlaps F1) |
 | 2026-03-23 | addition-mcq | spec-only | 9 issues (6a, 2b, 1d) | No P0 blockers; ProgressBar slotId missing (6th instance); data-phase/syncDOMState absent (3rd MCQ spec); ARIA-001 (10th instance); window.endGame unassigned; data-lives not on DOM (2nd MCQ spec test gap); gameState.gameId missing; SignalCollector no constructor args (3rd); timer destroy/recreate ambiguity; initSentry absent from spec |
 | 2026-03-23 | addition-mcq-lives | spec-only | 6 issues (4a, 2b, 1d; F4 downgraded) | No P0 blockers; data-phase/syncDOMState absent (9th pattern, 2nd MCQ spec); ProgressBar slotId missing (5th); ARIA-001 MCQ (9th); endGame branching implicit; restartGame() unspecified; data-lives not on DOM (test gap) |
 | 2026-03-23 | addition-mcq-blitz | spec-only | 8 issues (6a, 2b) | FeedbackManager.init() in spec (URGENT — fix before first build); results not fixed (8th instance); ARIA-001 (8th instance); timer.start() race in setupGame(); recordViewEvent after seal() data loss; window.endGame unassigned; no syncDOMState/data-phase; gameState.gameId undeclared |
@@ -115,6 +116,14 @@ See [games/real-world-problem/ui-ux.md](../../games/real-world-problem/ui-ux.md)
 
 **CSS intact. No P0 flow bugs. All three steps reachable. End screen reachable.** 8 issues: 6 gen prompt rules (44px min-height — 7th instance; results not fixed — 7th instance; ProgressBar `-bar-` slotId — 4th instance; SignalCollector no args — 2nd instance; alert() for validation — new; no Enter key on numeric input — new), 2 education/test handoffs (accuracy metric scope, SVG label overflow). 44px and results-screen rules now at 7 confirmed instances each — ship both immediately.
 
+## adjustment-strategy Audit #385 (2026-03-23)
+
+See [games/adjustment-strategy/ui-ux.md](../../games/adjustment-strategy/ui-ux.md)
+
+**CSS intact. No P0 flow bugs. All phases reachable end-to-end.** 7 issues: 5 gen prompt rules (adj-btn/reset-btn secondary button 44px gap — 8th GEN-UX-002 instance; ARIA-001 — 11th instance, already shipped; results static — 8th GEN-UX-001 instance, already shipped; gameState.gameId absent — 2nd instance; no Enter key on answer-input — 2nd instance, ship now), 2 test gaps (window.nextRound missing; secondary button min-height not caught by test assertions). ProgressBar slotId correct, FeedbackManager.init() absent, CSS intact, all data-phase transitions working.
+
+---
+
 ## addition-mcq Audit (2026-03-23)
 
 See [games/addition-mcq/ui-ux.md](../../games/addition-mcq/ui-ux.md)
@@ -154,6 +163,10 @@ See [games/addition-mcq-lives/ui-ux.md](../../games/addition-mcq-lives/ui-ux.md)
 | alert() used for inline input validation | real-world-problem #564 | — | (a) gen prompt rule | SHIPPED — GEN-UX-004 (25bdad0 2026-03-23) — 1 confirmed instance (new) |
 | Typed numeric input has no Enter-key submission handler | real-world-problem #564 | — | (a) gen prompt rule | New — input fields must bind keydown Enter → submit handler |
 | data-lives hardcoded to 0 for non-lives games | word-pairs #529 | — | (d) test gap | New — test assertions on data-lives must handle games with totalLives: 0 |
+| Custom widget buttons (adj-btn, reset-btn) bypass min-height: 44px rule | adjustment-strategy #385 | — | (a) gen prompt rule | New — GEN-UX-002 only covers .game-btn; secondary/custom buttons need min-height: 44px too; adj-btn=36px, reset-btn=30.5px |
+| gameState.gameId absent from gameState object | adjustment-strategy #385 | addition-mcq spec | (a) gen prompt rule | 2nd confirmed instance — mandatory gameId field not in gen prompt or spec Section 3 |
+| Typed numeric input has no Enter key submission | adjustment-strategy #385 | real-world-problem #564 | (a) gen prompt rule | 2nd confirmed instance — ship now per ROADMAP line 430 |
+| window.nextRound not exposed; harness warns MISSING | adjustment-strategy #385 | — | (d) test gap | Game uses loadRound() internally; window.nextRound alias never assigned; harness fallback may cover via window.loadRound |
 | Lives games missing data-lives attribute on DOM element | addition-mcq-lives spec | addition-mcq spec | (d) test gap | 2 confirmed MCQ spec instances — lives games must sync data-lives via syncDOMState(); getLives() harness helper needs a DOM attribute to read |
 | No syncDOMState() / data-phase state machine in MCQ spec | addition-mcq-blitz spec | addition-mcq-lives spec, addition-mcq spec | (a) gen prompt rule | 3 confirmed MCQ spec instances — already in ROADMAP (line 237); 3rd instance confirmed 2026-03-23 |
 | endGame() dual-path not specified: game-over vs victory TransitionScreen calls differ | addition-mcq-lives spec | — | (b) spec addition | New — lives games need explicit if/else branching in endGame() for two different TransitionScreen templates; ROADMAP entry added |
@@ -183,4 +196,6 @@ See [games/addition-mcq-lives/ui-ux.md](../../games/addition-mcq-lives/ui-ux.md)
 | Standardise Sentry SDK to v10.23.0 three-script pattern | word-pairs #529 | — | 2026-03-23 | New — word-pairs uses v7; CDN_CONSTRAINTS_BLOCK must enforce v10 |
 | hide()/show() helpers must receive DOM element objects, not CSS selector strings | soh-cah-toa #544 | — | 2026-03-23 | New — runtime TypeError if string passed to classList |
 | Never use alert()/confirm() in game code; use inline aria-live feedback div | real-world-problem #564 | — | 2026-03-23 | SHIPPED — GEN-UX-004 (25bdad0 2026-03-23) — 1 confirmed instance (new) |
-| Typed numeric input fields must support Enter key as submit equivalent | real-world-problem #564 | — | 2026-03-23 | New — keyboard/mobile UX gap |
+| Typed numeric input fields must support Enter key as submit equivalent | real-world-problem #564 | adjustment-strategy #385 | 2026-03-23 | **2nd confirmed instance — SHIP NOW** — keyboard/mobile UX gap; answer-input in adjustment-strategy also has no Enter listener |
+| gameState must declare gameId field | adjustment-strategy #385 | addition-mcq spec | 2026-03-23 | 2nd confirmed instance — `window.gameState.gameId` undefined in both; add to CDN_CONSTRAINTS_BLOCK and spec Section 3 |
+| Secondary/custom widget buttons (adj-btn, reset-btn) exempt from min-height: 44px | adjustment-strategy #385 | — | 2026-03-23 | New — GEN-UX-002 only covers .game-btn; adj-btn=36px, reset-btn=30.5px; extend rule to all interactive buttons |
