@@ -436,16 +436,20 @@ The play area (`#gameContent`) has three layers; visibility is toggled via the `
 │     — or for identify-the-sides rounds —             │
 │  [ O/H  ]   [ A/H  ]   [ O/A  ]                    │
 │                                                      │
-│  #correct-feedback  (hidden by default)              │
+│  #correct-feedback  data-testid="correct-feedback"   │
+│  (hidden by default)                                 │
 │  Brief green confirmation: "Correct! sin θ = O/H"   │
 │  Auto-advances after 1000ms                         │
 ├──────────────────────────────────────────────────────┤
 │  #worked-example-panel  (hidden by default)          │
+│  data-testid="worked-example-panel"                  │
 │  Appears after FIRST wrong attempt only.             │
 │  Contains workedExampleHtml injected from content.   │
 │  Two buttons:                                        │
-│    [Got it — try again]  → allows second attempt    │
-│    [Skip this round]     → advances immediately     │
+│    [Got it — try again]  data-testid="got-it-btn"   │
+│      → allows second attempt                        │
+│    [Skip this round]     data-testid="skip-round-btn"│
+│      → advances immediately                         │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -505,6 +509,8 @@ function startGame() {
 6. Set questionText heading: document.getElementById('question-text').textContent = round.questionText
 7. Render option buttons: clear #option-buttons, create 3 buttons from round.options[]
    Each button: data-option="<option string>", textContent = option string
+   Each button MUST ALSO have: `data-testid="option-N"` (N=0,1,2, positional index) AND `data-value="<option string>"` (exact option text).
+   Tests use `data-testid` as the stable selector since option text varies by round type (sin θ / O/H / etc).
 8. Show #question-panel, hide #correct-feedback, hide #worked-example-panel
 9. Enable all option buttons (remove disabled attribute)
 10. Update progress bar: progressBar.setRound(roundNumber)
@@ -646,6 +652,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window.endGame = endGame;
     window.restartGame = restartGame;
     window.nextRound = nextRound;
+    // REQUIRED for test harness __ralph.jumpToRound() — without this, mechanics tests cannot jump to specific rounds
+    window.loadRound = function(n) { gameState.currentRound = n - 1; gameState.gameEnded = false; gameState.isProcessing = false; nextRound(); };
 
     // Load content (injected by pipeline or fallback)
     gameState.content = window.__gameContent || fallbackContent;
@@ -676,7 +684,7 @@ The LLM generating this game must check each item before finalising the HTML:
 
 1. **Do NOT call `FeedbackManager.init()`** — audio permission popup breaks tests. Use `.sound()` and `.playDynamicFeedback()` only.
 2. **Do NOT assign `window.gameState` inside DOMContentLoaded** — it must be at module scope, immediately after the `gameState` object declaration.
-3. **Do NOT forget `window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound`** — assign in DOMContentLoaded after function definitions.
+3. **Do NOT forget `window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound`** — assign in DOMContentLoaded after function definitions. Also add `window.loadRound = function(n) { ... }` — required for test harness `__ralph.jumpToRound()`.
 4. **Do NOT use a static SVG** — the triangle must be re-rendered by `renderTriangle(round)` each round. Hard-coded label text that doesn't change between rounds is a bug.
 5. **Do NOT deduct lives** — this game has no lives system. Never call `progressBar.loseLife()` or decrement any lives variable. The game always ends in victory after 5 rounds.
 6. **Do NOT show a game-over screen** — there is no game-over in this game. `endGame()` always calls `transitionScreen.show('victory')`.
@@ -684,6 +692,8 @@ The LLM generating this game must check each item before finalising the HTML:
 8. **Do NOT allow option buttons to remain enabled while the worked-example panel is visible** — buttons must be disabled when the worked-example panel is shown, to prevent the learner from making a second attempt before reading the explanation.
 9. **Do NOT forget to re-enable option buttons when "Got it — try again" is clicked** — if buttons stay disabled the learner cannot make their second attempt.
 10. **Do NOT render option buttons as hardcoded HTML** — they must be generated dynamically from `round.options[]` each round, because options differ between `name-the-ratio` and `identify-the-sides` rounds.
+13. **Do NOT omit `data-testid` on option buttons** — each button must have `data-testid="option-0"`, `data-testid="option-1"`, `data-testid="option-2"` (positional) AND `data-value="<option string>"`. Tests use `data-testid` as the stable selector since button text varies by round.
+14. **Do NOT omit `data-testid` on worked-example panel elements** — the panel container must have `data-testid="worked-example-panel"`, the got-it button must have `data-testid="got-it-btn"`, the skip button must have `data-testid="skip-round-btn"`, and the correct-feedback element must have `data-testid="correct-feedback"`. Tests cannot click these elements without stable selectors.
 11. **Do NOT inject `workedExampleHtml` as textContent** — use `innerHTML` to preserve the HTML structure of the worked-example card.
 12. **Do NOT skip `gameState.attemptsThisRound` reset in `renderRound()`** — stale attempt counts from the previous round will cause the worked-example panel to not appear on the first wrong attempt of the new round.
 
