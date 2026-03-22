@@ -289,14 +289,14 @@ Each session, the Gen Quality slot must have ONE row in ROADMAP.md marked with e
 
 **Build verification required:** Every hypothesis touching game quality MUST be verified with at least one real build showing a before/after metric.
 
-**WebFetch mandate — use external sources aggressively:**
-Gen Quality sub-agents must pull real documentation rather than reasoning from memory. Key sources to fetch before implementing any CDN rule:
-- CDN package docs: fetch the actual API documentation for CDN components being constrained (ProgressBarComponent, FeedbackManager, VisibilityTracker, ScreenLayout, TimerComponent)
-- Browser compatibility: MDN for any CSS/JS feature being required or banned
-- WCAG accessibility: `https://www.w3.org/WAI/WCAG21/quickref/` for accessibility rule grounding
+**Context7 + WebFetch mandate — use external sources aggressively:**
+Gen Quality sub-agents must pull real documentation rather than reasoning from memory. **Context7 MCP is the preferred source for library docs** — use `mcp__context7__resolve-library-id` to find the library, then `mcp__context7__query-docs` to fetch current docs. Fall back to WebFetch for standards and sources not in Context7.
+- CDN package docs: use Context7 to fetch API docs for CDN components being constrained (ProgressBarComponent, FeedbackManager, VisibilityTracker, ScreenLayout, TimerComponent)
+- Browser compatibility: MDN via WebFetch for any CSS/JS feature being required or banned
+- WCAG accessibility: `https://www.w3.org/WAI/WCAG21/quickref/` via WebFetch for accessibility rule grounding
 - Past failure patterns: read `docs/lessons-learned.md` and `docs/failure-patterns-tracker.md` before proposing any new rule
 
-Every Gen Quality sub-agent must start with a WebFetch or file read pass before writing any rule. "I believe X" is not acceptable — fetch the source.
+Every Gen Quality sub-agent must start with a Context7 query or WebFetch before writing any rule. "I believe X" is not acceptable — fetch the source.
 
 **Constraints:** Gen Quality never blocks critical work. Must produce a measurable result — "made it cleaner" is not Gen Quality.
 
@@ -341,14 +341,14 @@ Each session, the Test Engineering slot must have ONE row in ROADMAP.md under th
 - Approved builds — compare their test assertions against failed builds to identify what good tests look like
 - Timing analysis — which tests have flaky timing, which assertions use hard sleeps instead of waitForPhase
 
-**WebFetch mandate — use external sources aggressively:**
-Test Engineering sub-agents must ground test rules in real documentation rather than guessing at correct behavior. Key sources to fetch before writing any test-gen rule or lint rule:
-- Playwright docs: fetch the actual Playwright assertion API docs to verify correct syntax before adding a CT rule (e.g., `expect.poll()`, `waitForSelector`, `toBeVisible` semantics)
-- Accessibility testing: `https://www.w3.org/WAI/WCAG21/quickref/` — WCAG 2.1 criteria for any accessibility assertion being added
-- a11y testing patterns: search for documented patterns for testing ARIA live regions, focus management, keyboard navigation in browser automation
-- CDN component behavior: fetch any CDN component documentation to understand correct event sequences before writing assertions about them
+**Context7 + WebFetch mandate — use external sources aggressively:**
+Test Engineering sub-agents must ground test rules in real documentation rather than guessing at correct behavior. **Context7 MCP is the preferred source for library docs** — use `mcp__context7__resolve-library-id` to find the library, then `mcp__context7__query-docs` to fetch current docs. Fall back to WebFetch for standards and sources not in Context7.
+- Playwright docs: use Context7 (`resolve-library-id: "playwright"`) to verify correct assertion API syntax before adding a CT rule (e.g., `expect.poll()`, `waitForSelector`, `toBeVisible` semantics)
+- Accessibility testing: `https://www.w3.org/WAI/WCAG21/quickref/` via WebFetch — WCAG 2.1 criteria for any accessibility assertion being added
+- a11y testing patterns: WebFetch for documented patterns for testing ARIA live regions, focus management, keyboard navigation in browser automation
+- CDN component behavior: Context7 or WebFetch for CDN component documentation to understand correct event sequences before writing assertions about them
 
-Every test-gen rule must be grounded in either: (a) a fetched Playwright/CDN doc confirming correct API usage, or (b) observed failure evidence from a real build. "I think the selector should be X" is not acceptable.
+Every test-gen rule must be grounded in either: (a) a Context7 or fetched Playwright/CDN doc confirming correct API usage, or (b) observed failure evidence from a real build. "I think the selector should be X" is not acceptable.
 
 **Constraints:** Never blocks critical pipeline work. "No new failures to diagnose" is not idle — switch to Phase B immediately.
 
@@ -377,14 +377,15 @@ Each session, the Education slot must have ONE row in ROADMAP.md under the Educa
 - **Session Planner architecture** — `docs/education/README.md` §7 describes the long-term vision. Each subsystem (goal parsing, prerequisite analysis, session design, spec generation) can be designed independently of pipeline readiness
 - **Curriculum alignment** — map approved games to NCERT chapter/section and CC standard codes. This becomes the retrieval index for Step 1 of the Session Planner
 
-**WebFetch mandate — use external sources aggressively:**
-Education sub-agents must ground all curriculum work in real sources rather than LLM knowledge. Key sources to fetch for every session planning task:
-- NCERT textbooks: Class 9/10 Mathematics chapters from NCERT official site for curriculum alignment
-- Common Core standards: CC Math standards for the relevant grade band
-- Cognitive science research: papers on worked examples (Sweller), ZPD (Vygotsky applied to math), spaced repetition, Bloom's taxonomy application
-- Khan Academy / BYJU's: check how leading platforms teach the target concept — what interaction patterns do they use?
-- Wikipedia: for concept prerequisites and curriculum progression
-- Misconception databases: search for documented student misconceptions in the target concept area
+**Context7 + WebFetch mandate — use external sources aggressively:**
+Education sub-agents must ground all curriculum work in real sources rather than LLM knowledge. **Context7 MCP is the preferred source for any library or framework used in game specs** — use `mcp__context7__resolve-library-id` → `mcp__context7__query-docs`. Use WebFetch for curriculum content, standards, and research sources.
+- NCERT textbooks: Class 9/10 Mathematics chapters from NCERT official site for curriculum alignment (WebFetch)
+- Common Core standards: CC Math standards for the relevant grade band (WebFetch)
+- Cognitive science research: papers on worked examples (Sweller), ZPD (Vygotsky applied to math), spaced repetition, Bloom's taxonomy application (WebFetch)
+- Khan Academy / BYJU's: check how leading platforms teach the target concept — what interaction patterns do they use? (WebFetch)
+- Wikipedia: for concept prerequisites and curriculum progression (WebFetch)
+- Misconception databases: search for documented student misconceptions in the target concept area (WebFetch)
+- CDN component APIs: use Context7 to fetch current CDN component docs when spec references specific component behavior
 
 Every Education sub-agent planning a new session or game must fetch at least 2 external sources before writing any spec or session plan. Grounded specs produce better games.
 
@@ -422,13 +423,13 @@ Each session, the UI/UX slot must have ONE entry in docs/ui-ux/audit-log.md mark
 2. Issue list — categorise as: (a) gen prompt rule, (b) spec addition, (c) CDN constraint, (d) test coverage gap
 3. Update `games/<game>/ui-ux.md` with game, date, issues found, and resolution path
 
-**WebFetch mandate — ground audits in real standards:**
-UI/UX sub-agents must reference real design and accessibility standards rather than subjective judgment. Key sources to fetch before or during every audit:
-- WCAG 2.1 quickref: `https://www.w3.org/WAI/WCAG21/quickref/` — for any contrast, focus, ARIA, or keyboard finding
-- Apple HIG touch targets: minimum 44×44pt touch target specification (fetch or recall from HIG)
-- Material Design: spacing, elevation, and typography guidelines for mobile-first design
+**Context7 + WebFetch mandate — ground audits in real standards:**
+UI/UX sub-agents must reference real design and accessibility standards rather than subjective judgment. **Context7 MCP is the preferred source for CSS framework and component library docs** — use `mcp__context7__resolve-library-id` → `mcp__context7__query-docs`. Use WebFetch for standards documents.
+- WCAG 2.1 quickref: `https://www.w3.org/WAI/WCAG21/quickref/` via WebFetch — for any contrast, focus, ARIA, or keyboard finding
+- Apple HIG touch targets: minimum 44×44pt touch target specification (WebFetch from HIG)
+- Material Design: spacing, elevation, and typography guidelines for mobile-first design (WebFetch or Context7)
 - Color contrast checker: use the WCAG contrast ratio formula (4.5:1 for normal text, 3:1 for large) when flagging color issues — report the actual ratio, not just "low contrast"
-- MDN: for any CSS property behavior being evaluated (position:fixed, z-index stacking, viewport units)
+- MDN: use Context7 for CSS property behavior (position:fixed, z-index stacking, viewport units) before falling back to WebFetch
 
 Every UI/UX finding must cite the standard it violates (WCAG SC X.X.X, HIG touch target spec, etc.) — not just "this looks wrong."
 
@@ -531,15 +532,15 @@ ANALYTICS UPDATE (HH:MM):
 - **Test coverage gaps:** Is every new function tested? Are error paths tested or only happy paths?
 - **Race conditions:** In `worker.js` — could two concurrent operations write to the same DB row? Could a stalled build lock prevent cleanup?
 
-**WebFetch mandate — verify against authoritative sources:**
-Code Review sub-agents must check real documentation before flagging issues or suggesting fixes. Key sources to fetch:
-- MDN: for any JavaScript/Node.js API behavior being reviewed (Promise semantics, async/await edge cases, Buffer handling)
-- Node.js docs: `https://nodejs.org/api/` for built-in module APIs (fs, child_process, http)
-- better-sqlite3 docs: for any DB query pattern being reviewed — verify transaction semantics, WAL mode behavior, prepared statement reuse
-- BullMQ docs: for any job queue behavior — lock semantics, stall detection, retry configuration
-- OWASP: for any security-relevant code path (input validation, SQL construction, file path handling)
+**Context7 + WebFetch mandate — verify against authoritative sources:**
+Code Review sub-agents must check real documentation before flagging issues or suggesting fixes. **Context7 MCP is the preferred source for all library docs** — use `mcp__context7__resolve-library-id` to find the library, then `mcp__context7__query-docs` to fetch current docs. This is faster and more accurate than WebFetch for library APIs.
+- Node.js built-ins: use Context7 (`resolve-library-id: "node"`) for fs, child_process, http API behavior (Promise semantics, async/await edge cases, Buffer handling)
+- better-sqlite3: use Context7 (`resolve-library-id: "better-sqlite3"`) — verify transaction semantics, WAL mode behavior, prepared statement reuse
+- BullMQ: use Context7 (`resolve-library-id: "bullmq"`) — lock semantics, stall detection, retry configuration
+- Express: use Context7 (`resolve-library-id: "express"`) — middleware ordering, error handler signatures, async error propagation
+- OWASP: WebFetch for any security-relevant code path (input validation, SQL construction, file path handling)
 
-Every code review finding that involves an API behavior claim must cite the source. "I think Node.js does X" is not acceptable — fetch the docs.
+Every code review finding that involves an API behavior claim must cite the source (Context7 doc or URL). "I think Node.js does X" is not acceptable — fetch the docs.
 
 **Output per review cycle:**
 1. Files reviewed (list)
