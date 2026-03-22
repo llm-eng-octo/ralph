@@ -360,25 +360,36 @@ One item must always be present in `ROADMAP.md` under `## R&D` with status `acti
 - Curriculum-aligned spec templates (reusable patterns for common learning objectives)
 - The long-term vision: "parent/teacher inputs topic → Ralph generates session plan + games"
 
-**How to pick the Education task:** Read `docs/rnd-educational-interactions.md` for planned work. Prioritize in this order:
-1. New game interaction types that hit higher Bloom's taxonomy levels (apply/analyze/create) — these expand what Ralph can generate
-2. Curriculum-aligned spec templates — reusable starting points that encode pedagogy into the spec itself
-3. Session planner prototype — multi-game session design from a single learning objective
+**How to pick the Education task:** Read `docs/education/README.md` for the R&D intuition and approach. Read `docs/education/trig-session.md` for the active session plan. Read `docs/education/interaction-patterns.md` for the full pattern taxonomy. Prioritize in this order:
+1. Next unbuilt game in an active session sequence (prerequisite-ordered — never skip ahead)
+2. New interaction patterns that hit higher Bloom's levels (apply/analyze/create)
+3. New session plan for a different curriculum area
 
 **How to run:** Experiment first, then build:
 1. **Research** — what does the learning objective require? What interaction pattern maps to it?
-2. **Spec draft** — write a spec that uses the new interaction type or pedagogical pattern
+2. **Spec draft** — write a spec; check CDN compliance before queuing (data-testid on all interactive elements, window.loadRound, window.endGame/restartGame/nextRound, no FeedbackManager.init())
 3. **Build verification** — queue at least one build to verify the generated game is educationally correct (not just passing tests)
-4. **Measure learning quality** — check test coverage of concept nodes, not just pass rate; does the game actually require the learner to demonstrate the target skill?
-5. **Ship or iterate** — if the game demonstrates the pattern correctly, commit the spec template and update `docs/rnd-educational-interactions.md`
+4. **Measure learning quality** — does the game actually require the learner to demonstrate the target cognitive operation, not just recognize it?
+5. **Ship or iterate** — if approved, update docs (see Documentation mandate below)
 
 **Build verification is required:** When implementing a new game type or interaction pattern, always queue at least one build to verify the generated game is pedagogically correct. "It passes tests" is not sufficient — the game must demonstrably require the target cognitive operation.
+
+**Documentation mandate — REQUIRED after every Education task:**
+
+After every build result (approved or failed), update ALL of:
+1. `docs/education/trig-session.md` (or the relevant session file) — update build log, mark game status (approved/failed/queued), add findings
+2. `docs/education/interaction-patterns.md` — if a new interaction pattern was used or discovered, add it
+3. `docs/education/README.md` — update the "Current state" section if the session progress changes
+4. `ROADMAP.md` Education section — update the active task status
+5. `docs/spec_rca/<game-id>.md` — per-game RCA (same as any build)
+
+The education docs are the institutional memory for *why* each game exists and *what it teaches*. Without them, future agents rediscover the pedagogical reasoning from scratch. A build result without a doc update is incomplete.
 
 **Slack reporting:** Every Slack update must include `🎓 Education slot: [current task + status]`. This is mandatory — the education slot is tracked alongside R&D and local testing.
 
 **Non-negotiable constraints:**
 - Education slot runs in a sub-agent so main context stays free
-- Must produce a measurable result per session: new spec template committed, new interaction pattern documented, or build approved with new educational feature
+- Must produce a measurable result per session: new spec committed, new interaction pattern documented, or build approved
 - "Reading papers about pedagogy" does not count — must produce a concrete artifact (spec, template, or approved game)
 - Education slot never blocks critical pipeline work — if a build needs killing or a pipeline bug needs fixing, stop and handle it first
 
@@ -390,7 +401,7 @@ When starting a new session or resuming after context compaction:
 3. **Check build pipeline** — SSH to server and confirm worker is running and no build has been stuck >45 min.
 4. **Check ROADMAP.md R&D slot** — confirm one R&D task is marked `active`. If the slot is empty or passive, pick the next highest-leverage item and launch a sub-agent immediately.
 5. **Check local test slot** — confirm one sub-agent is actively running `diagnostic.js` against a failed build. If not, pick the highest-priority failed build and launch one immediately.
-6. **Check Education slot** — confirm one sub-agent is actively working on an education implementation task. If not, read `docs/rnd-educational-interactions.md` and launch a sub-agent on the highest-priority item immediately.
+6. **Check Education slot** — confirm one sub-agent is actively working on an education implementation task. If not, read `docs/education/README.md` and `docs/education/trig-session.md` and launch a sub-agent on the highest-priority item immediately.
 
 This rule exists because session compaction silently kills all crons, loses agent context, and can leave background work orphaned. Any future agent starting a session must run this checklist before doing anything else.
 
