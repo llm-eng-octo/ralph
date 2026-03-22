@@ -2228,3 +2228,17 @@ window.loadRound = function(n) {
 FeedbackManager.playDynamicFeedback namespace fix (prompts.js rule at line 81: "NEVER use FeedbackManager.sound.playDynamicFeedback") verified working in count-and-tap build #551 (APPROVED, 11/12 iter 1). Round lifecycle does NOT deadlock — `scheduleNextRound()` fires correctly after `showFeedback()`. PART-011-SOUND T1 check (commit 26fcfb6) adds defense-in-depth for future builds.
 
 Edge-case finding: count-and-tap timer expiry sends game to `results` phase instead of `gameover` phase — caught and fixed by fix loop iter 2. If timer expires with 0 lives, game_over should fire with phase=gameover (not results). Future gen prompt: clarify that game_over via timer expiry at lives=0 sets phase='gameover', not 'results'.
+
+## Lesson 176 — contract auto-fix (Step 1b) is destructive: strips max-width CSS + breaks signalPayload spread (2026-03-22, build #552 name-the-sides)
+
+**Source:** Build #552 early-review rejection diagnosis
+
+When the contract auto-fix LLM rewrites the HTML at Step 1b, it sometimes performs a destructive rewrite that:
+1. Strips the `max-width` CSS constraint (T1 error: no 480px/max-width constraint)
+2. Breaks `...signalPayload` spread in `postMessage`, replacing it with manually enumerated fields that omit `signals:` and `metadata:`
+
+The pipeline already detects T1 regressions from the contract-fix (`"Contract-fix introduced N T1 error(s) — logged for fix loop"`), but proceeds to early-review with the T1-broken HTML anyway. The early reviewer correctly rejects it. With two consecutive rejections, the build fails at iter=0 — wasting ~8 minutes with no tests run.
+
+**Fix:** When contract-fix introduces new T1 errors, those errors must be carried into iteration 1's fix prompt so the fix loop can handle them. The pipeline should NOT proceed to early-review with a T1-broken HTML.
+
+**Pattern:** contract-fix LLM is less precise than the generation LLM — it tends to "simplify" what it doesn't understand, stripping CSS and flattening spread operators. The T1 regression detection already exists; the gap is the downstream handling.

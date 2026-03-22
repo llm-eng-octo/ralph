@@ -5,6 +5,7 @@
 | Build | Symptom | Root Cause | Status |
 |-------|---------|------------|--------|
 | #550 | mechanics 0/6 × 3 iterations; game-flow tests triage-deleted (bad data-testid selectors) | `window.loadRound` not exposed → `__ralph.jumpToRound()` silent no-op → `waitForPhase('playing')` timeout after any prior `endGame()` call | FAILED — killed after iter 3 |
+| #552 | REJECTED iter=0: early-review rejected twice | Contract auto-fix (Step 1b) stripped max-width CSS + broke ...signalPayload spread → T1 errors baked in → early reviewer correctly rejected | Failed — pipeline bug (Step 1b T1 regression not handled) |
 
 ---
 
@@ -107,19 +108,24 @@ if (/currentRound|totalRounds/.test(html) && !/window\.loadRound/.test(html)) {
 
 ## 5. Go/No-Go for E2E
 
-**Decision: READY FOR E2E — Build #552**
+**Decision: NOT READY — pipeline bug exposed by build #552. Fix required before re-queue.**
 
-**All blocking items resolved:**
-- POC verified ✅ — code analysis of `/tmp/name-the-sides-poc/index.html` confirms `window.loadRound` patch works: `nextRound()` receives `currentRound = n-1`, increments to `n`, renders round `n`, sets `data-phase='playing'`
-- GEN-114 gen prompt rule deployed ✅ — updated to include `gameState.gameEnded = false; gameState.isProcessing = false;` reset (commit e4d84f1, updated further to add isProcessing reset)
-- T1 PART-021-LOADROUND warning deployed ✅ — catches round-based games missing `window.loadRound` before test gen
-- 793 tests pass ✅ — no regressions from prompts.js update
+**What blocked:** Build #552 failed at iter=0 before any tests ran. The contract auto-fix (Step 1b) destructively rewrote the HTML, introducing two T1 regressions:
+- Missing `max-width: 480px` CSS constraint
+- Broken `...signalPayload` spread in the `postMessage` call
 
-**Next:** Queue build #552 after count-and-tap #551 completes.
+The pipeline detected the T1 regression (`"Contract-fix introduced 1 T1 error(s) — logged for fix loop"`) but proceeded to early-review anyway instead of aborting or routing the T1 errors into iteration 1's fix prompt. The early reviewer correctly rejected the broken HTML twice, causing the build to fail with `status=rejected` at iter=0 with zero tests run.
 
-**Evidence completeness:**
-- §2 (Evidence): complete — window exposure confirmed absent, harness fallback path confirmed, phase-stuck mechanism confirmed
-- §3 (POC): verified via static code analysis — deterministic fix, no diagnostic.js run required
+**Fix required:** `pipeline.js` Step 1b must carry T1 errors introduced by contract auto-fix into the fix loop iteration 1 prompt, rather than silently proceeding to early-review with a T1-broken artifact.
+
+**window.loadRound status (updated):** GEN-114 rule fires as a WARNING (PART-021-LOADROUND), not a T1 error, so it did not block the build. The test harness handles the missing `window.loadRound` gracefully via the `loadRound → jumpToRound → loadQuestion → goToRound` fallback chain. This is no longer the primary blocker — the pipeline bug is.
+
+**Previously resolved (still valid):**
+- GEN-114 gen prompt rule deployed — commit e4d84f1
+- T1 PART-021-LOADROUND warning deployed
+- 793 tests pass — no regressions
+
+**Next:** Fix Step 1b T1 regression handling in `pipeline.js`, deploy, then re-queue.
 
 ---
 
@@ -136,4 +142,38 @@ Not yet run. Local test session against `/tmp/name-the-sides-550/index.html` is 
 | Build #550 iter 1–3 | Pipeline ran 3 fix iterations on mechanics 0/6 failures | No progress — root cause is missing `window.loadRound`, which the fix loop cannot add because T1 does not flag it as an error (only a warning after PART-021-LOADROUND is added) |
 | — | GEN-114 gen prompt rule (pending) | Not yet deployed |
 | — | T1 PART-021-LOADROUND warning (pending) | Not yet deployed |
-| Build #551 | Re-queue after GEN-114 + T1 fix deployed | Pending |
+| Build #552 | Re-queued after GEN-114 + T1 fix deployed | REJECTED iter=0 — pipeline bug in Step 1b contract auto-fix (see §552 section below) |
+
+---
+
+## Build #552 — Contract Fix Regression
+
+**Build outcome:** REJECTED at iter=0. Early-review rejected twice. Zero tests run.
+
+### What happened
+
+1. **Step 1b (contract auto-fix) was destructive.** When the pipeline rewrote the generated HTML to resolve contract validation issues, it inadvertently introduced two T1 static validator errors:
+   - Stripped the `max-width: 480px` CSS constraint (T1 error: missing max-width constraint)
+   - Broke the `...signalPayload` spread in the `postMessage` call (T1 error: signalPayload spread missing)
+
+2. **Pipeline detected the regression but did not act on it.** Logs showed: `"Contract-fix introduced 1 T1 error(s) — logged for fix loop"`. However, the pipeline proceeded to early-review with the T1-broken HTML rather than aborting or injecting the T1 errors into iteration 1's fix prompt.
+
+3. **Early reviewer correctly rejected the broken HTML.** The reviewer saw the T1 violations and rejected twice, causing `status=rejected` at iter=0.
+
+4. **Root cause: pipeline bug in `pipeline.js` Step 1b.** The T1 regression detection path logs the error but takes no corrective action. The fix is to carry Step 1b-introduced T1 errors into the fix loop iteration 1 prompt so the LLM can repair the regression before early-review runs.
+
+### window.loadRound clarification
+
+`window.loadRound` is NOT present directly in the game HTML. However, this was NOT the cause of build #552's failure. PART-021-LOADROUND fires as a WARNING (not a T1 error), so GEN-114 T1 enforcement did not block the build. The test harness handles the missing `window.loadRound` gracefully via its ordered fallback chain (`loadRound → jumpToRound → loadQuestion → goToRound`). The sole cause of #552 failure was the Step 1b T1 regression.
+
+### Fix required
+
+`pipeline.js` Step 1b must be updated so that when contract auto-fix introduces T1 regressions, those errors are:
+- Either: included in iteration 1's fix prompt (preferred — lets the LLM repair the regression in the normal fix loop)
+- Or: treated as a blocker that prevents proceeding to early-review until resolved
+
+Fix is in progress. Do NOT re-queue until deployed.
+
+### Impact on Go/No-Go
+
+See updated §5 above. Game is NOT READY for E2E until the pipeline bug is fixed and deployed.
