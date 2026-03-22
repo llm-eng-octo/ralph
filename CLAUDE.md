@@ -101,7 +101,7 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents.
 - **Background:** Use `run_in_background: true` when result is not needed immediately.
 - **Foreground:** Use when the result informs your next decision.
 
-### Active Crons (session-only — recreate from `docs/areas/crons.md` if CronList shows <5)
+### Active Crons (session-only — recreate from `docs/areas/crons.md` if CronList shows <6)
 
 | Cron | Purpose | Schedule |
 |------|---------|----------|
@@ -109,6 +109,8 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents.
 | Slack Update | Progress to Mithilesh @U0242GULG48, channel C09J341LC2K | every 15 min |
 | Roadmap Manager | Mark done items, update R&D slot | :47 hourly |
 | Roadmap Task Check | R&D slot active + handoff routing | :23 hourly |
+| Slot Health Check | Report slot + cron status inline — NO Slack | every 30 min |
+| Slot Watchdog | Detect idle slots and launch sub-agents to advance them | every 5 min |
 
 **Cron 3 (Queue Strategist) is PERMANENTLY DISABLED. Never recreate it.**
 
@@ -308,7 +310,7 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 ### 17. Session restore — run this checklist at every session start or after context compaction
 
-1. **CronList** — if <5 crons (excluding disabled Cron 3), recreate all from `docs/areas/crons.md`.
+1. **CronList** — if <6 crons (excluding disabled Cron 3), recreate all from `docs/areas/crons.md`.
 2. **Running agents** — relaunch any mid-flight agents from the conversation summary.
 3. **Build pipeline** — SSH, confirm worker running, no build stuck >45 min.
 4. **R&D slot** — confirm one task marked `active` in `ROADMAP.md`. If empty, launch immediately.

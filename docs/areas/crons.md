@@ -1,6 +1,6 @@
 # Ralph Pipeline — Cron Definitions
 
-All crons are session-only. Recreate all 5 at session start if CronList shows fewer than 5 (4 non-disabled + slot health check).
+All crons are session-only. Recreate all 6 at session start if CronList shows fewer than 6 (4 operational + slot health check + slot watchdog).
 **Cron 3 (Queue Strategist) is PERMANENTLY DISABLED — do NOT recreate it.**
 
 ## Cron 1 — Build Doctor (every 5 min)
@@ -89,7 +89,7 @@ Schedule: `*/30 * * * *`
 ```
 Cron + slot health check. Report inline ONLY — do NOT send any Slack message.
 
-1. Check CronList — are all 5 non-disabled crons present? Report count.
+1. Check CronList — are all 6 non-disabled crons present? Report count.
 2. Check ROADMAP.md R&D slot — is one task marked 'active'? Report.
 3. Check Education slot in ROADMAP.md — is one task marked 'active'? Report.
 4. Check UI/UX slot — is there an active audit target in docs/ui-ux/audit-log.md? Report.
@@ -97,4 +97,38 @@ Cron + slot health check. Report inline ONLY — do NOT send any Slack message.
 6. If any slot is empty or passive, flag it: "SLOT EMPTY — launch immediately".
 
 Output: 7 lines max, inline only.
+```
+
+## Cron 7 — Slot Watchdog (every 5 min)
+
+Schedule: `*/5 * * * *`
+
+```
+Slot watchdog. Check all 4 slots for idleness and launch sub-agents for any that are idle. Report inline ONLY — do NOT send Slack.
+
+IDLE DETECTION — check each slot:
+
+1. R&D slot: Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md ## R&D table.
+   IDLE if: no row has status containing "active".
+   ACTION: Spawn sub-agent — pick the highest-leverage pending item (look at R&D backlog + recent build failure patterns), mark it active in ROADMAP.md, and begin the R&D task.
+
+2. Test Quality slot: Read ROADMAP.md ## Test Quality (or Test gen) section.
+   IDLE if: no task is marked active AND no build is currently running that a diagnosis depends on.
+   ACTION: Spawn sub-agent — SSH to server, query DB for lowest category pass rate, begin Phase B improvement (draft CT rule, implement in lib/prompts.js, run tests, deploy).
+
+3. Education slot: Read /Users/the-hw-app/Projects/mathai/ralph/docs/education/trig-session.md and ROADMAP.md Education section.
+   IDLE if: next unbuilt game has no active build queued AND no spec work in progress.
+   ACTION: Spawn sub-agent — advance education slot (draft/review spec for next game, or document findings from last approved game, or audit interaction-patterns.md for gaps).
+
+4. UI/UX slot: Read /Users/the-hw-app/Projects/mathai/ralph/docs/ui-ux/audit-log.md (or games/<game>/ui-ux.md).
+   IDLE if: last audit entry is >4 hours old AND there are approved games with no audit (check warehouse/templates/* for games missing ui-ux.md).
+   ACTION: Spawn sub-agent — run diagnostic.js against next unaudited approved game, produce ui-ux.md with issue list.
+
+IMPORTANT CONSTRAINTS:
+- "Waiting for a build to complete" is NOT idle — if a build is running and the slot is actively watching it for a decision, that slot is not idle.
+- Only act if genuinely idle. A slot that produced output in the last 30 min is not idle.
+- Each action must spawn a real sub-agent with a concrete task — not just report.
+- After launching sub-agents, report: one line per slot. Format: "R&D: ACTIVE — [task]" or "R&D: IDLE → launched [action]"
+
+Output: 4 lines (one per slot) + count of sub-agents launched.
 ```
