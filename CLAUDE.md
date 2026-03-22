@@ -33,21 +33,14 @@ Slack Events → /slack/events ────────┤
 ```bash
 npm start              # Start webhook server (port 3000)
 npm run worker         # Start BullMQ worker
-npm test               # Run all 550 tests (19 test files)
+npm test               # Run all tests (19 test files)
 npm run validate       # Run static HTML validator on a file
 npm run validate:contract  # Run contract validator on a file
 npm run lint           # ESLint check
 npm run format:check   # Prettier check
-```
-
-Tests use Node.js built-in test runner (`node --test`). No external test framework. Tests mock all external dependencies — no infrastructure needed.
-
-```bash
 node --test test/*.test.js    # All tests
 node --test test/db.test.js   # Single file
 ```
-
-**Test files:** db, games-learnings, gcp, llm, logger, mcp, metrics, sentry, server, slack, validate-static, validate-contract, worker, ralph-sh, e2e, proxy-contract, load, pipeline, failure-patterns.
 
 ## Documentation Index
 
@@ -57,14 +50,17 @@ node --test test/db.test.js   # Single file
 | `docs/areas/pipeline.md` | API routes, DB schema, key files, env vars, code style, test harness |
 | `docs/areas/build-management.md` | Kill criteria, lifecycle commands, monitoring |
 | `docs/areas/crons.md` | Full cron prompts and schedules |
+| `docs/areas/slots.md` | **Full operating procedures for all 7 slots (Rules 13–20)** |
+| `docs/areas/slot-feeds.md` | **Slot Activity Principle + Cross-Slot Feed Links** |
+| `docs/areas/mcp-servers.md` | Curated MCP servers useful for pipeline slots |
 | `docs/education/README.md` | Session Planner vision, trig session, interaction patterns |
 | `docs/lessons-learned.md` | Accumulated build lessons (176+) |
 | `docs/resources/spec-rca-template.md` | Per-game RCA template (5-section format) |
-| `games/index.md` | Master table of all games — status, build #, next action (human entry point) |
-| `games/<game>/index.md` | Per-game human decision dashboard — status, build history, action required |
+| `games/index.md` | Master table of all games — status, build #, next action |
+| `games/<game>/index.md` | Per-game human decision dashboard |
 | `games/<game>/spec.md` | Canonical spec (pipeline reads via symlink from `warehouse/templates/<game>/spec.md`) |
-| `games/<game>/rca.md` | Per-game failure history and root cause analysis (primary). `warehouse/templates/<game>/rca.md` is a symlink here. `docs/spec_rca/` stubs redirect here for older games. |
-| `games/<game>/ui-ux.md` | Per-game UI/UX audit (primary). `warehouse/templates/<game>/ui-ux.md` is a symlink here. |
+| `games/<game>/rca.md` | Per-game failure history and root cause analysis (primary) |
+| `games/<game>/ui-ux.md` | Per-game UI/UX audit (primary) |
 | `ROADMAP.md` | Active R&D tasks, education slot, pipeline improvements |
 
 ## Server Operations (GCP: 34.93.153.206)
@@ -82,16 +78,13 @@ ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "journalctl -u ralp
 # Queue a build
 ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "curl -s -X POST http://localhost:3000/api/build -H 'Content-Type: application/json' -d '{\"gameId\":\"doubles\"}'"
 
-# Kill a stuck build + mark failed
-ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "sudo systemctl kill --signal=SIGKILL ralph-worker && redis-cli DEL 'bull:ralph-builds:{jobId}:lock' && sleep 2 && sudo systemctl start ralph-worker"
-ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && node -e \"require('./lib/db').failBuild(199, 'reason')\""
+# Check for running build (always run before restart)
+ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && node -p \"const db = require('better-sqlite3')('data/builds.db'); JSON.stringify(db.prepare('SELECT id,game_id,status FROM builds WHERE status=?').get('running') || 'IDLE')\""
 ```
 
 **Queue policy (CRITICAL):** Only queue builds to verify a specific fix or change. Never queue speculatively, for measurement, or to fill the queue. All queuing is manual — there is no automated queue.
 
 ## Agent & Cron Capabilities
-
-### Sub-agents
 
 Delegate ALL implementation, research, and long-running tasks to sub-agents.
 
@@ -103,7 +96,6 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents.
 
 - **Parallel:** Independent agents MUST launch in a single message.
 - **Background:** Use `run_in_background: true` when result is not needed immediately.
-- **Foreground:** Use when the result informs your next decision.
 
 ### Active Crons (session-only — recreate from `docs/areas/crons.md` if CronList shows <7)
 
@@ -128,14 +120,12 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents.
 3. Observe: console errors, network 404s, `data-phase`/`data-lives`, option button visibility, `window.gameState` shape
 4. Run the failing test case step-by-step and screenshot each action
 
-**Why:** Screenshots answer "CDN slow? overlay blocking? wrong phase? wrong selector?" in seconds. Pipeline logs alone cannot distinguish CDN latency from HTML bugs.
-
 ## Agent Self-Improvement (REQUIRED)
 
 After every build run, pipeline fix, new failure pattern, or architectural decision:
 
 1. Update `docs/lessons-learned.md` — tag each entry with build number and source
-2. Update `games/<game>/rca.md` (primary) — see `docs/resources/spec-rca-template.md` for format. `warehouse/templates/<game>/rca.md` is a symlink here. For very old games without a games/ entry yet, use `docs/spec_rca/<game-id>.md`.
+2. Update `games/<game>/rca.md` — see `docs/resources/spec-rca-template.md` for format
 3. Update `docs/areas/build-management.md` — refine kill criteria from observations
 4. Update `CLAUDE.md` — keep accurate as single source of agent truth
 5. Update `ROADMAP.md` — mark completed, add newly discovered improvements
@@ -150,19 +140,18 @@ These rules are non-negotiable. Violating them causes data loss, broken builds, 
 
 `sudo systemctl restart ralph-worker` kills any running pipeline mid-LLM-call.
 
-**Deploy agents MUST use this exact sequence every time:**
+**Deploy sequence (ALWAYS follow this):**
 ```bash
-# 1. Check before touching worker
-node -p "const Database = require('better-sqlite3'); const db = new Database('data/builds.db'); db.prepare('SELECT id,game_id,status FROM builds WHERE status=?').get('running') || 'IDLE'"
-# 2. Only if IDLE: copy files + restart
-sudo cp /tmp/file.js /opt/ralph/path/file.js
-sudo systemctl restart ralph-worker
-# 3. If running: copy files only — NO restart. New code loads on next job.
+# Check first
+node -p "const db = require('better-sqlite3')('data/builds.db'); db.prepare('SELECT id,game_id,status FROM builds WHERE status=?').get('running') || 'IDLE'"
+# Only if IDLE: copy files + restart
+sudo cp /tmp/file.js /opt/ralph/path/file.js && sudo systemctl restart ralph-worker
+# If RUNNING: copy files only — NO restart. New code loads on next job.
 ```
 
 ### 2. Never auto-restart based on wall-clock time alone
 
-`iterations=0` in the DB does NOT mean stuck — the pipeline is actively running LLM calls (DB updates only at phase boundaries). Reliable stuck signal: `status='running'` for >45 minutes with no Slack thread progress.
+`iterations=0` does NOT mean stuck — pipeline is actively running LLM calls (DB updates only at phase boundaries). Reliable stuck signal: `status='running'` for >45 minutes with no Slack thread progress.
 
 ### 3. Never idle waiting for a build — work in parallel
 
@@ -170,7 +159,7 @@ While a build runs (~25-35 min), diagnose failures, implement fixes, run tests, 
 
 ### 4. Deploy to server before re-queuing
 
-Sequence: fix code → `npm test` → commit → `scp` → `systemctl restart` → queue build. A build started on old code wastes a full pipeline run.
+Sequence: fix code → `npm test` → commit → `scp` → `systemctl restart` → queue build.
 
 ### 5. Kill a build immediately if any of these hold
 
@@ -197,354 +186,76 @@ Execute decisions autonomously. The only exception is irreversible destructive a
 
 ### 10. Send a Slack progress update to Mithilesh every 15 minutes
 
-Channel `C09J341LC2K`, tag `<@U0242GULG48>`, use `SLACK_TOKEN` from `/Users/the-hw-app/Projects/slack-helpers/.env`. Delegate to a sub-agent — do not block the main context. Include: running build + step, queue depth, approvals/failures, shipped improvements, R&D status, Education slot status, attention flag.
+Channel `C09J341LC2K`, tag `<@U0242GULG48>`, use `SLACK_TOKEN` from `/Users/the-hw-app/Projects/slack-helpers/.env`. Delegate to a sub-agent. Include: running build + step, queue depth, approvals/failures, shipped improvements, all 7 slot states with current task + waiting-on.
 
 ### 11. Always explain the value of a running build when reporting status
 
-Include: (1) what we expect to learn or gain if it completes, (2) why it has not been killed — what kill criteria it has NOT yet met. Format: "Value if completes: X. Not killed because: Y."
+Include: (1) what we expect to learn or gain if it completes, (2) why it has not been killed — what kill criteria it has NOT yet met.
 
 ### 12. You are a manager/orchestrator — never sit idle, never implement in main context
 
-Delegate ALL implementation, research, and long-running tasks to sub-agents. The parent agent must remain available to the user at all times. After launching any sub-agent or after any user message, immediately ask: "What is the next thing I can do right now?" Then do it.
+Delegate ALL implementation, research, and long-running tasks to sub-agents. After launching any sub-agent or after any user message, immediately ask: "What is the next thing I can do right now?" Then do it.
 
-### Slot Activity Principle (applies to all seven slots)
+### Slot Activity Principle + Cross-Slot Feeds
 
-**A slot is never passive.** "Waiting for a build", "nothing to do until X completes", and "monitoring" are not slot activities. Every slot has an unbounded backlog of available work that does not depend on any build being running:
+All 7 slots are never passive. Every slot has unbounded work available without a running build. See `docs/areas/slot-feeds.md` for full backlog lists, passive-state table, and cross-slot feed links.
 
-- **Gen Quality:** Past build logs, failure pattern analysis, hypothesis drafting, prompt rule writing, doc updates — all available at any time from existing DB + docs.
-- **Test Engineering:** Category pass rates are always computable from DB. Every category below 100% is active work. Past failed game HTMLs are permanently on GCP — `diagnostic.js` can run on any of them. Every "test bug" verdict in `docs/spec_rca/` that hasn't had a fix shipped is queued work. There is no state where test quality cannot be improved.
-- **Education:** Next game spec can always be drafted, interaction-patterns.md always has gaps to fill, past approved games can always be audited for pedagogical quality.
-- **UI/UX:** The approved game library grows with every build. Any approved game that hasn't been visually audited is valid work. There is no state where "there is nothing to audit."
-- **Local Verification:** Any fix shipped this session that hasn't been locally validated is immediate work. Download the most recent relevant failed HTML from GCP and run Playwright now.
-- **Analytics:** Category pass rates + failure patterns + first-attempt rate + never-approved list are always computable from DB. If last output is >30 min old, run immediately.
-- **Code Review:** Any file in `lib/` or `worker.js`/`server.js` modified in the last 3 commits is always available for review. No build required — just `git log --oneline -5` to find recent changes.
+**Core rule:** Any passive state (waiting, monitoring, nothing-to-do) = immediately identify next independent task and start it. A slot that is only waiting is a slot that is empty.
 
-**Passive states — always trigger immediate next-task planning:**
-
-| Passive state | What to do instead |
-|--------------|-------------------|
-| Waiting for a build to complete | Pick next independent task from the backlog above and start it now |
-| Waiting for a deploy to finish | Same — deploy is async, slot keeps working |
-| Waiting for another slot's output | Same — work on anything from the backlog that doesn't depend on it |
-| Monitoring / watching logs | Not a task. Report status in one line, then start the next task |
-| "Nothing to do until X" | X is never true. Enumerate the backlog above and pick one |
-| Local Verification idle | Download most recent failed build HTML, apply last shipped fix, run Playwright |
-| No Analytics in >30 min | Query DB immediately for category rates + failure patterns + never-approved games |
-| Code Review idle | Run `git log --oneline -5`, pick most recently modified lib/ file, review for logic errors, edge cases, test coverage gaps |
-
-**The rule:** If the current step requires waiting, that is fine — but the slot must immediately identify the next independent task and start it in the same response. A slot that is only waiting is a slot that is empty.
-
-### Cross-Slot Feed Links (mandatory — slots actively feed each other)
-
-Slots are not independent. Every slot produces outputs that other slots must act on. These feeds are always active:
-
-| Source | Finding | Target slot | Required action |
-|--------|---------|-------------|-----------------|
-| UI/UX | (a) gen prompt rule | **Gen Quality** | Add to ROADMAP.md Gen Quality backlog with exact rule text; Gen Quality implements in `lib/prompts.js`, tests, deploys |
-| UI/UX | (d) test coverage gap | **Test Engineering** | Add to ROADMAP.md Test Engineering backlog with the specific assertion; Test Engineering adds to test-gen prompts |
-| UI/UX | (b) spec addition | **Education** | Update `games/<game>/spec.md` with visual requirement; Education slot owns the update |
-| UI/UX | visual bug in approved HTML | **Build queue** | Re-queue with the UI/UX issue list as targeted fix context |
-| Test Engineering | "HTML bug" verdict | **Gen Quality** | New CDN constraint → Gen Quality adds T1 check + gen prompt rule in same response |
-| Test Engineering | "test bug" verdict | **Test Engineering (self)** | Fix test-gen prompts immediately — do not defer |
-| Education | game approved | **UI/UX** | Trigger UI/UX audit immediately — audit before declaring the game "done" |
-| Gen Quality | new gen rule shipped | **Test Engineering** | Verify the rule is tested by at least one unit test; add if missing |
-| Gen Quality | new gen rule shipped | **Local Verification** | Download most recent relevant failed HTML, confirm fix would have helped, report verified/not |
-| Build | iteration >1 failure pattern | **Gen Quality** | Pattern becomes active Gen Quality input — check if it's a known class, update ROADMAP if new |
-| Analytics | Lowest category pass rate | **Test Engineering** | Assign as active Phase B target — fix that category's test-gen prompts next |
-| Analytics | Highest-frequency failure pattern | **Gen Quality** | Assign as active task — implement gen prompt rule or T1 check for that pattern |
-| Code Review | logic error or edge case | **Gen Quality** | Add T1 check or gen rule that would catch the issue |
-| Code Review | untested code path | **Test Engineering** | Add unit test to test/*.test.js covering the gap |
-| Code Review | architectural risk | **Analytics** | Flag in ANALYTICS UPDATE output for prioritization |
-
-**Routing protocol:** When a slot produces a handoff, it must:
-1. Write the finding to the target slot's input (ROADMAP.md backlog, games/<game>/spec.md, etc.)
-2. Note "→ handed to [slot]" in its own output doc
-3. Never leave a finding as "noted" — every finding has an owner and a next action
-
-**Cron 7 enforces this** — every 5 minutes it checks for unrouted UI/UX findings and adds them to the appropriate backlogs.
+**Cross-slot summary:** UI/UX → Gen Quality + Test Engineering + Education. Test Engineering → Gen Quality. Gen Quality → Test Engineering + Local Verification. Analytics → all slots. Code Review → Gen Quality + Test Engineering. Full routing table in `docs/areas/slot-feeds.md`.
 
 ---
 
 ### 13. Always maintain one active Gen Quality task — MANDATORY
 
-**State tracking (always maintain in ROADMAP.md):**
-Each session, the Gen Quality slot must have ONE row in ROADMAP.md marked with exactly these fields visible at the top of the R&D table:
-- **Current task:** [what the active R&D task is — one sentence]
-- **Waiting on:** [what result, build completion, or data point is needed before this task can advance — or "unblocked"]
-- **Blocked by:** [any hard blocker, or "none"]
+State tracked in `ROADMAP.md` R&D section (Current task / Waiting on / Blocked by).
 
-**Gen Quality is always running.** One sub-agent must ALWAYS be actively working on a Gen Quality task. The moment one completes, immediately pick the next and launch a new sub-agent in the same response. One item must always be marked `active` in `ROADMAP.md` under `## R&D`.
-
-**Gen Quality inputs — four channels:**
-1. **Test Engineering handoffs** — every diagnosis session ends with a classified verdict (HTML bug or test bug):
-   - HTML bug → new rule in `CDN_CONSTRAINTS_BLOCK` (`lib/prompts.js`) + T1 check in `lib/validate-static.js`
-   - Test bug → fix in test-gen category prompts in `lib/prompts.js`
-2. **UI/UX handoffs** — every (a) gen prompt rule finding from a UI/UX audit becomes a Gen Quality task; implement in `lib/prompts.js` and deploy
-3. **Live build data** — iteration counts, failure patterns, which test categories fail most
-4. **Analytics slot priority ranking** — highest-leverage pending item from the last Analytics output (failure pattern frequency + category pass rates)
-
-**Prioritise:** Test Engineering handoffs > Analytics top pattern > test gen quality > fix loop accuracy > review false positives > infra reliability
-
-**Gen Quality process:** Trace → Hypothesize (one falsifiable line) → Prototype → Local Verification (see Rule 18) → Measure (queue 1-2 builds) → Ship or kill
-
-**Build verification required:** Every hypothesis touching game quality MUST be verified with at least one real build showing a before/after metric.
-
-**Context7 + WebFetch mandate — use external sources aggressively:**
-Gen Quality sub-agents must pull real documentation rather than reasoning from memory. **Context7 MCP is the preferred source for library docs** — use `mcp__context7__resolve-library-id` to find the library, then `mcp__context7__query-docs` to fetch current docs. Fall back to WebFetch for standards and sources not in Context7.
-- CDN package docs: use Context7 to fetch API docs for CDN components being constrained (ProgressBarComponent, FeedbackManager, VisibilityTracker, ScreenLayout, TimerComponent)
-- Browser compatibility: MDN via WebFetch for any CSS/JS feature being required or banned
-- WCAG accessibility: `https://www.w3.org/WAI/WCAG21/quickref/` via WebFetch for accessibility rule grounding
-- Past failure patterns: read `docs/lessons-learned.md` and `docs/failure-patterns-tracker.md` before proposing any new rule
-
-Every Gen Quality sub-agent must start with a Context7 query or WebFetch before writing any rule. "I believe X" is not acceptable — fetch the source.
-
-**Constraints:** Gen Quality never blocks critical work. Must produce a measurable result — "made it cleaner" is not Gen Quality.
+One sub-agent always active. Inputs: Test Engineering handoffs > Analytics top pattern > test gen quality > fix loop accuracy. Process: Trace → Hypothesize → Prototype → Local Verify → Measure → Ship. **Context7** (`mcp__context7__resolve-library-id` → `mcp__context7__query-docs`) for library docs. WebFetch for standards (WCAG, MDN). See `docs/areas/slots.md` for full procedure.
 
 ### 14. Always maintain one active Test Engineering Slot — MANDATORY
 
-**State tracking (always maintain in ROADMAP.md):**
-Each session, the Test Engineering slot must have ONE row in ROADMAP.md under the Test Engineering section marked with exactly these fields:
-- **Current task:** [what the active diagnosis or category-improvement task is — one sentence]
-- **Waiting on:** [what result, build completion, or data point is needed before this task can advance — or "unblocked"]
-- **Blocked by:** [any hard blocker, or "none"]
+State tracked in `ROADMAP.md` Test Engineering section (Current task / Waiting on / Blocked by).
 
-**Test Engineering is always running.** Diagnosis and test gen improvement are one slot, not two — every diagnosis finding feeds directly into a test gen fix. The slot's purpose is threefold: (1) reduce test execution time, (2) improve reliability — all cases passing on a correct game, (3) ensure tests represent real user behaviour — coverage of meaningful interactions, not just happy path.
-
-**This slot is never "caught up."** Previous builds have test failures. Every category below 100% pass rate is active work. Every approved build with weak coverage is active work. Every test that fires on a correct game is active work.
-
-**Three-phase loop (always running in parallel):**
-
-*Phase A — Diagnosis:* Run `diagnostic.js` against a recently failed build. Must run the browser — reading HTML does not count.
-- How to pick: Query DB for recent failures → skip cancelled/approved/queued → prioritise games with incomplete RCA §2/§3.
-- Output: Update `games/<game>/rca.md` (primary; symlinked from `warehouse/templates/<game>/rca.md`; use `docs/spec_rca/<game-id>.md` only for games not yet migrated to `games/`) with §2 (evidence) and §3 (POC). Classify verdict:
-
-| Verdict | Meaning | Next action |
-|---------|---------|-------------|
-| **HTML bug** | Game broken in browser | POC fix → hand to Gen Quality as gen prompt rule + T1 check |
-| **Test bug** | Game correct, tests wrong | Test-gen prompt fix → implement immediately in this slot |
-
-*Phase B — Test gen improvement:* Analyse category pass rates and fix the lowest-performing category.
-- Query DB: `SELECT category, AVG(CAST(passed AS FLOAT)/NULLIF(total,0)) as rate FROM test_progress GROUP BY category ORDER BY rate ASC`
-- For the lowest category: find the specific failing assertion pattern, draft a CT rule, add it to `lib/prompts.js`, run tests, deploy.
-- Every session must ship at least one concrete fix OR a documented finding with a proposed fix.
-
-*Phase C — Local verification:* After any test-gen rule is added to `lib/prompts.js`, immediately verify before queuing a build.
-- Download a recently failed game's HTML from GCP: `curl -s "https://storage.googleapis.com/mathai-temp-assets/games/<gameId>/builds/<buildId>/index.html" -o /tmp/<gameId>/index.html`
-- Apply the fix manually to the HTML, run `node diagnostic.js` + Playwright locally.
-- Confirm the fix would help BEFORE queuing a full build. This reduces verification time from 30 min to 5-10 min.
-- Report: "Fix verified: [yes/no] against build #X — [what was tested]". If no: iterate on fix before queuing.
-
-**Always-available work (no build required):**
-- Category pass rates from DB (above query) — always computable
-- GCP build artifacts — test output from every past build is permanently accessible
-- `docs/spec_rca/` — every "test bug" verdict that hasn't had a fix shipped is queued work
-- Approved builds — compare their test assertions against failed builds to identify what good tests look like
-- Timing analysis — which tests have flaky timing, which assertions use hard sleeps instead of waitForPhase
-
-**Context7 + WebFetch mandate — use external sources aggressively:**
-Test Engineering sub-agents must ground test rules in real documentation rather than guessing at correct behavior. **Context7 MCP is the preferred source for library docs** — use `mcp__context7__resolve-library-id` to find the library, then `mcp__context7__query-docs` to fetch current docs. Fall back to WebFetch for standards and sources not in Context7.
-- Playwright docs: use Context7 (`resolve-library-id: "playwright"`) to verify correct assertion API syntax before adding a CT rule (e.g., `expect.poll()`, `waitForSelector`, `toBeVisible` semantics)
-- Accessibility testing: `https://www.w3.org/WAI/WCAG21/quickref/` via WebFetch — WCAG 2.1 criteria for any accessibility assertion being added
-- a11y testing patterns: WebFetch for documented patterns for testing ARIA live regions, focus management, keyboard navigation in browser automation
-- CDN component behavior: Context7 or WebFetch for CDN component documentation to understand correct event sequences before writing assertions about them
-
-Every test-gen rule must be grounded in either: (a) a Context7 or fetched Playwright/CDN doc confirming correct API usage, or (b) observed failure evidence from a real build. "I think the selector should be X" is not acceptable.
-
-**Constraints:** Never blocks critical pipeline work. "No new failures to diagnose" is not idle — switch to Phase B immediately.
+Three phases always running: **A** = Diagnosis (run `diagnostic.js`, classify HTML bug vs test bug), **B** = Test gen improvement (fix lowest-rate category from DB pass rates), **C** = Local verification (verify fix on GCP HTML before queuing). **Context7** for Playwright docs. Never idle — switch phases immediately. See `docs/areas/slots.md` for full phase details.
 
 ### 15. Always maintain one active Education Implementation Slot — MANDATORY
 
-**State tracking (always maintain in ROADMAP.md):**
-Each session, the Education slot must have ONE row in ROADMAP.md under the Education section marked with exactly these fields:
-- **Current task:** [what the active education task is — one sentence]
-- **Waiting on:** [what result, build completion, or data point is needed before this task can advance — or "unblocked"]
-- **Blocked by:** [any hard blocker, or "none"]
+State tracked in `ROADMAP.md` Education section (Current task / Waiting on / Blocked by).
 
-**Education implementation is always running.** One sub-agent must ALWAYS be actively implementing educational improvements. R&D targets pipeline reliability; Education targets learning science and content quality.
-
-**The Education slot is never idle.** The slot's scope is not "build the next game" — it is "build the capability to autonomously generate complete learning sessions for any curriculum area." That scope is unbounded. A running build is irrelevant to Education slot work — the spec review, session planning, pedagogical audit, and interaction pattern work proceed independently.
-
-**Priorities:** (1) Next unbuilt game in active session sequence, (2) New interaction patterns at apply/analyze/create Bloom's level, (3) New session plan for a different curriculum area.
-
-**Process:** Research → Spec draft (check CDN compliance) → Build verification → Measure learning quality → Ship or iterate.
-
-**Always-available Education work (no build required):**
-- **Spec review** — review pending game specs (real-world-problem, future games) for Bloom level accuracy, misconception coverage, production vs recognition demand, CDN compliance, test hook clarity
-- **Session planning** — identify and plan the next curriculum area (Session 2, Session 3). Ground in NCERT/CC standards, draft prerequisite DAG, identify required interaction patterns
-- **Interaction patterns** — `docs/education/interaction-patterns.md` is always incomplete at L3/L4 Bloom levels. Every session adds proven patterns; document them immediately after approval
-- **Pedagogical quality audit** — any approved game that hasn't had a pedagogy audit (separate from UI/UX audit) is active work. Check: does the game require the learner to *produce* the cognitive operation, or just recognize the answer?
-- **Misconception coverage** — does each game target at least one documented misconception? Check games/<game>/spec.md for explicit misconception targeting
-- **Session Planner architecture** — `docs/education/README.md` §7 describes the long-term vision. Each subsystem (goal parsing, prerequisite analysis, session design, spec generation) can be designed independently of pipeline readiness
-- **Curriculum alignment** — map approved games to NCERT chapter/section and CC standard codes. This becomes the retrieval index for Step 1 of the Session Planner
-
-**Context7 + WebFetch mandate — use external sources aggressively:**
-Education sub-agents must ground all curriculum work in real sources rather than LLM knowledge. **Context7 MCP is the preferred source for any library or framework used in game specs** — use `mcp__context7__resolve-library-id` → `mcp__context7__query-docs`. Use WebFetch for curriculum content, standards, and research sources.
-- NCERT textbooks: Class 9/10 Mathematics chapters from NCERT official site for curriculum alignment (WebFetch)
-- Common Core standards: CC Math standards for the relevant grade band (WebFetch)
-- Cognitive science research: papers on worked examples (Sweller), ZPD (Vygotsky applied to math), spaced repetition, Bloom's taxonomy application (WebFetch)
-- Khan Academy / BYJU's: check how leading platforms teach the target concept — what interaction patterns do they use? (WebFetch)
-- Wikipedia: for concept prerequisites and curriculum progression (WebFetch)
-- Misconception databases: search for documented student misconceptions in the target concept area (WebFetch)
-- CDN component APIs: use Context7 to fetch current CDN component docs when spec references specific component behavior
-
-Every Education sub-agent planning a new session or game must fetch at least 2 external sources before writing any spec or session plan. Grounded specs produce better games.
-
-Example workflow for planning Session 2 (after trig):
-1. Fetch NCERT Class 9/10 chapter list → identify what follows trig in Indian curriculum
-2. Fetch Common Core HS Math standards → find the US progression
-3. Fetch 1-2 misconception papers/articles for the target concept
-4. THEN draft the session plan
-
-**Documentation mandate — after every Education build result, update ALL of:**
-1. `docs/education/trig-session.md` (or relevant session file)
-2. `docs/education/interaction-patterns.md`
-3. `docs/education/README.md`
-4. `ROADMAP.md` Education section
-5. `games/<game>/rca.md` (primary; symlinked from `warehouse/templates/<game>/rca.md`; use `docs/spec_rca/<game-id>.md` only for games not yet migrated to `games/`)
-
-**Constraints:** Must produce a measurable artifact per session. Education slot never blocks critical pipeline work.
+Never idle. Scope is unbounded: spec review, session planning, pedagogy audit, interaction patterns, curriculum alignment, Session Planner architecture — all available without a running build. **Context7** for CDN component docs; WebFetch for NCERT/CC standards/research papers. Must fetch ≥2 external sources before writing any spec or session plan. See `docs/areas/slots.md` for full procedure.
 
 ### 16. Always maintain one active UI/UX Slot — MANDATORY
 
-**State tracking (always maintain in docs/ui-ux/audit-log.md):**
-Each session, the UI/UX slot must have ONE entry in docs/ui-ux/audit-log.md marked with exactly these fields:
-- **Current task:** [what game is being audited and what phase of the audit — one sentence]
-- **Waiting on:** [what result, build completion, or data point is needed before this task can advance — or "unblocked"]
-- **Blocked by:** [any hard blocker, or "none"]
+State tracked in `docs/ui-ux/audit-log.md` (Current task / Waiting on / Blocked by).
 
-**UI/UX review is always running.** One sub-agent must ALWAYS be actively auditing the visual and interaction quality of approved games. R&D targets pipeline reliability; Education targets learning science; UI/UX targets the learner's sensory and interaction experience.
-
-**What UI/UX covers:** visual layout and spacing, mobile responsiveness (480px), colour contrast and accessibility, feedback clarity (correct/incorrect states), animation and transition quality, progress indicators, button affordance, error states, loading states, and consistency across games in a session.
-
-**How to pick the target game:** Start with the most recently approved game that has not had a UI/UX audit. Then work backwards through the approved game library. Record audit status in `docs/ui-ux/audit-log.md`.
-
-**Required output per session:**
-1. Screenshot audit — run `diagnostic.js` against the approved HTML, capture screenshots at every phase
-2. Issue list — categorise as: (a) gen prompt rule, (b) spec addition, (c) CDN constraint, (d) test coverage gap
-3. Update `games/<game>/ui-ux.md` with game, date, issues found, and resolution path
-
-**Context7 + WebFetch mandate — ground audits in real standards:**
-UI/UX sub-agents must reference real design and accessibility standards rather than subjective judgment. **Context7 MCP is the preferred source for CSS framework and component library docs** — use `mcp__context7__resolve-library-id` → `mcp__context7__query-docs`. Use WebFetch for standards documents.
-- WCAG 2.1 quickref: `https://www.w3.org/WAI/WCAG21/quickref/` via WebFetch — for any contrast, focus, ARIA, or keyboard finding
-- Apple HIG touch targets: minimum 44×44pt touch target specification (WebFetch from HIG)
-- Material Design: spacing, elevation, and typography guidelines for mobile-first design (WebFetch or Context7)
-- Color contrast checker: use the WCAG contrast ratio formula (4.5:1 for normal text, 3:1 for large) when flagging color issues — report the actual ratio, not just "low contrast"
-- MDN: use Context7 for CSS property behavior (position:fixed, z-index stacking, viewport units) before falling back to WebFetch
-
-Every UI/UX finding must cite the standard it violates (WCAG SC X.X.X, HIG touch target spec, etc.) — not just "this looks wrong."
-
-**Cross-slot handoffs (mandatory — UI/UX findings actively improve other slots):**
-
-| Finding type | Route to | Action |
-|-------------|----------|--------|
-| **(a) Gen prompt rule** | **Gen Quality slot** | Create ROADMAP.md Gen Quality task with exact rule text. Gen Quality implements in `lib/prompts.js` CDN_CONSTRAINTS_BLOCK or GEN rules, runs tests, deploys. |
-| **(b) Spec addition** | **Education slot** | Flag to Education — add visual requirement to `games/<game>/spec.md` and session plan |
-| **(c) CDN constraint** | **Document only** | Note in `games/<game>/ui-ux.md` as CDN-blocked; no action until CDN changes |
-| **(d) Test coverage gap** | **Test Engineering slot** | Propose a Playwright assertion that would have caught the issue (e.g., CSS content check, visibility check, aria-live check). Test Engineering slot implements in test-gen prompts. |
-| **Visual bug in approved HTML** | **Build queue** | Re-queue with UI/UX audit as the targeted fix context — paste the issue list directly into the fix prompt so the LLM knows exactly what to fix |
-
-**Routing protocol:** After every audit, explicitly create the handoff artifacts:
-- (a) issues → add to ROADMAP.md Gen Quality backlog with "source: UI/UX audit <game>"
-- (d) issues → add to ROADMAP.md Test Engineering backlog with the specific assertion that was missing
-- Never leave findings as "noted" — every finding has an owner slot and a next action
-
-**Constraints:** UI/UX never blocks critical pipeline work. Must produce a documented issue list per session — "looks fine" is not an audit.
+Always auditing. Pick most-recently-approved game without a `ui-ux.md`. Run `diagnostic.js` to screenshot all phases. Categorize issues: (a) gen rule → Gen Quality, (b) spec → Education, (c) CDN constraint → document, (d) test gap → Test Engineering. Never leave findings unrouted. **Context7** for CSS/MDN; WebFetch for WCAG. See `docs/areas/slots.md` for full procedure.
 
 ### 17. Session restore — run this checklist at every session start or after context compaction
 
-1. **CronList** — if <7 non-disabled crons (excluding disabled Cron 3), recreate all from `docs/areas/crons.md`. Must include Analytics Cron at :15/:45. (Code Review slot does not have its own cron — it is monitored by Slot Watchdog.)
+1. **CronList** — if <7 non-disabled crons (excluding disabled Cron 3), recreate all from `docs/areas/crons.md`. Must include Analytics Cron at :15/:45.
 2. **Running agents** — relaunch any mid-flight agents from the conversation summary.
 3. **Build pipeline** — SSH, confirm worker running, no build stuck >45 min.
 4. **Gen Quality slot** — confirm one task marked `active` in `ROADMAP.md`. If empty, launch immediately.
 5. **Test Engineering slot** — confirm active task (diagnosis OR category improvement). If none, query DB for lowest category pass rate and launch immediately.
 6. **Education slot** — confirm active task; read `docs/education/trig-session.md` for current state.
-7. **UI/UX slot** — confirm active audit target; read `docs/ui-ux/audit-log.md` for current state. If doc doesn't exist yet, create it and start with the most recently approved game.
-8. **Analytics slot** — confirm last Analytics output was <30 min ago. If no Analytics output this session, spawn analytics sub-agent immediately: query DB for category pass rates + failure patterns + first-attempt rate + never-approved games. Format as ANALYTICS UPDATE block.
-9. **Code Review slot** — confirm last code review ran in this session. If not, run `git log --oneline -5` and pick the most recently modified `lib/` file for review. Launch a sub-agent if the file is complex.
+7. **UI/UX slot** — confirm active audit target; read `docs/ui-ux/audit-log.md` for current state. If doc doesn't exist, create it and start with the most recently approved game.
+8. **Analytics slot** — confirm last Analytics output was <30 min ago. If not, spawn analytics sub-agent immediately: query DB for category pass rates + failure patterns + first-attempt rate + never-approved games. Format as ANALYTICS UPDATE block.
+9. **Code Review slot** — confirm last code review ran in this session. If not, run `git log --oneline -5` and pick the most recently modified `lib/` file for review.
 
 ### 18. Always maintain one active Local Verification Slot — MANDATORY
 
-**State tracking:** After each verification action, log one line in ROADMAP.md under the Local Verification section: "[date] [what was verified] | Waiting: [what's next]"
+State: one line in `ROADMAP.md` Local Verification section after each action.
 
-**Local verification closes the fix cycle.** Every fix we ship to `lib/prompts.js` or `lib/validate-static.js` currently requires a full build (25-35 min) to verify. Local verification reduces this to 5-10 min.
-
-**Trigger:** Any time a gen rule, T1 check, or test-gen rule is shipped.
-
-**Process:**
-1. Identify the most recent failed build that would have been caught by this fix
-2. Download its HTML: `curl -s "https://storage.googleapis.com/mathai-temp-assets/games/<gameId>/builds/<buildId>/index.html" -o /tmp/<gameId>/index.html`
-3. Apply the fix manually to the HTML (add the missing rule, strip the banned pattern, etc.)
-4. Run `node diagnostic.js` — verify the issue is resolved in browser
-5. Run Playwright tests locally against the patched HTML
-6. If passes: fix is verified → queue build; If fails: iterate on fix before queuing
-
-**For T1 validator changes:** Run `npm run validate` against the problematic HTML first (pre-fix), confirm it doesn't catch the bug. Then against patched HTML (post-fix), confirm it does. This verifies both sides.
-
-**For gen rule changes:** Download 2-3 recent failed builds, inspect if the rule would have prevented the failure. Gen rules can't be locally tested against future generation, but can be verified against past failures.
-
-**Output per verification:** One line — "Fix verified: [yes/no] against build #X — [what was tested]". If no: what needs to change.
-
-**Never queue a build without local verification first** (exception: builds where the fix is to the gen prompt itself and there's no existing HTML to test against — document this explicitly).
+Trigger: any shipped gen rule, T1 check, or test-gen rule. Download GCP HTML → apply fix → run `diagnostic.js` + Playwright locally → report "Fix verified: yes/no against build #X". Reduces verification from 30 min to 5 min. Never queue a build without local verification first. See `docs/areas/slots.md` for full process.
 
 ### 19. Always maintain one active Analytics Slot — MANDATORY
 
-**State tracking:** After each Analytics run, log one line in ROADMAP.md under the Analytics section: "[date] [what queries ran + top finding] | Waiting: [what's next]"
+State: one line in `ROADMAP.md` Analytics section after each run.
 
-**Analytics is the prioritization brain.** Without it, each slot picks its own next task based on local knowledge. With it, all slots receive a globally-optimal ranked next-action based on real DB data.
-
-**Runs every 30 minutes.** The Analytics cron (at :15 and :45) queries the DB and produces a ranked next-action list. This is not a human-facing report — it's slot fuel.
-
-**Queries to run:**
-1. Category pass rates: `SELECT category, AVG(CAST(passed AS FLOAT)/NULLIF(total,0)) as rate FROM test_progress GROUP BY category ORDER BY rate ASC` — lowest category goes to Test Engineering
-2. Failure patterns: `SELECT pattern, COUNT(*) as freq FROM failure_patterns GROUP BY pattern ORDER BY freq DESC LIMIT 5` — top pattern goes to Gen Quality
-3. First-attempt approval rate (last 10 builds): count of approved builds with iterations=0 vs total recent
-4. Never-approved games: games with >3 builds, 0 approved — candidates for deep diagnosis
-
-**Output format (stored as additionalContext injected into next Slot Watchdog fire):**
-```
-ANALYTICS UPDATE (HH:MM):
-- Test Engineering next: [category] at [X]% pass rate — [specific failing pattern if known]
-- Gen Quality next: [pattern] (freq [N]) — [specific rule candidate]
-- Local Verification queue: [N] fixes shipped since last verification
-- Never-approved priority: [game] — [build count], [brief failure pattern]
-```
-
-**This output feeds Slot Watchdog's idle detection.** When Slot Watchdog fires and finds a slot idle, it uses the last Analytics output to assign a specific task rather than generic backlog exploration.
+Runs every 30 min (at :15/:45). 4 DB queries: category pass rates, failure patterns (top 5), first-attempt rate, never-approved games. Output: ANALYTICS UPDATE block → feeds all other slots. See `docs/areas/slots.md` for queries and output format.
 
 ### 20. Always maintain one active Code Review Slot — MANDATORY
 
-**State tracking:** After each code review action, log one line in ROADMAP.md under the Code Review section: "[date] [file reviewed + finding] | Waiting: [what's next]"
+State: one line in `ROADMAP.md` Code Review section after each review.
 
-**Code review is always running.** The Ralph pipeline codebase (`worker.js`, `server.js`, `lib/*.js`) is modified frequently and under continuous development. Without proactive code review, bugs surface only when builds fail (30-min feedback cycle). Code Review catches them before that.
-
-**This is NOT review of generated game HTML.** This slot reviews the pipeline source code itself.
-
-**Triggers (any of these starts a review cycle):**
-1. Any deploy to the server — review the changed files within 30 min of deploy
-2. Any commit to `lib/pipeline-fix-loop.js`, `lib/prompts.js`, or `lib/validate-static.js` — these are the highest-risk files
-3. Hourly sweep — `git log --oneline -3` to find recently modified files; pick the most complex changed file
-
-**Review focus areas:**
-- **Logic errors:** Does the control flow handle all branches? Are there off-by-one errors, wrong comparisons, inverted conditions?
-- **Edge cases:** What happens when the LLM returns empty string? When the build DB has no running build? When SSH fails mid-deploy?
-- **Error handling:** Are all async calls wrapped in try/catch? Are errors logged with enough context to diagnose?
-- **Prompt rule coherence:** In `lib/prompts.js` — do any rules contradict each other? Does rule X undo what rule Y requires?
-- **Test coverage gaps:** Is every new function tested? Are error paths tested or only happy paths?
-- **Race conditions:** In `worker.js` — could two concurrent operations write to the same DB row? Could a stalled build lock prevent cleanup?
-
-**Context7 + WebFetch mandate — verify against authoritative sources:**
-Code Review sub-agents must check real documentation before flagging issues or suggesting fixes. **Context7 MCP is the preferred source for all library docs** — use `mcp__context7__resolve-library-id` to find the library, then `mcp__context7__query-docs` to fetch current docs. This is faster and more accurate than WebFetch for library APIs.
-- Node.js built-ins: use Context7 (`resolve-library-id: "node"`) for fs, child_process, http API behavior (Promise semantics, async/await edge cases, Buffer handling)
-- better-sqlite3: use Context7 (`resolve-library-id: "better-sqlite3"`) — verify transaction semantics, WAL mode behavior, prepared statement reuse
-- BullMQ: use Context7 (`resolve-library-id: "bullmq"`) — lock semantics, stall detection, retry configuration
-- Express: use Context7 (`resolve-library-id: "express"`) — middleware ordering, error handler signatures, async error propagation
-- OWASP: WebFetch for any security-relevant code path (input validation, SQL construction, file path handling)
-
-Every code review finding that involves an API behavior claim must cite the source (Context7 doc or URL). "I think Node.js does X" is not acceptable — fetch the docs.
-
-**Output per review cycle:**
-1. Files reviewed (list)
-2. Issues found — categorized: (a) logic error → fix immediately, (b) edge case → add to ROADMAP.md Gen Quality or Test Engineering backlog, (c) test gap → add unit test, (d) architectural risk → flag to Analytics for prioritization
-3. If no issues: "Clean — no issues found in [file]"
-
-**Constraints:** Code Review never delays critical pipeline work. Issues found go to ROADMAP.md backlog unless critical (logic error that could corrupt builds — fix immediately and deploy). Always run `npm test` after any code review fix before deploying.
+Reviews pipeline source code (`worker.js`, `server.js`, `lib/*.js`) — NOT generated HTML. Triggers: any deploy, or hourly sweep. Focus: logic errors, edge cases, prompt rule coherence, race conditions. **Context7** for Node.js/BullMQ/better-sqlite3/Express. See `docs/areas/slots.md` for full focus areas and output format.
