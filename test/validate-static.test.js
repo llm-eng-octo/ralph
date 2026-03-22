@@ -855,6 +855,37 @@ describe('TimerComponent(null) containerId check (5f5)', () => {
   });
 });
 
+describe('Canvas API CSS variable check (5f6)', () => {
+  it('fails when addColorStop uses a CSS variable', () => {
+    const html = VALID_HTML.replace('initGame();', "initGame(); ctx.addColorStop(0, 'var(--color-sky)');");
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Canvas API call with CSS variable'),
+      `Expected canvas-css-var error but got: ${output}`,
+    );
+  });
+
+  it('fails when fillStyle uses a CSS variable', () => {
+    const html = VALID_HTML.replace('initGame();', "initGame(); ctx.fillStyle = 'var(--color-bg)';");
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Canvas API call with CSS variable'),
+      `Expected canvas-css-var error but got: ${output}`,
+    );
+  });
+
+  it('passes when Canvas API uses literal color values', () => {
+    const html = VALID_HTML.replace('initGame();', "initGame(); ctx.addColorStop(0, '#87CEEB');");
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('Canvas API call with CSS variable'),
+      `Unexpected 5f6 error for literal color: ${output}`,
+    );
+  });
+});
+
 describe('SentryHelper in waitForPackages check (5h2)', () => {
   it('fails when typeof SentryHelper in waitForPackages', () => {
     // Insert a waitForPackages that checks SentryHelper — SentryHelper is NOT a CDN global
