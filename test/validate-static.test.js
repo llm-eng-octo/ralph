@@ -1788,3 +1788,72 @@ describe('ARIA-002: aria-live=assertive without role=alert warning (W6)', () => 
     );
   });
 });
+
+describe('GEN-UX-003 extension: ProgressBarComponent options object missing slotId key', () => {
+  it('fails when ProgressBarComponent options object lacks slotId key', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); if (typeof ProgressBarComponent !== "undefined") { var pb = new ProgressBarComponent({ totalRounds: 5, totalLives: 3 }); }',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('FORBIDDEN') && output.includes('GEN-UX-003'),
+      `Expected GEN-UX-003 error but got: ${output}`,
+    );
+  });
+
+  it('passes when ProgressBarComponent options object has slotId key', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); if (typeof ProgressBarComponent !== \"undefined\") { var pb = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 }); }",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-UX-003'),
+      `Unexpected GEN-UX-003 error when slotId is present: ${output}`,
+    );
+  });
+});
+
+describe('GEN-UX-004: alert() call ban', () => {
+  it('fails when game uses alert() call', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); function showError() { alert('Something went wrong!'); }",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('FORBIDDEN') && output.includes('GEN-UX-004'),
+      `Expected GEN-UX-004 error but got: ${output}`,
+    );
+  });
+});
+
+describe('GEN-UX-005: SignalCollector must not be called with no args', () => {
+  it('fails when SignalCollector called with no args', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); const sc = new SignalCollector();',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('FORBIDDEN') && output.includes('GEN-UX-005'),
+      `Expected GEN-UX-005 error but got: ${output}`,
+    );
+  });
+
+  it('passes when SignalCollector called with args object', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); const sc = new SignalCollector({ sessionId: 'abc', studentId: '123', templateId: 'tpl' });",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-UX-005'),
+      `Unexpected GEN-UX-005 error when SignalCollector has args: ${output}`,
+    );
+  });
+});
