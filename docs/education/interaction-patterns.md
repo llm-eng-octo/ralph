@@ -133,3 +133,21 @@ When writing a new spec, choose the interaction pattern by Bloom level target:
 | PART-036 | WorkedExampleComponent | Step-by-step reveal; sub-phases example→faded→practice |
 
 Full CDN part reference: see `docs/rnd-educational-interactions.md` §1.2 and the warehouse spec files.
+
+---
+
+## L3/L4 Bloom Gap Analysis — Approved Builds (2026-03-23)
+
+**L3 (Apply) — approved games demonstrating this level:**
+
+- `find-triangle-side` (build #549) — two-step MCQ + typed numeric input: learner first selects the ratio (MCQ), then computes the missing side length (typed input with ±tolerance). This is the only approved game that forces computation rather than recognition. The two-step structure prevents guessing: a correct MCQ answer alone does not advance the round.
+
+**L4 (Analyze) — approved games demonstrating this level:**
+
+- None. `real-world-problem` (Bloom L4) has a spec ready but has not been built yet. No approved game currently requires the learner to decompose a novel problem, identify the triangle setup, and choose an approach before computing.
+
+**Gap and consequence:**
+
+The pattern library has strong coverage for L1–L2 (MCQ, diagram-labeling, worked-example sub-phases) and one proven L3 pattern (two-step MCQ + typed input from `find-triangle-side`). L4 is entirely unproven in production. The multi-step word-problem pattern — diagram-read → ratio-select → numeric-compute — exists in the `real-world-problem` spec but has never been approved. Until that build ships, any L4 game in a new session will be authored without a working reference example, increasing generation failure risk. The Session Planner Phase 4 NCERT research step should not generate L4 specs until at least one L4 build is approved.
+
+*Source: games/index.md cross-referenced against docs/education/interaction-patterns.md — 2026-03-23*

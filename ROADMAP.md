@@ -540,9 +540,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Session Planner Phase 3 — spec generator: LLM reads spec-instructions.md + template spec, writes spec.md per game via constrained substitution (preserves CDN structure, substitutes round data + context + evidence comments). |
-| Status | Phase 2 DONE (commit eaf8c53, 2026-03-23): writeSessionDirectory() + planSessionFromObjective() + generateSessionId() shipped. 18 new tests (64 total in session-planner suite). session-plan.md + per-game spec-instructions.md written to games/sessions/<sessionId>/. End-to-end verified: trig session generates 5-game directory in <100ms (no LLM call needed for steps 1-3 when researchContext pre-supplied). |
-| Waiting on | Phase 3 implementation (spec generator): given spec-instructions.md, call LLM with template spec + substitution manifest to produce games/sessions/<sessionId>/game-N-<gameId>/spec.md. |
+| Current task | Session Planner Phase 3 end-to-end verified + L3/L4 interaction pattern gap documented |
+| Status | Phase 3 e2e test PASS (2026-03-23): planSession() → writeSessionDirectory(dryRun) → generateSpec(dryRun) all clean. 5-game trig session (L1→L4, 24min) generates 6 files (session-plan.md + 5 spec-instructions.md). generateSpec resolves template path (games/name-the-sides/spec.md) and returns correctly in dryRun. L3/L4 gap documented in docs/education/interaction-patterns.md: only find-triangle-side (build #549) proves L3; zero approved L4 games — real-world-problem must ship before L4 spec generation is safe. |
+| Waiting on | Phase 4 — real NCERT research session (requires Exa + Knowledge Graph MCP). Prerequisite: real-world-problem build approved (L4 reference example required before generating new L4 specs). |
 | Blocked by | none |
 
 | Task | Status | Notes |
