@@ -2358,6 +2358,10 @@ Also fix timeout inconsistency: C1 rule uses `waitForPhase('results', 10000)` bu
 
 **Status:** Proposed — needs implementation in lib/prompts.js contract section + verification build
 
+## Lesson 184 (build #557 name-the-sides, 2026-03-23) — CSS stripping is systemic, not game-specific
+
+Both name-the-sides (#557) and which-ratio (#560) had their entire `<style>` block replaced with a comment by a targeted fix LLM. The triangle diagram in name-the-sides is completely invisible without CSS (CSS border-trick shape — 0×0px without styles). PART-028 T1 check + FIX-001 gen rule now prevent this. Both games need re-queue. Pattern: any build that went through a targeted fix before PART-028 was deployed (2026-03-23) should be considered potentially CSS-stripped and audited.
+
 ## Lesson 183 — CT9 + C1 + RULE-003: Contract test gen rules shipped 2026-03-23
 
 **Source:** prompts.js fix | **Date:** 2026-03-23
