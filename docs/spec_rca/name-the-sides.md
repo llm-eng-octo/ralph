@@ -7,6 +7,7 @@
 | #550 | mechanics 0/6 × 3 iterations; game-flow tests triage-deleted (bad data-testid selectors) | `window.loadRound` not exposed → `__ralph.jumpToRound()` silent no-op → `waitForPhase('playing')` timeout after any prior `endGame()` call | FAILED — killed after iter 3 |
 | #552 | REJECTED iter=0: early-review rejected twice | Contract auto-fix (Step 1b) stripped max-width CSS + broke ...signalPayload spread → T1 errors baked in → early reviewer correctly rejected | Failed — pipeline bug (Step 1b T1 regression not handled) |
 | #553 | 0p/3f game-flow, 0p/5f mechanics, 0p/2f edge-cases, 0p/1f contract — global best 0 passing, FAILED | interactionType=drag false-positive: spec's prohibition "Do NOT use drag-and-drop" triggered drag regex → drag tests generated → game uses MCQ buttons | Failed |
+| #554 | Killed at early-review (iter=0): HTML confirmed missing `transitionScreen.hide()` — #gameContent stays display:none for entire game, all isVisible() fail | `startGame()` never calls `transitionScreen.hide()` — ScreenLayout sets #gameContent to display:none; CDN does not auto-reveal; GEN-117 fix pending | Killed (confirmed HTML bug before tests ran) |
 
 ---
 
@@ -109,7 +110,9 @@ if (/currentRound|totalRounds/.test(html) && !/window\.loadRound/.test(html)) {
 
 ## 5. Go/No-Go for E2E
 
-**Decision: NOT READY — GEN-116 fix deployed (commit 39814bf), build #554 queued.**
+**Decision: NOT READY — Build #555 queued (2026-03-22), all four known fixes deployed**
+
+**Build #554 outcome:** Killed at early-review (iter=0). Early reviewer confirmed HTML bug: `startGame()` never calls `transitionScreen.hide()` → `#gameContent` stays `display:none` → all `isVisible()` fail. Kill criteria met (Rule 5: confirmed init failure). GEN-117 fix deployed (commit df16818).
 
 **Build #553 outcome:** 0 passing tests across all 4 batches. Root cause: `extractSpecMetadata()` misclassified game as `interactionType=drag` because the spec's prohibition text "Do NOT use drag-and-drop" (spec.md line 681) triggered the drag regex. Drag tests were generated for an MCQ game — 100% failure. See §Build #553 below.
 
@@ -120,9 +123,10 @@ if (/currentRound|totalRounds/.test(html) && !/window\.loadRound/.test(html)) {
 - T1 PART-021-LOADROUND warning deployed
 - GEN-115 contract-fix T1 regression handling deployed — commit dfd2b34
 - GEN-116 dragProhibited guard deployed — commit 39814bf
+- GEN-117 transitionScreen.hide() mandate deployed — commit df16818
 - 793 tests pass — no regressions
 
-**Next:** Build #554 is queued to verify all three fixes together.
+**Next:** Build #555 queued to verify all four fixes together.
 
 ---
 
@@ -201,3 +205,27 @@ Fix is in progress. Do NOT re-queue until deployed.
 ### Impact on Go/No-Go
 
 See updated §5 above. Game is NOT READY for E2E until the pipeline bug is fixed and deployed.
+
+---
+
+## Build #554 — GEN-117 transitionScreen.hide() Missing
+
+**Build outcome:** Killed at early-review (iter=0).
+
+### What happened
+
+1. Build #554 was queued to verify GEN-114+GEN-115+GEN-116 fixes. GEN-117 was not yet deployed.
+2. Early reviewer confirmed HTML bug: `startGame()` never calls `transitionScreen.hide()` → `#gameContent` stays `display:none` → all `isVisible()` fail.
+3. Kill criteria met (Rule 5: HTML has confirmed init failure). Build killed before test loop ran.
+4. Root cause: gen prompt TransitionScreen ROUTING example at line 128 showed WRONG pattern (no hide()), so LLM omitted the call.
+
+### Fix
+
+GEN-117 deployed in commit df16818:
+- `lib/prompts.js` line 128: WRONG/RIGHT example with `await transitionScreen.hide()` mandatory
+- `lib/prompts.js` line 369: CORRECT PATTERN updated with hide()
+- `lib/validate-static.js` line 209: PART-025-HIDE ERROR check
+
+### Impact on Go/No-Go
+
+Build #555 queued with all four fixes. See updated §5.

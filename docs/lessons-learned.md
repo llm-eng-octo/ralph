@@ -2260,3 +2260,20 @@ The spec (line 681) contained the explicit prohibition: "Do NOT use drag-and-dro
 **Rule:** When writing specs, avoid including the literal phrase "drag-and-drop" even in prohibition context — prefer "avoid drag mechanics" or "use MCQ buttons only". The GEN-116 pipeline fix makes this robust regardless, but clear spec language avoids any future edge cases.
 
 **Build #554** queued to verify GEN-116 fix.
+
+## Lesson 178 — Build #554 — GEN-117: startGame() must call transitionScreen.hide() (2026-03-22, name-the-sides)
+
+**Tag:** CDN_CONSTRAINTS_BLOCK, T1_CHECK, HTML_BUG
+
+**Problem:** `startGame()` never called `transitionScreen.hide()`. ScreenLayout.inject() sets `#gameContent` to `display:none` as part of transition slot setup. CDN TransitionScreenComponent does NOT auto-reveal `#gameContent` when a button fires — the caller must call `transitionScreen.hide()` explicitly. Without it, `#gameContent` remains hidden for the entire game, causing every `isVisible()` check to fail.
+
+**Evidence:** Build #554 HTML — `grep -c "transitionScreen.hide" index.html` = 0. Diagnostic agent confirmed `#gameContent` bounding rect `{width:0, height:0}` throughout game.
+
+**Why other games worked:** Other approved CDN games (soh-cah-toa-worked-example, find-triangle-side) happened to generate `transitionScreen.hide()` correctly. The gen prompt line 128 ROUTING rule example previously showed the WRONG pattern without hide(), so compliance was probabilistic.
+
+**Fix:**
+- GEN-117 rule at `lib/prompts.js` line 128: explicit WRONG/RIGHT example with `await transitionScreen.hide()` as first call in action callback
+- CORRECT PATTERN example at line 369: also updated to show hide()
+- T1 check PART-025-HIDE in `lib/validate-static.js` line 209: if `transitionScreen.show(` present but `transitionScreen.hide(` absent → ERROR
+
+**Lesson:** CDN component auto-hide/show behavior cannot be assumed. Every component that visually hides an element must be explicitly revealed by the caller. Document the FULL sequence in gen prompt rules.
