@@ -185,7 +185,7 @@ We currently have strong coverage in one topic area (trig) and 4 proven patterns
 
 | Session | Games | Status |
 |---------|-------|--------|
-| SOH-CAH-TOA (trig) | 5 games | name-the-sides active; find-triangle-side APPROVED #549; soh-cah-toa-worked-example APPROVED #544; which-ratio planned; compute-it planned; real-world planned |
+| SOH-CAH-TOA (trig) | 6 games | name-the-sides APPROVED #557; find-triangle-side APPROVED #549; soh-cah-toa-worked-example APPROVED #544; which-ratio active — #560 queued; compute-it planned; real-world-problem spec draft complete (2026-03-23) — 714 lines, 4 rounds (ladder/ramp/flagpole/cable), cognitive-demand test category, no new CDN parts |
 
 See [trig-session.md](trig-session.md) for the full session plan, build log, and design rationale.
 

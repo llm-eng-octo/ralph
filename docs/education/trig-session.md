@@ -16,7 +16,7 @@
 | 3 | `find-triangle-side` | L3 Apply | Two-step: select ratio (MCQ) + compute missing side (typed input) | APPROVED | #549 APPROVED |
 | 4 | `which-ratio` | L2–L3 Understand→Apply | MCQ + worked example panel on first wrong attempt | active — #558 queued | — |
 | 5 | `compute-it` | L3 Apply | Typed numeric input — standard angle values + side computation | planned | — |
-| 6 | `real-world` | L4 Analyze | Multi-step: diagram read → ratio select → compute in context units | planned | — |
+| 6 | `real-world-problem` | L4 Analyze | Word-problem-three-step: read diagram → select ratio → compute in context units | spec draft complete (2026-03-23) | — |
 
 **Note on ordering:** The sequence above is strict. A learner who cannot label sides (Game 1) will fail at ratio recognition (Game 2). A learner who does not know which ratio to use (Game 2) will fail at computation (Game 3). Do not build or deploy out of order.
 
@@ -58,11 +58,11 @@ Pure computational fluency: given angle + ratio type, compute the value. Standar
 
 Misconception targeted: degrees vs. radians confusion (sin(30) ≈ -0.988 in radians vs. sin(30°) = 0.5 in degrees). Feedback explicitly names the error.
 
-### Game 6 — real-world (L4 Analyze)
+### Game 6 — real-world-problem (L4 Analyze)
 
-Transfer to novel context — the hardest Bloom level in the session. A word problem (ladder, building, cable) with a diagram. Three explicit steps: (1) identify what is known/unknown in the diagram, (2) select correct ratio, (3) compute in context units. This decomposition forces the learner to construct the triangle model from a word description, not just execute a formula they are handed.
+Transfer to novel context — the hardest Bloom level in the session. A word problem (ladder, ramp, flagpole, or cable) with a diagram. Three explicit steps: (1) read the diagram and identify what is known/unknown, (2) select correct ratio, (3) compute in context units. This decomposition forces the learner to construct the triangle model from a word description, not just execute a formula they are handed.
 
-Level 3 rounds introduce inverse trig (tan⁻¹) for angle-finding problems. "A ramp rises 2m over 5m horizontal. What angle does it make?" Calculator button always available for inverse trig.
+Spec draft complete 2026-03-23: 714 lines, 4 rounds (ladder/ramp/flagpole/cable), word-problem-three-step interaction, cognitive-demand test category, no new CDN parts. Ready to queue after which-ratio #560 approves.
 
 ---
 
@@ -117,6 +117,7 @@ Level 3 rounds introduce inverse trig (tan⁻¹) for angle-finding problems. "A 
 | #556 | name-the-sides | FAILED | GEN-118: startGame() called transitionScreen.hide() but never showed #gameContent; game-flow 0/3 all iters |
 | #557 | name-the-sides | APPROVED | GEN-116+117+118 compound fix resolved init failure class; iter=3; trig session Game 1 complete |
 | #558 | which-ratio | queued | Trig session Game 4 — first build; GEN-114/115/116/117/118 all active |
+| — | real-world-problem | spec draft complete (2026-03-23) | 714-line spec: 4 rounds (ladder/ramp/flagpole/cable), word-problem-three-step interaction, cognitive-demand test category, no new CDN parts. Ready to queue after which-ratio #560 approves and soh-cah-toa-worked-example #544 confirmed. |
 
 ---
 
