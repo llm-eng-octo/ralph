@@ -210,8 +210,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Code Review: d60ccc9 + 3704eb7 (GEN-PHASE-001 all-games data-phase + GEN-WINDOW-EXPOSE) under review |
-| Status | GEN-PHASE-001 SHIPPED (3704eb7) — data-phase mandatory for ALL game types (drag-drop, canvas, MCQ, text-input) in all 3 prompt locations. GEN-WINDOW-EXPOSE added. 982/982 tests. On server, loads after build #565. |
+| Current task | GEN-STEP-001 SHIPPED (c7a59c2) + CR-013/008/009/012 all fixed (188bbaa) — step-panel reset, CLI path gap, ARIA assertive AND→OR, short-form diff branch, renderRound alias. GEN-CR-004 next (add GEN-MCQ-PHASE + GEN-MCQ-TIMER to buildCliGenPrompt). |
+| Status | Deployed to server 2026-03-23 — worker restarted with all gen rules active. Next: GEN-CR-004 (Medium — MCQ/timed CLI path gap). |
 | Waiting on | none |
 | Blocked by | none |
 
@@ -223,10 +223,10 @@
 | **GEN-CR-004: Add GEN-MCQ-PHASE + GEN-MCQ-TIMER to buildCliGenPrompt** | **pending** | Code Review 2026-03-23: CR-002 — buildCliGenPrompt ends at GEN-UX-005 with no MCQ-PHASE or MCQ-TIMER rules. Games generated via `claude -p` CLI path miss these two rules, leading to syncDOMState() omissions and timer.start()-in-setupGame() bugs on MCQ/timed games. Add both rules to buildCliGenPrompt numbered list (match buildGenerationPrompt rules 33–34). | Medium: prevents MCQ game-flow failures on CLI-generated games |
 | **GEN-CR-005: generateSpec() — warn/guard when templateSpecId is null** | **pending** | Code Review 2026-03-23: CR-004 — generateSpec() proceeds with empty templateContent when regex fails to extract templateSpecId (e.g. `_(no template spec)_` placeholder). LLM invents CDN structure from scratch, causing validate-static failures. Add: log a WARN when templateSpecId is null; optionally throw if dryRun=false and no template is available. | Medium: prevents silent LLM spec hallucination on no-template games |
 | **GEN-CR-006: Fix planSession() bloomTarget default — 6 → 3** | **pending** | Code Review 2026-03-23: CR-005 — planSession() uses bloomTarget=6 as fallback when parsedGoal.bloomTarget is not a number, but parseGoal() clamps to 3. Callers that bypass parseGoal() get a full 5-game session instead of the expected 3-game Apply-level plan. Change planSession() default to 3. | Medium: session length consistency |
-| **CR-008: GEN-CR-003 assertive condition AND → OR** | **pending** | Code Review 2026-03-23: GEN-CR-003 sub-note reads "role=alert AND id/class containing 'error'" — WCAG requires role=alert ALONE as the trigger for assertive. An error alert with id="#validation-msg" is falsely disqualified. Change to OR in both CDN_CONSTRAINTS_BLOCK (~L122) and buildGenerationPrompt() rule 30 (~L553). | Medium |
-| **CR-009: Short-form Playwright diff undetected in categorizeFailure()** | **pending** | Code Review 2026-03-23: `Expected: N, Received: N` short-form numeric diffs (without "(received)" token) now route to unknown after GEN-CR-002 narrowing. Add second branch: `/expected:\s*\d+.*received:\s*\d+/i`. See test/pipeline.test.js line 775. | Medium |
-| **CR-012: GEN-PHASE-001 phase table function alias missing for non-MCQ** | **pending** | Code Review 2026-03-23: phase table uses "renderRound()" — MCQ-centric. Drag-and-drop/canvas games use renderGrid/loadPuzzle/initBoard. Add parenthetical alias note. | Low-Medium |
-| **CR-013: GEN-WINDOW-EXPOSE missing from buildCliGenPrompt()** | **pending** | Code Review 2026-03-23: rule 36 (window.endGame/restartGame/nextRound/gameState assignments) was added to buildGenerationPrompt() (~L622) but NOT to buildCliGenPrompt(). CLI-generated games will miss all 4 window assignments → 100% game-over test failures. Add after GEN-MCQ-TIMER (~L789). CRITICAL: same CLI-path gap as prior CR-002/CR-004. | Medium — CRITICAL CLI path |
+| **CR-008: GEN-CR-003 assertive condition AND → OR** | **DONE — 2026-03-23 (commit 188bbaa)** | Fixed in prompts.js CDN_CONSTRAINTS_BLOCK + buildGenerationPrompt() rule 30: "role=alert OR id/class containing 'error'". Deployed 2026-03-23. | Medium |
+| **CR-009: Short-form Playwright diff undetected in categorizeFailure()** | **DONE — 2026-03-23 (commit 188bbaa)** | Added second branch to categorize-failure.js: `/expected:\s*\d+.*received:\s*\d+/i` → 'rendering'. Deployed 2026-03-23. | Medium |
+| **CR-012: GEN-PHASE-001 phase table function alias missing for non-MCQ** | **DONE — 2026-03-23 (commit 188bbaa)** | Added parenthetical to prompts.js phase table: "renderRound() or equivalent (renderGrid, loadPuzzle, initBoard, etc.)". Deployed 2026-03-23. | Low-Medium |
+| **CR-013: GEN-WINDOW-EXPOSE missing from buildCliGenPrompt()** | **DONE — 2026-03-23 (commit 188bbaa)** | Added GEN-WINDOW-EXPOSE compact rule to buildCliGenPrompt() after GEN-MCQ-TIMER. Deployed 2026-03-23. | Medium — CRITICAL CLI path |
 | **GEN-ANALYTICS-001: Reduce 'unknown' failure pattern bucket** | **DONE — 2026-03-23** | Added 10 new regex branches to `categorizeFailure()` in worker.js: Playwright assertion failures (toHaveText/toContainText/toBeVisible) → rendering; page.evaluate errors → state; .spec.js missing → infra; navigation/crash → infra; interaction/completion short-name patterns; generic error: prefix fallback. Also fixed /i flag redundancy (desc is already lowercased). All 827 tests pass. Deployed commit 334b4c3. Historical "unknown" rows (25) are pre-filter artifacts — new occurrences now correctly categorized. | Largest single failure sink covered. Every new failure → named category for targeted fix prompts and per-category pass rate tracking. |
 | **CODE-001: resolveFailurePattern() resolve rate is 0% across all categories** | **DONE — 2026-03-23 (commit c688f0e)** | resolveFailurePattern() existed in lib/db.js but was never called on the approval path. Added call in worker.js: after APPROVED, fetch all open failure_patterns for the game via getFailurePatterns() and call resolveFailurePattern() for each. 827/827 tests pass. Deployed. | Pattern DB no longer grows unboundedly after approval — cross-build pattern injection stays signal-dense. |
 | **MCP server audit — identify useful servers for learning pipeline** | **pending — priority** | Review https://github.com/punkpeye/awesome-mcp-servers and curate a doc of MCP servers relevant to: (1) education / curriculum content retrieval, (2) pipeline ops (DB, Redis, GCP), (3) web research for Gen Quality / Test Engineering. Context7 already installed. Goal: 2-3 additional MCP servers that give agents better tools than WebFetch alone for their domain. Output: `docs/mcp-servers.md` with install instructions + use cases per slot. | Agents with domain-specific MCP tools (e.g. a math knowledge graph, a real-time Playwright docs server) make better decisions faster. Compounding leverage across all 7 slots. |
@@ -494,8 +494,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Reviewed bdfc44d + c688f0e (GEN-TE-001 banned-selector enforcement + CODE-001 resolveFailurePattern fix) — 2026-03-23 |
-| Waiting on | unblocked — findings routed below |
+| Current task | Reviewed 188bbaa (CR-013/008/009/012 — CLI path GEN-WINDOW-EXPOSE, ARIA assertive AND→OR, short-form diff, renderRound alias) + 3154415 (CR-015 worker.js try/catch) — 2026-03-23 |
+| Waiting on | unblocked — next review: GEN-CR-004 impl when shipped |
 | Blocked by | none |
 
 **Log:**
