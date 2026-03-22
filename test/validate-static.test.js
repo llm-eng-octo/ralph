@@ -621,13 +621,14 @@ describe('validate-static.js', () => {
   });
 
   it('does not warn when all transitionScreen.show() calls are awaited', () => {
-    // All show() calls have await — no warning expected
+    // All show() calls have await — no warning expected; hide() present satisfies PART-025-HIDE
     const html = VALID_HTML.replace(
       '</script>',
-      `let transitionScreen = { show: async function(opts) {} };
+      `let transitionScreen = { show: async function(opts) {}, hide: async function() {} };
   async function startTransition() {
     await transitionScreen.show({ title: 'Level 1', onComplete: () => {} });
     await transitionScreen.show({ title: 'Level 2', onComplete: () => {} });
+    await transitionScreen.hide();
   }
   </script>`,
     );
