@@ -210,7 +210,17 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 - **Education:** Next game spec can always be drafted, interaction-patterns.md always has gaps to fill, past approved games can always be audited for pedagogical quality.
 - **UI/UX:** The approved game library grows with every build. Any approved game that hasn't been visually audited is valid work. There is no state where "there is nothing to audit."
 
-If a slot agent reports "waiting for results" or "monitoring the build", it is idling. Replace it with a concrete next action from the list above immediately.
+**Passive states — always trigger immediate next-task planning:**
+
+| Passive state | What to do instead |
+|--------------|-------------------|
+| Waiting for a build to complete | Pick next independent task from the backlog above and start it now |
+| Waiting for a deploy to finish | Same — deploy is async, slot keeps working |
+| Waiting for another slot's output | Same — work on anything from the backlog that doesn't depend on it |
+| Monitoring / watching logs | Not a task. Report status in one line, then start the next task |
+| "Nothing to do until X" | X is never true. Enumerate the backlog above and pick one |
+
+**The rule:** If the current step requires waiting, that is fine — but the slot must immediately identify the next independent task and start it in the same response. A slot that is only waiting is a slot that is empty.
 
 ---
 
