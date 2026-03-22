@@ -9,8 +9,9 @@ const os = require('os');
 
 const VALIDATOR = path.join(__dirname, '..', 'lib', 'validate-static.js');
 
+let _tmpCounter = 0;
 function runValidator(html) {
-  const tmpFile = path.join(os.tmpdir(), `ralph-test-${Date.now()}.html`);
+  const tmpFile = path.join(os.tmpdir(), `ralph-test-${Date.now()}-${++_tmpCounter}-${process.pid}.html`);
   fs.writeFileSync(tmpFile, html);
   try {
     const output = execFileSync('node', [VALIDATOR, tmpFile], {
@@ -21,7 +22,7 @@ function runValidator(html) {
   } catch (err) {
     return { exitCode: err.status, output: err.stdout || '' };
   } finally {
-    fs.unlinkSync(tmpFile);
+    try { fs.unlinkSync(tmpFile); } catch (_) { /* ignore if already deleted */ }
   }
 }
 
@@ -1700,6 +1701,52 @@ describe('ARIA-001: feedback div aria-live warning (W5)', () => {
     assert.ok(
       output.includes('ARIA-001'),
       `Expected ARIA-001 warning: data-phase first, id="feedback" present, but no aria-live. Output: ${output}`,
+    );
+  });
+
+  // New expanded coverage: compound variants confirmed across 9 audit instances
+  it('emits ARIA-001 warning for #answer-feedback without aria-live (audit variant)', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="answer-feedback" class="hidden"></div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning for #answer-feedback without aria-live. Output: ${output}`,
+    );
+  });
+
+  it('emits ARIA-001 warning for #result-feedback without aria-live (audit variant)', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="result-feedback"></div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning for #result-feedback without aria-live. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-001 warning for bare #answers container (no false positive)', () => {
+    // #answers is a container div, not a dynamic feedback element
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 false positive on #answers container. Output: ${output}`,
+    );
+  });
+
+  it('emits ARIA-001 warning for #hint-text without aria-live (audit variant)', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="hint-text" class="hidden"></div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning for #hint-text without aria-live. Output: ${output}`,
     );
   });
 });
