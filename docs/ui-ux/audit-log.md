@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** associations (next in stub inventory)
-**Last completed:** adjustment-strategy — 2026-03-23 (build #385 approved; browser playthrough; 7 findings)
+**Current task:** math-cross-grid (next in stub inventory)
+**Last completed:** associations — 2026-03-23 (build #513 approved; static analysis; 5 findings — 4a, 0b, 0c, 1d)
 **Waiting on:** unblocked
 **Blocked by:** none
 
@@ -41,6 +41,7 @@ addition-mcq, adjustment-strategy, associations, math-cross-grid, math-mcq-quiz,
 
 | Date | Game | Build | Issues Found | Actions Taken |
 |------|------|-------|-------------|---------------|
+| 2026-03-23 | associations | #513 (approved) | 5 issues (4a, 0b, 0c, 1d) | No P0 flow bugs; CSS intact; ProgressBarComponent no slotId (7th GEN-UX-003 instance); ARIA-001 absent (12th instance — rule shipped); results screen not fixed (9th GEN-UX-001 instance — rule shipped); gameState.gameId absent (3rd instance — escalate to ship); choice-btn no min-height (9th GEN-UX-002 instance — extend rule to non-.game-btn buttons); test gap: no Playwright assertion for choice-btn min-height |
 | 2026-03-23 | adjustment-strategy | #385 (approved) | 7 issues (5a, 0b, 0c, 2d) | No P0 flow bugs; all phases reachable; adj-btn 36px (8th GEN-UX-002 gap); ARIA-001 absent (11th instance); results static (8th GEN-UX-001); gameState.gameId absent (2nd); no Enter key on answer-input (2nd — ship now); window.nextRound missing (test gap); reset-btn 30.5px (secondary button gap, overlaps F1) |
 | 2026-03-23 | addition-mcq | spec-only | 9 issues (6a, 2b, 1d) | No P0 blockers; ProgressBar slotId missing (6th instance); data-phase/syncDOMState absent (3rd MCQ spec); ARIA-001 (10th instance); window.endGame unassigned; data-lives not on DOM (2nd MCQ spec test gap); gameState.gameId missing; SignalCollector no constructor args (3rd); timer destroy/recreate ambiguity; initSentry absent from spec |
 | 2026-03-23 | addition-mcq-lives | spec-only | 6 issues (4a, 2b, 1d; F4 downgraded) | No P0 blockers; data-phase/syncDOMState absent (9th pattern, 2nd MCQ spec); ProgressBar slotId missing (5th); ARIA-001 MCQ (9th); endGame branching implicit; restartGame() unspecified; data-lives not on DOM (test gap) |
@@ -124,6 +125,14 @@ See [games/adjustment-strategy/ui-ux.md](../../games/adjustment-strategy/ui-ux.m
 
 ---
 
+## associations Audit #513 (2026-03-23)
+
+See [games/associations/ui-ux.md](../../games/associations/ui-ux.md)
+
+**CSS intact. No P0 flow bugs. All phases reachable.** 5 issues: 4 gen prompt rules (ProgressBarComponent no slotId — 7th instance; ARIA-001 no text feedback element — 12th instance; gameState.gameId absent — 3rd live-build instance, ship rule now; results screen not position:fixed — 9th instance), 1 test gap (no Playwright assertion for choice-btn computed min-height). All rules (GEN-UX-001/002/003, ARIA-001) already shipped — this build predates them. gameState.gameId rule at 3 instances — escalate to ship immediately.
+
+---
+
 ## addition-mcq Audit (2026-03-23)
 
 See [games/addition-mcq/ui-ux.md](../../games/addition-mcq/ui-ux.md)
@@ -143,14 +152,14 @@ See [games/addition-mcq-lives/ui-ux.md](../../games/addition-mcq-lives/ui-ux.md)
 | Pattern | First seen | Also seen in | Classification | Status |
 |---------|-----------|-------------|---------------|--------|
 | CSS stylesheet stripped during JS-only surgical fix | which-ratio #560 | name-the-sides #557, count-and-tap #551, right-triangle-area #543, word-pairs #529 | (a) gen prompt rule + T1 check | FIX-001 shipped 2026-03-23; PART-028 T1 deployed 2026-03-22; 5 confirmed instances |
-| Dynamic feedback elements missing aria-live | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec | (a) gen prompt rule | **ARIA-001 expanded SHIPPED 2026-03-23 (c826ec1)** — rule covers ALL dynamic feedback elements (not just #feedback): #feedback-panel, #faded-feedback, #practice-feedback, #feedback-area, #answer-feedback, #result-feedback, #hint-text; requires role="status"; T1 W5 regex broadened; 4 new tests; 10 confirmed instances |
-| Option buttons missing explicit 44px touch targets | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, real-world-problem #564 | (a) gen prompt rule | **SHIPPED — GEN-UX-002 / GEN-TOUCH-TARGET (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 121 + rule 32** |
+| Dynamic feedback elements missing aria-live | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec, associations #513 | (a) gen prompt rule | **ARIA-001 expanded SHIPPED 2026-03-23 (c826ec1)** — rule covers ALL dynamic feedback elements (not just #feedback): #feedback-panel, #faded-feedback, #practice-feedback, #feedback-area, #answer-feedback, #result-feedback, #hint-text; requires role="status"; T1 W5 regex broadened; 4 new tests; **12 confirmed instances** |
+| Option buttons missing explicit 44px touch targets | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, real-world-problem #564, associations #513 | (a) gen prompt rule | **SHIPPED — GEN-UX-002 / GEN-TOUCH-TARGET (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 121 + rule 32**; GEN-UX-002 targets .game-btn — NOTE: associations choice-btn (.choice-btn) is not covered by this class selector — rule needs extension; **9 confirmed instances** |
 | SVG muted lines using low-contrast colour (#64748b) | which-ratio #560 | find-triangle-side #549 | (a) gen prompt rule | Pending — 2 confirmed instances |
-| Results screen is static-position (not overlay) | name-the-sides #557 | find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564 | (a) gen prompt rule | **SHIPPED — GEN-UX-001 / GEN-MOBILE-RESULTS (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 120 + rule 31** |
+| Results screen is static-position (not overlay) | name-the-sides #557 | find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564, associations #513 | (a) gen prompt rule | **SHIPPED — GEN-UX-001 / GEN-MOBILE-RESULTS (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 120 + rule 31**; **9 confirmed instances** |
 | progressBar.update() emits Invalid count value error | name-the-sides #557 | — | (a) gen prompt rule | Proposed |
 | CSS-trick triangle (border-based) breaks without CSS | name-the-sides #557 | — | (a) gen prompt rule | Proposed — prefer SVG |
 | Two-triangle layout on mobile causes excessive scroll | name-the-sides #557 | — | (b) spec addition | Proposed |
-| Wrong ProgressBarComponent slot ID (positional string, hash-prefix, or missing slotId key) | find-triangle-side #549 | quadratic-formula #546, right-triangle-area #543, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec | (a) gen prompt rule | SHIPPED — GEN-UX-003 (25bdad0 2026-03-23) — 6 confirmed instances |
+| Wrong ProgressBarComponent slot ID (positional string, hash-prefix, or missing slotId key) | find-triangle-side #549 | quadratic-formula #546, right-triangle-area #543, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec, associations #513 | (a) gen prompt rule | SHIPPED — GEN-UX-003 (25bdad0 2026-03-23) — **7 confirmed instances** |
 | Local asset path in TransitionScreen icons | find-triangle-side #549 | — | (a) gen prompt rule | New — added to ROADMAP 2026-03-23 |
 | SignalCollector instantiated without constructor args | find-triangle-side #549 | real-world-problem #564, addition-mcq spec | (a) gen prompt rule | SHIPPED — GEN-UX-005 (25bdad0 2026-03-23) — 3 confirmed instances |
 | Dead-code guard: isActive set false then immediately true | count-and-tap #551 | — | (a) gen prompt rule | New — added to ROADMAP 2026-03-23 |
@@ -164,7 +173,7 @@ See [games/addition-mcq-lives/ui-ux.md](../../games/addition-mcq-lives/ui-ux.md)
 | Typed numeric input has no Enter-key submission handler | real-world-problem #564 | — | (a) gen prompt rule | New — input fields must bind keydown Enter → submit handler |
 | data-lives hardcoded to 0 for non-lives games | word-pairs #529 | — | (d) test gap | New — test assertions on data-lives must handle games with totalLives: 0 |
 | Custom widget buttons (adj-btn, reset-btn) bypass min-height: 44px rule | adjustment-strategy #385 | — | (a) gen prompt rule | New — GEN-UX-002 only covers .game-btn; secondary/custom buttons need min-height: 44px too; adj-btn=36px, reset-btn=30.5px |
-| gameState.gameId absent from gameState object | adjustment-strategy #385 | addition-mcq spec | (a) gen prompt rule | 2nd confirmed instance — mandatory gameId field not in gen prompt or spec Section 3 |
+| gameState.gameId absent from gameState object | adjustment-strategy #385 | addition-mcq spec, associations #513 | (a) gen prompt rule | **3rd confirmed instance (associations #513 = first approved live build)** — mandatory gameId field not in gen prompt or spec Section 3; SignalCollector templateId always null; ship rule now |
 | Typed numeric input has no Enter key submission | adjustment-strategy #385 | real-world-problem #564 | (a) gen prompt rule | 2nd confirmed instance — ship now per ROADMAP line 430 |
 | window.nextRound not exposed; harness warns MISSING | adjustment-strategy #385 | — | (d) test gap | Game uses loadRound() internally; window.nextRound alias never assigned; harness fallback may cover via window.loadRound |
 | Lives games missing data-lives attribute on DOM element | addition-mcq-lives spec | addition-mcq spec | (d) test gap | 2 confirmed MCQ spec instances — lives games must sync data-lives via syncDOMState(); getLives() harness helper needs a DOM attribute to read |
@@ -182,7 +191,7 @@ See [games/addition-mcq-lives/ui-ux.md](../../games/addition-mcq-lives/ui-ux.md)
 |------|-------------|------------------|------|--------|
 | Never strip CSS stylesheet | which-ratio #560 | name-the-sides #557, count-and-tap #551, right-triangle-area #543, word-pairs #529 | 2026-03-23 | FIX-001 shipped (dc03155) + PART-028 T1 check — 5 instances confirmed |
 | Explicit 44px touch targets on all buttons | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, real-world-problem #564 | 2026-03-23 | **SHIPPED — GEN-UX-002 / GEN-TOUCH-TARGET (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 121 + rule 32** |
-| ARIA live regions on dynamic feedback | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec | 2026-03-23 | **ARIA-001 expanded SHIPPED (c826ec1 2026-03-23)** — 10 confirmed instances; rule now covers ALL dynamic feedback variants + role="status"; T1 W5 regex broadened; 4 new tests; temp-file race in test helper fixed |
+| ARIA live regions on dynamic feedback | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec, associations #513 | 2026-03-23 | **ARIA-001 expanded SHIPPED (c826ec1 2026-03-23)** — **12 confirmed instances**; rule now covers ALL dynamic feedback variants + role="status"; T1 W5 regex broadened; 4 new tests; temp-file race in test helper fixed |
 | SVG diagram contrast + fallback dimensions | which-ratio #560 | find-triangle-side #549 | 2026-03-23 | Pending — 2 confirmed instances |
 | Results screen must be position:fixed full-screen overlay | name-the-sides #557 | find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564 | 2026-03-23 | **SHIPPED — GEN-UX-001 / GEN-MOBILE-RESULTS (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 120 + rule 31** |
 | progressBar.update() completed arg must be >= 0 | name-the-sides #557 | — | 2026-03-23 | Proposed — not yet in prompts.js |
