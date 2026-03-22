@@ -1662,4 +1662,44 @@ describe('ARIA-001: feedback div aria-live warning (W5)', () => {
       `Unexpected ARIA-001 warning on HTML with no feedback divs. Output: ${output}`,
     );
   });
+
+  // TE-CR-001: order-independence — aria-live must be detected regardless of attribute position
+  it('does NOT emit ARIA-001 warning when aria-live is present but id is not the first attribute', () => {
+    // data-phase appears before id — regex must not anchor to id as first attribute
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div data-phase="results" id="feedback" aria-live="polite">Nice work!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 warning: aria-live present but id is not first attribute. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-001 warning when aria-live is present with class before id and extra data attrs', () => {
+    // class and data-testid both precede aria-live — all ordering variants must pass
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div class="feedback-box" data-testid="fb" aria-live="polite">Try again!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 warning: aria-live present with class-first ordering. Output: ${output}`,
+    );
+  });
+
+  it('emits ARIA-001 warning when data-phase is first attribute but aria-live is missing', () => {
+    // data-phase before id must still trigger warning when aria-live is absent
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div data-phase="results" id="feedback">Correct!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning: data-phase first, id="feedback" present, but no aria-live. Output: ${output}`,
+    );
+  });
 });
