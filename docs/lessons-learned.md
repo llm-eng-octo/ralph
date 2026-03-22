@@ -1736,3 +1736,12 @@ RCA initially said this was missing from syncDOMState. It was already present in
 
 **Expected outcome:** M13 violations drop from 45% → <15%; GF8 violations drop from 64% → <25% on next builds.
 
+
+## Lesson 139 — RULE-DUP root causes: gen prompt taught generic testids; lint threshold too low
+**Source:** Pipeline iteration lesson (2026-03-22, commit 17a325a)
+
+**Root cause 1 — gen prompt:** MANDATORY RULE #1 in test-gen prompt listed `data-testid="answer-input"`, `"btn-check"`, `"option-{index}"` as "required minimums." HTML gen LLM stamped these on every game; test-gen LLM saw them in DOM snapshot and used them in all 5 category files → RULE-DUP fired on every build. Fix: added CRITICAL note — NEVER invent testid values, only use values verbatim from DOM snapshot. Invented testids cause both locator-not-found failures AND cross-category duplication.
+
+**Root cause 2 — lint threshold:** RULE-DUP fired when a testid appeared in any 2 categories. `answer-input` in game-flow + mechanics = legitimate (both categories interact with the answer input). Threshold raised to 3+ distinct category files to catch real invented-generic-testid contamination while allowing legitimate 2-category cross-references.
+
+**Expected outcome:** RULE-DUP violations drop from 27% → near-0% false positives; true violations (testids invented by test LLM, not from DOM) now correctly caught at 3+ threshold.
