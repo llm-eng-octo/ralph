@@ -33,7 +33,7 @@ Track visual and interaction quality audits of generated games. Each entry recor
 | 4 | word-pairs | #529 | audited (static analysis) 2026-03-23 | done |
 
 **Stub inventory (ui-ux.md exists but unpopulated — pending future batches):**
-addition-mcq, adjustment-strategy, associations, math-cross-grid, math-mcq-quiz, mcq-addition-blitz
+addition-mcq, adjustment-strategy, associations, math-mcq-quiz, mcq-addition-blitz
 
 ---
 

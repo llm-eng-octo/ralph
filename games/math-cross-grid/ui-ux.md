@@ -30,7 +30,7 @@ No P0 flow blockers. Both end conditions (lives exhausted, all rounds complete) 
 | 9 | SignalCollector constructor args (sessionId, studentId, templateId) | PASS | Section 9.3: full constructor with all three args |
 | 10 | gameState.gameId field present | **FAIL** | Section 5 gameState object has no `gameId` field; set only conditionally via `handlePostMessage` if `gameId` sent in `game_init` event — not guaranteed |
 | 11 | Results screen position:fixed overlay | **FAIL** | Section 6 HTML: `#results-screen` uses `display:none` toggle; Section 8 CSS has no `position:fixed` on `#results-screen` or `.results-container`; results render in document flow |
-| 12 | Touch targets min-height 44px | PASS | `.game-btn` has `padding: 14px 32px` (renders ~48px); `.tile` is `64px × 64px`; drop zones are `58px × 58px` |
+| 12 | Touch targets min-height 44px | PASS | `.game-btn` has `padding: 14px 32px` (renders ~48px); `.tile` is `64px x 64px`; drop zones are `58px x 58px` |
 | 13 | Sentry SDK v10.23.0 three-script pattern | PARTIAL | Two `<script src>` tags present (helper wrapper + CDN v10.23.0 bundle); init is inline in main `<script>` block — not a separate third `<script>` tag; version is correct |
 | 14 | game_complete postMessage on BOTH victory AND game-over paths | PASS | Both end conditions route through single `endGame()` function (Sections 9.12, 9.11); `endGame()` sends `type: 'game_complete'` unconditionally |
 | 15 | restartGame() resets ALL gameState fields | **FAIL** | No `restartGame()` function exists; "Play Again" button calls `location.reload()` — full page reload instead of in-place reset |
@@ -60,34 +60,34 @@ No P0 flow blockers. Both end conditions (lives exhausted, all rounds complete) 
 **Action:** Add `<div id="feedback-message" aria-live="polite" role="status" class="sr-only"></div>` to Section 6 HTML; update `handleNext()` to write text into it ("Correct! Moving to next puzzle." or "Incorrect. Try again. X lives remaining."). Spec addition (b).
 
 ### F4 — data-phase / syncDOMState absent
-**Classification:** (a) gen prompt rule — 4th confirmed instance (non-MCQ game)
+**Classification:** (a) gen prompt rule — 4th instance (first non-MCQ game to exhibit this)
 **Severity:** Medium
-**Description:** No `data-phase` attribute defined on any container element. No `syncDOMState()` function exists in the spec. The game has two clear phases (gameplay → results) but the DOM has no machine-readable phase signal. Playwright tests that assert `[data-phase="results"]` will fail. The harness relies on `data-phase` to know which screen is active.
-**Action:** Add `data-phase="gameplay"` to `#game-screen` (or a wrapping `#gameContent` div), update `showResults()` to call `syncDOMState('results')`, define `syncDOMState(phase)` helper. Spec addition (b).
+**Description:** No `data-phase` attribute defined on any container element. No `syncDOMState()` function exists in the spec. The game has two clear phases (gameplay and results) but the DOM has no machine-readable phase signal. Playwright tests that assert `[data-phase="results"]` will fail. The harness relies on `data-phase` to know which screen is active. This confirms the pattern extends beyond MCQ games to drag-and-drop games.
+**Action:** Add `data-phase="gameplay"` to `#game-screen` (or a wrapping `#gameContent` div), update `showResults()` to call `syncDOMState('results')`, define `syncDOMState(phase)` helper. Extend gen prompt GEN-MCQ-PHASE rule to cover all game types.
 
 ### F5 — window.endGame not assigned
 **Classification:** (a) gen prompt rule — 4th confirmed instance
 **Severity:** Medium
 **Description:** `endGame()` is defined as a local function but never assigned to `window.endGame`. The test harness calls `window.endGame()` to force game termination in Playwright tests. If `window.endGame` is undefined, any test that needs to trigger end-game programmatically will fail with `TypeError: window.endGame is not a function`.
-**Action:** Add `window.endGame = endGame;` in the JS after `endGame` function definition. Single line fix — add to spec Section 9.16.
+**Action:** Add `window.endGame = endGame;` in the JS after `endGame` function definition. Single line fix — add to spec Section 9.16. Check T1 rule 21 covers this.
 
 ### F6 — gameState.gameId absent from initial declaration
-**Classification:** (a) gen prompt rule — 4th confirmed instance (3 prior: adjustment-strategy, addition-mcq spec, associations #513)
+**Classification:** (a) gen prompt rule — 4th confirmed instance (adjustment-strategy, addition-mcq spec, associations #513, math-cross-grid spec)
 **Severity:** Medium
-**Description:** Section 5 gameState object declaration has no `gameId` field. It is set conditionally in `handlePostMessage` (`if (gameId) gameState.gameId = gameId`) but only when a `game_init` postMessage is received. When the game runs standalone with fallback content, `window.gameState.gameId` is `undefined`. SignalCollector's `templateId` is hardcoded to `'math-cross-grid'` but gameId is still absent from gameState. GEN rule for this is pending shipping per audit-log.
-**Action:** Add `gameId: 'math-cross-grid'` to the `window.gameState` declaration in Section 5. Also update `setupGame()` to set `gameState.gameId = gameState.gameId || 'math-cross-grid'` on reset.
+**Description:** Section 5 gameState object declaration has no `gameId` field. It is set conditionally in `handlePostMessage` (`if (gameId) gameState.gameId = gameId`) but only when a `game_init` postMessage is received. When the game runs standalone with fallback content, `window.gameState.gameId` is `undefined`. SignalCollector's `templateId` is hardcoded to `'math-cross-grid'` but gameId is still absent from gameState. Now at 4 confirmed instances — ship rule immediately.
+**Action:** Add `gameId: 'math-cross-grid'` to the `window.gameState` declaration in Section 5. Also update `setupGame()` to set `gameState.gameId = gameState.gameId || 'math-cross-grid'` on reset. Add to CDN_CONSTRAINTS_BLOCK.
 
 ### F7 — data-lives not reflected in DOM (lives game)
 **Classification:** (d) test gap — 3rd confirmed instance
 **Severity:** Medium
-**Description:** This is a lives=2 game. No `data-lives` attribute exists on any DOM element. The test harness helper `getLives()` reads from `data-lives` on `document.body` or a wrapper element. Without `data-lives`, any test that asserts live count will silently read `null` or fail. Pattern confirmed in addition-mcq-lives and addition-mcq specs.
+**Description:** This is a lives=2 game. No `data-lives` attribute exists on any DOM element. The test harness helper `getLives()` reads from `data-lives` on `document.body` or a wrapper element. Without `data-lives`, any test that asserts live count will silently read `null` or fail. Pattern confirmed in addition-mcq-lives and addition-mcq specs. Now confirmed in a non-MCQ drag-and-drop game — pattern is game-type-agnostic.
 **Action:** Add `data-lives="2"` to `#game-screen` or `#app` wrapper. `syncDOMState()` (once added per F4) should update `data-lives` on each lives change. Add to test-gen prompt: assert `page.locator('[data-lives]').getAttribute('data-lives')` matches expected value after each incorrect submission.
 
 ### F8 — waitForPackages awaits TimerComponent unnecessarily
 **Classification:** (a) gen prompt rule — Low
 **Severity:** Low
 **Description:** Section 9.1 `waitForPackages()` polls for `TimerComponent` (lines 693-696) but Section 1 explicitly states Timer: None. If TimerComponent CDN is unavailable (or load order changes), the game will time out waiting for a component it never uses, showing the error screen. Dead dependency in the package wait loop.
-**Action:** Remove `TimerComponent` wait block from `waitForPackages()`. Only await packages actually used by the game.
+**Action:** Remove `TimerComponent` wait block from `waitForPackages()`. Only await packages actually used by the game. Add gen prompt rule: waitForPackages() must only include CDN components the game actually instantiates.
 
 ---
 
@@ -113,10 +113,10 @@ Before queuing math-cross-grid for its first build, verify in the generated HTML
 | F1 — FeedbackManager.init() | (a) gen prompt rule | Verify T1 catches; pre-build check | High |
 | F2 — Results not fixed overlay | (a) gen prompt rule | ROADMAP R&D (GEN-UX-001 — 10th instance) | High |
 | F3 — ARIA live region absent | (a) gen prompt rule | ROADMAP R&D (ARIA-001 — 13th instance) | High |
-| F4 — data-phase / syncDOMState absent | (a) gen prompt rule | ROADMAP R&D (pending rule) | Medium |
-| F5 — window.endGame not assigned | (a) gen prompt rule | ROADMAP R&D (pending rule) | Medium |
-| F6 — gameState.gameId absent | (a) gen prompt rule | ROADMAP R&D (ship rule — 4th instance) | Medium |
-| F7 — data-lives not on DOM | (d) test gap | ROADMAP Test Engineering | Medium |
+| F4 — data-phase / syncDOMState absent | (a) gen prompt rule | ROADMAP R&D (extend to all game types) | Medium |
+| F5 — window.endGame not assigned | (a) gen prompt rule | ROADMAP R&D (4th instance — ship rule) | Medium |
+| F6 — gameState.gameId absent | (a) gen prompt rule | ROADMAP R&D (4th instance — ship now) | Medium |
+| F7 — data-lives not on DOM | (d) test gap | ROADMAP Test Engineering (3rd instance) | Medium |
 | F8 — TimerComponent wait unnecessary | (a) gen prompt rule | ROADMAP R&D (low priority) | Low |
 
 ---
