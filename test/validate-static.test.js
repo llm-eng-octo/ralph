@@ -75,7 +75,7 @@ const VALID_HTML = `<!DOCTYPE html>
   function endGame() {
     const pct = gameState.score / gameState.totalQuestions;
     const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
-    window.parent.postMessage({ type: 'gameOver', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
+    window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
     document.getElementById('gameArea').innerHTML = '<h2>Game Over! Score: ' + gameState.score + '/' + gameState.totalQuestions + '</h2>';
   }
 
@@ -175,6 +175,21 @@ describe('validate-static.js', () => {
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 1);
     assert.ok(output.includes('postMessage'));
+  });
+
+  it('GEN-PM-001: fails when postMessage uses wrong type (not game_complete)', () => {
+    const html = VALID_HTML.replace("type: 'game_complete'", "type: 'completed'");
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
+    assert.ok(output.includes('GEN-PM-001'), `Expected GEN-PM-001 error but got: ${output}`);
+    assert.ok(output.includes("type: 'game_complete'"), `Expected game_complete mention but got: ${output}`);
+  });
+
+  it('GEN-PM-001: passes when postMessage uses correct type game_complete', () => {
+    // VALID_HTML already uses type: 'game_complete' — should pass without GEN-PM-001 error
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(!output.includes('GEN-PM-001'), `Unexpected GEN-PM-001 error: ${output}`);
   });
 
   it('fails when missing style block', () => {
@@ -991,7 +1006,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!document.getElementById('gameContent')) throw new Error('ScreenLayout.inject() did not create #gameContent');
   const timer = new TimerComponent('mathai-timer-slot', { timerType: 'decrease', startTime: 30, endTime: 0 });
   timer.start();
-  window.parent.postMessage({ type: 'gameOver', score: 0, stars: 1, total: 1 }, '*');
+  window.parent.postMessage({ type: 'game_complete', score: 0, stars: 1, total: 1 }, '*');
 });
 </script></body></html>`;
 
@@ -1420,7 +1435,7 @@ describe('require() / ES import in CDN game script checks (5l)', () => {
     initSentry();
     initGame();
   });
-  window.parent.postMessage({ type: 'gameOver', score: 0, stars: 1, total: 10 }, '*');
+  window.parent.postMessage({ type: 'game_complete', score: 0, stars: 1, total: 10 }, '*');
   const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;
 </script>
 </body>
@@ -1456,7 +1471,7 @@ describe('waitForPackages() wrong CDN check pattern (5fa)', () => {
     '  }\n' +
     '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
     '    await waitForPackages();\n' +
-    '    window.parent.postMessage({ type: \'gameOver\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+    '    window.parent.postMessage({ type: \'game_complete\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
     '  });\n' +
     '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
     '</script></body></html>';
