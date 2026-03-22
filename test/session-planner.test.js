@@ -1,7 +1,10 @@
 'use strict';
 
-const { describe, it, before, beforeEach } = require('node:test');
+const { describe, it, before } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 const {
   CONCEPT_GRAPH,
@@ -10,6 +13,8 @@ const {
   buildResearchContext,
   getResearchPrompt,
   planSession,
+  generateSessionId,
+  writeSessionDirectory,
 } = require('../lib/session-planner');
 
 // ─── CONCEPT_GRAPH structure tests ───────────────────────────────────────────
@@ -54,27 +59,29 @@ describe('CONCEPT_GRAPH — trig nodes have required V1 fields', () => {
 
   it('every trig node has a suggestedGameIds array with at least one entry', () => {
     for (const node of CONCEPT_GRAPH.trigonometry) {
-      assert.ok(Array.isArray(node.suggestedGameIds) && node.suggestedGameIds.length > 0,
-        `node "${node.skillId}" must have suggestedGameIds with at least one entry`);
+      assert.ok(
+        Array.isArray(node.suggestedGameIds) && node.suggestedGameIds.length > 0,
+        `node "${node.skillId}" must have suggestedGameIds with at least one entry`,
+      );
     }
   });
 });
 
 // ─── normalizeConcept tests ───────────────────────────────────────────────────
 describe('normalizeConcept', () => {
-  it('maps "trig" → "trigonometry"', () => {
+  it('maps "trig" to "trigonometry"', () => {
     assert.equal(normalizeConcept('trig'), 'trigonometry');
   });
 
-  it('maps "soh-cah-toa" → "trigonometry"', () => {
+  it('maps "soh-cah-toa" to "trigonometry"', () => {
     assert.equal(normalizeConcept('soh-cah-toa'), 'trigonometry');
   });
 
-  it('maps "right triangle trigonometry" → "trigonometry"', () => {
+  it('maps "right triangle trigonometry" to "trigonometry"', () => {
     assert.equal(normalizeConcept('right triangle trigonometry'), 'trigonometry');
   });
 
-  it('maps "times tables" → "multiplication"', () => {
+  it('maps "times tables" to "multiplication"', () => {
     assert.equal(normalizeConcept('times tables'), 'multiplication');
   });
 
@@ -114,7 +121,8 @@ describe('classifyObjective', () => {
 // ─── buildResearchContext tests ───────────────────────────────────────────────
 describe('buildResearchContext', () => {
   const validInput = {
-    standardStatement: 'HSG-SRT.C.6: Understand that by similarity, side ratios in right triangles are properties of the angles in the triangle.',
+    standardStatement:
+      'HSG-SRT.C.6: Understand that by similarity, side ratios in right triangles are properties of the angles in the triangle.',
     prerequisites: ['8.G.B.7', 'HSG-SRT.A.2'],
     misconceptions: [
       {
@@ -128,12 +136,8 @@ describe('buildResearchContext', () => {
         url: null,
       },
     ],
-    ncertRefs: [
-      { chapter: 'Ch 8', section: '§8.1', exerciseNotes: 'Ex 8.1 Q1-Q3: labelling sides' },
-    ],
-    realWorldContexts: [
-      { label: 'Ramp angle', description: 'A wheelchair ramp rises 1.2m over 8m — find the angle.' },
-    ],
+    ncertRefs: [{ chapter: 'Ch 8', section: '§8.1', exerciseNotes: 'Ex 8.1 Q1-Q3: labelling sides' }],
+    realWorldContexts: [{ label: 'Ramp angle', description: 'A wheelchair ramp rises 1.2m over 8m — find the angle.' }],
   };
 
   it('returns structured context for valid input', () => {
@@ -145,7 +149,7 @@ describe('buildResearchContext', () => {
     assert.equal(ctx.realWorldContexts.length, 1);
   });
 
-  it('researchComplete=true when ≥2 sources present', () => {
+  it('researchComplete=true when 2+ sources present', () => {
     const ctx = buildResearchContext(validInput);
     // 1 misconception with url + 1 ncertRef with chapter = 2 sources
     assert.equal(ctx.researchComplete, true);
@@ -177,12 +181,13 @@ describe('buildResearchContext', () => {
 
   it('throws when a misconception entry lacks description', () => {
     assert.throws(
-      () => buildResearchContext({
-        standardStatement: 'X',
-        prerequisites: [],
-        misconceptions: [{ source: 'test' }],
-        ncertRefs: [],
-      }),
+      () =>
+        buildResearchContext({
+          standardStatement: 'X',
+          prerequisites: [],
+          misconceptions: [{ source: 'test' }],
+          ncertRefs: [],
+        }),
       /misconceptions\[0\]/,
     );
   });
@@ -322,8 +327,8 @@ describe('planSession', () => {
     for (const g of plan.games) {
       assert.ok(typeof g.position === 'number', `game must have position, got ${g.position}`);
       assert.ok(typeof g.gameId === 'string', `game must have gameId, got ${g.gameId}`);
-      assert.ok(typeof g.bloomLevel === 'number', `game must have bloomLevel`);
-      assert.ok(typeof g.estimatedMinutes === 'number', `game must have estimatedMinutes`);
+      assert.ok(typeof g.bloomLevel === 'number', 'game must have bloomLevel');
+      assert.ok(typeof g.estimatedMinutes === 'number', 'game must have estimatedMinutes');
       assert.ok('templateSpecId' in g, 'game must have templateSpecId field');
       assert.ok(typeof g.status === 'string', 'game must have status string');
     }
@@ -382,5 +387,239 @@ describe('planSession', () => {
   it('throws for non-object parsedGoal', () => {
     assert.throws(() => planSession(null, null), /parsedGoal is required/);
     assert.throws(() => planSession('string', null), /parsedGoal is required/);
+  });
+});
+
+// ─── generateSessionId tests — Phase 2 ───────────────────────────────────────
+describe('generateSessionId', () => {
+  it('returns a string', () => {
+    const id = generateSessionId('trigonometry', { gradeLevel: 10 });
+    assert.equal(typeof id, 'string');
+    assert.ok(id.length > 0, 'sessionId must be non-empty');
+  });
+
+  it('contains concept fragment at start', () => {
+    const id = generateSessionId('trigonometry', { gradeLevel: 10 });
+    assert.ok(id.startsWith('trigonometry'), `expected id to start with "trigonometry", got: ${id}`);
+  });
+
+  it('contains grade level fragment', () => {
+    const id = generateSessionId('trigonometry', { gradeLevel: 10 });
+    assert.ok(id.includes('class10'), `expected id to include "class10", got: ${id}`);
+  });
+
+  it('contains date fragment (8 consecutive digits)', () => {
+    const id = generateSessionId('trigonometry', { gradeLevel: 10 });
+    assert.ok(/\d{8}/.test(id), `expected id to contain 8-digit date fragment, got: ${id}`);
+  });
+
+  it('contains alphanumeric random suffix', () => {
+    const id = generateSessionId('trigonometry', { gradeLevel: 10 });
+    const parts = id.split('-');
+    const suffix = parts[parts.length - 1];
+    assert.ok(suffix.length >= 5, `expected random suffix >=5 chars, got: "${suffix}"`);
+    assert.ok(/^[a-z0-9]+$/.test(suffix), `suffix must be alphanumeric lowercase, got: "${suffix}"`);
+  });
+
+  it('two calls produce different IDs', () => {
+    const a = generateSessionId('trigonometry', { gradeLevel: 10 });
+    const b = generateSessionId('trigonometry', { gradeLevel: 10 });
+    assert.notEqual(a, b, 'each call must produce a unique sessionId');
+  });
+
+  it('handles null gradeLevel gracefully', () => {
+    const id = generateSessionId('trigonometry', { gradeLevel: null });
+    assert.equal(typeof id, 'string');
+    assert.ok(id.includes('grad-unknown'), `expected "grad-unknown" in id, got: ${id}`);
+  });
+
+  it('sanitises concept with non-alphanumeric chars', () => {
+    const id = generateSessionId('right-triangle trig!', { gradeLevel: 9 });
+    assert.ok(/^[a-z0-9-]/.test(id), `id must start with safe chars, got: ${id}`);
+  });
+});
+
+// ─── writeSessionDirectory tests — Phase 2 ───────────────────────────────────
+describe('writeSessionDirectory', () => {
+  const fullResearchContext = {
+    standardStatement:
+      'HSG-SRT.C.6: Understand that by similarity, side ratios in right triangles are properties of the angles in the triangle.',
+    prerequisites: ['8.G.B.7'],
+    misconceptions: [
+      { description: 'Students confuse opposite and adjacent sides', source: 'NCTM', url: 'https://example.com/1' },
+      { description: 'Students apply ratio without checking reference angle', source: 'Exa', url: null },
+      { description: 'Students compute ratio but forget to label sides first', source: 'Exa', url: null },
+      { description: 'Students cannot identify which ratio applies to find a side', source: 'Research', url: null },
+      { description: 'Students struggle with angle-of-elevation real world setup', source: 'Exa', url: null },
+    ],
+    ncertRefs: [{ chapter: 'Ch 8', section: '§8.1', exerciseNotes: 'Ex 8.1 Q1-Q3' }],
+    realWorldContexts: [{ label: 'Ramp', description: 'Find ramp angle.' }],
+    researchComplete: true,
+    sourceCount: 2,
+  };
+
+  let sessionPlan;
+  before(() => {
+    sessionPlan = planSession(
+      { topic: 'trigonometry', gradeLevel: 10, bloomTarget: 4, ncertChapter: 'Ch 8', curriculumSystem: 'NCERT' },
+      fullResearchContext,
+    );
+  });
+
+  it('dryRun: true returns correct structure without writing files', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-sp-dryrun-'));
+    try {
+      const result = await writeSessionDirectory(sessionPlan, fullResearchContext, {
+        outputDir: tmpDir,
+        dryRun: true,
+      });
+      assert.equal(typeof result.sessionId, 'string', 'sessionId must be a string');
+      assert.ok(result.sessionId.length > 0, 'sessionId must be non-empty');
+      assert.equal(typeof result.outputPath, 'string', 'outputPath must be a string');
+      assert.ok(Array.isArray(result.filesWritten), 'filesWritten must be an array');
+      assert.ok(result.filesWritten.length > 0, 'filesWritten must list at least one file');
+      assert.ok(!fs.existsSync(result.outputPath), 'dryRun must not create the session directory');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('dryRun: true lists session-plan.md in filesWritten', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-sp-dryrun2-'));
+    try {
+      const result = await writeSessionDirectory(sessionPlan, fullResearchContext, {
+        outputDir: tmpDir,
+        dryRun: true,
+      });
+      const hasPlanFile = result.filesWritten.some((f) => f.endsWith('session-plan.md'));
+      assert.ok(hasPlanFile, 'filesWritten must include session-plan.md');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('dryRun: true lists spec-instructions.md for each game', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-sp-dryrun3-'));
+    try {
+      const result = await writeSessionDirectory(sessionPlan, fullResearchContext, {
+        outputDir: tmpDir,
+        dryRun: true,
+      });
+      const specFiles = result.filesWritten.filter((f) => f.endsWith('spec-instructions.md'));
+      assert.equal(
+        specFiles.length,
+        sessionPlan.games.length,
+        `must list one spec-instructions.md per game (expected ${sessionPlan.games.length}, got ${specFiles.length})`,
+      );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('actual write: session-plan.md exists on disk with correct content', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-sp-write-'));
+    try {
+      const result = await writeSessionDirectory(sessionPlan, fullResearchContext, {
+        outputDir: tmpDir,
+        dryRun: false,
+      });
+      assert.ok(fs.existsSync(result.outputPath), 'session directory must be created');
+      const planPath = path.join(result.outputPath, 'session-plan.md');
+      assert.ok(fs.existsSync(planPath), 'session-plan.md must exist');
+      const content = fs.readFileSync(planPath, 'utf8');
+      assert.ok(content.includes('Session Plan'), 'must include "Session Plan" heading');
+      assert.ok(content.includes('trigonometry'), 'must mention the concept');
+      assert.ok(content.includes('HSG-SRT.C.6'), 'must embed standard statement');
+      assert.ok(content.includes('Engineer Instructions'), 'must include engineer instructions');
+      assert.ok(content.includes('Game Sequence'), 'must include game sequence table');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('actual write: per-game spec-instructions.md files exist with correct structure', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-sp-games-'));
+    try {
+      const result = await writeSessionDirectory(sessionPlan, fullResearchContext, {
+        outputDir: tmpDir,
+        dryRun: false,
+      });
+      for (const game of sessionPlan.games) {
+        const gameDir = path.join(result.outputPath, `game-${game.position}-${game.gameId}`);
+        assert.ok(fs.existsSync(gameDir), `game-${game.position}-${game.gameId}/ directory must exist`);
+        const specInstructionsPath = path.join(gameDir, 'spec-instructions.md');
+        assert.ok(fs.existsSync(specInstructionsPath), `spec-instructions.md must exist for game ${game.position}`);
+        const content = fs.readFileSync(specInstructionsPath, 'utf8');
+        assert.ok(content.includes('Spec Instructions'), 'must include heading');
+        assert.ok(content.includes('Preserve Unchanged'), 'must include preserve section');
+        assert.ok(content.includes('Substitute'), 'must include substitution section');
+        assert.ok(content.includes('Novelty Check'), 'must include novelty check');
+        assert.ok(content.includes('Evidence to Embed'), 'must include evidence section');
+        assert.ok(content.includes(game.gameId), `must mention gameId "${game.gameId}"`);
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('actual write: session-plan.md session ID matches result.sessionId', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-sp-idcheck-'));
+    try {
+      const result = await writeSessionDirectory(sessionPlan, fullResearchContext, {
+        outputDir: tmpDir,
+        dryRun: false,
+      });
+      const planContent = fs.readFileSync(path.join(result.outputPath, 'session-plan.md'), 'utf8');
+      assert.ok(planContent.includes(result.sessionId), 'session-plan.md must embed the sessionId');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('throws when sessionPlan is null', async () => {
+    await assert.rejects(() => writeSessionDirectory(null, null, { dryRun: true }), /sessionPlan is required/);
+  });
+
+  it('throws when sessionPlan has an error field', async () => {
+    await assert.rejects(
+      () => writeSessionDirectory({ error: 'concept_not_found', message: 'Unknown' }, null, { dryRun: true }),
+      /sessionPlan has error/,
+    );
+  });
+
+  it('works with null researchContext — writes files with placeholder text', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-sp-norc-'));
+    try {
+      const planNoRc = planSession({ topic: 'trigonometry', gradeLevel: 10, bloomTarget: 4 }, null);
+      const result = await writeSessionDirectory(planNoRc, null, { outputDir: tmpDir, dryRun: false });
+      assert.ok(fs.existsSync(result.outputPath), 'must create session dir even without research context');
+      const planContent = fs.readFileSync(path.join(result.outputPath, 'session-plan.md'), 'utf8');
+      assert.ok(
+        planContent.includes('No misconceptions sourced') || planContent.includes('not yet researched'),
+        'session-plan.md must include placeholder text when research is absent',
+      );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('session-plan.md game sequence table has one row per game', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-sp-rows-'));
+    try {
+      const result = await writeSessionDirectory(sessionPlan, fullResearchContext, {
+        outputDir: tmpDir,
+        dryRun: false,
+      });
+      const content = fs.readFileSync(path.join(result.outputPath, 'session-plan.md'), 'utf8');
+      // Count table rows: lines starting with "| <digit>"
+      const tableRows = content.split('\n').filter((l) => /^\| \d+/.test(l));
+      assert.equal(
+        tableRows.length,
+        sessionPlan.games.length,
+        `table must have ${sessionPlan.games.length} data rows, found ${tableRows.length}`,
+      );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
