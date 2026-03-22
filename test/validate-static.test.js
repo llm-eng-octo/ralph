@@ -1460,3 +1460,30 @@ describe('FeedbackManager.init() forbidden check (5b2 GEN-113)', () => {
     );
   });
 });
+
+describe('FeedbackManager.sound.playDynamicFeedback wrong namespace check (5b2 GEN-113B)', () => {
+  it('fails when FeedbackManager.sound.playDynamicFeedback() is called — produces PART-011-SOUND error', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); FeedbackManager.sound.playDynamicFeedback({ event: 'success' });",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.strictEqual(exitCode, 1, `Expected exit code 1 but got ${exitCode}. Output: ${output}`);
+    assert.ok(
+      output.includes('PART-011-SOUND'),
+      `Expected PART-011-SOUND error in output: ${output}`,
+    );
+  });
+
+  it('passes when FeedbackManager.playDynamicFeedback() is called at top level', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); FeedbackManager.playDynamicFeedback({ event: 'success' });",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('PART-011-SOUND'),
+      `Unexpected PART-011-SOUND error when correct namespace is used: ${output}`,
+    );
+  });
+});
