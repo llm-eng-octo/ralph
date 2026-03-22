@@ -1985,3 +1985,35 @@ Build #535 is the first build with both RULE-SYNC-1 gen prompt rule and §5i T1 
 **Secondary measurement — global fix loop regression guard:** If game-flow does pass (≥3/5), confirm the global fix loop does NOT fire (Step 3c should be skipped or fire with ≥80% categories already passing). If global fix fires and regresses categories, next R&D task is global fix loop suppression at high pass rate (planned in ROADMAP.md).
 
 **Source:** R&D analysis 2026-03-22.
+
+---
+
+**Lesson 151 — T1 false positive: endGame/restartGame as arrow functions**
+Source: pipeline iteration (build #534 right-triangle-area, 2026-03-22)
+Pattern: T1 validator used `/function\s+endGame\s*\(/` — correctly requires endGame() to exist, but regex doesn't match `const endGame = async (reason) => {` (arrow function expression). Game still assigned `window.endGame = endGame` correctly. False positive caused build to fail T1, triggering fix loop and ultimately a blank-page regen.
+Fix: Pattern updated to `/(?:function\s+endGame\s*\(|(?:const|let|var)\s+endGame\s*=)/` — accepts both function declarations and const/let/var arrow functions. Same fix applied to restartGame. Deployed in commit db38ede.
+Prevention: When adding T1 patterns for function existence, always include both declaration (`function foo(`) and expression (`const foo =`) forms.
+
+---
+
+**Lesson 152 — T1 false positive: initSentry() matched inside HTML comment**
+Source: pipeline iteration (build #535 soh-cah-toa-worked-example, 2026-03-22)
+Pattern: T1 checks that `initSentry()` is called AFTER `waitForPackages()` by comparing string positions. But when LLM adds `<!-- STEP 2: initSentry() function definition -->` as a comment in `<head>`, the comment text at position ~9545 is textually before `waitForPackages` at ~46082. T1 fired on the comment, not the actual call. Actual call order was correct (initSentry after waitForPackages).
+Fix: Strip HTML comments before position check: `html.replace(/<!--[\s\S]*?-->/g, '')`. Deployed in commit db38ede.
+Prevention: Always strip comments before running string-position-based order checks in T1 validator.
+
+---
+
+**Lesson 153 — LLM uses transitionScreen.show() for results instead of showResults()**
+Source: pipeline iteration (build #535 soh-cah-toa-worked-example, 2026-03-22)
+Pattern: When the spec defines a custom `#results-screen` element and a `showResults()` function, the LLM sometimes implements `endGame()` by calling `transitionScreen.show({title:'Game Over',...})` instead. The CDN `TransitionScreen` is intended for phase transitions (start→game), not for displaying the final results DOM. All end-of-game Playwright tests that assert on `#results-screen`, `#stars-display`, etc. fail because the element is never made visible.
+Fix: Added RULE-RESULTS-1 to gen prompt (Rule 28 in prompts.js): "showResults() MUST populate #results-screen directly via getElementById. Do NOT use transitionScreen.show() for results." Deployed in commit db38ede.
+Prevention: Whenever a spec defines both `#results-screen` and `showResults()`, the gen prompt rule enforces direct DOM manipulation.
+
+---
+
+**Lesson 154 — RULE-SYNC-1 confirmed: startGame() synchronous in build #535**
+Source: pipeline iteration (build #535 soh-cah-toa-worked-example, 2026-03-22)
+Pattern: Build #531 failed because startGame() wrapped all logic in setTimeout(() => {...}, 0), preventing CDN TransitionScreen from dismissing the slot. RULE-SYNC-1 (ban setTimeout in startGame, T1 §5i + gen prompt Rule 27) was added in commit 7548048.
+Result: Build #535 generated startGame() WITHOUT setTimeout — T1 §5i was silent (no violation). The build was rejected for a different reason (transitionScreen.show() in results, Lesson 153), NOT for RULE-SYNC-1. Hypothesis confirmed: T1 §5i + gen prompt rule successfully prevents the setTimeout pattern.
+Lesson: RULE-SYNC-1 is working. When a T1 rule + gen prompt combination silences the violation in the very next build, that's confirmation the intervention is effective.
