@@ -1820,3 +1820,19 @@ Multiple places described syncDOMState call-sites as "transitionScreen onComplet
 **Related:** Lesson 91 (count-and-tap CDN cold-start, 2.5min CDN delay exceeding 50s beforeEach timeout).
 
 **Proposed pipeline improvement:** Detect CDN timing failures early — if contract/game-flow first iteration fails with timeout-on-first-UI-element AND HTML has correct waitForPackages structure, skip remaining per-category iterations and go directly to global fix with CDN-timing hint. Saves 2-4 LLM fix calls per affected build.
+
+## Lesson 144 — TimerComponent headless pattern: use null slot ID, not 'headless-timer' (source: build #527 static analysis)
+
+**Pattern:** Game uses `new TimerComponent('headless-timer', {...})` for a background timer. The slot ID 'headless-timer' doesn't exist in the DOM (ScreenLayout only creates 'mathai-progress-bar-slot' and 'mathai-transition-slot'). The constructor throws "Container with id headless-timer not found", propagating through the action() callback, preventing TransitionScreenComponent from completing its teardown. The `#mathai-transition-slot` button stays visible. All game-flow tests fail at the post-click assertion.
+
+**Fix:** Use `new TimerComponent(null, {...})` for headless timers. The `null` slot ID is the correct pattern when the timer has no visible DOM container. Added as WRONG/RIGHT example in gen prompt CDN_CONSTRAINTS_BLOCK.
+
+**Signal:** If game-flow fails with "transition button remains visible after click" AND the game has a TimerComponent with a custom slot ID, check if that slot ID exists in the ScreenLayout slots configuration.
+
+## Lesson 145 — E8 script-only fix can strip CDN <script src> tags (source: build #527 static analysis)
+
+**Pattern:** E8 "script-only" fix extracts the game's `<script>` sections, sends them to the LLM for repair, then merges the fixed script back into the original HTML. The LLM sometimes responds with a script that omits the CDN `<script src>` load tags (packages/helpers/index.js, packages/components/index.js, packages/feedback-manager/index.js). The E8 merge then produces HTML with no CDN scripts loaded. `waitForPackages()` spins for 180s then throws. All tests fail with blank page.
+
+**Fix:** Added T1 error check: if `waitForPackages()` is present (function definition OR call site) but no CDN `<script src>` tags found → CDN_SCRIPTS_MISSING error. T1 post-fix validation (Lesson 135) then discards this HTML before it reaches the test runner.
+
+**Signal:** All tests fail simultaneously in a batch after an E8 fix was applied → suspect E8 stripped CDN scripts. Check GCP index-fixN.html for presence of CDN script tags.
