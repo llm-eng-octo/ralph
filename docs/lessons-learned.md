@@ -1776,3 +1776,33 @@ Line 109: "TransitionScreen ROUTING rule: onComplete MUST set gameState.phase". 
 Multiple places described syncDOMState call-sites as "transitionScreen onComplete" — updated to "buttons[].action callback".
 
 **General rule:** Audit `LESSON_PATTERNS` entries whenever CDN rules change — stale patterns actively inject wrong instructions into fix prompts. Lesson patterns can become the most trusted (and most dangerous) positive instructions.
+
+## Lesson 142 — Per-category test-gen prompt audit: 10 contradictions (2026-03-22)
+
+*Source: pipeline iteration — `lib/prompts.js` per-category audit*
+
+**Context:** Applied the same positive-example-overrides-prohibition methodology from Lessons 136–141 to the per-category test-gen prompt blocks (mechanics, game-flow, contract, edge-cases, rendering rules, level-progression).
+
+**Contradictions found and fixed (commit `ce2e3cd`):**
+
+1. **#4 CRITICAL — beforeAll HARDCODED_TIMEOUT (blast: 100% of builds)**: The mandatory `test.beforeAll()` block stamped into every generated test contained `page.waitForTimeout(3000)`. This triggered the HARDCODED_TIMEOUT lint rule in 100% of generated test files. Fixed: replaced with a 30s polling loop inside `page.evaluate()` that exits as soon as `window.gameState` is defined.
+
+2. **#8 CRITICAL — CT5 wrong `duration_data` path (silent undefined)**: CT5's RIGHT example asserted `msg.data.duration_data` but the gen prompt's postMessage template places `duration_data` inside `metrics`, making the actual path `msg.data.metrics.duration_data`. Every generated contract test's duration assertion was silently returning undefined, degrading contract coverage without any visible failure. Fixed: corrected path in both description text and RIGHT example.
+
+3. **#1/#2 HIGH — M1/M5 RIGHT examples teach M13 violation**: M1 RIGHT showed `expect(await getLives(page)).toBe(...)` immediately after `answer()`. M5 RIGHT showed `const score = await getScore(page); expect(score).toBeGreaterThan(0)` after an answer loop. Both read DOM state without `expect.poll()`, racing the 500ms syncDOMState cycle — exactly what M13 bans. Fixed: both wrapped in `expect.poll(..., { timeout: 5000 })`.
+
+4. **#3 HIGH — GF7 RIGHT reads getLives before first syncDOMState cycle**: `const lives = await getLives(page)` immediately after `startGame()` — syncDOMState needs one 500ms cycle after game_init before `data-lives` is set. If the read happens before that cycle, `getLives()` returns 0 and the "exhaust lives" loop is a no-op. Fixed: added `await expect.poll(() => getLives(page), { timeout: 5000 }).toBeGreaterThan(0)` before the read.
+
+5. **#6 MEDIUM — R2 RIGHT shows banned `#mathai-transition-slot button` selector**: The R2 rendering rule's RIGHT example showed `expect(page.locator('#mathai-transition-slot button').first()).toBeVisible()` as the canonical post-level-completion check — directly contradicting GF9/GF5/LP4/CT3/TRANSITION_SLOT bans on that selector. Fixed: replaced with `waitForPhase('transition', 10000)`.
+
+6. **#5 MEDIUM — CT4/CT6 teach `page.waitForTimeout(200)` for postMessage wait**: The "copy this exactly" CT4 mandatory block and the CT6 standalone example both used `page.waitForTimeout(200)` to wait for CDN async postMessage dispatch. Fixed: replaced with `expect.poll()` on `getLastPostMessage()` with 200ms intervals.
+
+7. **#9 LOW — M15 offers banned toHaveClass as valid OR alternative**: M15 presented both `expect.poll(() => btn.getAttribute('class'))` AND `expect(btn).toHaveClass(/correct/, { timeout: 10000 })` as equally valid. The second form is exactly what the M15 lint rule bans. Fixed: removed the `OR` alternative entirely.
+
+8. **#7 LOW — EC2 RIGHT hardcodes score assertion**: `expect(score).toBe(1)` violates M1's "never hardcode expected values." Fixed: `toBe(scoreBefore + 1)`.
+
+9. **#10 LOW — CT6 null-guard uses silent `return` (false-pass)**: `if (msg === null) { console.warn(...); return; }` causes contract tests to pass silently when postMessage is never received. Fixed: `test.skip(true, '...')` makes the skip visible in test output.
+
+**Pattern:** Positive examples propagate to 100% of generated tests for that category. Prohibition rules are advisory. This is why violation rates persist even after adding ban rules — the RIGHT examples are teaching the banned pattern.
+
+**Next:** Measure violation rates on builds #518–521 (currently running) and the subsequent batch to verify HARDCODED_TIMEOUT and M13 rates drop. The beforeAll fix alone should eliminate HARDCODED_TIMEOUT from 100% of builds.
