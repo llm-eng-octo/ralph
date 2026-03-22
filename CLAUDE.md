@@ -205,8 +205,7 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 **A slot is never passive.** "Waiting for a build", "nothing to do until X completes", and "monitoring" are not slot activities. Every slot has an unbounded backlog of available work that does not depend on any build being running:
 
 - **R&D:** Past build logs, failure pattern analysis, hypothesis drafting, prompt rule writing, doc updates — all available at any time from existing DB + docs.
-- **Local test:** Past failed build HTMLs are permanently on GCP — run `diagnostic.js` on any undiagnosed game at any time. RCA docs can always be written or improved.
-- **Test gen:** Past builds always have test output to analyse. Category-level pass rates can always be computed from the DB. Test-gen prompt rules can always be drafted or refined from existing failure evidence. There is never a state where test gen quality cannot be improved.
+- **Test quality:** Category pass rates are always computable from DB. Every category below 100% is active work. Past failed game HTMLs are permanently on GCP — `diagnostic.js` can run on any of them. Every "test bug" verdict in `docs/spec_rca/` that hasn't had a fix shipped is queued work. There is no state where test quality cannot be improved.
 - **Education:** Next game spec can always be drafted, interaction-patterns.md always has gaps to fill, past approved games can always be audited for pedagogical quality.
 - **UI/UX:** The approved game library grows with every build. Any approved game that hasn't been visually audited is valid work. There is no state where "there is nothing to audit."
 
@@ -242,44 +241,36 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 **Constraints:** R&D never blocks critical work. Must produce a measurable result — "made it cleaner" is not R&D.
 
-### 14. Always maintain one active local test slot — MANDATORY
+### 14. Always maintain one active Test Quality Slot — MANDATORY
 
-**Local testing is always running.** One sub-agent must ALWAYS be running `diagnostic.js` against a recently failed build.
+**Test quality is always being improved.** Diagnosis and test gen improvement are one slot, not two — every diagnosis finding feeds directly into a test gen fix. The slot's purpose is threefold: (1) reduce test execution time, (2) improve reliability — all cases passing on a correct game, (3) ensure tests represent real user behaviour — coverage of meaningful interactions, not just happy path.
 
-**How to pick:** Query DB for recent failures → skip cancelled/approved/queued → prioritise games with incomplete RCA §2/§3.
+**This slot is never "caught up."** Previous builds have test failures. Every category below 100% pass rate is active work. Every approved build with weak coverage is active work. Every test that fires on a correct game is active work.
 
-**Required output per session:** Update `docs/spec_rca/<game-id>.md` with §2 (evidence) and §3 (POC). Classify as:
+**Two-phase loop (always running in parallel):**
+
+*Phase A — Diagnosis:* Run `diagnostic.js` against a recently failed build. Must run the browser — reading HTML does not count.
+- How to pick: Query DB for recent failures → skip cancelled/approved/queued → prioritise games with incomplete RCA §2/§3.
+- Output: Update `docs/spec_rca/<game-id>.md` with §2 (evidence) and §3 (POC). Classify verdict:
 
 | Verdict | Meaning | Next action |
 |---------|---------|-------------|
 | **HTML bug** | Game broken in browser | POC fix → hand to R&D as gen prompt rule + T1 check |
-| **Test bug** | Game correct, tests wrong | Test-gen prompt fix hypothesis → hand to R&D |
+| **Test bug** | Game correct, tests wrong | Test-gen prompt fix → implement immediately in this slot |
 
-"Reading the HTML" does not count — must run the browser. "Game passes locally" is a valid finding only if classified as a test bug with a specific assertion identified.
-
-### 14b. Always maintain one active Test Gen Slot — MANDATORY
-
-**Test gen quality is always being improved.** One sub-agent must ALWAYS be actively analysing and improving test generation quality. R&D owns pipeline reliability; local test owns game diagnosis; Test Gen owns the quality of tests produced by the pipeline.
-
-**What Test Gen covers:** category-level pass rates, false-positive test assertions, missing coverage for key game states (lives deducted, round transition, results phase), selector brittleness, timing issues, and prompt rules in `lib/pipeline-test-gen.js` and `lib/prompts.js`.
-
-**How to pick the active task:**
-1. Query DB: which test categories have the lowest pass rates across the last 20 builds? Start there.
-2. Check `docs/lessons-learned.md` for any test-gen bug classified by local test but not yet fixed in the prompt.
-3. Check `docs/spec_rca/` for any game with a "test bug" verdict that hasn't had a test-gen prompt fix shipped.
-
-**Required output per session:**
-1. At least one concrete finding: a specific test assertion that fires falsely, a missing coverage case, or a category with documented low pass rate.
-2. A proposed fix: either a prompt rule addition to `lib/prompts.js` or a structural change to `lib/pipeline-test-gen.js`.
-3. Update `docs/lessons-learned.md` with the finding and proposed fix.
+*Phase B — Test gen improvement:* Analyse category pass rates and fix the lowest-performing category.
+- Query DB: `SELECT category, AVG(CAST(passed AS FLOAT)/NULLIF(total,0)) as rate FROM test_progress GROUP BY category ORDER BY rate ASC`
+- For the lowest category: find the specific failing assertion pattern, draft a CT rule, add it to `lib/prompts.js`, run tests, deploy.
+- Every session must ship at least one concrete fix OR a documented finding with a proposed fix.
 
 **Always-available work (no build required):**
-- Pull category pass rates from DB: `SELECT category, AVG(pass_rate) FROM test_results GROUP BY category ORDER BY AVG(pass_rate)`
-- Read past test output from GCP build artifacts and identify false-positive patterns
-- Draft improved test-gen prompt rules from existing failure evidence in `docs/spec_rca/`
-- Compare test assertions in approved vs failed builds to identify what working tests look like
+- Category pass rates from DB (above query) — always computable
+- GCP build artifacts — test output from every past build is permanently accessible
+- `docs/spec_rca/` — every "test bug" verdict that hasn't had a fix shipped is queued work
+- Approved builds — compare their test assertions against failed builds to identify what good tests look like
+- Timing analysis — which tests have flaky timing, which assertions use hard sleeps instead of waitForPhase
 
-**Constraints:** Test gen never blocks critical pipeline work. Must produce a documented finding per session — "tests look okay" is not an output.
+**Constraints:** Never blocks critical pipeline work. "No new failures to diagnose" is not idle — switch to Phase B immediately.
 
 ### 15. Always maintain one active Education Implementation Slot — MANDATORY
 
@@ -321,7 +312,6 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 2. **Running agents** — relaunch any mid-flight agents from the conversation summary.
 3. **Build pipeline** — SSH, confirm worker running, no build stuck >45 min.
 4. **R&D slot** — confirm one task marked `active` in `ROADMAP.md`. If empty, launch immediately.
-5. **Local test slot** — confirm active + previous session produced HTML/test-bug classification + R&D handoff.
-6. **Test gen slot** — confirm active task. If none, query DB for lowest-pass-rate test category and launch analysis immediately.
-7. **Education slot** — confirm active task; read `docs/education/trig-session.md` for current state.
-8. **UI/UX slot** — confirm active audit target; read `docs/ui-ux/audit-log.md` for current state. If doc doesn't exist yet, create it and start with the most recently approved game.
+5. **Test quality slot** — confirm active task (diagnosis OR category improvement). If none, query DB for lowest category pass rate and launch immediately.
+6. **Education slot** — confirm active task; read `docs/education/trig-session.md` for current state.
+7. **UI/UX slot** — confirm active audit target; read `docs/ui-ux/audit-log.md` for current state. If doc doesn't exist yet, create it and start with the most recently approved game.

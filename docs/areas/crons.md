@@ -39,8 +39,7 @@ Spawn a sub-agent to:
    - ✅ Approved since last update: [list]
    - ❌ Failed: [list with 1-line reason]
    - 🔬 R&D: [current task + status]
-   - 🔍 Local test: [current diagnosis target + HTML-bug or test-bug verdict if known]
-   - 🧪 Test gen: [current analysis target + finding if known]
+   - 🧪 Test quality: [diagnosis target if any + category being improved + latest finding]
    - 🎓 Education: [current task + status]
    - 🎨 UI/UX: [current audit target + status]
    - 🚢 Shipped: [improvements since last update]
@@ -94,9 +93,8 @@ Cron + slot health check. Report inline ONLY — do NOT send any Slack message.
 2. Check ROADMAP.md R&D slot — is one task marked 'active'? Report.
 3. Check Education slot in ROADMAP.md — is one task marked 'active'? Report.
 4. Check UI/UX slot — is there an active audit target in docs/ui-ux/audit-log.md? Report.
-5. Check local test slot — is there a recent spec_rca update (within last session)? Report.
-6. Check test gen slot — is there an active test gen analysis task this session? Report.
-7. If any slot is empty or passive, flag it: "SLOT EMPTY — launch immediately".
+5. Check test quality slot — is there an active diagnosis or category-improvement task this session? Report lowest category pass rate from recent builds if available.
+6. If any slot is empty or passive, flag it: "SLOT EMPTY — launch immediately".
 
 Output: 7 lines max, inline only.
 ```
