@@ -1,23 +1,95 @@
-# addition-mcq UI/UX Audit
-**Build:** spec-only (no approved build exists)
-**Date:** 2026-03-23
-**Viewport:** 480×800px (mobile-first)
-**Method:** Spec-only static analysis
+# UI/UX Audit — addition-mcq
+
+**Audit date:** 2026-03-23
+**Auditor:** UI/UX Slot (mandatory active slot — CLAUDE.md Rule 16)
+**Audit type:** Spec-only — no approved build exists (0 builds in DB)
+**Spec:** games/addition-mcq/spec.md (161 lines, v1)
 
 ---
 
 ## Summary
 
-Spec-only audit. No approved build exists for addition-mcq. The spec is well-structured for an MCQ lives+timer game. Core game logic (advanceGame, endGame, showGameOver, restartGame) is explicitly defined — better than prior MCQ specs audited. Key gaps: (1) ProgressBarComponent missing `slotId` key — 6th confirmed instance of this pattern; (2) no data-phase state machine / syncDOMState() — 3rd confirmed MCQ spec instance; (3) no ARIA live region on feedback (option buttons provide no spoken feedback after answer selection); (4) data-lives not synced to a DOM attribute — test harness cannot read it; (5) window.endGame not assigned as global; (6) gameState.gameId field absent. No P0 blockers: no FeedbackManager.init(), no alert(), restartGame() is defined, endGame() is called on both win and game-over paths, results screen is PART-019 (separate component). **Pre-build spec additions recommended before first queue.**
+Spec-only audit. No HTML available for browser playthrough — static spec analysis only.
+
+Game profile: MCQ addition, 3 lives, 30s countdown timer per question, 4-option buttons (`.option-btn`). Uses PART-019 results screen (custom div, not TransitionScreen) for victory, TransitionScreen for game-over. Also uses TimerComponent (PART-006), ProgressBarComponent (PART-023), SignalCollector (PART-010), VisibilityTracker (PART-005), Sentry (PART-030). Core logic functions (advanceGame, endGame, showGameOver, restartGame) are all named in spec — better coverage than prior MCQ specs.
+
+**No P0 blockers.** FeedbackManager.init() absent (PASS). No alert()/confirm()/prompt() (PASS).
+
+**10 actionable findings (7a, 2b, 1d).** Key gaps: gameState.gameId absent, window.endGame unassigned, data-phase/syncDOMState absent, ARIA live region absent, ProgressBar slotId unspecified, SignalCollector no constructor args, game_complete postMessage type wrong (spec says `game_end`, contract requires `game_complete`), results screen position:fixed unspecified (PART-019 custom div), timer destroy/recreate on restartGame() ambiguous, .option-btn min-height absent.
+
+---
+
+## Mandatory Checklist
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | CSS stylesheet intact | N/A | Spec-only — no HTML build |
+| 2 | FeedbackManager.init() ABSENT | PASS | Not mentioned anywhere in spec |
+| 3 | alert()/confirm()/prompt() absent | PASS | Not mentioned in spec |
+| 4 | window.endGame assigned at DOMContentLoaded end | FAIL | Section 9 defines endGame() as local function; no `window.endGame = endGame` assignment anywhere |
+| 5 | data-phase transitions + syncDOMState() at EVERY phase change | FAIL | Screen Flow (Section 6) defines start/game/results/game-over states — no data-phase, no syncDOMState(), no gameState.phase field |
+| 6 | Enter key handler (text input games only) | N/A | MCQ tap game — no text input |
+| 7 | ProgressBar: options object with slotId: 'mathai-progress-slot' | FAIL | Section 13 shows ProgressBarComponent with autoInject + totalRounds + totalLives — missing `slotId: 'mathai-progress-slot'` key |
+| 8 | aria-live="polite" role="status" on ALL dynamic feedback elements | FAIL | Section 5 HTML shows .option-btn elements; no feedback div with aria-live/role="status" specified |
+| 9 | SignalCollector constructor args: sessionId, studentId, templateId | FAIL | PART-010 listed; Section 9 calls signalCollector.send() but no instantiation with required args shown |
+| 10 | gameState.gameId field as FIRST field | FAIL | Section 3 gameState declaration has isGameActive as first field — gameId absent entirely |
+| 11 | Results screen position:fixed with z-index≥100 | FAIL | Victory path uses PART-019 custom `#results-screen` div (Section 5 HTML: `style="display:none;"`). No position:fixed or z-index specified — 7th confirmed GEN-UX-001 instance |
+| 12 | ALL interactive buttons min-height:44px (incl. .option-btn) | FAIL | Section 5 HTML shows 4× `.option-btn` buttons; Section 10 CSS guidance has no min-height:44px for .option-btn |
+| 13 | Sentry SDK v10.23.0 three-script pattern | FAIL (low) | PART-030 listed; no version pinning, no initSentry() call, no three-script pattern shown in spec |
+| 14 | game_complete postMessage on BOTH victory AND game-over paths | FAIL | Section 11 specifies outgoing type as `game_end` — contract requires `game_complete`. Neither path shows `window.parent.postMessage({type:'game_complete',...})` |
+| 15 | restartGame() resets ALL gameState fields; timer games destroy+recreate TimerComponent | FAIL | Section 7g: restartGame() calls `transitionScreen.hide()` then `startGame()`. startGame() does NOT re-create TimerComponent (timer was destroyed in endGame()). Game-over path: showGameOver() → restartGame() → startGame() — timer not recreated |
+| 16 | waitForPackages() only awaits packages the game actually instantiates | PASS | Game uses TimerComponent (PART-006) + VisibilityTracker (PART-005) — both legitimately awaited |
 
 ---
 
 ## Findings
 
-### F1: ProgressBarComponent missing `slotId` key in options — P1
-**Classification:** (a) gen prompt rule
+### F1 — window.endGame not assigned to window [type-a] [HIGH]
 
-Spec Section 13:
+**Pattern:** window.endGame not assigned in DOMContentLoaded
+**Instance count:** 7th confirmed (math-mcq-quiz, math-cross-grid, word-pairs, associations, adjustment-strategy, mcq-addition-blitz, addition-mcq)
+**Description:** Section 9 defines `endGame()` as a local function. The CDN harness calls `window.endGame()` to force end-of-game in contract tests. Without `window.endGame = endGame`, the harness call silently fails — contract tests time out.
+**Action:** GEN-WINDOW-EXPOSE (rule 36) already shipped — T1 W3 check already active. No new rule needed. Add `window.endGame = endGame;` to spec Section 9 or DOMContentLoaded summary before first build.
+
+---
+
+### F2 — No data-phase / syncDOMState() state machine [type-a] [HIGH]
+
+**Pattern:** data-phase + syncDOMState() absent from MCQ spec
+**Instance count:** 6th confirmed MCQ spec instance
+**Description:** Section 6 (Screen Flow) defines four distinct states — start screen, question screen, results screen, game-over screen — but specifies no `gameState.phase` field, no `data-phase` attribute on `#app`, and no `syncDOMState()` calls at any transition. Without explicit phase transitions, the LLM omits syncDOMState() calls, causing game-flow test timeouts.
+**Required phase mapping:**
+- `showStartScreen()` / game_init handler → `gameState.phase = 'start_screen'` → `syncDOMState()`
+- `startGame()` → `gameState.phase = 'playing'` → `syncDOMState()`
+- `endGame()` victory path → `gameState.phase = 'results'` → `syncDOMState()`
+- `showGameOver()` → `gameState.phase = 'game_over'` → `syncDOMState()`
+**Action:** Already tracked in ROADMAP. Add phase mapping to spec Section 6 before first build.
+
+---
+
+### F3 — No ARIA live region on option feedback [type-a] [HIGH]
+
+**Pattern:** Dynamic feedback elements missing aria-live="polite" role="status"
+**Instance count:** 16th confirmed
+**Description:** Section 5 shows the play area HTML with `.option-btn` elements. No feedback div with `aria-live="polite"` and `role="status"` is specified. After option selection (correct/incorrect/timeout), visual CSS class feedback is applied but screen reader users receive no announcement.
+**Action:** ARIA-001 gen rule already shipped. No new rule needed. Add explicit feedback div to Section 5 HTML: `<div id="answer-feedback" aria-live="polite" role="status"></div>`. Add population to Section 7c.
+
+---
+
+### F4 — gameState.gameId absent from initial declaration [type-a] [HIGH]
+
+**Pattern:** gameState missing gameId field as FIRST field
+**Instance count:** 7th confirmed
+**Description:** Section 3 gameState declaration starts with `isGameActive: false` — `gameId` field is completely absent. GEN-GAMEID rule (shipped) requires `gameId: 'addition-mcq'` as the FIRST field. Without it, `window.gameState.gameId` is undefined — postMessage payload and signal events lack game identification.
+**Action:** GEN-GAMEID rule already shipped. Add `gameId: 'addition-mcq'` as FIRST field in Section 3 gameState before first build.
+
+---
+
+### F5 — ProgressBar slotId not specified [type-a] [HIGH]
+
+**Pattern:** ProgressBarComponent instantiation missing slotId options key
+**Instance count:** 10th confirmed
+**Description:** Section 13 shows ProgressBarComponent instantiated as:
 ```javascript
 const progressBar = new ProgressBarComponent({
   autoInject: true,
@@ -25,136 +97,101 @@ const progressBar = new ProgressBarComponent({
   totalLives: 3
 });
 ```
-
-No `slotId` key. The ProgressBarComponent requires `slotId: 'mathai-progress-slot'` to inject into the correct DOM slot created by ScreenLayout. Without it, the component either fails silently or injects into the wrong location.
-
-**This is the 6th confirmed instance** (after find-triangle-side #549, quadratic-formula #546, right-triangle-area #543, real-world-problem #564, addition-mcq-lives spec). Rule GEN-UX-003/004/005 covers this — verify it is enforced in CDN_CONSTRAINTS_BLOCK and check if addition-mcq-lives spec was addressed.
-
-**Action:** Add to spec: `slotId: 'mathai-progress-slot'` in the ProgressBarComponent options block.
+No `slotId: 'mathai-progress-slot'` key. Without it, the component either fails silently or injects into the wrong location. GEN-UX-003 rule (shipped) requires the slotId key.
+**Action:** GEN-UX-003 already shipped. Add `slotId: 'mathai-progress-slot'` to the options object in Section 13 before first build.
 
 ---
 
-### F2: No data-phase state machine or syncDOMState() — P1
-**Classification:** (a) gen prompt rule
+### F6 — SignalCollector instantiated without constructor args [type-a] [MEDIUM]
 
-The spec defines `showScreen()` for transitions (game-screen shown/hidden) but never specifies a `data-phase` attribute on `#app` or any root element, and never references `syncDOMState()`. All phase transitions happen via direct `style.display` toggling in `showScreen()`.
-
-Without `data-phase`, Playwright test assertions using `[data-phase="game"]` or `[data-phase="results"]` will fail. The T1 W4 check (syncDOMState within 200 chars of gameState.phase assignment) will fire warnings if the LLM implements a phase field without syncDOMState.
-
-**This is the 3rd confirmed MCQ spec instance** (after addition-mcq-blitz spec and addition-mcq-lives spec). Already tracked in ROADMAP line 237 (T1 W4 deployed 2026-03-20).
-
-**Action (spec addition):** Add to Section 7a/7b/7f: after each phase transition, call `syncDOMState()` and define `data-phase` lifecycle: `'start' → 'game' → 'results'` (or `'game-over'`).
+**Pattern:** SignalCollector no constructor args
+**Instance count:** 6th confirmed
+**Description:** Section 2 lists PART-010 (Event Tracking & SignalCollector). Section 9 calls `signalCollector.send('game_end', metrics)` but no instantiation snippet is shown anywhere in the spec. GEN-UX-005 rule (shipped) requires `new SignalCollector({ sessionId, studentId, templateId })`. Without the spec showing correct usage, the LLM may generate `new SignalCollector()` with no args.
+**Action:** GEN-UX-005 already shipped. Add correct instantiation to spec (Section 4 Init Block or new section) before first build.
 
 ---
 
-### F3: No ARIA live region on MCQ feedback — P1
-**Classification:** (a) gen prompt rule
+### F7 — results-screen div lacks position:fixed z-index≥100 [type-a] [HIGH]
 
-The spec shows option buttons get `.correct`/`.incorrect` CSS classes after answer selection (Section 7c), but specifies no `aria-live` region for spoken feedback. Screen reader users get no announcement when they tap an answer and the result is revealed.
-
-ARIA-001 rule was shipped (dc03155) and should catch this on first build — but the spec should pre-empt this by specifying an `aria-live="polite"` feedback div.
-
-**This is the 10th confirmed instance** (9 HTML builds + addition-mcq-lives spec, now also addition-mcq spec).
-
-**Action (spec addition):** Add to Section 5 HTML Structure: `<div id="feedback-message" aria-live="polite" style="position:absolute;left:-9999px;"></div>`. Add to Section 7c: after option select, set `document.getElementById('feedback-message').textContent = isCorrect ? 'Correct!' : 'Wrong. The correct answer is ' + q.correctAnswer`.
+**Pattern:** Custom results div not specified as overlay
+**Instance count:** 7th confirmed GEN-UX-001 instance
+**Description:** Section 5 HTML shows `<div id="results-screen" class="screen" style="display:none;"></div>`. The victory path calls `showResultsScreen(metrics)` (PART-019 custom div) rather than TransitionScreen CDN component. No CSS specification for `position:fixed`, `z-index≥100`, or `top:0; left:0; width:100%; height:100%` is given. Without this, the results screen may render behind other elements or fail to fill the viewport.
+**Action:** GEN-UX-001 already shipped. Spec Section 10 (CSS) must add: `#results-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; }` before first build.
 
 ---
 
-### F4: window.endGame not assigned as global — P1
-**Classification:** (a) gen prompt rule
+### F8 — game_complete postMessage type incorrect [type-b] [HIGH]
 
-Section 9 defines `endGame()` as a local function. The CDN contract requires `window.endGame` to be assigned so the harness can call it externally (e.g., to force-complete a game in tests). Spec does not include `window.endGame = endGame;`.
-
-**Action (spec addition):** Add to Section 9 or Section 4 (Init Block): `window.endGame = endGame;`.
-
----
-
-### F5: data-lives not synced to a DOM attribute — P1
-**Classification:** (d) test gap
-
-The lives system is tracked in `gameState.lives` but the spec never specifies a DOM element with `data-lives` attribute. The test harness `getLives()` helper reads a DOM attribute; without it, live-count assertions will be reading a hardcoded value or failing.
-
-This pattern was identified in addition-mcq-lives spec (UI-ACQ-007) — same gap exists here.
-
-**Action (spec addition):** Specify a lives display element in Section 5, e.g., a hearts container `<div id="lives-display" data-lives="3"></div>` that syncDOMState() updates on each life loss. Alternatively, rely on ProgressBarComponent's lives display and note that `data-lives` is maintained there.
+**Pattern:** Outgoing postMessage type is `game_end` instead of `game_complete`
+**Instance count:** New finding — specific type-name mismatch
+**Description:** Section 11 specifies the outgoing postMessage as `{ "type": "game_end", ... }`. The CDN contract requires `{ "type": "game_complete", ... }`. Additionally, neither the victory path (endGame → showResultsScreen) nor the game-over path (showGameOver) shows an explicit `window.parent.postMessage({ type: 'game_complete', ... })` call. Risk: harness contract tests will timeout waiting for `game_complete` while the game fires `game_end` instead.
+**Action:** Spec addition needed. Correct Section 11: rename `game_end` → `game_complete`. Add explicit postMessage call to Section 9 endGame() and Section 7f showGameOver() before first build.
 
 ---
 
-### F6: gameState.gameId field missing — P2
-**Classification:** (a) gen prompt rule
+### F9 — restartGame() timer not re-created after endGame() destroys it [type-b] [HIGH]
 
-The standard gameState shape requires `gameId: 'addition-mcq'` field for SignalCollector and postMessage identification. Section 3 (Game State) does not include it. Without this, `signalCollector.send()` events will lack game identification context.
-
-**Action (spec addition):** Add `gameId: 'addition-mcq'` to the gameState object in Section 3.
-
----
-
-### F7: SignalCollector constructor args not specified — P1
-**Classification:** (a) gen prompt rule
-
-Section 2 lists PART-010 (Event Tracking & SignalCollector) but Section 9 shows:
-```javascript
-signalCollector.send('game_end', metrics);
-```
-…without any spec section defining how `signalCollector` is instantiated. The gen prompt pattern from previous audits shows SignalCollector instantiated without constructor args — rule GEN-UX-005 addresses this. The spec should explicitly include the constructor call.
-
-**This is the 3rd confirmed instance** (find-triangle-side #549, real-world-problem #564, addition-mcq spec).
-
-**Action (spec addition):** Add to Section 4 Init Block: `const signalCollector = new SignalCollector({ gameId: 'addition-mcq', sessionId: window.__sessionId });`.
+**Pattern:** Timer game restartGame() must destroy+recreate TimerComponent
+**Instance count:** 4th confirmed timer game
+**Description:** Section 9 endGame() calls `timer.destroy()`. Section 7g restartGame() calls `transitionScreen.hide(); startGame()`. Section 7a startGame() calls `loadQuestion(0)`. Section 7b loadQuestion() calls `timer.reset(); timer.start()`. But after `timer.destroy()`, the timer instance is destroyed — calling `timer.reset()` on a destroyed instance will throw or fail silently. The game-over path (showGameOver → restartGame) is the most common replay scenario. No re-instantiation of TimerComponent is shown anywhere in restartGame() or startGame().
+**Action:** Spec addition needed. Add to Section 7g restartGame(): destroy existing timer if not already destroyed, then re-create: `timer = new TimerComponent('timer-container', { timerType: 'decrease', format: 'sec', startTime: 30, endTime: 0, autoStart: false, onEnd: handleTimeout });` before calling startGame(). Also reset all gameState fields in restartGame() rather than relying on startGame() alone.
 
 ---
 
-### F8: timer.reset() called before timer.start() — P2 (potential race)
-**Classification:** (b) spec addition
+### F10 — .option-btn buttons missing explicit min-height:44px [type-a] [MEDIUM]
 
-In Section 7b (loadQuestion), the spec calls:
-```javascript
-timer.reset();
-timer.start();
-```
-
-On the very first question, `timer` was just constructed with `autoStart: false` — calling `reset()` before `start()` should be safe. However, on subsequent questions (restartGame → startGame → loadQuestion(0)), the spec calls `startGame()` which does NOT call `timer.reset()` before `loadQuestion(0)` is called. Since `timer.destroy()` is only called in `endGame()` (not in the game-over path), and `restartGame()` calls `startGame()` which calls `loadQuestion(0)`, there is a potential stale timer state on restart.
-
-Section 7g shows `restartGame()` calls `startGame()` directly — but `startGame()` does NOT reinitialize the timer (it was destroyed in `endGame()` only). For the game-over path: `showGameOver()` → user clicks "Try Again" → `restartGame()` → `startGame()`. The timer was NOT destroyed in `showGameOver()`. On `loadQuestion()`, `timer.reset()` + `timer.start()` are called on the existing timer — this should work, but it's worth noting that `timer.destroy()` in `endGame()` means a new timer must be created on restart. The spec doesn't show re-instantiation.
-
-**Action (spec addition):** Clarify timer lifecycle: either (1) add `timer = new TimerComponent(...)` in `startGame()` to re-create on restart; or (2) note that the game-over path does NOT call `timer.destroy()` (only `endGame()` does), so the timer survives for reuse.
+**Pattern:** Interactive buttons missing 44px touch targets
+**Instance count:** 11th confirmed
+**Description:** Section 5 HTML shows four `.option-btn` elements (data-index 0–3). Section 10 CSS guidance describes visual styling (border, hover, correct/incorrect colors) but specifies no `min-height: 44px`. On mobile, undersized option buttons cause mis-taps on a 480×800 viewport. GEN-UX-002 / GEN-TOUCH-TARGET rule (shipped) must cover `.option-btn` — confirm selector in prompts.js includes this class.
+**Action:** GEN-UX-002 already shipped. Verify `.option-btn` is covered by the rule's CSS selector. Add explicit `min-height: 44px;` to `.option-btn` in Section 10 CSS before first build.
 
 ---
 
-### F9: No initSentry() call specified — P2
-**Classification:** (a) gen prompt rule
+## Routing Table
 
-Section 2 lists PART-030 (Sentry Error Tracking) but the spec has no section showing `initSentry()` being called after `waitForPackages()`. Previous audits confirmed initSentry() must be called immediately after waitForPackages resolves, before any other init code.
-
-**Action:** Minor — the gen prompt CDN INIT ORDER rule should enforce this, but the spec should include an explicit note.
-
----
-
-## Routing
-
-| Finding | Severity | Routes to | Action |
-|---------|----------|-----------|--------|
-| F1: ProgressBar missing slotId | P1 | (a) Gen Quality | 6th instance — confirm GEN-UX-003 covers `slotId` key in options; add ROADMAP note |
-| F2: No data-phase / syncDOMState | P1 | (a) Gen Quality + (b) Spec | 3rd MCQ spec instance — add to spec before first build |
-| F3: No ARIA live region | P1 | (a) Gen Quality | 10th instance — ARIA-001 shipped; add feedback-message div to spec |
-| F4: window.endGame unassigned | P1 | (a) Gen Quality | Add to spec Section 9; confirm gen prompt covers `window.endGame = endGame` |
-| F5: data-lives not on DOM | P1 | (d) Test Engineering | 2nd MCQ spec instance (after addition-mcq-lives); Test Engineering backlog |
-| F6: gameState.gameId missing | P2 | (a) Gen Quality | Add to spec Section 3; confirm gen prompt covers gameId field |
-| F7: SignalCollector no constructor args | P1 | (a) Gen Quality | 3rd instance — GEN-UX-005 shipped; add instantiation to spec Section 4 |
-| F8: Timer destroy/recreate ambiguity | P2 | (b) Spec | Add timer lifecycle clarification to spec Section 7g |
-| F9: initSentry() absent from spec | P2 | (a) Gen Quality | Gen prompt INIT ORDER rule covers it; minor spec note |
+| Finding | Classification | Destination | Action |
+|---------|---------------|-------------|--------|
+| F1 — window.endGame unassigned | (a) gen prompt rule | Gen Quality | Already shipped (GEN-WINDOW-EXPOSE). Add to spec before build. |
+| F2 — data-phase/syncDOMState absent | (a) gen prompt rule | Gen Quality | Already tracked (ROADMAP). Add to spec before build. |
+| F3 — ARIA live region absent | (a) gen prompt rule | Gen Quality | Already shipped (ARIA-001). Add feedback div to spec before build. |
+| F4 — gameState.gameId absent | (a) gen prompt rule | Gen Quality | Already shipped (GEN-GAMEID). Add to spec Section 3 before build. |
+| F5 — ProgressBar slotId missing | (a) gen prompt rule | Gen Quality | Already shipped (GEN-UX-003). Add to spec Section 13 before build. |
+| F6 — SignalCollector no args | (a) gen prompt rule | Gen Quality | Already shipped (GEN-UX-005). Add instantiation to spec before build. |
+| F7 — results-screen not position:fixed | (a) gen prompt rule | Gen Quality | Already shipped (GEN-UX-001). Add CSS rule to spec Section 10 before build. |
+| F8 — game_complete type wrong (game_end) | (b) spec addition | Education | New type-name mismatch finding. Correct Section 11 + add explicit postMessage calls on both paths before first build. |
+| F9 — restartGame() timer not recreated | (b) spec addition | Education | 4th timer game instance. Add timer re-instantiation to spec Section 7g before first build. |
+| F10 — .option-btn min-height absent | (a) gen prompt rule | Gen Quality + Test Engineering | Already shipped (GEN-UX-002). Verify .option-btn is in selector; add test assertion for computed min-height on .option-btn. |
 
 ---
 
-## Pre-Build Checklist
+## Positive Observations
 
-Before queuing addition-mcq for first build, apply these spec additions:
+- FeedbackManager.init() correctly absent — no audio popup risk.
+- No alert()/confirm()/prompt() in any interaction path.
+- Core logic functions all explicitly named and defined: advanceGame(), endGame(), showGameOver(), restartGame(), loadQuestion(), handleOptionSelect(), handleTimeout() — more complete than prior MCQ specs.
+- isAnswered flag correctly specified as lock-after-selection-or-timeout — prevents double-scoring on timer expiry.
+- timer.pause() called in handleOptionSelect() to stop the countdown on answer — correct.
+- Both answer and timeout paths call recordAttempt() — attempt tracking is complete.
+- PART-026 Anti-Patterns listed — LLM will check against banned patterns.
+- timer.destroy() + progressBar.destroy() both called in endGame() — correct cleanup.
+- waitForPackages() is justified: TimerComponent (PART-006) + VisibilityTracker (PART-005) both actually instantiated.
+- InputSchema (Section 4) is well-formed with 5 sample questions, all 4 options, correct answers.
+- VisibilityTracker (PART-005) listed — timer pause/resume on tab-away is specified.
 
-- [ ] Add `slotId: 'mathai-progress-slot'` to ProgressBarComponent options (F1)
-- [ ] Add `data-phase` lifecycle + `syncDOMState()` calls at each phase transition (F2)
-- [ ] Add `aria-live="polite"` feedback div to HTML structure and populate on answer (F3)
-- [ ] Add `window.endGame = endGame;` to init block (F4)
-- [ ] Add `data-lives` DOM attribute synced via syncDOMState (F5)
-- [ ] Add `gameId: 'addition-mcq'` to gameState (F6)
-- [ ] Add SignalCollector constructor call with gameId + sessionId (F7)
-- [ ] Clarify timer re-creation on restartGame() (F8)
+---
+
+## Pre-Build Checklist (before queuing first build)
+
+Before queuing addition-mcq for the first time, apply these spec additions:
+
+- [ ] Section 3: Add `gameId: 'addition-mcq'` as FIRST field in gameState (F4)
+- [ ] Section 5: Add `<div id="answer-feedback" aria-live="polite" role="status"></div>` to play area HTML (F3)
+- [ ] Section 6: Add data-phase state machine (start_screen → playing → results / game_over) with syncDOMState() at each transition (F2)
+- [ ] Section 7f: Add `window.parent.postMessage({ type: 'game_complete', gameId: 'addition-mcq', score: gameState.score, stars: 0, totalRounds: gameState.totalRounds }, '*')` to showGameOver() (F8)
+- [ ] Section 7g: Add timer destroy+recreate and full gameState reset to restartGame() before calling startGame() (F9)
+- [ ] Section 9: Add `window.endGame = endGame;` after endGame() definition (F1)
+- [ ] Section 9: Correct outgoing postMessage type from `game_end` to `game_complete`; add explicit postMessage call on victory path (F8)
+- [ ] Section 10: Add `#results-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; }` (F7)
+- [ ] Section 10: Add `min-height: 44px;` to `.option-btn` CSS (F10)
+- [ ] Section 13: Add `slotId: 'mathai-progress-slot'` to ProgressBarComponent options object (F5)
+- [ ] New section (Init Block): Add SignalCollector instantiation with required args (F6)

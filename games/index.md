@@ -4,11 +4,11 @@
 
 | Game | Session | Bloom | Status | Build # | Iter | Build Time | UI/UX | Next Action |
 |------|---------|-------|--------|---------|------|------------|-------|-------------|
-| [name-the-sides](name-the-sides/index.md) | Trig 1/5 | L2 Understand | ✅ Approved | #557 | 3 | ~35 min | ❌ Pending | — |
-| [which-ratio](which-ratio/index.md) | Trig 2/5 | L2 Understand | ⚠️ Re-queue | #560 | 1 | ~28 min | ⚠️ 8 issues | Re-queue — CSS stripped |
+| [name-the-sides](name-the-sides/index.md) | Trig 1/5 | L2 Understand | ✅ Approved | #562 | 3 | ~35 min | ❌ Pending | — |
+| [which-ratio](which-ratio/index.md) | Trig 2/5 | L2 Understand | ✅ Approved | #561 | 3 | ~28 min | ⚠️ 8 issues | — |
 | [soh-cah-toa-worked-example](soh-cah-toa-worked-example/index.md) | Trig 3/5 | L2 Understand | ✅ Approved | #544 | 1 | ~28 min | ❌ Pending | — |
 | [find-triangle-side](find-triangle-side/index.md) | Trig 4/5 | L3 Apply | ✅ Approved | #549 | 1 | ~28 min | ❌ Pending | — |
-| [real-world-problem](real-world-problem/index.md) | Trig 5/5 | L4 Analyze | 📋 Spec ready | — | — | — | ❌ Pending | Queue after which-ratio |
+| [real-world-problem](real-world-problem/index.md) | Trig 5/5 | L4 Analyze | ✅ Approved | #564 | 2 | ~32 min | ❌ Pending | #565 running (gen rules test) |
 | [associations](associations/index.md) | Standalone | TBD | ✅ Approved | #472 | 2 | ~29 min | ❌ Pending | — |
 | [count-and-tap](count-and-tap/index.md) | Standalone | L1 Remember | ✅ Approved | #551 | 2 | ~30 min | ❌ Pending | — |
 | [quadratic-formula-worked-example](quadratic-formula-worked-example/index.md) | Standalone | L2 Understand | ✅ Approved | #546 | 2 | ~38 min | ❌ Pending | — |
@@ -18,25 +18,26 @@
 | [adjustment-strategy](adjustment-strategy/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [math-cross-grid](math-cross-grid/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [math-mcq-quiz](math-mcq-quiz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
-| [mcq-addition-blitz](mcq-addition-blitz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
+| [mcq-addition-blitz](mcq-addition-blitz/index.md) | Standalone | TBD | TBD | — | — | — | ⚠️ 9 issues | Audited 2026-03-23 (6a 2b 1d) |
 
-*Updated: 2026-03-23*
+*Updated: 2026-03-23 — real-world-problem #564 APPROVED, #565 APPROVED; name-the-sides re-approved #562; which-ratio APPROVED #561; mcq-addition-blitz + addition-mcq audited*
 
 ---
 
 ## Sessions
 
-### SOH-CAH-TOA Trigonometry (5 games, Bloom L2→L4)
+### SOH-CAH-TOA Trigonometry (5 games, Bloom L2→L4) — ✅ COMPLETE (2026-03-23)
 
 *Session goal: learner progresses from side-labeling (L2) through definition recall (L2) → scaffolded worked example (L2) → application (L3) → real-world analysis (L4).*
+*All 5 games approved. First complete Bloom L2→L4 session in Ralph pipeline.*
 
 | # | Game | Bloom | Status | Notes |
 |---|------|-------|--------|-------|
-| 1 | [name-the-sides](name-the-sides/index.md) | L2 Understand | ✅ Approved | label-assignment; prerequisite for all others |
-| 2 | [which-ratio](which-ratio/index.md) | L2 Understand | ⚠️ Re-queue | CSS stripped; re-queue pending |
+| 1 | [name-the-sides](name-the-sides/index.md) | L2 Understand | ✅ Approved | label-assignment; prerequisite for all others; re-approved #562 |
+| 2 | [which-ratio](which-ratio/index.md) | L2 Understand | ✅ Approved | APPROVED #561 (iter=3, re-queue after CSS fix) |
 | 3 | [soh-cah-toa-worked-example](soh-cah-toa-worked-example/index.md) | L2 Understand | ✅ Approved | worked-example→faded→practice scaffold |
 | 4 | [find-triangle-side](find-triangle-side/index.md) | L3 Apply | ✅ Approved | two-step: ratio MCQ + typed computation |
-| 5 | [real-world-problem](real-world-problem/index.md) | L4 Analyze | 📋 Spec ready | word-problem-three-step; queue after #2 |
+| 5 | [real-world-problem](real-world-problem/index.md) | L4 Analyze | ✅ Approved | APPROVED #564 (iter=2); first L4 Bloom game |
 
 ---
 

@@ -2389,3 +2389,54 @@ Then re-queue the build.
 **RULE-003 TRANSITION (transitionScreen try/catch):** `transitionScreen.hide()` and `transitionScreen.show()` calls without try/catch cause uncaught promise rejections during game-over transition. Both CDN_CONSTRAINTS_BLOCK (gen prompt) and REVIEW_SHARED_GUIDANCE (review prompt) updated with explicit WRONG/RIGHT examples. Root cause: build #560 review rejection for unguarded transitionScreen calls.
 
 **Commit:** 4e8fca8 — deployed to server, ralph-worker restarted.
+
+
+## Lesson 186 — Cross-batch fix regression: per-batch fixes can conflict when shared state is involved (Build #565, 2026-03-23)
+
+**Source:** real-world-problem build #565 | **Date:** 2026-03-23
+
+**Pattern observed:** Both edge-cases and contract per-batch fixes independently regressed mechanics from 6/6 → 5/6. The pipeline cross-batch guard correctly detected both regressions and rolled back both fixes. The global fix loop (Step 3c) was triggered with 3 batches still failing.
+
+**Root cause:** The real-world-problem step-panel state machine is shared across test categories. Level-progression tests check "panel hides between rounds". Edge-cases tests check "input not prematurely visible". Mechanics tests check "step 3 panel only shows after answer submit". Fixes that touch the panel reset path to fix one category inadvertently change the timing invariant that mechanics depends on.
+
+**Lesson:** Per-batch fix loops have tunnel vision — they optimize for one batch at the cost of others when the same HTML state machine element is tested from multiple angles. When cross-batch regressions occur, the global fix loop is correct — it sees all failing tests simultaneously. Do NOT kill builds in the cross-batch regression + rollback phase; it is the pipeline working correctly.
+
+**Prevention:** Complex step-based games (multi-part interactions with per-step panel visibility) are more susceptible to cross-batch fix conflicts. The gen prompt should explicitly state the invariants that must hold simultaneously: (1) panel N only visible when gameState.step >= N, (2) panel hidden at round start, (3) answer input hidden until step N complete.
+
+**Action taken:** Global fix loop started — monitoring outcome for lesson on whether holistic fix resolves all 3 batches simultaneously.
+
+## Lesson 187 — Global fix loop resolved cross-batch regression; review approved 12/14 (Build #565, 2026-03-23)
+
+**Source:** real-world-problem build #565 | **Date:** 2026-03-23
+
+**Outcome:** Build approved with 12/14 tests passing (game-flow 3/3, mechanics 6/6, contract 1/1; level-progression 0/1, edge-cases 2/3 failing). Review model (gemini-3.1-pro-preview) approved because core gameplay is fully functional.
+
+**Global fix loop effectiveness:** Global fix 1 improved score from 9→10, global fix 2 achieved 11→12/14. The per-batch cross-batch regressions (see Lesson 186) were resolved by the holistic global fix approach. Both global fixes together brought mechanics from 5/6 → 6/6, edge-cases from 0/3 → 2/3, contract from 0/1 → 1/1.
+
+**Persistent bug (GEN-STEP-001):** The level-progression test (step 3 panel visible from previous round at new round start) failed across ALL 5 fix attempts (3 per-batch + 2 global). Root cause: step-based games need explicit panel-hide-all at round start. Will become gen rule GEN-STEP-001: "At the start of each new round in a step-based game, ALL step panels must be explicitly set to hidden before showing step1."
+
+**Review threshold:** 12/14 (85.7%) approved. game-flow, mechanics, and contract all passing = game is completable and functionally correct. Review approved despite 1 level-progression failure.
+
+**Worker restart:** Worker restarts after #565 completion. All new gen rules now active: GEN-PM-001, GEN-RESTART-001, GEN-PHASE-001, GEN-GAMEID, GEN-WINDOW-EXPOSE. Next queued build is the first true test of combined gen rules.
+
+## Lesson 188 — First complete trig session: all 5 games approved (2026-03-23)
+
+**Source:** games/index.md | **Date:** 2026-03-23
+
+**Milestone:** The SOH-CAH-TOA Trigonometry session (5 games, Bloom L2→L4) is now fully approved:
+1. name-the-sides — #562, iter=3 (L2 Understand — label triangle sides)
+2. which-ratio — #561, iter=3 (L2 Understand — identify SOH/CAH/TOA ratio)
+3. soh-cah-toa-worked-example — #544, iter=1 (L2 Understand — worked example scaffold)
+4. find-triangle-side — #549, iter=1 (L3 Apply — two-step: ratio MCQ + typed computation)
+5. real-world-problem — #564, iter=2 (L4 Analyze — step-based real-world word problem)
+
+This is the first complete Bloom L2→L4 learning session produced by the Ralph pipeline. The session covers the full NCERT Class 10 Ch 8 trigonometry curriculum from prerequisite identification through real-world application.
+
+**What made it possible:** 
+- Warehouse hygiene gate (eliminated generation bypass)
+- CDN constraint rules (ARIA, progressBar, transitionScreen)
+- Per-game spec improvements from UI/UX audits
+- Per-batch fix loop with cross-batch guard
+- Global fix loop for holistic correction
+
+**Next:** Session Planner can now produce Session 2 (Statistics) using the same pipeline — 5 specs written, Session Planner architecture validated.

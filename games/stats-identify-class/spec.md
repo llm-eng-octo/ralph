@@ -75,9 +75,13 @@
 
 ```javascript
 const gameState = {
+  // MANDATORY FIRST FIELD — gameId must be the FIRST key in this object literal:
+  gameId: 'stats-identify-class',
+  phase: 'start_screen',           // 'start_screen' | 'playing' | 'results' | 'game_over'
   // MANDATORY (from PART-007):
   currentRound: 0,
-  totalRounds: 9,
+  totalRounds: 10,
+  lives: 3,
   score: 0,
   attempts: [],
   events: [],
@@ -95,10 +99,11 @@ const gameState = {
   },
 
   // GAME-SPECIFIC:
-  attemptsThisRound: 0,         // 0, 1, or 2 attempts within current round
-  wrongFirstAttempt: 0,         // Total rounds where first attempt was wrong
-  totalFirstAttemptCorrect: 0,  // Total rounds answered correctly on first attempt
-  isProcessing: false           // Guard against double-submit
+  attemptsThisRound: 0,             // 0, 1, or 2 attempts within current round
+  wrongFirstAttempt: 0,             // Total rounds where first attempt was wrong
+  totalFirstAttemptCorrect: 0,      // Total rounds answered correctly on first attempt
+  isProcessing: false,              // Guard against double-submit
+  gameEnded: false                  // Prevent post-endGame state mutations
 };
 
 window.gameState = gameState;   // MANDATORY: test harness reads window.gameState
@@ -108,7 +113,7 @@ let progressBar = null;
 let transitionScreen = null;
 ```
 
-**IMPORTANT — No lives system:** This game has NO lives and NO game-over state. The progress bar shows only round progress (9 segments), no hearts. `totalLives` in the ProgressBar config must be `0` or omitted. Never deduct lives in this game.
+**Lives system:** This game HAS 3 lives. A life is deducted when the learner gets the SECOND wrong attempt (or clicks "Skip this round"). The FIRST wrong attempt shows the explanation panel — no life is lost. When `gameState.lives` reaches 0, `endGame(false)` is called immediately (game_over). Victory requires completing all 10 rounds with at least 1 life remaining.
 
 ---
 
@@ -123,45 +128,52 @@ let transitionScreen = null;
       "items": {
         "type": "object",
         "properties": {
-          "datasetDisplay": {
+          "context": {
             "type": "string",
-            "description": "HTML string showing the dataset. For small datasets: a comma-separated list in a styled box. For frequency/grouped data: a compact HTML table. Must be self-contained (inline style ok). Maximum 5–8 data values or 4 frequency rows to keep it readable on mobile."
+            "description": "1-2 sentence real-world scenario describing the data collection situation and decision to be made. Must make clear WHY a central tendency measure is needed."
           },
-          "contextText": {
+          "data": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 5,
+            "maxItems": 10,
+            "description": "The dataset displayed as a list. For categorical data use label strings. For numeric data use numeric strings. Data should make the correct measure visually identifiable."
+          },
+          "question": {
             "type": "string",
-            "description": "One sentence giving the real-world context and the question. E.g., 'The monthly salaries (in ₹) of 7 employees at a small shop are listed above. Which measure best represents the typical salary?' Always ends with 'Which measure of central tendency is most appropriate here?'"
+            "description": "The question shown above the MCQ buttons. Context-specific variant of 'Which measure best describes the typical value in this data?'"
           },
-          "correctMeasure": {
+          "correctOption": {
             "type": "string",
             "enum": ["Mean", "Median", "Mode"],
-            "description": "The correct answer. One of the three string values exactly as shown."
+            "description": "The correct answer. Must match one of the options strings exactly (case-sensitive)."
           },
           "options": {
             "type": "array",
-            "items": { "type": "string", "enum": ["Mean", "Median", "Mode"] },
+            "items": { "type": "string" },
             "minItems": 3,
             "maxItems": 3,
-            "description": "Always exactly ['Mean', 'Median', 'Mode'] in this order. All three options appear every round."
+            "description": "Always exactly ['Mean', 'Median', 'Mode'] in that fixed order."
           },
-          "workedExampleHtml": {
+          "explanationHtml": {
             "type": "string",
-            "description": "HTML string injected into the worked-example panel on first wrong attempt. Must show the 'Measure Selector' reference card with the correct measure's row highlighted. Must include: (1) a three-row table with Mean / Median / Mode and their 'best used when' rule; (2) the correct row highlighted in orange/warm colour; (3) a one-sentence explanation connecting the dataset's key feature (outlier / skew / categorical / typical value) to the correct choice."
+            "description": "HTML string injected into the explanation panel on first wrong attempt. Must include: (1) correct answer clearly stated; (2) one-sentence definition; (3) specific reason WHY this measure fits using actual data values; (4) why the likely wrong answer does not fit."
           },
           "feedbackOnSkip": {
             "type": "string",
-            "description": "One-sentence note shown when the round is skipped after two wrong attempts. Should name the correct measure and the key reason. E.g., 'Here the salary data has an outlier (₹50,000) that pulls the mean up — Median is the fairer summary.'"
+            "description": "One-sentence note shown when round is skipped (life deducted). Name correct answer and key reason. Max 20 words."
           },
           "misconceptionTag": {
             "type": "string",
-            "enum": ["always-use-mean", "mean-ignores-outlier", "mode-vs-median-ordered", "mean-for-categorical", "mode-means-most-frequent-always"],
-            "description": "Which documented misconception this round primarily targets. Used for analytics and test-gen category tagging."
+            "enum": ["M1", "M2", "M3", "M-none"],
+            "description": "M1=mean distorted by outlier. M2=mode required for categorical/frequency data. M3=median for skewed data. M-none=mean is correct."
           }
         },
-        "required": ["datasetDisplay", "contextText", "correctMeasure", "options", "workedExampleHtml", "feedbackOnSkip", "misconceptionTag"]
+        "required": ["context", "data", "question", "correctOption", "options", "explanationHtml", "feedbackOnSkip", "misconceptionTag"]
       },
-      "minItems": 9,
-      "maxItems": 9,
-      "description": "Exactly 9 rounds. Distribution: at least 3 rounds per measure (Mean ×3, Median ×3, Mode ×3). No two consecutive rounds test the same measure. misconceptionTag must be varied — no two consecutive rounds share the same tag."
+      "minItems": 10,
+      "maxItems": 12,
+      "description": "10-12 rounds. Distribution: at least 3 Mean (M-none), at least 3 Median (M1 or M3), at least 3 Mode (M2). No two consecutive rounds with same correctOption."
     }
   },
   "required": ["rounds"]
@@ -170,40 +182,37 @@ let transitionScreen = null;
 
 ### Fallback Test Content
 
+Field names in each round object MUST match the inputSchema: `context`, `data` (array), `question`, `options`, `correctOption`, `explanationHtml`, `feedbackOnSkip`, `misconceptionTag`.
+
 ```javascript
+// FIELD NAMES PER SCHEMA: context (string), data (array of strings), question (string),
+// options (always ['Mean','Median','Mode']), correctOption (string), explanationHtml (string),
+// feedbackOnSkip (string), misconceptionTag ('M1'|'M2'|'M3'|'M-none')
 const fallbackContent = {
   rounds: [
     // ============================================================
-    // ROUND 1: MEAN
-    // Context: Class test marks — balanced, no outliers
-    // Misconception targeted: "always-use-mean" (mean IS correct here — reinforces when mean is appropriate)
-    // Source A: "Use mean when data is symmetrical and has no outliers" (Lumen Learning)
+    // ROUND 1: MEAN — M-none (symmetric, balanced, no outliers)
+    // Context: Class test marks — tightly clustered 45-55 range
+    // Misconception: students over-apply Median to all real-world data
+    // NCERT-aligned: Ch 14 marks distributions
     // ============================================================
     {
-      datasetDisplay: `<div class="dataset-box">45, 52, 48, 55, 50, 47, 53</div>`,
-      contextText: 'The marks scored by 7 students in a class test (out of 60) are listed above. Which measure of central tendency best represents the typical score?',
-      correctMeasure: 'Mean',
+      context: 'Seven students scored the following marks (out of 60) in a class test. The teacher wants to report the class average to parents.',
+      data: ['45', '47', '48', '50', '52', '53', '55'],
+      question: 'Which measure best represents the typical class score?',
       options: ['Mean', 'Median', 'Mode'],
-      workedExampleHtml: `
-        <div class="worked-example-card">
-          <p class="we-title">Measure Selector</p>
-          <div class="we-row we-highlighted">
-            <span class="we-label"><strong>Mean</strong></span>
-            <span class="we-rule">→ Best when data is balanced with no extreme outliers. Uses every value.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Median</span>
-            <span class="we-rule">→ Best when data has outliers or is skewed.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Mode</span>
-            <span class="we-rule">→ Best for categorical data or finding the most common value.</span>
-          </div>
-          <p class="we-explanation">These marks (45–55) are closely clustered with no extreme values. The <strong>Mean</strong> uses every score and gives a fair "balance point" — it is the right choice here.</p>
+      correctOption: 'Mean',
+      // M-none: Scores 45-55, symmetric, no outlier. Mean = 350/7 = 50. Median = 50. Mean is appropriate standard.
+      explanationHtml: `
+        <div class="exp-card">
+          <p class="exp-title">Answer: <strong>Mean</strong></p>
+          <div class="exp-definition"><strong>Mean</strong> = (45+47+48+50+52+53+55) ÷ 7 = 350 ÷ 7 = <strong>50 marks</strong>.</div>
+          <div class="exp-reason"><strong>Why Mean?</strong> Scores are tightly clustered (45–55) with no extreme outliers — a <em>symmetric</em> spread. The Mean (50) accurately captures the typical performance using every student's mark.</div>
+          <div class="exp-wrong"><strong>Why not Median?</strong> Median is preferred when data is skewed or has outliers. Here the data is symmetric, so the Mean is the correct and more informative choice.</div>
         </div>
       `,
-      feedbackOnSkip: 'Here all marks are close together (45–55) with no outliers — Mean gives the fairest summary of the whole group.',
-      misconceptionTag: 'always-use-mean'
+      feedbackOnSkip: 'Symmetric marks 45-55 with no outliers → Mean (50) is the standard class average.',
+      misconceptionTag: 'M-none'
     },
 
     // ============================================================
@@ -517,6 +526,11 @@ The play area (`#gameContent`) has three layers; visibility is toggled via the `
 │  Brief green confirmation: "Correct! [Measure] is    │
 │  the right choice here."                             │
 │  Auto-advances after 1200ms                          │
+│                                                      │
+│  #answer-feedback  aria-live="polite" role="status"  │
+│  (MANDATORY ARIA — GEN-120 / ARIA-001)               │
+│  Screen-reader announcement for correct/incorrect.   │
+│  Never visible to sighted users (visually hidden).   │
 ├──────────────────────────────────────────────────────┤
 │  #worked-example-panel  (hidden by default)          │
 │  data-testid="worked-example-panel"                  │
@@ -593,6 +607,8 @@ function startGame() {
   gameState.isActive = true;
   gameState.startTime = Date.now();
   gameState.currentRound = 0;
+  gameState.phase = 'playing';   // GEN-PHASE-001 MANDATORY
+  syncDOMState();                // GEN-PHASE-001 MANDATORY — must be called AFTER phase is set
   transitionScreen.hide();
   renderRound(1);
 }
@@ -646,8 +662,11 @@ function startGame() {
    - else (attemptsThisRound === 2):
        — Track event: 'measure_skipped'
        — gameState.wrongFirstAttempt++
-       — Show brief skip note: inject round.feedbackOnSkip into #skip-note element
-       — After 1500ms: hide everything, advance round
+       — gameState.lives--
+       — progressBar.loseLife()
+       — syncDOMState()
+       — if (gameState.lives <= 0): endGame(false)  [game_over — stop here]
+       — else: show brief skip note (round.feedbackOnSkip) for 1500ms, then advanceRound()
        — gameState.isProcessing = false
 ```
 
@@ -666,37 +685,79 @@ function startGame() {
 1. Track event: 'measure_skipped'
 2. Hide #worked-example-panel (remove 'visible' class)
 3. gameState.wrongFirstAttempt++
-4. Show #skip-note with round.feedbackOnSkip for 1500ms
-5. After 1500ms: advance round
+4. gameState.lives--
+5. progressBar.loseLife()
+6. syncDOMState()
+7. if (gameState.lives <= 0): endGame(false)   [game_over — stop here]
+8. else: Show #skip-note / #feedback-text with round.feedbackOnSkip for 1500ms, then advanceRound()
 ```
 
-### 6.6 Advance Round
+### 6.7 Advance Round
 
 ```javascript
 function advanceRound() {
   if (gameState.currentRound >= gameState.totalRounds) {
-    endGame(true);  // always victory — no game-over state
+    endGame(true);   // completed all 10 rounds — victory
   } else {
     renderRound(gameState.currentRound + 1);
   }
 }
 ```
 
-### 6.7 End Game
+### 6.8 End Game (endGame(isVictory))
 
 ```
-- Always calls endGame(true) — victory screen. No game-over.
-- Star calculation based on totalFirstAttemptCorrect (out of 9):
-  - ≥7/9 → 3★ ("Excellent!")
-  - ≥5/9 → 2★ ("Good work!")
-  - <5/9  → 1★ ("Keep practicing!")
-- Results screen shows: first-attempt accuracy (X/9), rounds completed (always 9), star rating.
-- score: accumulated from correct answers (20 pts first attempt, 10 pts second attempt).
+- Set gameState.gameEnded = true; gameState.isActive = false
+- Set gameState.phase = isVictory ? 'results' : 'game_over'
+- syncDOMState()   — MANDATORY on BOTH paths
+- Star calculation from totalFirstAttemptCorrect (out of 10):
+    10    → 5★   "Perfect! You know exactly when to use each measure."
+    8-9   → 4★
+    6-7   → 3★
+    4-5   → 2★
+    1-3   → 1★
+    0     → 0★   "Keep practising!"
+- Send postMessage game_complete on BOTH victory AND game_over paths:
+    window.parent.postMessage({
+      type: 'game_complete',
+      gameId: 'stats-identify-class',
+      score: gameState.score,
+      stars: starsEarned,
+      firstAttemptAccuracy: Math.round((gameState.totalFirstAttemptCorrect / gameState.totalRounds) * 100),
+      roundsCompleted: gameState.currentRound,
+      livesRemaining: gameState.lives,
+      isVictory: isVictory
+    }, '*')
+- if (isVictory): transitionScreen.show('victory')
+  else:           transitionScreen.show('game_over')
 ```
 
 ---
 
 ## 7. CDN Implementation Patterns (MANDATORY)
+
+### 7.0 syncDOMState() — MANDATORY (GEN-PHASE-001)
+
+Every phase change MUST call `syncDOMState()` immediately after setting `gameState.phase`. This keeps `data-phase`, `data-lives`, and `data-score` on `#app` in sync with gameState so `waitForPhase()` in tests works correctly.
+
+```javascript
+// Define syncDOMState BEFORE any function that calls it
+function syncDOMState() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.dataset.phase = gameState.phase;
+  app.dataset.lives = gameState.lives;
+  app.dataset.score = gameState.score || 0;
+  app.dataset.round = gameState.currentRound;
+}
+```
+
+**Phase transitions (all MANDATORY):**
+- Page loads → `gameState.phase = 'start_screen'` → `syncDOMState()` (initial state — set before transitionScreen.show('start'))
+- `startGame()` → `gameState.phase = 'playing'` → `syncDOMState()` (before transitionScreen.hide())
+- `endGame(true)` → `gameState.phase = 'results'` → `syncDOMState()` (before transitionScreen.show('victory'))
+- `endGame(false)` → `gameState.phase = 'game_over'` → `syncDOMState()` (before transitionScreen.show('game_over'))
+- Life lost (skip/wrong attempt 2) → `gameState.lives--` → `syncDOMState()` (before checking game_over condition)
 
 ### 7.1 Package Loading
 
@@ -736,16 +797,33 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize CDN components
     visibilityTracker = new VisibilityTracker({ /* popupProps */ });
     progressBar = new ProgressBarComponent({
-      totalRounds: 9,
-      totalLives: 0,   // NO lives display — omit hearts
-      container: document.getElementById('progress-bar-container')
+      slotId: 'mathai-progress-slot',
+      totalRounds: 10,
+      totalLives: 3
     });
     transitionScreen = new TransitionScreenComponent({
       screens: {
-        start: { /* start screen config */ },
-        victory: { /* victory screen config */ }
+        start: {
+          title: 'Which Measure Fits Best?',
+          subtitle: 'Mean, Median, or Mode?',
+          description: 'Read each data scenario and pick the measure that best describes the typical value. 10 rounds — 3 lives.',
+          buttonText: 'Play'
+        },
+        victory: {
+          title: 'Well done!',
+          description: 'You can identify the right measure for any context.',
+          showScore: true,
+          showStars: true
+        },
+        game_over: {
+          title: 'Out of lives!',
+          description: 'Keep practising — knowing when to use Mean, Median, or Mode takes time.',
+          showScore: true,
+          showRestartButton: true
+        }
       },
-      onStart: startGame
+      onStart: startGame,
+      onRestart: restartGame
     });
 
     // Expose on window AFTER definitions

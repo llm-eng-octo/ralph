@@ -18,9 +18,9 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** addition-mcq (next in stub inventory — stub exists at games/addition-mcq/ui-ux.md)
-**Last completed:** mcq-addition-blitz — 2026-03-23 (spec-only; no approved build; 9 findings — 6a, 2b, 0c, 1d)
-**Waiting on:** unblocked
+**Current task:** addition-mcq — 2026-03-23 (spec-only; no approved build; 10 findings — 7a, 2b, 0c, 1d) — COMPLETED
+**Last completed:** addition-mcq — 2026-03-23
+**Waiting on:** next game in queue (no further stubs in inventory)
 **Blocked by:** none
 
 ### Batch 2 — Completed 2026-03-23 (static analysis)
@@ -41,6 +41,7 @@ addition-mcq (next active target)
 
 | Date | Game | Build | Issues Found | Actions Taken |
 |------|------|-------|-------------|---------------|
+| 2026-03-23 | addition-mcq | spec-only | 10 issues (7a, 2b, 0c, 1d) | No P0 flow bugs; FeedbackManager.init() absent (PASS); no alert() (PASS); window.endGame unassigned (7th — GEN-WINDOW-EXPOSE shipped); data-phase/syncDOMState absent (6th MCQ spec — ROADMAP); ARIA-001 absent (16th instance — shipped); gameState.gameId absent (7th — GEN-GAMEID shipped); ProgressBar slotId absent (10th — GEN-UX-003 shipped); SignalCollector no args (6th — GEN-UX-005 shipped); results-screen not position:fixed (7th — GEN-UX-001 shipped); game_complete type wrong (spec says game_end — new type-name mismatch finding, spec addition); restartGame() timer not recreated after endGame() destroys it (4th timer game — spec addition); .option-btn min-height absent (11th — GEN-UX-002 shipped, verify .option-btn selector) |
 | 2026-03-23 | mcq-addition-blitz | spec-only | 9 issues (6a, 2b, 0c, 1d) | No P0 flow bugs; FeedbackManager.init() absent (PASS); no alert() (PASS); results via TransitionScreen CDN overlay (PASS); window.endGame unassigned (6th instance — GEN-WINDOW-EXPOSE shipped); data-phase/syncDOMState absent (5th MCQ spec instance — ROADMAP line 237); ARIA-001 absent (15th instance — shipped); gameState.gameId absent (6th instance — GEN-GAMEID shipped); ProgressBar slotId absent (9th instance — GEN-UX-003 shipped); SignalCollector no args (5th instance — GEN-UX-005 shipped); game_complete dual-path not explicit (3rd instance — spec addition needed); restartGame() timer destroy unspecified (3rd timer game instance — spec addition needed); .option-btn min-height absent (10th instance — GEN-UX-002 coverage for .option-btn needs verification) |
 | 2026-03-23 | math-mcq-quiz | spec-only | 9 issues (6a, 2b, 0c, 1d) | No P0 flow bugs; FeedbackManager.init() absent (PASS); timer pause/resume during audio correctly specified; window.endGame unassigned (5th instance — T1 W3 shipped); data-phase/syncDOMState absent (4th MCQ instance — ROADMAP line 237); ARIA-001 absent (14th instance — shipped); gameState.gameId absent (5th instance — GEN-GAMEID shipped); results screen fixed absent (10th instance — GEN-UX-001 shipped); ProgressBar slotId absent (8th instance — GEN-UX-003 shipped); SignalCollector no args (4th instance — GEN-UX-005 shipped); game_complete dual-path implicit (spec addition — new ROADMAP entry); restartGame() timer destroy unspecified (2nd timer game instance — new ROADMAP entry); Sentry v10 not pinned (low — pending) |
 | 2026-03-23 | math-cross-grid | spec-only | 8 issues (5a, 1b, 0c, 2d) | No P0 flow bugs; both end conditions route through endGame(); FeedbackManager.init() called (FAIL — pre-build must fix); results-screen not position:fixed (10th GEN-UX-001 instance); ARIA live region absent (13th ARIA-001 instance); data-phase/syncDOMState absent (4th non-MCQ instance); window.endGame not assigned (4th instance); gameState.gameId absent (4th instance — ship rule now); data-lives not on DOM (3rd instance — test gap); TimerComponent wait unnecessary for no-timer game (low) |
