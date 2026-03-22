@@ -8,6 +8,7 @@
 | #552 | REJECTED iter=0: early-review rejected twice | Contract auto-fix (Step 1b) stripped max-width CSS + broke ...signalPayload spread → T1 errors baked in → early reviewer correctly rejected | Failed — pipeline bug (Step 1b T1 regression not handled) |
 | #553 | 0p/3f game-flow, 0p/5f mechanics, 0p/2f edge-cases, 0p/1f contract — global best 0 passing, FAILED | interactionType=drag false-positive: spec's prohibition "Do NOT use drag-and-drop" triggered drag regex → drag tests generated → game uses MCQ buttons | Failed |
 | #554 | Killed at early-review (iter=0): HTML confirmed missing `transitionScreen.hide()` — #gameContent stays display:none for entire game, all isVisible() fail | `startGame()` never calls `transitionScreen.hide()` — ScreenLayout sets #gameContent to display:none; CDN does not auto-reveal; GEN-117 fix pending | Killed (confirmed HTML bug before tests ran) |
+| #555 | APPROVED by reviewer but EACCES post-approval — warehouse/game/ owned root:root → copyfile failed | Infrastructure: directory owned by root instead of the-hw-app; fixed with chown; build #556 re-queued | Failed (infra) |
 
 ---
 
@@ -110,7 +111,13 @@ if (/currentRound|totalRounds/.test(html) && !/window\.loadRound/.test(html)) {
 
 ## 5. Go/No-Go for E2E
 
-**Decision: NOT READY — Build #555 queued (2026-03-22), all four known fixes deployed**
+**Decision: NEAR-READY — Build #555 approved by reviewer; failed post-approval due to infra (chown). Build #556 queued after directory fix.**
+
+**GEN-114/115/116/117 all confirmed present in approved HTML.**
+
+**Build #556** is the re-queue to get a clean warehouse write after directory ownership fix.
+
+**Build #555 outcome:** APPROVED by reviewer on attempt 2. Failed post-approval: EACCES on warehouse/game/ directory (owned root:root). Infrastructure fix applied (chown + chmod); build #556 re-queued. See §Build #555 below.
 
 **Build #554 outcome:** Killed at early-review (iter=0). Early reviewer confirmed HTML bug: `startGame()` never calls `transitionScreen.hide()` → `#gameContent` stays `display:none` → all `isVisible()` fail. Kill criteria met (Rule 5: confirmed init failure). GEN-117 fix deployed (commit df16818).
 
@@ -125,8 +132,6 @@ if (/currentRound|totalRounds/.test(html) && !/window\.loadRound/.test(html)) {
 - GEN-116 dragProhibited guard deployed — commit 39814bf
 - GEN-117 transitionScreen.hide() mandate deployed — commit df16818
 - 793 tests pass — no regressions
-
-**Next:** Build #555 queued to verify all four fixes together.
 
 ---
 
@@ -205,6 +210,33 @@ Fix is in progress. Do NOT re-queue until deployed.
 ### Impact on Go/No-Go
 
 See updated §5 above. Game is NOT READY for E2E until the pipeline bug is fixed and deployed.
+
+---
+
+## Build #555 — Post-Approval Infrastructure Failure
+
+**Build outcome:** FAILED at post-approval warehouse write. Reviewer APPROVED on attempt 2.
+
+### What happened
+
+1. Build #555 ran full pipeline with all 4 fixes deployed (GEN-114/115/116/117).
+2. Reviewer approved the game on 2nd review attempt.
+3. Post-approval file copy crashed: EACCES on /opt/ralph/warehouse/templates/name-the-sides/game/index.html.
+4. Root cause: directory owned by root:root (mode drwxr-xr-x) — the-hw-app has no write permission.
+5. Fix: sudo chown -R the-hw-app:the-hw-app /opt/ralph/warehouse/templates/name-the-sides + chmod -R 775.
+6. games table status reset from 'approved' to 'pending' (POST /api/build was blocking re-queue with "already approved").
+
+### Confirmed findings from build #555
+
+- GEN-114 (window.loadRound): present in approved HTML ✅
+- GEN-116 (drag false-positive): not triggered, correct interactionType=mcq-click ✅
+- GEN-117 (transitionScreen.hide): present in approved HTML ✅
+- GEN-115 (contract-fix T1): no regression, passed contract 1/1 ✅
+- All 4 pipeline fixes verified working in a real build that was approved.
+
+### Impact on Go/No-Go
+
+Build #556 queued after infra fix. Game HTML known to be correct — re-queue should pass assuming consistent generation.
 
 ---
 
