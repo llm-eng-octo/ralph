@@ -181,118 +181,123 @@ describe('bulk scheduling threshold', () => {
 // ─── Session Planner tests ────────────────────────────────────────────────────
 
 describe('buildSessionPlan — trigonometry', () => {
-  it('returns a plan with 5 skills for "trigonometry"', () => {
-    const plan = buildSessionPlan('trigonometry');
+  it('returns a plan with 5 games for "trigonometry" objective', async () => {
+    const plan = await buildSessionPlan({ objective: 'trig ratios and triangle sides' });
     assert.equal(plan.error, undefined);
     assert.equal(plan.concept, 'trigonometry');
-    assert.equal(plan.skills.length, 5);
+    assert.equal(plan.games.length, 5);
   });
 
-  it('includes required top-level fields', () => {
-    const plan = buildSessionPlan('trigonometry');
+  it('includes required top-level fields', async () => {
+    const plan = await buildSessionPlan({ objective: 'sin cos tan triangle' });
     assert.ok(plan.planId, 'planId must be present');
-    assert.ok(Array.isArray(plan.skills), 'skills must be an array');
-    assert.ok(Array.isArray(plan.gameIds), 'gameIds must be an array');
+    assert.ok(Array.isArray(plan.games), 'games must be an array');
     assert.equal(typeof plan.estimatedMinutes, 'number');
     assert.ok(Array.isArray(plan.bloomRange) && plan.bloomRange.length === 2, 'bloomRange must be [min, max]');
   });
 
-  it('estimatedMinutes is 5 per skill (5 skills → 25 min)', () => {
-    const plan = buildSessionPlan('trigonometry');
-    assert.equal(plan.estimatedMinutes, 25);
+  it('estimatedMinutes sums per-skill minutes (4+4+5+5+6 = 24 min)', async () => {
+    const plan = await buildSessionPlan({ objective: 'trigonometry' });
+    assert.equal(plan.estimatedMinutes, 24);
   });
 
-  it('bloomRange spans level 1 to 4 for trigonometry', () => {
-    const plan = buildSessionPlan('trigonometry');
+  it('bloomRange spans level 1 to 4 for trigonometry', async () => {
+    const plan = await buildSessionPlan({ objective: 'trigonometry' });
     assert.equal(plan.bloomRange[0], 1);
     assert.equal(plan.bloomRange[1], 4);
   });
 
-  it('gameIds includes all 5 game IDs in order', () => {
-    const plan = buildSessionPlan('trigonometry');
-    assert.deepEqual(plan.gameIds, [
-      'label-triangle-sides',
-      'which-trig-ratio',
+  it('games includes all 5 game IDs in prerequisite order', async () => {
+    const plan = await buildSessionPlan({ objective: 'trigonometry' });
+    assert.deepEqual(plan.games.map((g) => g.gameId), [
+      'name-the-sides',
+      'which-ratio',
       'soh-cah-toa-worked-example',
       'find-triangle-side',
-      'trig-real-world',
+      'real-world-problem',
     ]);
   });
 
-  it('first skill has no prerequisites', () => {
-    const plan = buildSessionPlan('trigonometry');
-    assert.deepEqual(plan.skills[0].prerequisiteSkillIds, []);
+  it('first game has status template_exists', async () => {
+    const plan = await buildSessionPlan({ objective: 'trigonometry' });
+    assert.equal(plan.games[0].status, 'template_exists');
   });
 
-  it('each skill node has required shape', () => {
-    const plan = buildSessionPlan('trigonometry');
-    for (const skill of plan.skills) {
-      assert.ok(skill.skillId, 'skillId required');
-      assert.ok(skill.skillName, 'skillName required');
-      assert.ok(typeof skill.bloomLevel === 'number', 'bloomLevel must be a number');
-      assert.ok(Array.isArray(skill.prerequisiteSkillIds), 'prerequisiteSkillIds must be an array');
-      assert.ok(Array.isArray(skill.suggestedGameIds), 'suggestedGameIds must be an array');
+  it('last game (real-world-problem) has status template_exists (templateSpecId now set)', async () => {
+    const plan = await buildSessionPlan({ objective: 'trigonometry' });
+    assert.equal(plan.games[4].status, 'template_exists');
+    assert.equal(plan.games[4].templateSpecId, 'real-world-problem');
+  });
+
+  it('each game node has required shape', async () => {
+    const plan = await buildSessionPlan({ objective: 'trigonometry' });
+    for (const game of plan.games) {
+      assert.ok(game.gameId, 'gameId required');
+      assert.ok(game.title, 'title required');
+      assert.ok(typeof game.bloomLevel === 'number', 'bloomLevel must be a number');
+      assert.ok(typeof game.position === 'number', 'position must be a number');
+      assert.ok(game.status, 'status required');
     }
   });
 });
 
-describe('buildSessionPlan — alias resolution', () => {
-  it('"trig" resolves to trigonometry plan', () => {
-    const plan = buildSessionPlan('trig');
+describe('buildSessionPlan — keyword detection', () => {
+  it('"trig ratios" keyword maps to trigonometry plan', async () => {
+    const plan = await buildSessionPlan({ objective: 'students need to learn trig ratios' });
     assert.equal(plan.concept, 'trigonometry');
-    assert.equal(plan.skills.length, 5);
+    assert.equal(plan.games.length, 5);
   });
 
-  it('"soh-cah-toa" resolves to trigonometry plan', () => {
-    const plan = buildSessionPlan('soh-cah-toa');
-    assert.equal(plan.concept, 'trigonometry');
-  });
-
-  it('concept is case-insensitive ("Trig" → trigonometry)', () => {
-    const plan = buildSessionPlan('Trig');
+  it('"sin cos tan" keywords map to trigonometry plan', async () => {
+    const plan = await buildSessionPlan({ objective: 'learn sin cos and tan values' });
     assert.equal(plan.concept, 'trigonometry');
   });
 
-  it('leading/trailing whitespace is trimmed', () => {
-    const plan = buildSessionPlan('  trigonometry  ');
+  it('"triangle" keyword maps to trigonometry plan', async () => {
+    const plan = await buildSessionPlan({ objective: 'right triangle problems' });
+    assert.equal(plan.concept, 'trigonometry');
+  });
+
+  it('direct concept name "trigonometry" maps correctly', async () => {
+    const plan = await buildSessionPlan({ objective: 'trigonometry' });
     assert.equal(plan.concept, 'trigonometry');
   });
 });
 
 describe('buildSessionPlan — multiplication', () => {
-  it('returns a plan with 2 skills for "multiplication"', () => {
-    const plan = buildSessionPlan('multiplication');
+  it('returns a plan with 2 games for "multiplication" objective', async () => {
+    const plan = await buildSessionPlan({ objective: 'multiplication tables' });
     assert.equal(plan.error, undefined);
     assert.equal(plan.concept, 'multiplication');
-    assert.equal(plan.skills.length, 2);
+    assert.equal(plan.games.length, 2);
   });
 
-  it('estimatedMinutes is 10 for 2-skill plan', () => {
-    const plan = buildSessionPlan('multiplication');
+  it('estimatedMinutes is 10 for 2-skill multiplication plan', async () => {
+    const plan = await buildSessionPlan({ objective: 'multiplication word problems' });
     assert.equal(plan.estimatedMinutes, 10);
   });
 
-  it('gameIds includes both multiplication game IDs', () => {
-    const plan = buildSessionPlan('multiplication');
-    assert.deepEqual(plan.gameIds, ['multiplication-tables', 'multiplication-word-problems']);
+  it('games includes both multiplication game IDs', async () => {
+    const plan = await buildSessionPlan({ objective: 'multiplication' });
+    assert.deepEqual(plan.games.map((g) => g.gameId), ['multiplication-tables', 'multiplication-word-problems']);
   });
 });
 
 describe('buildSessionPlan — unknown concept', () => {
-  it('returns error: concept_not_found for unknown concept', () => {
-    const result = buildSessionPlan('calculus');
+  it('returns error: concept_not_found for unknown objective', async () => {
+    const result = await buildSessionPlan({ objective: 'calculus derivatives' });
     assert.equal(result.error, 'concept_not_found');
   });
 
-  it('returns availableConcepts list for unknown concept', () => {
-    const result = buildSessionPlan('calculus');
+  it('returns availableConcepts list for unknown concept', async () => {
+    const result = await buildSessionPlan({ objective: 'calculus' });
     assert.ok(Array.isArray(result.availableConcepts));
     assert.ok(result.availableConcepts.includes('trigonometry'));
     assert.ok(result.availableConcepts.includes('multiplication'));
   });
 
-  it('returns error for empty-ish string that has no alias', () => {
-    const result = buildSessionPlan('zzz-unknown-xyz');
+  it('returns error for objective with no matching keywords', async () => {
+    const result = await buildSessionPlan({ objective: 'zzz-unknown-xyz' });
     assert.equal(result.error, 'concept_not_found');
   });
 });
