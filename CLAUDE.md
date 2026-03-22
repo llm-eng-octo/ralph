@@ -60,7 +60,7 @@ node --test test/db.test.js   # Single file
 | `docs/education/README.md` | Session Planner vision, trig session, interaction patterns |
 | `docs/lessons-learned.md` | Accumulated build lessons (176+) |
 | `docs/resources/spec-rca-template.md` | Per-game RCA template (5-section format) |
-| `docs/spec_rca/` | Per-game failure history and root cause analysis |
+| `warehouse/templates/<game>/rca.md` | Per-game failure history and root cause analysis (primary). `docs/spec_rca/` stubs redirect here for games with warehouse entries. |
 | `ROADMAP.md` | Active R&D tasks, education slot, pipeline improvements |
 
 ## Server Operations (GCP: 34.93.153.206)
@@ -128,7 +128,7 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents.
 After every build run, pipeline fix, new failure pattern, or architectural decision:
 
 1. Update `docs/lessons-learned.md` — tag each entry with build number and source
-2. Update `docs/spec_rca/<game-id>.md` — see `docs/resources/spec-rca-template.md` for format
+2. Update `warehouse/templates/<game>/rca.md` (primary) — see `docs/resources/spec-rca-template.md` for format. For games without a warehouse entry yet, use `docs/spec_rca/<game-id>.md`.
 3. Update `docs/areas/build-management.md` — refine kill criteria from observations
 4. Update `CLAUDE.md` — keep accurate as single source of agent truth
 5. Update `ROADMAP.md` — mark completed, add newly discovered improvements
@@ -251,7 +251,7 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 *Phase A — Diagnosis:* Run `diagnostic.js` against a recently failed build. Must run the browser — reading HTML does not count.
 - How to pick: Query DB for recent failures → skip cancelled/approved/queued → prioritise games with incomplete RCA §2/§3.
-- Output: Update `docs/spec_rca/<game-id>.md` with §2 (evidence) and §3 (POC). Classify verdict:
+- Output: Update `warehouse/templates/<game>/rca.md` (primary; use `docs/spec_rca/<game-id>.md` if no warehouse entry) with §2 (evidence) and §3 (POC). Classify verdict:
 
 | Verdict | Meaning | Next action |
 |---------|---------|-------------|
@@ -285,7 +285,7 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 2. `docs/education/interaction-patterns.md`
 3. `docs/education/README.md`
 4. `ROADMAP.md` Education section
-5. `docs/spec_rca/<game-id>.md`
+5. `warehouse/templates/<game>/rca.md` (primary; use `docs/spec_rca/<game-id>.md` if no warehouse entry)
 
 **Constraints:** Must produce a measurable artifact per session. Education slot never blocks critical pipeline work.
 

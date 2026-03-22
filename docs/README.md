@@ -14,7 +14,8 @@
 |-----|----------|
 | [Lessons Learned](lessons-learned.md) | Accumulated pipeline build lessons + proof log. Read before diagnosing failures. |
 | [Failure Patterns Tracker](resources/failure-patterns-tracker.md) | Ranked active failure patterns by frequency — primary input for R&D slot selection |
-| [Per-Spec RCAs](spec_rca/) | Per-game failure history and root cause analysis |
+| [Per-Spec RCAs](spec_rca/) | Per-game failure history — stubs redirect to `warehouse/templates/<game>/rca.md` for games with warehouse entries. Non-warehouse games have full RCA here. |
+| [Per-Game Artifacts](../warehouse/templates/) | Primary home for per-game docs: `rca.md`, `ui-ux.md`, `spec.md`, `game/index.html`, `review-findings.md` |
 | [Spec Creation Workflow](resources/spec-creation-workflow.md) | MCP-based spec creation using Claude Desktop + Ralph MCP tools |
 | [Testing Architecture](resources/testing-architecture.md) | Test harness design, CORE tests (deterministic), supplementary LLM tests, game taxonomy |
 | [Deployment Runbook](resources/deployment.md) | First-deploy setup, systemd services, Nginx, troubleshooting |

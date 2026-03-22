@@ -32,7 +32,7 @@ Spawn a sub-agent to:
 3. Get recent approvals/failures (last 3 each)
 4. Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md — extract active R&D task, active Education task
 5. Read /Users/the-hw-app/Projects/mathai/ralph/docs/ui-ux/audit-log.md — extract active UI/UX audit target
-6. Read latest spec_rca file for any game diagnosed this session — extract local test verdict
+6. Read latest rca.md for any game diagnosed this session — check warehouse/templates/<game>/rca.md first (primary), fall back to docs/spec_rca/<game>.md for games without a warehouse entry — extract local test verdict
 7. Post to Slack with format:
    - Running: Build #X (game) at step Y — Value if completes: <what we learn/gain>. Not killed because: <kill criteria not met>
    - Queue: N builds
