@@ -170,19 +170,8 @@ describe('E9: findMatchingPattern', () => {
 });
 
 describe('E7: failure categorization (worker helper)', () => {
-  // Replicate the categorizeFailure function from worker.js
-  function categorizeFailure(failureDesc) {
-    const desc = failureDesc.toLowerCase();
-    if (/render|dom|element|visible|display/.test(desc)) return 'rendering';
-    if (/gamestate|state|init/.test(desc)) return 'state';
-    if (/score|star|progress/.test(desc)) return 'scoring';
-    if (/timer|timeout|countdown/.test(desc)) return 'timing';
-    if (/click|input|touch|interact/.test(desc)) return 'interaction';
-    if (/postmessage|message|event/.test(desc)) return 'messaging';
-    if (/layout|responsive|width|480/.test(desc)) return 'layout';
-    if (/endgame|complete|finish/.test(desc)) return 'completion';
-    return 'unknown';
-  }
+  // Import directly from lib/categorize-failure.js — no local copy.
+  const { categorizeFailure } = require('../lib/categorize-failure');
 
   it('categorizes rendering failures', () => {
     assert.equal(categorizeFailure('DOM element not visible'), 'rendering');
@@ -225,6 +214,6 @@ describe('E7: failure categorization (worker helper)', () => {
   });
 
   it('returns unknown for uncategorized', () => {
-    assert.equal(categorizeFailure('something weird happened'), 'unknown');
+    assert.equal(categorizeFailure('xqz no matching pattern here'), 'unknown');
   });
 });

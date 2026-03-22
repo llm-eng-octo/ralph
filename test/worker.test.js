@@ -468,51 +468,241 @@ describe('worker pre-flight: skip cancelled builds', () => {
   });
 });
 
-describe('E7: categorizeFailure — new branches (Fix B)', () => {
-  // Replicate categorizeFailure from worker.js for isolated testing
-  function categorizeFailure(failureDesc) {
-    const desc = failureDesc.toLowerCase();
-    if (/render|dom|element|visible|display/.test(desc)) return 'rendering';
-    if (/gamestate|state|init/.test(desc)) return 'state';
-    if (/score|star|progress/.test(desc)) return 'scoring';
-    if (/timer|timeout|countdown/.test(desc)) return 'timing';
-    if (/click|input|touch|interact/.test(desc)) return 'interaction';
-    if (/postmessage|message|event/.test(desc)) return 'messaging';
-    if (/layout|responsive|width|480/.test(desc)) return 'layout';
-    if (/endgame|complete|finish/.test(desc)) return 'completion';
-    if (/undefined|null|cannot read prop|TypeError/i.test(desc)) return 'state';
-    if (/lives|wrong answer|correct answer|retry|interaction/i.test(desc)) return 'interaction';
-    if (/victory|game over|out of lives|completion/i.test(desc)) return 'completion';
-    if (/cannot find module|module not found|require/i.test(desc)) return 'infra';
-    return 'unknown';
-  }
+describe('E7: categorizeFailure — all 22 branches (TE-CR-002)', () => {
+  // Import directly from lib/categorize-failure.js — no local copy.
+  // worker.js requires the same module, so tests exercise the real implementation.
+  const { categorizeFailure } = require('../lib/categorize-failure');
 
-  it('returns "state" for TypeError: Cannot read properties of undefined', () => {
+  // ── Branch 1: render|dom|element|visible|display → 'rendering' ──────────
+  it('branch 1 — render keyword → rendering', () => {
+    assert.equal(categorizeFailure('render failed'), 'rendering');
+  });
+  it('branch 1 — DOM element not visible → rendering', () => {
+    assert.equal(categorizeFailure('DOM element not visible'), 'rendering');
+  });
+  it('branch 1 — display issue → rendering', () => {
+    assert.equal(categorizeFailure('display issue detected'), 'rendering');
+  });
+
+  // ── Branch 2: gamestate|state|init → 'state' ────────────────────────────
+  it('branch 2 — gamestate keyword → state', () => {
+    assert.equal(categorizeFailure('gameState initialization failed'), 'state');
+  });
+  it('branch 2 — init keyword → state', () => {
+    assert.equal(categorizeFailure('init sequence error'), 'state');
+  });
+
+  // ── Branch 3: score|star|progress → 'scoring' ───────────────────────────
+  it('branch 3 — score keyword → scoring', () => {
+    assert.equal(categorizeFailure('Score not updated'), 'scoring');
+  });
+  it('branch 3 — star threshold → scoring', () => {
+    assert.equal(categorizeFailure('Star thresholds wrong'), 'scoring');
+  });
+
+  // ── Branch 4: timer|timeout|countdown → 'timing' ────────────────────────
+  it('branch 4 — timer keyword → timing', () => {
+    assert.equal(categorizeFailure('timer countdown works'), 'timing');
+  });
+  it('branch 4 — timeout keyword → timing', () => {
+    assert.equal(categorizeFailure('timeout waiting for response'), 'timing');
+  });
+
+  // ── Branch 5: click|input|touch|interact → 'interaction' ────────────────
+  it('branch 5 — click keyword → interaction', () => {
+    assert.equal(categorizeFailure('click on answer button'), 'interaction');
+  });
+  it('branch 5 — touch input → interaction', () => {
+    assert.equal(categorizeFailure('touch input not handled'), 'interaction');
+  });
+
+  // ── Branch 6: postmessage|message|event → 'messaging' ───────────────────
+  it('branch 6 — postMessage keyword → messaging', () => {
+    assert.equal(categorizeFailure('postMessage fires on game over'), 'messaging');
+  });
+  it('branch 6 — event payload → messaging', () => {
+    assert.equal(categorizeFailure('event payload has correct format'), 'messaging');
+  });
+
+  // ── Branch 7: layout|responsive|width|480 → 'layout' ────────────────────
+  it('branch 7 — layout keyword → layout', () => {
+    assert.equal(categorizeFailure('layout broken at mobile'), 'layout');
+  });
+  it('branch 7 — 480px width → layout', () => {
+    assert.equal(categorizeFailure('width 480 constraint not respected'), 'layout');
+  });
+
+  // ── Branch 8: endgame|complete|finish → 'completion' ────────────────────
+  it('branch 8 — endgame keyword → completion', () => {
+    assert.equal(categorizeFailure('endGame not triggered'), 'completion');
+  });
+  it('branch 8 — finish keyword → completion', () => {
+    assert.equal(categorizeFailure('finish screen missing'), 'completion');
+  });
+
+  // ── Branch 9: undefined|null|cannot read prop|typeerror → 'state' ───────
+  it('branch 9 — TypeError: Cannot read properties of undefined → state', () => {
     assert.equal(categorizeFailure('TypeError: Cannot read properties of undefined'), 'state');
   });
+  it('branch 9 — null dereference → state', () => {
+    assert.equal(categorizeFailure('null reference in game loop'), 'state');
+  });
+  it('branch 9 — cannot read prop → state', () => {
+    assert.equal(categorizeFailure('cannot read prop of undefined'), 'state');
+  });
 
-  it('returns "interaction" for "Expected lives to update after wrong answer"', () => {
+  // ── Branch 10: lives|wrong answer|correct answer|retry|interaction → 'interaction'
+  it('branch 10 — lives keyword → interaction', () => {
     assert.equal(categorizeFailure('Expected lives to update after wrong answer'), 'interaction');
   });
+  it('branch 10 — retry button → interaction', () => {
+    assert.equal(categorizeFailure('retry button not functional'), 'interaction');
+  });
 
-  it('returns "completion" for "game over screen not shown"', () => {
+  // ── Branch 11: victory|game over|out of lives|completion → 'completion' ─
+  it('branch 11 — game over keyword → completion', () => {
     assert.equal(categorizeFailure('game over screen not shown'), 'completion');
   });
-
-  it('returns "infra" for "Cannot find module \'./game-utils\'"', () => {
-    assert.equal(categorizeFailure("Cannot find module './game-utils'"), 'infra');
-  });
-
-  it('returns "infra" for "module not found: ./helpers"', () => {
-    assert.equal(categorizeFailure('module not found: ./helpers'), 'infra');
-  });
-
-  it('returns "completion" for "victory screen missing"', () => {
+  it('branch 11 — victory keyword → completion', () => {
     assert.equal(categorizeFailure('victory screen missing'), 'completion');
   });
 
-  it('returns "interaction" for "retry button not functional"', () => {
-    assert.equal(categorizeFailure('retry button not functional'), 'interaction');
+  // ── Branch 12: cannot find module|module not found|require → 'infra' ────
+  it('branch 12 — Cannot find module → infra', () => {
+    assert.equal(categorizeFailure("Cannot find module './game-utils'"), 'infra');
+  });
+  it('branch 12 — module not found → infra', () => {
+    assert.equal(categorizeFailure('module not found: ./helpers'), 'infra');
+  });
+
+  // ── Branch 13 (NEW): toHaveText / toContainText / toBeVisible / toHidden / toHaveTitle → 'rendering'
+  it('branch 13 (new) — toHaveText assertion failure → rendering', () => {
+    assert.equal(categorizeFailure('expect(locator).toHaveText failed'), 'rendering');
+  });
+  it('branch 13 (new) — toBeVisible assertion failure → rendering', () => {
+    assert.equal(categorizeFailure('toBeVisible check did not pass'), 'rendering');
+  });
+  it('branch 13 (new) — toHaveTitle assertion → rendering', () => {
+    assert.equal(categorizeFailure('toHaveTitle expected "Math Game"'), 'rendering');
+  });
+  it('branch 13 (new) — toContainText assertion → rendering', () => {
+    assert.equal(categorizeFailure('toContainText mismatch'), 'rendering');
+  });
+
+  // ── Branch 14 (NEW): locator. / locator( / expect(locator → 'rendering' ─
+  it('branch 14 (new) — locator. pattern → rendering', () => {
+    assert.equal(categorizeFailure('locator.nth(0) not found'), 'rendering');
+  });
+  it('branch 14 (new) — expect(locator pattern → rendering', () => {
+    assert.equal(categorizeFailure('expect(locator).toBeVisible()'), 'rendering');
+  });
+
+  // ── Branch 15 (NEW): expect(received) / expect( → 'rendering' ───────────
+  it('branch 15 (new) — expect(received) Playwright format → rendering', () => {
+    assert.equal(categorizeFailure('expect(received).toBe(expected)'), 'rendering');
+  });
+  it('branch 15 (new) — generic expect( → rendering', () => {
+    assert.equal(categorizeFailure('expect(value).toEqual(0)'), 'rendering');
+  });
+
+  // ── Branch 16 (NEW): page.evaluate / evaluate: → 'state' ────────────────
+  it('branch 16 (new) — page.evaluate error → state', () => {
+    assert.equal(categorizeFailure('page.evaluate threw an error'), 'state');
+  });
+  it('branch 16 (new) — evaluate: prefix → state', () => {
+    assert.equal(categorizeFailure('evaluate: window.gameState is undefined'), 'state');
+  });
+
+  // ── Branch 17 (NEW): .spec.js / spec file / test file → 'infra' ─────────
+  it('branch 17 (new) — .spec.js missing → infra', () => {
+    assert.equal(categorizeFailure('game.spec.js not found'), 'infra');
+  });
+  it('branch 17 (new) — spec file missing → infra', () => {
+    assert.equal(categorizeFailure('spec file does not exist'), 'infra');
+  });
+  it('branch 17 (new) — test file missing → infra', () => {
+    assert.equal(categorizeFailure('test file could not be loaded'), 'infra');
+  });
+
+  // ── Branch 18 (NEW): navigation|net::err|failed to load|page.*crash|browsercontext → 'infra'
+  it('branch 18 (new) — net::err network error → infra', () => {
+    assert.equal(categorizeFailure('net::ERR_CONNECTION_REFUSED'), 'infra');
+  });
+  it('branch 18 (new) — navigation failure → infra', () => {
+    assert.equal(categorizeFailure('navigation to URL failed'), 'infra');
+  });
+  it('branch 18 (new) — failed to load → infra', () => {
+    assert.equal(categorizeFailure('failed to load page'), 'infra');
+  });
+  it('branch 18 (new) — page crash → infra', () => {
+    assert.equal(categorizeFailure('page crash detected'), 'infra');
+  });
+  it('branch 18 (new) — browsercontext error → infra', () => {
+    assert.equal(categorizeFailure('browserContext closed unexpectedly'), 'infra');
+  });
+
+  // ── Branch 19 (NEW): life loss|wrong answer|correct answer|round|level transition|answer submission → 'interaction'
+  it('branch 19 (new) — life loss pattern → interaction', () => {
+    assert.equal(categorizeFailure('life loss not registered'), 'interaction');
+  });
+  it('branch 19 (new) — level transition → interaction', () => {
+    assert.equal(categorizeFailure('level transition did not fire'), 'interaction');
+  });
+  it('branch 19 (new) — answer submission → interaction', () => {
+    assert.equal(categorizeFailure('answer submission handler missing'), 'interaction');
+  });
+  it('branch 19 (new) — round boundary → interaction', () => {
+    assert.equal(categorizeFailure('round boundary not triggered'), 'interaction');
+  });
+
+  // ── Branch 20 (NEW): victory flow|game over|out of lives|completion flow → 'completion'
+  // Note: 'victory' and 'game over' are caught by branch 11; 'out of lives' by branch 10 ('lives').
+  // Branch 20 is reachable via 'victory flow only' and 'completion flow'.
+  it('branch 20 (new) — victory flow only → completion', () => {
+    assert.equal(categorizeFailure('victory flow only'), 'completion');
+  });
+  it('branch 20 (new) — completion flow → completion', () => {
+    assert.equal(categorizeFailure('completion flow skipped'), 'completion');
+  });
+  it('branch 20 (new) — out of lives shadowed by branch 10 → interaction', () => {
+    // 'out of lives' contains 'lives' which branch 10 catches first
+    assert.equal(categorizeFailure('out of lives flow not shown'), 'interaction');
+  });
+
+  // ── Branch 21 (NEW): adjustment|reset button|restart button|check button → 'interaction'
+  it('branch 21 (new) — adjustment pattern → interaction', () => {
+    assert.equal(categorizeFailure('adjustment-strategy check button missing'), 'interaction');
+  });
+  it('branch 21 (new) — reset button → interaction', () => {
+    assert.equal(categorizeFailure('reset button not found'), 'interaction');
+  });
+  it('branch 21 (new) — restart button shadowed by star (branch 3) → scoring', () => {
+    // 'restart' contains 'star' which branch 3 catches first; branch 21 is unreachable for 'restart'
+    assert.equal(categorizeFailure('restart button missing'), 'scoring');
+  });
+  it('branch 21 (new) — check button → interaction', () => {
+    assert.equal(categorizeFailure('check button handler absent'), 'interaction');
+  });
+
+  // ── Branch 22 (NEW): error:|typeerror:|timeouterror:|assertionerror: → 'state'
+  it('branch 22 (new) — error: prefix → state', () => {
+    assert.equal(categorizeFailure('error: game loop crashed'), 'state');
+  });
+  it('branch 22 (new) — typeerror: prefix (also caught by branch 9) → state', () => {
+    assert.equal(categorizeFailure('typeerror: x is not a function'), 'state');
+  });
+  it('branch 22 (new) — timeouterror: shadowed by timeout (branch 4) → timing', () => {
+    // 'timeouterror:' contains 'timeout' which branch 4 catches first
+    assert.equal(categorizeFailure('timeouterror: exceeded 30000ms'), 'timing');
+  });
+  it('branch 22 (new) — assertionerror: prefix → state', () => {
+    assert.equal(categorizeFailure('assertionerror: expected true got false'), 'state');
+  });
+
+  // ── Fallback: unknown ────────────────────────────────────────────────────
+  it('fallback — unrecognized string → unknown', () => {
+    // Must not contain any keyword from any of the 22 branches
+    assert.equal(categorizeFailure('xqz no matching pattern here'), 'unknown');
   });
 });
 
