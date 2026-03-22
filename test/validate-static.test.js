@@ -1385,3 +1385,51 @@ describe('require() / ES import in CDN game script checks (5l)', () => {
     );
   });
 });
+
+describe('waitForPackages() wrong CDN check pattern (5fa)', () => {
+  // Minimal CDN HTML with waitForPackages — whileCondition replaces the while loop predicate
+  const cdnHtmlWithWrongCheck = (whileCondition) =>
+    '<!DOCTYPE html>\n' +
+    '<html lang="en"><head><meta charset="UTF-8"><title>T</title>\n' +
+    '<style>body{} #gameContent{max-width:480px;}</style></head>\n' +
+    '<body><div id="app"></div>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/bundle.js"></script>\n' +
+    '<script>\n' +
+    '  window.gameState = { phase: \'start\', score: 0, lives: 3 };\n' +
+    '  window.endGame = function endGame() {};\n' +
+    '  window.restartGame = function restartGame() {};\n' +
+    '  window.nextRound = function nextRound() {};\n' +
+    '  async function waitForPackages() {\n' +
+    '    const timeout = 180000; const interval = 50; let elapsed = 0;\n' +
+    '    while (' + whileCondition + ') {\n' +
+    '      if (elapsed >= timeout) { throw new Error(\'Packages failed to load within 180s\'); }\n' +
+    '      await new Promise(resolve => setTimeout(resolve, interval));\n' +
+    '      elapsed += interval;\n' +
+    '    }\n' +
+    '  }\n' +
+    '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
+    '    await waitForPackages();\n' +
+    '    window.parent.postMessage({ type: \'gameOver\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+    '  });\n' +
+    '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
+    '</script></body></html>';
+
+  it('fails when waitForPackages uses while (!window.FeedbackManager) truthy check', () => {
+    const html = cdnHtmlWithWrongCheck('!window.FeedbackManager');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('wrong CDN check pattern'),
+      `Expected 5fa error but got: ${output}`,
+    );
+  });
+
+  it('passes when waitForPackages uses the correct typeof FeedbackManager === "undefined" pattern', () => {
+    const html = cdnHtmlWithWrongCheck('typeof FeedbackManager === \'undefined\'');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('wrong CDN check pattern'),
+      `Unexpected 5fa error for correct typeof pattern: ${output}`,
+    );
+  });
+});
