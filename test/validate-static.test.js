@@ -683,6 +683,51 @@ describe('validate-static.js', () => {
     assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
   });
 
+  it('warns when CDN game has totalRounds but no window.loadRound exposed (PART-021-LOADROUND)', () => {
+    // Multi-round game missing window.loadRound → __ralph.jumpToRound() is a no-op
+    const html = VALID_HTML.replace(
+      '</script>',
+      `window.endGame = endGame;
+window.gameState = gameState;
+window.nextRound = nextRound;
+window.addEventListener('DOMContentLoaded', async () => {
+  window.gameState.totalRounds = 5;
+  window.gameState.currentRound = 0;
+  nextRound();
+});
+</script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('PART-021-LOADROUND'),
+      `Expected PART-021-LOADROUND warning but got: ${output}`,
+    );
+  });
+
+  it('does not warn PART-021-LOADROUND when window.loadRound is exposed', () => {
+    // Multi-round game that correctly exposes window.loadRound
+    const html = VALID_HTML.replace(
+      '</script>',
+      `window.endGame = endGame;
+window.gameState = gameState;
+window.nextRound = nextRound;
+window.loadRound = function(n) { gameState.currentRound = n - 1; nextRound(); };
+window.addEventListener('DOMContentLoaded', async () => {
+  window.gameState.totalRounds = 5;
+  window.gameState.currentRound = 0;
+  nextRound();
+});
+</script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(
+      !output.includes('PART-021-LOADROUND'),
+      `Unexpected PART-021-LOADROUND warning: ${output}`,
+    );
+  });
+
   it('fails when TimerComponent used without typeof check in waitForPackages', () => {
     // Append TimerComponent usage to VALID_HTML without a typeof guard
     const html = VALID_HTML.replace(
