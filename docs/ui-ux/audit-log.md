@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** addition-mcq-lives (next in stub inventory)
-**Last completed:** addition-mcq-blitz — 2026-03-23 (spec-only audit — no build exists)
+**Current task:** adjustment-strategy (next in stub inventory)
+**Last completed:** addition-mcq — 2026-03-23 (spec-only audit — no build exists)
 **Waiting on:** unblocked
 **Blocked by:** none
 
@@ -33,7 +33,7 @@ Track visual and interaction quality audits of generated games. Each entry recor
 | 4 | word-pairs | #529 | audited (static analysis) 2026-03-23 | done |
 
 **Stub inventory (ui-ux.md exists but unpopulated — pending future batches):**
-addition-mcq-blitz, addition-mcq-lives, addition-mcq, adjustment-strategy, associations, math-cross-grid, math-mcq-quiz, mcq-addition-blitz, real-world-problem
+addition-mcq, adjustment-strategy, associations, math-cross-grid, math-mcq-quiz, mcq-addition-blitz
 
 ---
 
@@ -41,6 +41,8 @@ addition-mcq-blitz, addition-mcq-lives, addition-mcq, adjustment-strategy, assoc
 
 | Date | Game | Build | Issues Found | Actions Taken |
 |------|------|-------|-------------|---------------|
+| 2026-03-23 | addition-mcq | spec-only | 9 issues (6a, 2b, 1d) | No P0 blockers; ProgressBar slotId missing (6th instance); data-phase/syncDOMState absent (3rd MCQ spec); ARIA-001 (10th instance); window.endGame unassigned; data-lives not on DOM (2nd MCQ spec test gap); gameState.gameId missing; SignalCollector no constructor args (3rd); timer destroy/recreate ambiguity; initSentry absent from spec |
+| 2026-03-23 | addition-mcq-lives | spec-only | 6 issues (4a, 2b, 1d; F4 downgraded) | No P0 blockers; data-phase/syncDOMState absent (9th pattern, 2nd MCQ spec); ProgressBar slotId missing (5th); ARIA-001 MCQ (9th); endGame branching implicit; restartGame() unspecified; data-lives not on DOM (test gap) |
 | 2026-03-23 | addition-mcq-blitz | spec-only | 8 issues (6a, 2b) | FeedbackManager.init() in spec (URGENT — fix before first build); results not fixed (8th instance); ARIA-001 (8th instance); timer.start() race in setupGame(); recordViewEvent after seal() data loss; window.endGame unassigned; no syncDOMState/data-phase; gameState.gameId undeclared |
 | 2026-03-23 | real-world-problem | #564 | 8 issues (6a, 2b/d) | 44px 7th instance; results-fixed 7th instance; ProgressBar slotId 4th instance; SignalCollector no-args 2nd; alert() new rule; Enter-key new rule; 2 education/test handoffs |
 | 2026-03-23 | name-the-sides | #557 | 10 issues (5a, 3b, 2 low) | 5 gen prompt rules proposed; 3 spec additions documented; rebuild needed |
@@ -113,6 +115,18 @@ See [games/real-world-problem/ui-ux.md](../../games/real-world-problem/ui-ux.md)
 
 **CSS intact. No P0 flow bugs. All three steps reachable. End screen reachable.** 8 issues: 6 gen prompt rules (44px min-height — 7th instance; results not fixed — 7th instance; ProgressBar `-bar-` slotId — 4th instance; SignalCollector no args — 2nd instance; alert() for validation — new; no Enter key on numeric input — new), 2 education/test handoffs (accuracy metric scope, SVG label overflow). 44px and results-screen rules now at 7 confirmed instances each — ship both immediately.
 
+## addition-mcq Audit (2026-03-23)
+
+See [games/addition-mcq/ui-ux.md](../../games/addition-mcq/ui-ux.md)
+
+**Spec-only audit — no build exists.** 9 actionable issues (6a, 2b, 1d). No P0 blockers: no FeedbackManager.init(), no alert(), endGame() called on both win and game-over paths, restartGame() defined, results screen uses PART-019. Key issues: (1) F1 — ProgressBar slotId missing (6th confirmed instance — GEN-UX-003 shipped but spec still lacks it; add before first build); (2) F2 — no data-phase / syncDOMState (3rd confirmed MCQ spec instance); (3) F3 — no ARIA live region on option feedback (10th instance — ARIA-001 shipped); (4) F4 — window.endGame unassigned; (5) F5 — data-lives not on DOM (2nd MCQ spec test gap); (6) F6 — gameState.gameId absent; (7) F7 — SignalCollector no constructor args (3rd instance — GEN-UX-005 shipped); (8) F8 — timer destroy/recreate ambiguity on restartGame(); (9) F9 — initSentry() absent from spec. Pre-build checklist added to ui-ux.md.
+
+## addition-mcq-lives Audit (2026-03-23)
+
+See [games/addition-mcq-lives/ui-ux.md](../../games/addition-mcq-lives/ui-ux.md)
+
+**Spec-only audit — no build exists.** 6 actionable issues (4a, 2b, 1d; F4 initialization order downgraded). No P0 blockers: no FeedbackManager.init(), no results-screen static position violation, window.endGame assigned per spec Section 8, CSS well-formed. Key issues: (1) F1 — no data-phase / syncDOMState at any transition (2nd confirmed MCQ spec instance; already in ROADMAP line 237); (2) F2 — ProgressBar slotId missing (5th confirmed instance — escalate to ship now); (3) F3 — no ARIA live region on MCQ feedback (9th instance — ARIA-001 shipped, T1 will catch it on first build); (4) F5 — endGame dual-path not explicit (spec addition needed before queuing); (5) F6 — restartGame() unspecified for timer game (spec addition needed); (6) F7 — data-lives not on DOM element (test gap). Pre-build checklist added to ui-ux.md. ProgressBar slotId pattern at 5 confirmed instances — ship rule immediately.
+
 ---
 
 ## Known Visual Issue Patterns
@@ -120,16 +134,16 @@ See [games/real-world-problem/ui-ux.md](../../games/real-world-problem/ui-ux.md)
 | Pattern | First seen | Also seen in | Classification | Status |
 |---------|-----------|-------------|---------------|--------|
 | CSS stylesheet stripped during JS-only surgical fix | which-ratio #560 | name-the-sides #557, count-and-tap #551, right-triangle-area #543, word-pairs #529 | (a) gen prompt rule + T1 check | FIX-001 shipped 2026-03-23; PART-028 T1 deployed 2026-03-22; 5 confirmed instances |
-| Dynamic feedback elements missing aria-live | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529 | (a) gen prompt rule | ARIA-001 shipped 2026-03-23 — **7 confirmed instances — SHIP NOW as hard rule** |
+| Dynamic feedback elements missing aria-live | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec | (a) gen prompt rule | **ARIA-001 expanded SHIPPED 2026-03-23 (c826ec1)** — rule covers ALL dynamic feedback elements (not just #feedback): #feedback-panel, #faded-feedback, #practice-feedback, #feedback-area, #answer-feedback, #result-feedback, #hint-text; requires role="status"; T1 W5 regex broadened; 4 new tests; 10 confirmed instances |
 | Option buttons missing explicit 44px touch targets | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, real-world-problem #564 | (a) gen prompt rule | **SHIPPED — GEN-UX-002 / GEN-TOUCH-TARGET (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 121 + rule 32** |
 | SVG muted lines using low-contrast colour (#64748b) | which-ratio #560 | find-triangle-side #549 | (a) gen prompt rule | Pending — 2 confirmed instances |
 | Results screen is static-position (not overlay) | name-the-sides #557 | find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564 | (a) gen prompt rule | **SHIPPED — GEN-UX-001 / GEN-MOBILE-RESULTS (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 120 + rule 31** |
 | progressBar.update() emits Invalid count value error | name-the-sides #557 | — | (a) gen prompt rule | Proposed |
 | CSS-trick triangle (border-based) breaks without CSS | name-the-sides #557 | — | (a) gen prompt rule | Proposed — prefer SVG |
 | Two-triangle layout on mobile causes excessive scroll | name-the-sides #557 | — | (b) spec addition | Proposed |
-| Wrong ProgressBarComponent slot ID (positional string, hash-prefix, or missing slotId key) | find-triangle-side #549 | quadratic-formula #546, right-triangle-area #543, real-world-problem #564 | (a) gen prompt rule | Pending — 4 confirmed instances (variants: wrong string, hash-prefix, missing key, `-bar-` infix) |
+| Wrong ProgressBarComponent slot ID (positional string, hash-prefix, or missing slotId key) | find-triangle-side #549 | quadratic-formula #546, right-triangle-area #543, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec | (a) gen prompt rule | SHIPPED — GEN-UX-003 (25bdad0 2026-03-23) — 6 confirmed instances |
 | Local asset path in TransitionScreen icons | find-triangle-side #549 | — | (a) gen prompt rule | New — added to ROADMAP 2026-03-23 |
-| SignalCollector instantiated without constructor args | find-triangle-side #549 | real-world-problem #564 | (a) gen prompt rule | 2 confirmed instances — added to ROADMAP 2026-03-23 |
+| SignalCollector instantiated without constructor args | find-triangle-side #549 | real-world-problem #564, addition-mcq spec | (a) gen prompt rule | SHIPPED — GEN-UX-005 (25bdad0 2026-03-23) — 3 confirmed instances |
 | Dead-code guard: isActive set false then immediately true | count-and-tap #551 | — | (a) gen prompt rule | New — added to ROADMAP 2026-03-23 |
 | Canvas element wider than 480px mobile viewport | right-triangle-area #543 | — | (a) gen prompt rule | New — canvas must use max-width: 100% |
 | Undefined CSS variable tokens used for feedback color | right-triangle-area #543 | — | (a) gen prompt rule | New — only use --mathai-success, --mathai-error, --mathai-warning |
@@ -137,9 +151,13 @@ See [games/real-world-problem/ui-ux.md](../../games/real-world-problem/ui-ux.md)
 | data-testid does not match element id | word-pairs #529 | — | (a) gen prompt rule | New — testid must match id; no divergence |
 | Sentry SDK version inconsistency (v7 vs v10) | word-pairs #529 | — | (a) gen prompt rule | New — standardise to v10.23.0 three-script pattern |
 | hide()/show() helpers called with CSS selector strings instead of DOM elements | soh-cah-toa #544 | — | (a) gen prompt rule | New — helpers must receive element objects only |
-| alert() used for inline input validation | real-world-problem #564 | — | (a) gen prompt rule | New — must use inline aria-live feedback div instead |
+| alert() used for inline input validation | real-world-problem #564 | — | (a) gen prompt rule | SHIPPED — GEN-UX-004 (25bdad0 2026-03-23) — 1 confirmed instance (new) |
 | Typed numeric input has no Enter-key submission handler | real-world-problem #564 | — | (a) gen prompt rule | New — input fields must bind keydown Enter → submit handler |
 | data-lives hardcoded to 0 for non-lives games | word-pairs #529 | — | (d) test gap | New — test assertions on data-lives must handle games with totalLives: 0 |
+| Lives games missing data-lives attribute on DOM element | addition-mcq-lives spec | addition-mcq spec | (d) test gap | 2 confirmed MCQ spec instances — lives games must sync data-lives via syncDOMState(); getLives() harness helper needs a DOM attribute to read |
+| No syncDOMState() / data-phase state machine in MCQ spec | addition-mcq-blitz spec | addition-mcq-lives spec, addition-mcq spec | (a) gen prompt rule | 3 confirmed MCQ spec instances — already in ROADMAP (line 237); 3rd instance confirmed 2026-03-23 |
+| endGame() dual-path not specified: game-over vs victory TransitionScreen calls differ | addition-mcq-lives spec | — | (b) spec addition | New — lives games need explicit if/else branching in endGame() for two different TransitionScreen templates; ROADMAP entry added |
+| restartGame() unspecified for timer games — destroy+recreate required | addition-mcq-lives spec | — | (b) spec addition | New — timer games must destroy and recreate TimerComponent in restartGame() to clear stale onEnd callbacks; ROADMAP entry added |
 
 ---
 
@@ -151,18 +169,18 @@ See [games/real-world-problem/ui-ux.md](../../games/real-world-problem/ui-ux.md)
 |------|-------------|------------------|------|--------|
 | Never strip CSS stylesheet | which-ratio #560 | name-the-sides #557, count-and-tap #551, right-triangle-area #543, word-pairs #529 | 2026-03-23 | FIX-001 shipped (dc03155) + PART-028 T1 check — 5 instances confirmed |
 | Explicit 44px touch targets on all buttons | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, real-world-problem #564 | 2026-03-23 | **SHIPPED — GEN-UX-002 / GEN-TOUCH-TARGET (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 121 + rule 32** |
-| ARIA live regions on dynamic feedback | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529 | 2026-03-23 | ARIA-001 shipped (dc03155) — **7 instances; ship inline panel coverage immediately** |
+| ARIA live regions on dynamic feedback | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec | 2026-03-23 | **ARIA-001 expanded SHIPPED (c826ec1 2026-03-23)** — 10 confirmed instances; rule now covers ALL dynamic feedback variants + role="status"; T1 W5 regex broadened; 4 new tests; temp-file race in test helper fixed |
 | SVG diagram contrast + fallback dimensions | which-ratio #560 | find-triangle-side #549 | 2026-03-23 | Pending — 2 confirmed instances |
 | Results screen must be position:fixed full-screen overlay | name-the-sides #557 | find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564 | 2026-03-23 | **SHIPPED — GEN-UX-001 / GEN-MOBILE-RESULTS (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 120 + rule 31** |
 | progressBar.update() completed arg must be >= 0 | name-the-sides #557 | — | 2026-03-23 | Proposed — not yet in prompts.js |
-| ProgressBarComponent slot ID must be 'mathai-progress-slot' (options object with slotId key) | find-triangle-side #549 | quadratic-formula #546, right-triangle-area #543 | 2026-03-23 | Pending — 3 instances, 3 variants — added to ROADMAP |
+| ProgressBarComponent slot ID must be 'mathai-progress-slot' (options object with slotId key) | find-triangle-side #549 | quadratic-formula #546, right-triangle-area #543, real-world-problem #564, addition-mcq-lives spec | 2026-03-23 | SHIPPED — GEN-UX-003 (25bdad0 2026-03-23) — 5 confirmed instances |
 | Never use local asset paths in TransitionScreen icons | find-triangle-side #549 | — | 2026-03-23 | New — added to ROADMAP 2026-03-23 |
-| Always pass constructor args to SignalCollector | find-triangle-side #549 | — | 2026-03-23 | New — added to ROADMAP 2026-03-23 |
+| Always pass constructor args to SignalCollector | find-triangle-side #549 | real-world-problem #564 | 2026-03-23 | SHIPPED — GEN-UX-005 (25bdad0 2026-03-23) — 2 confirmed instances |
 | Never negate isActive guard immediately (dead code) | count-and-tap #551 | — | 2026-03-23 | New — added to ROADMAP 2026-03-23 |
 | Canvas elements must use max-width: 100%; height: auto for responsive layout | right-triangle-area #543 | — | 2026-03-23 | New — added to ROADMAP 2026-03-23 |
 | Only use defined CSS variable tokens for feedback colors | right-triangle-area #543 | — | 2026-03-23 | New — ban --color-orange, --mathai-green; use --mathai-success/error/warning |
 | data-testid must match element id exactly | word-pairs #529 | — | 2026-03-23 | New — added to ROADMAP 2026-03-23 |
 | Standardise Sentry SDK to v10.23.0 three-script pattern | word-pairs #529 | — | 2026-03-23 | New — word-pairs uses v7; CDN_CONSTRAINTS_BLOCK must enforce v10 |
 | hide()/show() helpers must receive DOM element objects, not CSS selector strings | soh-cah-toa #544 | — | 2026-03-23 | New — runtime TypeError if string passed to classList |
-| Never use alert()/confirm() in game code; use inline aria-live feedback div | real-world-problem #564 | — | 2026-03-23 | New — alert() breaks iframe embedding |
+| Never use alert()/confirm() in game code; use inline aria-live feedback div | real-world-problem #564 | — | 2026-03-23 | SHIPPED — GEN-UX-004 (25bdad0 2026-03-23) — 1 confirmed instance (new) |
 | Typed numeric input fields must support Enter key as submit equivalent | real-world-problem #564 | — | 2026-03-23 | New — keyboard/mobile UX gap |
