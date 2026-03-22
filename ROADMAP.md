@@ -541,9 +541,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Session Planner Phase 3 end-to-end verified + L3/L4 interaction pattern gap documented |
-| Status | Phase 3 e2e test PASS (2026-03-23): planSession() → writeSessionDirectory(dryRun) → generateSpec(dryRun) all clean. 5-game trig session (L1→L4, 24min) generates 6 files (session-plan.md + 5 spec-instructions.md). generateSpec resolves template path (games/name-the-sides/spec.md) and returns correctly in dryRun. L3/L4 gap documented in docs/education/interaction-patterns.md: only find-triangle-side (build #549) proves L3; zero approved L4 games — real-world-problem must ship before L4 spec generation is safe. |
-| Waiting on | Phase 4 — real NCERT research session (requires Exa + Knowledge Graph MCP). Prerequisite: real-world-problem build approved (L4 reference example required before generating new L4 specs). |
+| Current task | Phase 4 complete — trig NCERT research compiled (docs/education/trig-research-phase4.md), 8 sources, 6 misconceptions, full prerequisite chain, 4 NCERT exercise refs, 5 real-world contexts |
+| Status | Phase 4 DONE (2026-03-23). Standard HSG-SRT.C.6 confirmed via Knowledge Graph MCP (UUID 3752ff25). 3 peer-reviewed papers + NCERT official PDF + 2 KG MCP queries. Research object matches buildResearchContext() schema. Ready for generateSpec(). |
+| Waiting on | Phase 5 — generateSpec() for trig session games using trig-research-phase4.md as evidence input. real-world-problem build approved (prerequisite for L4 spec generation). |
 | Blocked by | none |
 
 | Task | Status | Notes |
