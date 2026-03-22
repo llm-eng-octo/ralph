@@ -264,24 +264,30 @@ if (/signalCollector\.trackEvent\b/.test(html)) {
 
 ## 5. Go/No-Go for E2E
 
-**NOT READY FOR E2E — `window.mira.components` hallucination must be fixed first.**
+**READY FOR E2E — all 6 layers fixed, build #543 queued.**
 
-Build #533 confirmed the `signalCollector.trackEvent` T1 fix worked (T1 passed at 07:58:16). However a third independent hallucination appeared: the LLM destructured components from `window.mira.components` (a namespace that doesn't exist), causing `waitForPackages()` to spin indefinitely and `ScreenLayout.inject()` to never run. Builds #527–#533 have now exposed four sequential pipeline/hallucination bugs — each one hidden by the previous.
+6 sequential pipeline/hallucination layers were peeled across builds #527–#542. Each layer was hidden by the one preceding it. All 6 are now fixed and deployed:
 
-**Blocking items before build #534:**
-1. Add `window.mira.components` as a T1 static-validation error in `lib/validate-static.js` — fires if the HTML contains the string `window.mira.components`
-2. Add prohibition to gen prompt `CDN_CONSTRAINTS_BLOCK`:
-   - `window.mira` does NOT exist. Never destructure from `window.mira.components`.
-   - CDN components are bare globals: `window.ScreenLayout`, `window.ProgressBarComponent`, `window.TransitionScreenComponent`, `window.TimerComponent`, etc.
-   - Correct `waitForPackages()` pattern: check `typeof window.ScreenLayout === 'undefined'` (bare global)
-3. Run `npm test` to confirm no regressions
-4. Deploy `lib/validate-static.js` and `lib/pipeline.js` to server before queuing build #534
+| Layer | Build | Root Cause | Fix |
+|-------|-------|------------|-----|
+| 1 | #530 | T1 false-positive for `window.components?.X` → static-fix LLM adds broken bare-global checks → waitForPackages spins 120s | T1 fix: commit 65aed12 |
+| 2 | #532/#533 | `signalCollector.trackEvent()` hallucination — method does not exist in PART-011 API | T1 §5h + gen prompt: commit 65aed12 |
+| 3 | #536/#538 | SentryHelper/initSentry hallucinations in waitForPackages() | T1 §5h2 + §5f0 + RULE-SENTRY-ORDER: commits 88b965d, 13b7d7b |
+| 4 | #540 | `addColorStop('var(--color-sky)')` → Canvas API DOMException (CSS vars not resolved) | T1 §5f6 + gen prompt: commit cd04177 |
+| 5 | #541 | `progressBar.timer` → undefined → `timer.start()` TypeError | T1 §5f7 + gen prompt: commit dd844f4 |
+| 6 | #542 | `new TimerComponent('timer-container', ...)` → slot `'timer-container'` not declared in ScreenLayout.inject() `slots:` → element never injected → component init fails → blank page | T1 §5f8 + gen prompt: commits 8657a6d + ad4a15a |
 
-**Resolved items (already fixed and confirmed):**
+**Build #543** is the first build with all 6 layers addressed. Hypothesis: #543 passes Step 1d smoke check on first attempt and advances to test generation.
+
+**Resolved items (all confirmed deployed):**
 - T1 false-positive for `window.components?.X` (commit 65aed12) — confirmed working in builds #532 and #533
 - `signalCollector.trackEvent` hallucination — T1 check deployed; build #533 passed T1 without triggering it
+- SentryHelper ban T1 §5h2 (commit 88b965d) + initSentry-not-defined T1 §5f0 (commit 13b7d7b)
+- Canvas API CSS variable check T1 §5f6 (commit cd04177)
+- ProgressBarComponent .timer ban T1 §5f7 (commit dd844f4)
+- TimerComponent slot-not-in-ScreenLayout ban T1 §5f8 (commits 8657a6d + ad4a15a)
 
-The game's core HTML logic (canvas triangle rendering, area formula, CDN init structure) is sound. All failures have been pipeline or namespace hallucination bugs. Once the `window.mira.components` check is deployed, the next build should advance past Step 1d for the first time.
+The game's core HTML logic (canvas triangle rendering, area formula, CDN init structure) is sound. All failures have been pipeline or hallucination bugs, not game design issues.
 
 ## Failure History
 
@@ -294,7 +300,9 @@ The game's core HTML logic (canvas triangle rendering, area formula, CDN init st
 | #534 | T1 fail: window.endGame missing (arrow fn regex) | T1 false positive on `const endGame = async () =>` | FAILED |
 | #536 | Step 1d: Blank page, missing #gameContent | SentryHelper in waitForPackages() hangs forever | FAILED |
 | #538 | Step 1d: ReferenceError: initSentry is not defined | LLM called initSentry() inside waitForPackages callback (correct), but never defined function initSentry() — thought it was CDN-provided. Missing function → ReferenceError → catch → ScreenLayout.inject() never runs → blank page | FAILED — layer 2 of same chain |
-| #540 | Queued 2026-03-22 — awaiting | SentryHelper + initSentry-not-defined + all T1 rules deployed (13b7d7b) | PENDING |
+| #540 | Step 1d smoke fail: `addColorStop('var(--color-sky)')` — DOMException: color could not be parsed | Canvas API does not resolve CSS variables — literal hex/rgba required | Fixed: T1 §5f6 + gen prompt rule (commit cd04177), #541 queued |
+| #541 | Step 1d smoke fail: `timer = progressBar.timer; timer.start()` → TypeError: Cannot read properties of undefined (reading 'start') | ProgressBarComponent has no .timer property — LLM hallucinated the API; timer must be created separately via TimerComponent | Fixed: T1 §5f7 + gen prompt rule (commit dd844f4), #542 queued |
+| #542 | Running — first build with all 5 layers fixed | PENDING |
 
 ## Root Cause (build #536 — layer 1)
 `typeof SentryHelper === 'undefined'` in waitForPackages() causes infinite loop — SentryHelper is not a CDN global. Also had `typeof TimerComponent === 'undefined'` (TimerComponent IS real, but still caused hang when not needed). Both the original and regen HTMLs had SentryHelper, causing all smoke checks to fail.

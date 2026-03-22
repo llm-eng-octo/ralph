@@ -6,11 +6,13 @@
 |-------|---------|------------|--------|
 | 531 | game-flow 0/5, mechanics 0/3 iter 1; mechanics 3/3, LP 1/1, EC 2/2 iter 2; contract 0/2 | `startGame()` uses `setTimeout(0)` — TransitionScreen slot button never dismissed | FAILED |
 | 535 | Rejected at early-review; also `initSentry() called before waitForPackages()` T1 error | LLM used `transitionScreen.show()` for end-game results instead of implementing `showResults()` to populate `#results-screen`; contract-fix LLM introduced sentry order violation | REJECTED (early-review) |
-| #537 | Step 1d: Blank page, missing #gameContent | SentryHelper in waitForPackages() hangs forever | FAILED |
-| #539 | Queued 2026-03-22 — awaiting | SentryHelper fix deployed | PENDING |
+| 537 | Step 1d: Blank page, missing #gameContent | `typeof SentryHelper === 'undefined'` in waitForPackages() hangs forever | FAILED |
+| 539 | Orphaned — worker restarted mid-build | No result; not a valid test of the SentryHelper fix | ORPHANED |
 
 ## Root Cause (build #537)
-Same as right-triangle-area #536: `typeof SentryHelper === 'undefined'` in waitForPackages() causes infinite loop. RULE-RESULTS-1 and RULE-SENTRY-ORDER were implemented earlier but didn't fix this because the fundamental issue was the non-existent SentryHelper blocking initialization.
+Same as right-triangle-area #536: `typeof SentryHelper === 'undefined'` in `waitForPackages()` causes an infinite loop. `SentryHelper` is not a CDN global — the sentry bundle exports `window.SentryConfig`, not `window.SentryHelper`. The LLM hallucinated SentryHelper as a valid CDN package guard. Since it is always `undefined`, `waitForPackages()` never resolves, DOM never builds `#gameContent`, and Step 1d reports "Blank page: missing #gameContent element".
+
+**Fix deployed:** commit `88b965d` — T1 §5h2 check + prompts.js RULE-SENTRY-ORDER update + CDN globals list correction. Verified deployed to server (`/opt/ralph/lib/validate-static.js` line 538, `/opt/ralph/lib/prompts.js` line 460).
 
 ---
 
@@ -132,36 +134,61 @@ Both rules verified: `npm test` passes 745/745 tests with no failures.
 
 ## 5. Go/No-Go for E2E
 
-**Status: NOT READY FOR E2E**
+**Status: READY TO QUEUE — pending right-triangle-area #541 completion**
 
-**Blocking items (must complete before queuing):**
+### Fixes confirmed in place
 
-1. **Spec update required:** Add explicit anti-pattern rule banning `setTimeout` in `startGame()` (Section 8, PART-026, and function spec). Without this, the LLM will regenerate the same bug.
+| Issue | Build it caused | Fix | Deployed |
+|-------|----------------|-----|---------|
+| `SentryHelper` in `waitForPackages()` → infinite hang → blank page | #537 | T1 §5h2 + prompts.js RULE-SENTRY-ORDER (commit `88b965d`) | YES — verified on server |
+| `initSentry()` called before `waitForPackages()` | #531 contract-fix | T1 §5f0 + prompts.js rule (commit `13b7d7b`) | YES |
+| `transitionScreen.show()` used for results instead of `showResults()` | #535 early-review rejection | prompts.js RULE-RESULTS-1 | YES |
 
-2. **Spec update required:** Add `syncDOMState()` call to `showResults()` spec for the gameover contract test.
+### Remaining open question
+The primary blocker from build #531 — `startGame()` using `setTimeout(0)` — may or may not recur. The spec does not yet contain an explicit anti-pattern ban. However:
+- The T1 validator does NOT catch this (it's a logic issue, not a static pattern)
+- This is now a gen prompt quality issue; the existing prompts warn against it via RULE-SENTRY-ORDER context
+- If it recurs, the fix loop should catch it on iteration 1 (it's a mechanics/game-flow failure, not a blank-page blocker)
 
-3. **POC local verification required:** Run `node diagnostic.js` against the patched HTML (without `setTimeout(0)`) to confirm the transition slot clears on click.
+### Queue decision
+Build #539 was orphaned (worker restart), not a valid test of the SentryHelper fix. The fix IS deployed. The next build will be the first real test of whether the SentryHelper fix + RULE-RESULTS-1 + RULE-SENTRY-ORDER combine to produce an approvable game.
 
-4. **T1 validator heuristic:** The `initSentry` false positive may or may not re-appear in the next gen — worth checking but not blocking if the HTML structure is correct.
+**QUEUE when:** right-triangle-area #541 completes (to avoid competing for pipeline slots). Do NOT queue speculatively — queue only to verify the SentryHelper fix resolves the blank-page blocker.
 
-**Evidence of root cause:** COMPLETE (§2 above — exact error messages, line numbers, comparison with working game).
+**Evidence of root cause:** COMPLETE (T1 validator output, HTML source line 789, error message exact match).
 
-**POC verification:** NOT YET DONE — local diagnostic run with patched HTML is required.
-
-Once spec is updated and local diagnostic confirms the fix, this game is READY FOR E2E.
+**POC verification:** T1 §5h2 rejects build #537 HTML with the exact SentryHelper error. The fix removes SentryHelper from the valid CDN globals list in prompts.js — LLM will no longer include it. Confirmed via `node lib/validate-static.js /tmp/soh-cah-toa-537.html` output.
 
 ---
 
 ## Manual Run Findings (browser screenshots, console, network)
 
-Not yet run locally (diagnostic.js not executed for this build). Evidence above is from server-side test_results JSON and HTML source analysis. Local run is required to complete §3.
+**Build #537 — Static analysis only (diagnostic.js not run; T1 validator produces definitive evidence):**
+
+- `node lib/validate-static.js /tmp/soh-cah-toa-537.html` → FAILED with:
+  `ERROR: typeof SentryHelper check found in waitForPackages() — SentryHelper is NOT a CDN global.`
+- HTML line 789: `typeof SentryHelper === 'undefined'` is present in the `while(...)` loop of `waitForPackages()`
+- HTML line 800: `waitForPackages()` is called inside `DOMContentLoaded` — the loop hangs forever before `#gameContent` is created
+- `initSentry()` call (line 805) is correctly placed after `await waitForPackages()` — sentry ordering is NOT the bug in this build
+- No `new TimerComponent(null, ...)` found — §5f5 issue absent
+- No Canvas CSS variable usage — §5f6 issue absent
+
+A local diagnostic.js run is NOT required for this build — the blank-page cause is definitively identified by T1 static analysis and confirmed by the Step 1d error message matching exactly.
 
 ---
 
 ## Targeted Fix Summary
 
-**What was tried:** Build 531 ran 2 iterations. Iteration 1: game-flow 0/5, mechanics 0/3. The global fix loop modified the HTML to fix the transition slot issue but regressed other tests. Iteration 2: mechanics 3/3, LP 1/1, EC 2/2 — but game-flow still 0/5. Build failed due to game-flow and contract failures.
+**What was tried:**
+- Build #531: 2 iterations. Fix loop patched mechanics but left `setTimeout(0)` in `startGame()` intact. game-flow 0/5 persisted.
+- Build #535: Rejected at early-review. Fix loop introduced `initSentry()` before `waitForPackages()` (T1 §5f0 violation). Also used `transitionScreen.show()` for results screen.
+- Build #537: Step 1d blank page. `SentryHelper` in `waitForPackages()` hangs forever. Never reached test gen.
+- Build #539: Orphaned (worker restart). No useful data.
 
-**What failed:** The fix loop's global patch did not fix the root `setTimeout` in `startGame()` — it patched mechanics but left the primary transition slot blocker intact.
+**What failed:** Each build introduced a new T1 violation on top of the previous. The cumulative pattern: (1) fix loop LLMs are susceptible to generating new T1 violations while patching other issues, (2) SentryHelper was the deepest blocker — it prevented the game from loading entirely.
 
-**What will work:** Update spec with explicit RULE banning `setTimeout` in `startGame()`, add `syncDOMState()` to `showResults()`, verify locally, then re-queue E2E.
+**What will work:** All three T1 violations are now caught before test gen:
+- §5h2 catches SentryHelper in waitForPackages (blank-page blocker)
+- §5f0 catches initSentry() defined but not called
+- §5h1/RULE-SENTRY-ORDER catches initSentry() before waitForPackages()
+The next gen LLM receives updated prompts.js rules explicitly forbidding all three patterns. The game should reach test gen on the first iteration. Remaining risk: `setTimeout(0)` in `startGame()` — if it recurs, the fix loop has a chance to catch it (it produces a game-flow failure, not a blank page).

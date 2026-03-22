@@ -2051,3 +2051,49 @@ Source: Build #538 RCA (right-triangle-area, 2026-03-22)
   }
   ```
 - Commit: 13b7d7b
+
+---
+
+## Lesson 158: Canvas API does not resolve CSS variables (build #540 right-triangle-area)
+**Source:** Pipeline iteration
+**Pattern:** `ctx.createLinearGradient(...) → addColorStop(offset, 'var(--color-sky)')` → DOMException: "The value provided ('var(--color-sky)') could not be parsed as a color."
+**Root cause:** Canvas2D API is a low-level graphics interface that bypasses the CSS cascade. It does not resolve CSS custom properties — only literal color strings work: `'#87CEEB'`, `'rgba(135,206,235,1)'`, `'skyblue'`.
+**Fix:** In ALL Canvas gradient/fillStyle/strokeStyle calls, use literal color values. Never pass `var(--anything)` to Canvas API. If the spec defines colors via CSS variables, resolve them to hex/rgba at the point of canvas usage.
+**T1 check:** §5f6 — detect `addColorStop\s*\(\s*[\d.]+\s*,\s*['"]var(` pattern and flag as error.
+**Status:** T1 §5f6 + gen prompt rule shipped in commit cd04177. Build #541 queued.
+
+---
+
+## Lesson 159: ProgressBarComponent does not expose a .timer property (build #541 right-triangle-area)
+**Source:** Pipeline iteration
+**Pattern:** `progressBar = new ProgressBarComponent(...); timer = progressBar.timer; timer.start()` → TypeError: Cannot read properties of undefined (reading 'start')
+**Root cause:** ProgressBarComponent tracks lives/hearts and round progress ONLY. It does NOT expose a `.timer` property — the LLM hallucinated this API. `progressBar.timer` is always `undefined`.
+**Fix:** Always create TimerComponent separately: `const timer = new TimerComponent('timer-container', { timerType: 'decrease', startTime: N, endTime: 0, onEnd: handleTimeout }); timer.start();`
+**T1 check:** §5f7 — detect `progressBar.timer` pattern and flag as ERROR.
+**Status:** T1 §5f7 + gen prompt rule shipped in commit dd844f4. Build #542 queued.
+
+---
+
+## Lesson 160: TimerComponent slot must exist in ScreenLayout before construction (build #542 right-triangle-area)
+**Source:** Pipeline iteration (build #542, 2026-03-22)
+**Pattern:** `new TimerComponent('timer-container', {...})` → runtime error / blank page because the slot `'timer-container'` is never declared in the `ScreenLayout.inject()` call's `slots:` object — `#timer-container` is never injected into the DOM, so the TimerComponent constructor finds no target element.
+**Root cause:** ScreenLayout.inject() creates the game DOM structure from a `slots:` map. Any slot name passed to a CDN component constructor (TimerComponent, ProgressBarComponent, TransitionScreenComponent) must appear in the `slots:` object BEFORE that constructor is called. If the slot name is absent from ScreenLayout.inject(), the element never exists, and the component initialization silently fails or throws.
+**Fix:** Every CDN component slot must be explicitly declared in ScreenLayout.inject(): `ScreenLayout.inject(document.getElementById('gameContent'), { slots: { timer: 'timer-container', progressBar: 'progress-bar', ... } })`. The slot key/value in ScreenLayout must match the slot ID passed to the component constructor.
+**T1 check:** §5f8 — detect TimerComponent/ProgressBarComponent constructor calls and verify that the slot ID argument appears in a `slots:` block in the same HTML. Flag as ERROR if the slot is not declared in ScreenLayout.inject().
+**Status:** T1 §5f8 + gen prompt rule shipped in commits 8657a6d + ad4a15a. Build #543 queued. 762 tests pass.
+
+---
+
+## Lesson 161 — progressBar.timer undefined (Layer 5, right-triangle-area build #541)
+**Source:** Build log + CDN source analysis
+**Pattern:** Generated code did `timer = progressBar.timer; timer.start()`. ProgressBarComponent does NOT expose a `.timer` property → `progressBar.timer` is always `undefined` → `TypeError: Cannot read properties of undefined (reading 'start')` → DOMContentLoaded crash → blank page.
+**Fix:** T1 §5f7 rejects the `progressBar.timer` pattern as ERROR. Gen prompt rule added: "ProgressBarComponent DOES NOT EXPOSE a .timer PROPERTY — always create TimerComponent separately via `new TimerComponent(...)`.". Commit dd844f4.
+**Note:** This is a pure JS error (not CDN timing). The smoke-regen fix path targets CDN init sequence and could not fix this — gen prompt rule prevention is the only effective lever.
+
+---
+
+## Lesson 162 — TimerComponent 'mathai-timer-slot' not created by ScreenLayout (Layer 6, right-triangle-area build #542)
+**Source:** Build log
+**Pattern:** Generated code used `ScreenLayout.inject('app', { slots: { progressBar: true } })` and then `new TimerComponent('mathai-timer-slot', ...)`. The `mathai-timer-slot` div is only created by ScreenLayout when `timer: true` is included in the slots config. Without `timer: true`, `document.getElementById('mathai-timer-slot')` returns null → TimerComponent constructor throws `'Container with id "mathai-timer-slot" not found'` → DOMContentLoaded crash → blank page.
+**Fix:** T1 §5f8 rejects `new TimerComponent('mathai-timer-slot', ...)` when `timer: true` is absent from the ScreenLayout slots call. Gen prompt rule: "If using TimerComponent with 'mathai-timer-slot', ScreenLayout slots MUST include `timer: true`." Smoke-regen BUG 5 catches residual cases. Commits 8657a6d + ad4a15a.
+**Note:** Defense in depth — gen prompt prevents generation, T1 §5f8 catches if gen rule is ignored, smoke-regen BUG 5 repairs residual.
