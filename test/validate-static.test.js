@@ -1533,3 +1533,64 @@ describe('FeedbackManager.sound.playDynamicFeedback wrong namespace check (5b2 G
     );
   });
 });
+
+describe('PART-028: CSS stylesheet integrity check', () => {
+  it('fails with PART-028-CSS-STRIPPED when <style> block contains only comments', () => {
+    // Simulate a targeted fix LLM that replaces the stylesheet with a comment placeholder
+    const html = VALID_HTML.replace(
+      /<style[^>]*>[\s\S]*?<\/style>/i,
+      '<style>\n/* CSS preserved */\n</style>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.strictEqual(exitCode, 1, `Expected exit code 1 but got ${exitCode}. Output: ${output}`);
+    assert.ok(
+      output.includes('PART-028-CSS-STRIPPED'),
+      `Expected PART-028-CSS-STRIPPED error in output: ${output}`,
+    );
+  });
+
+  it('fails with PART-028-CSS-STRIPPED when <style> block contains multiple comments but no real CSS', () => {
+    const html = VALID_HTML.replace(
+      /<style[^>]*>[\s\S]*?<\/style>/i,
+      '<style>\n/* layout styles */\n/* button styles */\n/* All styles preserved as-is */\n</style>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.strictEqual(exitCode, 1, `Expected exit code 1 but got ${exitCode}. Output: ${output}`);
+    assert.ok(
+      output.includes('PART-028-CSS-STRIPPED'),
+      `Expected PART-028-CSS-STRIPPED error in output: ${output}`,
+    );
+  });
+
+  it('emits PART-028-NO-CSS warning when no <style> block exists', () => {
+    const html = VALID_HTML.replace(/<style[^>]*>[\s\S]*?<\/style>/i, '');
+    const { exitCode, output } = runValidator(html);
+    // PART-028-NO-CSS is a warning but other checks (e.g. CSS style block required) also fire errors —
+    // so exit code may be 1. Assert only that the warning text appears.
+    assert.ok(
+      output.includes('PART-028-NO-CSS'),
+      `Expected PART-028-NO-CSS warning in output: ${output}`,
+    );
+  });
+
+  it('passes without PART-028 errors when <style> block contains real CSS rules', () => {
+    // VALID_HTML already has a proper <style> block
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('PART-028-CSS-STRIPPED'),
+      `Unexpected PART-028-CSS-STRIPPED error on valid HTML: ${output}`,
+    );
+  });
+
+  it('passes without PART-028-CSS-STRIPPED when <style> block has CSS mixed with comments', () => {
+    const html = VALID_HTML.replace(
+      /<style[^>]*>[\s\S]*?<\/style>/i,
+      '<style>\n/* layout */\nbody { margin: 0; }\n/* buttons */\n.btn { padding: 8px; }\n</style>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('PART-028-CSS-STRIPPED'),
+      `Unexpected PART-028-CSS-STRIPPED error when style has real CSS mixed with comments: ${output}`,
+    );
+  });
+});
