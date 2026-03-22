@@ -1901,3 +1901,81 @@ describe('pipeline-fix-loop.js getMatchingLessons (R&D #56)', () => {
     );
   });
 });
+
+// ─── M16: buildTestGenCategoryPrompt .option-btn touch-target coverage ────────
+// Verifies that the M16 prompt rule includes .option-btn 44px assertions
+// (11th confirmed instance: mcq-addition-blitz UI/UX audit — 4-button MCQ grid)
+
+const { buildTestGenCategoryPrompt } = require('../lib/prompts');
+
+describe('buildTestGenCategoryPrompt — M16: .option-btn touch target rule', () => {
+  const baseOpts = {
+    category: 'mechanics',
+    categoryDescription: 'Core game mechanics tests',
+    testCaseCount: 3,
+    testCasesText: '1. Verify answer submission\n2. Verify score update\n3. Verify lives decrease',
+    learningsBlock: '',
+    testHintsBlock: '',
+    gameFeaturesBlock: '',
+    htmlContent: '<html><body></body></html>',
+    specScenarios: [],
+  };
+
+  it('includes .option-btn pattern in M16 rule when .option-btn present in DOM snapshot', () => {
+    const domSnapshot = `<div id="app" data-phase="playing">
+  <button class="option-btn">Option A</button>
+  <button class="option-btn">Option B</button>
+</div>`;
+    const prompt = buildTestGenCategoryPrompt({ ...baseOpts, domSnapshot });
+    assert.ok(
+      prompt.includes('.option-btn'),
+      'M16 rule must reference .option-btn when it appears in the DOM snapshot',
+    );
+    assert.ok(
+      prompt.includes('optBtn') || prompt.includes('option-btn'),
+      'M16 rule must include .option-btn locator pattern for MCQ games',
+    );
+  });
+
+  it('includes .choice-btn pattern in M16 rule (existing coverage)', () => {
+    const domSnapshot = `<div id="app" data-phase="playing">
+  <button class="choice-btn">Choice A</button>
+  <button class="choice-btn">Choice B</button>
+</div>`;
+    const prompt = buildTestGenCategoryPrompt({ ...baseOpts, domSnapshot });
+    assert.ok(
+      prompt.includes('.choice-btn'),
+      'M16 rule must continue to reference .choice-btn for existing MCQ games',
+    );
+    assert.ok(
+      prompt.includes('44'),
+      'M16 rule must include 44px minimum touch target height reference',
+    );
+  });
+
+  it('includes both .choice-btn and .option-btn patterns in M16 rule', () => {
+    const domSnapshot = `<div id="app"></div>`;
+    const prompt = buildTestGenCategoryPrompt({ ...baseOpts, domSnapshot });
+    assert.ok(prompt.includes('.choice-btn'), 'M16 must mention .choice-btn');
+    assert.ok(prompt.includes('.option-btn'), 'M16 must mention .option-btn');
+    assert.ok(
+      prompt.includes('toBeGreaterThanOrEqual(44)') || prompt.includes('44'),
+      'M16 must include 44px assertion',
+    );
+  });
+
+  it('does not include M16 rule for non-mechanics categories', () => {
+    const domSnapshot = `<div class="option-btn"></div>`;
+    const prompt = buildTestGenCategoryPrompt({
+      ...baseOpts,
+      category: 'game-flow',
+      categoryDescription: 'Game flow tests',
+      domSnapshot,
+    });
+    // M16 rule text is mechanics-only — the pattern text must not appear in game-flow
+    assert.ok(
+      !prompt.includes('CHOICE-BTN / OPTION-BTN TOUCH TARGET'),
+      'M16 rule text must not appear in non-mechanics category prompts',
+    );
+  });
+});
