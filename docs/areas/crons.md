@@ -1,6 +1,6 @@
 # Ralph Pipeline — Cron Definitions
 
-All crons are session-only. Recreate all 5 at session start if CronList shows fewer than 5.
+All crons are session-only. Recreate all 5 at session start if CronList shows fewer than 5 (4 non-disabled + slot health check).
 **Cron 3 (Queue Strategist) is PERMANENTLY DISABLED — do NOT recreate it.**
 
 ## Cron 1 — Build Doctor (every 5 min)
@@ -75,4 +75,20 @@ Check: is there a pending local test slot handoff (HTML bug or test bug classifi
 Also check: are there any P8 priority items in the backlog that can be implemented now (no blockers, clear scope)? If yes, report which one should be next.
 
 Report in 3 lines: R&D slot status, active task, recommended next action.
+```
+
+## Cron 6 — Slot Health Check (every 30 min)
+
+Schedule: `*/30 * * * *`
+
+```
+Cron + slot health check. Report inline ONLY — do NOT send any Slack message.
+
+1. Check CronList — are all 5 non-disabled crons present? Report count.
+2. Check ROADMAP.md R&D slot — is one task marked 'active'? Report.
+3. Check Education slot in ROADMAP.md — is one task marked 'active'? Report.
+4. Check local test slot — is there a recent spec_rca update (within last session)? Report.
+5. If any slot is empty, flag it: "SLOT EMPTY — launch immediately".
+
+Output: 5 lines max, inline only.
 ```

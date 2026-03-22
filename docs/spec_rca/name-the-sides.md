@@ -6,6 +6,7 @@
 |-------|---------|------------|--------|
 | #550 | mechanics 0/6 × 3 iterations; game-flow tests triage-deleted (bad data-testid selectors) | `window.loadRound` not exposed → `__ralph.jumpToRound()` silent no-op → `waitForPhase('playing')` timeout after any prior `endGame()` call | FAILED — killed after iter 3 |
 | #552 | REJECTED iter=0: early-review rejected twice | Contract auto-fix (Step 1b) stripped max-width CSS + broke ...signalPayload spread → T1 errors baked in → early reviewer correctly rejected | Failed — pipeline bug (Step 1b T1 regression not handled) |
+| #553 | 0p/3f game-flow, 0p/5f mechanics, 0p/2f edge-cases, 0p/1f contract — global best 0 passing, FAILED | interactionType=drag false-positive: spec's prohibition "Do NOT use drag-and-drop" triggered drag regex → drag tests generated → game uses MCQ buttons | Failed |
 
 ---
 
@@ -108,24 +109,20 @@ if (/currentRound|totalRounds/.test(html) && !/window\.loadRound/.test(html)) {
 
 ## 5. Go/No-Go for E2E
 
-**Decision: NOT READY — pipeline bug exposed by build #552. Fix required before re-queue.**
+**Decision: NOT READY — GEN-116 fix deployed (commit 39814bf), build #554 queued.**
 
-**What blocked:** Build #552 failed at iter=0 before any tests ran. The contract auto-fix (Step 1b) destructively rewrote the HTML, introducing two T1 regressions:
-- Missing `max-width: 480px` CSS constraint
-- Broken `...signalPayload` spread in the `postMessage` call
+**Build #553 outcome:** 0 passing tests across all 4 batches. Root cause: `extractSpecMetadata()` misclassified game as `interactionType=drag` because the spec's prohibition text "Do NOT use drag-and-drop" (spec.md line 681) triggered the drag regex. Drag tests were generated for an MCQ game — 100% failure. See §Build #553 below.
 
-The pipeline detected the T1 regression (`"Contract-fix introduced 1 T1 error(s) — logged for fix loop"`) but proceeded to early-review anyway instead of aborting or routing the T1 errors into iteration 1's fix prompt. The early reviewer correctly rejected the broken HTML twice, causing the build to fail with `status=rejected` at iter=0 with zero tests run.
+**Build #552 outcome (recap):** Failed at iter=0 before any tests ran. Contract auto-fix (Step 1b) introduced T1 regressions (max-width CSS stripped + signalPayload spread broken) → early reviewer correctly rejected twice. GEN-115 fix (carry contract-fix T1 errors into iter-1 prompt) was deployed before build #553. It did not help #553 because the primary failure cause was GEN-116 (interactionType misclassification) which prevented correct tests from being generated at all.
 
-**Fix required:** `pipeline.js` Step 1b must carry T1 errors introduced by contract auto-fix into the fix loop iteration 1 prompt, rather than silently proceeding to early-review with a T1-broken artifact.
-
-**window.loadRound status (updated):** GEN-114 rule fires as a WARNING (PART-021-LOADROUND), not a T1 error, so it did not block the build. The test harness handles the missing `window.loadRound` gracefully via the `loadRound → jumpToRound → loadQuestion → goToRound` fallback chain. This is no longer the primary blocker — the pipeline bug is.
-
-**Previously resolved (still valid):**
+**All known pipeline bugs fixed:**
 - GEN-114 gen prompt rule deployed — commit e4d84f1
 - T1 PART-021-LOADROUND warning deployed
+- GEN-115 contract-fix T1 regression handling deployed — commit dfd2b34
+- GEN-116 dragProhibited guard deployed — commit 39814bf
 - 793 tests pass — no regressions
 
-**Next:** Fix Step 1b T1 regression handling in `pipeline.js`, deploy, then re-queue.
+**Next:** Build #554 is queued to verify all three fixes together.
 
 ---
 
@@ -143,6 +140,33 @@ Not yet run. Local test session against `/tmp/name-the-sides-550/index.html` is 
 | — | GEN-114 gen prompt rule (pending) | Not yet deployed |
 | — | T1 PART-021-LOADROUND warning (pending) | Not yet deployed |
 | Build #552 | Re-queued after GEN-114 + T1 fix deployed | REJECTED iter=0 — pipeline bug in Step 1b contract auto-fix (see §552 section below) |
+
+---
+
+## Build #553 — GEN-116 interactionType Misclassification
+
+**Build outcome:** FAILED. 0 passing tests across all 4 batches. 2 global fix rounds attempted, global best still 0 passing.
+
+### What happened
+
+1. **spec.md line 681 contains the prohibition:** "Do NOT use drag-and-drop". This is a standard CDN safety instruction, common in specs to prevent LLMs from generating drag mechanics that would require unsupported CDN components.
+
+2. **`extractSpecMetadata()` regex matched the prohibition text.** The regex `/drag[\s-]?(?:and[\s-]?drop|drop)|draggable/i` in `lib/pipeline-utils.js` had no guard for negation context. It classified the game as `interactionType='drag'` solely because the word "drag-and-drop" appeared in the spec, regardless of whether it was prescribed or prohibited.
+
+3. **The misclassification poisoned three pipeline components simultaneously:**
+   - **DOM snapshot metadata**: `interactionType=drag` written to context, so the test harness expected drag semantics
+   - **Test harness `answer()` routing**: called `window.handleDrop()` instead of MCQ button clicks — `window.handleDrop` is not defined in the game → returned false on every call
+   - **Test generator**: produced drag-specific tests (drop zones, drag handles, drag-over assertions) — none of these selectors or behaviors exist in the MCQ game
+
+4. **Result:** 100% failure across all 4 test batches (game-flow 0p/3f, mechanics 0p/5f, edge-cases 0p/2f, contract 0p/1f). The global fix loop ran 2 rounds but could not recover because the generated tests themselves were wrong for the game type.
+
+### Fix
+
+`dragProhibited` guard added in `pipeline-utils.js` line 441. Pattern: `\b(?:do\s+not|avoid|no|without)\s+(?:use\s+)?drag/i`. Logic: only classify as `interactionType=drag` if drag is present AND the spec does NOT prohibit it. Deployed as commit 39814bf.
+
+### Impact on Go/No-Go
+
+See updated §5 above. GEN-116 is now fixed. Build #554 queued to verify.
 
 ---
 

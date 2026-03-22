@@ -2242,3 +2242,21 @@ The pipeline already detects T1 regressions from the contract-fix (`"Contract-fi
 **Fix:** When contract-fix introduces new T1 errors, those errors must be carried into iteration 1's fix prompt so the fix loop can handle them. The pipeline should NOT proceed to early-review with a T1-broken HTML.
 
 **Pattern:** contract-fix LLM is less precise than the generation LLM — it tends to "simplify" what it doesn't understand, stripping CSS and flattening spread operators. The T1 regression detection already exists; the gap is the downstream handling.
+
+## Lesson 177 — GEN-116: interaction type false-positive on drag prohibition text (2026-03-22, build #553 name-the-sides) [pipeline-utils, 2026-03-22, #553]
+
+**Source:** Build #553 failure analysis
+
+**Symptom:** name-the-sides build #553 — 0 passing tests across all batches (game-flow 0p/3f, mechanics 0p/5f, edge-cases 0p/2f, contract 0p/1f). Global best had 0 passing after 2 global fix rounds.
+
+**Root cause:** `extractSpecMetadata()` regex `/drag[\s-]?(?:and[\s-]?drop|drop)|draggable/i` matched prohibition text "Do NOT use drag-and-drop" in spec.md → `interactionType=drag` → DOM snapshot metadata, test harness, AND test generator all assumed drag interaction → game uses MCQ buttons → all drag-specific assertions fail.
+
+The spec (line 681) contained the explicit prohibition: "Do NOT use drag-and-drop". The regex had no guard for negation context — it classified the game as drag-based solely because the word appeared, regardless of whether it was prescribed or prohibited.
+
+**Fix:** Added `dragProhibited` guard in `pipeline-utils.js` line 441. Pattern: `\b(?:do\s+not|avoid|no|without)\s+(?:use\s+)?drag/i`. Only classify as drag if drag is present AND not prohibited. Deployed as commit 39814bf.
+
+**Impact:** Any spec that says "Do NOT use drag-and-drop" (a common safety instruction in CDN game specs) was silently misclassified as a drag game. This poisoned the DOM snapshot metadata, test harness answer() routing, and test generator category prompts simultaneously. All 3 affected builds for name-the-sides (#550, #552, #553) had this bug active; #550 and #552 failed for other primary reasons, but #553's 100% failure across all 4 batches is entirely attributable to GEN-116.
+
+**Rule:** When writing specs, avoid including the literal phrase "drag-and-drop" even in prohibition context — prefer "avoid drag mechanics" or "use MCQ buttons only". The GEN-116 pipeline fix makes this robust regardless, but clear spec language avoids any future edge cases.
+
+**Build #554** queued to verify GEN-116 fix.
