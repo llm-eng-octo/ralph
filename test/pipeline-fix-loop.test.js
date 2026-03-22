@@ -20,6 +20,7 @@ const {
   getMatchingLessons,
   LESSON_PATTERNS,
   verifyE8MergeIntegrity,
+  shouldSuppressGlobalFix,
 } = require('../lib/pipeline-fix-loop');
 
 // ─── Sample HTML fixtures ────────────────────────────────────────────────────
@@ -422,5 +423,99 @@ window.gameState = {};
     assert.deepEqual(result.missingScripts, []);
     assert.equal(result.originalCount, 0);
     assert.equal(result.mergedCount, 0);
+  });
+});
+
+// ─── shouldSuppressGlobalFix tests ───────────────────────────────────────────
+
+describe('shouldSuppressGlobalFix', () => {
+  it('skips global fix when ≥80% of categories have passing tests (6/7 = 86%)', () => {
+    const categoryResults = {
+      'game-flow': { passed: 3, failed: 0 },
+      'contract': { passed: 2, failed: 0 },
+      'scoring': { passed: 1, failed: 0 },
+      'lives': { passed: 2, failed: 0 },
+      'accessibility': { passed: 1, failed: 0 },
+      'edge-cases': { passed: 1, failed: 0 },
+      'timing': { passed: 0, failed: 2 },
+    };
+    const result = shouldSuppressGlobalFix(categoryResults, new Set());
+    assert.equal(result.suppress, true);
+    assert.equal(result.passingCategories, 6);
+    assert.equal(result.totalCategories, 7);
+  });
+
+  it('runs global fix when <80% of categories have passing tests (3/5 = 60%)', () => {
+    const categoryResults = {
+      'game-flow': { passed: 3, failed: 0 },
+      'contract': { passed: 2, failed: 0 },
+      'scoring': { passed: 1, failed: 0 },
+      'lives': { passed: 0, failed: 3 },
+      'timing': { passed: 0, failed: 2 },
+    };
+    const result = shouldSuppressGlobalFix(categoryResults, new Set());
+    assert.equal(result.suppress, false);
+    assert.equal(result.passingCategories, 3);
+    assert.equal(result.totalCategories, 5);
+  });
+
+  it('skips global fix at exactly 80% boundary (4/5 categories)', () => {
+    const categoryResults = {
+      'game-flow': { passed: 3, failed: 0 },
+      'contract': { passed: 2, failed: 0 },
+      'scoring': { passed: 1, failed: 0 },
+      'lives': { passed: 1, failed: 0 },
+      'timing': { passed: 0, failed: 2 },
+    };
+    const result = shouldSuppressGlobalFix(categoryResults, new Set());
+    assert.equal(result.suppress, true);
+    assert.equal(result.passingCategories, 4);
+    assert.equal(result.totalCategories, 5);
+  });
+
+  it('runs global fix at 75% (3/4 categories — below 80% threshold)', () => {
+    const categoryResults = {
+      'game-flow': { passed: 3, failed: 0 },
+      'contract': { passed: 2, failed: 0 },
+      'scoring': { passed: 1, failed: 0 },
+      'lives': { passed: 0, failed: 3 },
+    };
+    const result = shouldSuppressGlobalFix(categoryResults, new Set());
+    assert.equal(result.suppress, false);
+    assert.equal(result.passingCategories, 3);
+    assert.equal(result.totalCategories, 4);
+  });
+
+  it('excludes deleted spec batches from the calculation', () => {
+    // 'timing' is deleted — only 4 categories count; 4/4 = 100% passing
+    const categoryResults = {
+      'game-flow': { passed: 3, failed: 0 },
+      'contract': { passed: 2, failed: 0 },
+      'scoring': { passed: 1, failed: 0 },
+      'lives': { passed: 1, failed: 0 },
+      'timing': { passed: 0, failed: 0 },
+    };
+    const deleted = new Set(['timing']);
+    const result = shouldSuppressGlobalFix(categoryResults, deleted);
+    assert.equal(result.suppress, true);
+    assert.equal(result.passingCategories, 4);
+    assert.equal(result.totalCategories, 4);
+  });
+
+  it('returns suppress=false when categoryResults is empty', () => {
+    const result = shouldSuppressGlobalFix({}, new Set());
+    assert.equal(result.suppress, false);
+    assert.equal(result.totalCategories, 0);
+  });
+
+  it('returns suppress=false when all categories have 0 passing tests', () => {
+    const categoryResults = {
+      'game-flow': { passed: 0, failed: 5 },
+      'contract': { passed: 0, failed: 3 },
+    };
+    const result = shouldSuppressGlobalFix(categoryResults, new Set());
+    assert.equal(result.suppress, false);
+    assert.equal(result.passingCategories, 0);
+    assert.equal(result.totalCategories, 2);
   });
 });
