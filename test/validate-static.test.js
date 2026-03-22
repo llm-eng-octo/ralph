@@ -1750,3 +1750,41 @@ describe('ARIA-001: feedback div aria-live warning (W5)', () => {
     );
   });
 });
+
+describe('ARIA-002: aria-live=assertive without role=alert warning (W6)', () => {
+  it('does NOT emit ARIA-002 warning when aria-live=assertive has role=alert', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="error-msg" role="alert" aria-live="assertive">Error!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-002'),
+      `Unexpected ARIA-002 warning when aria-live=assertive has role=alert. Output: ${output}`,
+    );
+  });
+
+  it('emits ARIA-002 warning when aria-live=assertive lacks role=alert', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="feedback" aria-live="assertive">Wrong!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-002'),
+      `Expected ARIA-002 warning when aria-live=assertive lacks role=alert. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-002 warning when there is no aria-live=assertive', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="feedback" aria-live="polite" role="status">Nice!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-002'),
+      `Unexpected ARIA-002 warning when no aria-live=assertive present. Output: ${output}`,
+    );
+  });
+});
