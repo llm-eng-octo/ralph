@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** math-mcq-quiz (next in stub inventory)
-**Last completed:** math-cross-grid — 2026-03-23 (spec-only; no approved build; 8 findings — 5a, 1b, 0c, 2d)
+**Current task:** mcq-addition-blitz (next in stub inventory)
+**Last completed:** math-mcq-quiz — 2026-03-23 (spec-only; no approved build; 9 findings — 6a, 2b, 0c, 1d)
 **Waiting on:** unblocked
 **Blocked by:** none
 
@@ -41,6 +41,7 @@ addition-mcq, adjustment-strategy, associations, math-mcq-quiz, mcq-addition-bli
 
 | Date | Game | Build | Issues Found | Actions Taken |
 |------|------|-------|-------------|---------------|
+| 2026-03-23 | math-mcq-quiz | spec-only | 9 issues (6a, 2b, 0c, 1d) | No P0 flow bugs; FeedbackManager.init() absent (PASS); timer pause/resume during audio correctly specified; window.endGame unassigned (5th instance — T1 W3 shipped); data-phase/syncDOMState absent (4th MCQ instance — ROADMAP line 237); ARIA-001 absent (14th instance — shipped); gameState.gameId absent (5th instance — GEN-GAMEID shipped); results screen fixed absent (10th instance — GEN-UX-001 shipped); ProgressBar slotId absent (8th instance — GEN-UX-003 shipped); SignalCollector no args (4th instance — GEN-UX-005 shipped); game_complete dual-path implicit (spec addition — new ROADMAP entry); restartGame() timer destroy unspecified (2nd timer game instance — new ROADMAP entry); Sentry v10 not pinned (low — pending) |
 | 2026-03-23 | math-cross-grid | spec-only | 8 issues (5a, 1b, 0c, 2d) | No P0 flow bugs; both end conditions route through endGame(); FeedbackManager.init() called (FAIL — pre-build must fix); results-screen not position:fixed (10th GEN-UX-001 instance); ARIA live region absent (13th ARIA-001 instance); data-phase/syncDOMState absent (4th non-MCQ instance); window.endGame not assigned (4th instance); gameState.gameId absent (4th instance — ship rule now); data-lives not on DOM (3rd instance — test gap); TimerComponent wait unnecessary for no-timer game (low) |
 | 2026-03-23 | associations | #513 (approved) | 5 issues (4a, 0b, 0c, 1d) | No P0 flow bugs; CSS intact; ProgressBarComponent no slotId (7th GEN-UX-003 instance); ARIA-001 absent (12th instance — rule shipped); results screen not fixed (9th GEN-UX-001 instance — rule shipped); gameState.gameId absent (3rd instance — escalate to ship); choice-btn no min-height (9th GEN-UX-002 instance — extend rule to non-.game-btn buttons); test gap: no Playwright assertion for choice-btn min-height |
 | 2026-03-23 | adjustment-strategy | #385 (approved) | 7 issues (5a, 0b, 0c, 2d) | No P0 flow bugs; all phases reachable; adj-btn 36px (8th GEN-UX-002 gap); ARIA-001 absent (11th instance); results static (8th GEN-UX-001); gameState.gameId absent (2nd); no Enter key on answer-input (2nd — ship now); window.nextRound missing (test gap); reset-btn 30.5px (secondary button gap, overlaps F1) |
@@ -126,6 +127,14 @@ See [games/adjustment-strategy/ui-ux.md](../../games/adjustment-strategy/ui-ux.m
 
 ---
 
+## math-mcq-quiz Audit (2026-03-23)
+
+See [games/math-mcq-quiz/ui-ux.md](../../games/math-mcq-quiz/ui-ux.md)
+
+**Spec-only audit — no approved build exists (0 builds in DB).** 9 actionable issues (6a, 2b, 0c, 1d). No P0 flow bugs: no FeedbackManager.init(), no alert()/confirm(), timer behaviour correctly specified (pause during audio, destroy in endGame), VisibilityTracker correctly specified. Key issues: (1) F1 — window.endGame not assigned (5th instance — T1 W3 shipped); (2) F2 — no data-phase/syncDOMState at any phase transition (4th MCQ spec instance — ROADMAP line 237); (3) F3 — no ARIA live region for option feedback (14th ARIA-001 instance — shipped c826ec1); (4) F4 — gameState.gameId absent from initial declaration (5th instance — GEN-GAMEID shipped); (5) F5 — results screen position:fixed not specified (10th GEN-UX-001 instance — shipped); (6) F6 — ProgressBar slotId not specified (8th instance — GEN-UX-003 shipped); (7) F7 — SignalCollector no constructor args (4th instance — GEN-UX-005 shipped); (8) F8 — game_complete dual-path (victory + game-over) not explicit in spec (new ROADMAP entry — spec addition before first build); (9) F9 — restartGame() timer destroy+recreate not specified (2nd timer game instance — new ROADMAP entry); (10) F10 — Sentry v10 not pinned (low — pending). All 6 gen prompt findings already have shipped rules (no new ROADMAP entries needed for type-a). Two spec additions added to ROADMAP.
+
+---
+
 ## math-cross-grid Audit (2026-03-23)
 
 See [games/math-cross-grid/ui-ux.md](../../games/math-cross-grid/ui-ux.md)
@@ -161,16 +170,16 @@ See [games/addition-mcq-lives/ui-ux.md](../../games/addition-mcq-lives/ui-ux.md)
 | Pattern | First seen | Also seen in | Classification | Status |
 |---------|-----------|-------------|---------------|--------|
 | CSS stylesheet stripped during JS-only surgical fix | which-ratio #560 | name-the-sides #557, count-and-tap #551, right-triangle-area #543, word-pairs #529 | (a) gen prompt rule + T1 check | FIX-001 shipped 2026-03-23; PART-028 T1 deployed 2026-03-22; 5 confirmed instances |
-| Dynamic feedback elements missing aria-live | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec, associations #513 | (a) gen prompt rule | **ARIA-001 expanded SHIPPED 2026-03-23 (c826ec1)** — rule covers ALL dynamic feedback elements (not just #feedback): #feedback-panel, #faded-feedback, #practice-feedback, #feedback-area, #answer-feedback, #result-feedback, #hint-text; requires role="status"; T1 W5 regex broadened; 4 new tests; **12 confirmed instances** |
+| Dynamic feedback elements missing aria-live | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec, associations #513, math-mcq-quiz spec | (a) gen prompt rule | **ARIA-001 expanded SHIPPED 2026-03-23 (c826ec1)** — rule covers ALL dynamic feedback elements (not just #feedback): #feedback-panel, #faded-feedback, #practice-feedback, #feedback-area, #answer-feedback, #result-feedback, #hint-text; requires role="status"; T1 W5 regex broadened; 4 new tests; **14 confirmed instances** |
 | Option buttons missing explicit 44px touch targets | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, real-world-problem #564, associations #513 | (a) gen prompt rule | **SHIPPED — GEN-UX-002 / GEN-TOUCH-TARGET (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 121 + rule 32**; GEN-UX-002 targets .game-btn — NOTE: associations choice-btn (.choice-btn) is not covered by this class selector — rule needs extension; **9 confirmed instances** |
 | SVG muted lines using low-contrast colour (#64748b) | which-ratio #560 | find-triangle-side #549 | (a) gen prompt rule | Pending — 2 confirmed instances |
-| Results screen is static-position (not overlay) | name-the-sides #557 | find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564, associations #513 | (a) gen prompt rule | **SHIPPED — GEN-UX-001 / GEN-MOBILE-RESULTS (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 120 + rule 31**; **9 confirmed instances** |
+| Results screen is static-position (not overlay) | name-the-sides #557 | find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529, real-world-problem #564, associations #513, math-mcq-quiz spec | (a) gen prompt rule | **SHIPPED — GEN-UX-001 / GEN-MOBILE-RESULTS (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 120 + rule 31**; **10 confirmed instances** |
 | progressBar.update() emits Invalid count value error | name-the-sides #557 | — | (a) gen prompt rule | Proposed |
 | CSS-trick triangle (border-based) breaks without CSS | name-the-sides #557 | — | (a) gen prompt rule | Proposed — prefer SVG |
 | Two-triangle layout on mobile causes excessive scroll | name-the-sides #557 | — | (b) spec addition | Proposed |
-| Wrong ProgressBarComponent slot ID (positional string, hash-prefix, or missing slotId key) | find-triangle-side #549 | quadratic-formula #546, right-triangle-area #543, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec, associations #513 | (a) gen prompt rule | SHIPPED — GEN-UX-003 (25bdad0 2026-03-23) — **7 confirmed instances** |
+| Wrong ProgressBarComponent slot ID (positional string, hash-prefix, or missing slotId key) | find-triangle-side #549 | quadratic-formula #546, right-triangle-area #543, real-world-problem #564, addition-mcq-lives spec, addition-mcq spec, associations #513, math-mcq-quiz spec | (a) gen prompt rule | SHIPPED — GEN-UX-003 (25bdad0 2026-03-23) — **8 confirmed instances** |
 | Local asset path in TransitionScreen icons | find-triangle-side #549 | — | (a) gen prompt rule | New — added to ROADMAP 2026-03-23 |
-| SignalCollector instantiated without constructor args | find-triangle-side #549 | real-world-problem #564, addition-mcq spec | (a) gen prompt rule | SHIPPED — GEN-UX-005 (25bdad0 2026-03-23) — 3 confirmed instances |
+| SignalCollector instantiated without constructor args | find-triangle-side #549 | real-world-problem #564, addition-mcq spec, math-mcq-quiz spec | (a) gen prompt rule | SHIPPED — GEN-UX-005 (25bdad0 2026-03-23) — 4 confirmed instances |
 | Dead-code guard: isActive set false then immediately true | count-and-tap #551 | — | (a) gen prompt rule | New — added to ROADMAP 2026-03-23 |
 | Canvas element wider than 480px mobile viewport | right-triangle-area #543 | — | (a) gen prompt rule | New — canvas must use max-width: 100% |
 | Undefined CSS variable tokens used for feedback color | right-triangle-area #543 | — | (a) gen prompt rule | New — only use --mathai-success, --mathai-error, --mathai-warning |
@@ -182,16 +191,16 @@ See [games/addition-mcq-lives/ui-ux.md](../../games/addition-mcq-lives/ui-ux.md)
 | Typed numeric input has no Enter-key submission handler | real-world-problem #564 | — | (a) gen prompt rule | New — input fields must bind keydown Enter → submit handler |
 | data-lives hardcoded to 0 for non-lives games | word-pairs #529 | — | (d) test gap | New — test assertions on data-lives must handle games with totalLives: 0 |
 | Custom widget buttons (adj-btn, reset-btn) bypass min-height: 44px rule | adjustment-strategy #385 | — | (a) gen prompt rule | New — GEN-UX-002 only covers .game-btn; secondary/custom buttons need min-height: 44px too; adj-btn=36px, reset-btn=30.5px |
-| gameState.gameId absent from gameState object | adjustment-strategy #385 | addition-mcq spec, associations #513, math-cross-grid spec | (a) gen prompt rule | **4th confirmed instance (math-cross-grid spec)** — mandatory gameId field not in initial gameState declaration; set only conditionally via postMessage; ship rule now |
+| gameState.gameId absent from gameState object | adjustment-strategy #385 | addition-mcq spec, associations #513, math-cross-grid spec, math-mcq-quiz spec | (a) gen prompt rule | **5th confirmed instance (math-mcq-quiz spec)** — mandatory gameId field not in initial gameState declaration; set only conditionally via postMessage; GEN-GAMEID shipped |
 | Typed numeric input has no Enter key submission | adjustment-strategy #385 | real-world-problem #564 | (a) gen prompt rule | 2nd confirmed instance — ship now per ROADMAP line 430 |
 | window.nextRound not exposed; harness warns MISSING | adjustment-strategy #385 | — | (d) test gap | Game uses loadRound() internally; window.nextRound alias never assigned; harness fallback may cover via window.loadRound |
 | Lives games missing data-lives attribute on DOM element | addition-mcq-lives spec | addition-mcq spec, math-cross-grid spec | (d) test gap | 3 confirmed instances — lives games must sync data-lives via syncDOMState(); getLives() harness helper needs a DOM attribute to read |
-| No syncDOMState() / data-phase state machine in MCQ spec | addition-mcq-blitz spec | addition-mcq-lives spec, addition-mcq spec | (a) gen prompt rule | 3 confirmed MCQ spec instances — already in ROADMAP (line 237); 3rd instance confirmed 2026-03-23 |
+| No syncDOMState() / data-phase state machine in MCQ spec | addition-mcq-blitz spec | addition-mcq-lives spec, addition-mcq spec, math-mcq-quiz spec | (a) gen prompt rule | 4 confirmed MCQ spec instances — already in ROADMAP (line 237); 4th instance confirmed 2026-03-23 |
 | No data-phase / syncDOMState in drag-and-drop spec | math-cross-grid spec | — | (a) gen prompt rule | 1st confirmed non-MCQ drag-and-drop instance — game has two phases (gameplay → results) with no data-phase or syncDOMState; pattern extends beyond MCQ games |
-| endGame() dual-path not specified: game-over vs victory TransitionScreen calls differ | addition-mcq-lives spec | — | (b) spec addition | New — lives games need explicit if/else branching in endGame() for two different TransitionScreen templates; ROADMAP entry added |
-| restartGame() unspecified for timer games — destroy+recreate required | addition-mcq-lives spec | — | (b) spec addition | New — timer games must destroy and recreate TimerComponent in restartGame() to clear stale onEnd callbacks; ROADMAP entry added |
+| endGame() dual-path not specified: game-over vs victory TransitionScreen calls differ | addition-mcq-lives spec | math-mcq-quiz spec | (b) spec addition | 2nd confirmed instance (math-mcq-quiz) — lives games need explicit if/else branching in endGame() for two different TransitionScreen templates; ROADMAP entry added |
+| restartGame() unspecified for timer games — destroy+recreate required | addition-mcq-lives spec | math-mcq-quiz spec | (b) spec addition | 2nd confirmed timer game instance (math-mcq-quiz) — timer games must destroy and recreate TimerComponent in restartGame() to clear stale onEnd callbacks; ROADMAP entry added |
 | waitForPackages() awaits packages not used by the game | math-cross-grid spec | — | (a) gen prompt rule | Low — waitForPackages polls for TimerComponent but spec says Timer: None; unnecessary CDN wait that could cause timeout if component is unavailable |
-| window.endGame not assigned to window | math-cross-grid spec | — | (a) gen prompt rule | 4th confirmed instance — endGame() defined as local function never exposed on window; harness calls window.endGame() to force end-game in tests |
+| window.endGame not assigned to window | math-cross-grid spec | math-mcq-quiz spec | (a) gen prompt rule | 5th confirmed instance (math-mcq-quiz) — endGame() defined as local function never exposed on window; harness calls window.endGame() to force end-game in tests; T1 W3 shipped |
 
 ---
 
