@@ -2035,3 +2035,19 @@ Source: Build #536/#537 RCA (2026-03-22)
 - When waitForPackages() hangs (any non-existent package in the while-condition), the smoke check times out after 8s and detects "Blank page: missing #gameContent element" with NO classifySmokeErrors() fatal patterns matched (no "Initialization Error", no "packages failed to load", no "is not defined").
 - This is because the try/catch never executes — the await waitForPackages() call never resolves, so ScreenLayout.inject() and all subsequent code including the catch block are never reached.
 - Diagnosis pattern: "Blank page" with no other classified error in server logs = waitForPackages() hanging. Check: does waitForPackages() include any non-existent globals? (SentryHelper, window.mira, any hallucinated class name)
+
+---
+
+**Lesson 157 — initSentry() is NOT a CDN function — must be defined by game code**
+Source: Build #538 RCA (right-triangle-area, 2026-03-22)
+- `initSentry()` is not provided by any CDN bundle. It is a game-defined function that wraps `SentryConfig.init()`. When PART-030 (Sentry) is included in the spec, the game code MUST define `function initSentry()` before calling it.
+- Root cause: gen prompt said "initSentry() checks typeof SentryConfig internally" — implying it's a pre-existing function. The LLM followed RULE-SENTRY-ORDER (call initSentry() after waitForPackages), but since the spec code sections didn't provide a function body and the LLM thought it was CDN-provided, it called it without defining it → `ReferenceError: initSentry is not defined` at runtime → catch block → ScreenLayout.inject() never runs → blank page.
+- Fix: (1) T1 §5f0 added: if initSentry() is called but function not defined → ERROR; (2) gen prompt RULE-SENTRY-ORDER now includes canonical function body template and explicitly says "initSentry() IS NOT A CDN FUNCTION"; (3) CDN INIT ORDER comment now says "ONLY if PART-030=YES — MUST define it yourself"
+- Canonical implementation (include when PART-030=YES):
+  ```js
+  function initSentry() {
+    try { if (typeof SentryConfig !== 'undefined') { SentryConfig.init(); } }
+    catch(e) { console.error(JSON.stringify({error: e.message})); }
+  }
+  ```
+- Commit: 13b7d7b
