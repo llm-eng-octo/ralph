@@ -85,30 +85,99 @@ After each game is approved:
 
 ## 7. The Long-Term Vision: Session Planner
 
-**Input:** "Students should understand right-triangle trigonometry" (NCERT Class 10, grade-appropriate)
+### The Problem (Deeper)
 
-**Output:** A session plan (5 games, prerequisite-ordered, 15-20 minutes total) + all game specs generated + all games built and approved + session deployed.
+Writing a spec is the hardest part of using Ralph. A good spec takes 2-4 hours of expert time: curriculum research, Bloom level decisions, interaction design, CDN compliance, test hook wiring. This bottleneck means Ralph can only build games as fast as a human can write specs for them. That does not scale.
 
-The pipeline for this:
+There is also a quality risk: specs written by different people make different pedagogical decisions — different Bloom levels, different difficulty curves, different misconception targeting — without a coherent theory connecting them. The result is a library of games that are individually functional but collectively incoherent as a learning path.
 
-```
-1. Topic Decomposition
-   LLM reads topic + curriculum → Concept Node Graph (prerequisite DAG)
+The Session Planner removes both constraints.
 
-2. Node → Game Mapping
-   For each node: use existing approved game OR generate new spec
+---
 
-3. ZPD Ordering
-   Sort games by Bloom level, respecting prerequisite edges
+### The Thesis
 
-4. Session Chunking
-   Distribute games across sessions (target 15-20 min per session)
+**A teacher should be able to describe a learning goal in plain language and receive a complete, approved, deployable game session — without writing a single line of spec.**
 
-5. Output
-   session_plan.json + spec.md files (one per new game) → Ralph pipeline
-```
+The key insight is that spec-writing is mostly retrieval and templating, not invention. Given:
+- A clear learning objective ("student can compute a missing triangle side using sin/cos/tan")
+- A curriculum standard to align to (NCERT Ch 8, CC HSG-SRT.C.6)
+- A library of proven interaction patterns (label-assignment, ratio-select, numeric-input, worked-example)
+- A library of approved game specs as examples
 
-The Session Planner API endpoint (`POST /api/session-plan`) was prototyped in commit 725713b. The data layer (concept node graph, curriculum alignment table) is described in `docs/rnd-educational-interactions.md` §4-5.
+...the spec for any new game in that space is largely deterministic. The decisions have already been made by the pedagogy research and the approved games. A well-prompted LLM can fill in the template.
+
+---
+
+### The Constraints
+
+The Session Planner cannot work without these being true first:
+
+1. **Ralph must be reliable enough** that a generated spec has a >70% first-attempt approval rate. If Ralph fails most specs, the Session Planner produces a queue of broken builds, not a deployable session. This is why pipeline R&D comes first.
+
+2. **The interaction pattern library must be proven.** The LLM generating specs needs to pick from patterns that are known to work in Ralph. A pattern that looks correct but fails CDN compliance 80% of the time is useless as a template. This is what the education slot is verifying — one pattern at a time.
+
+3. **There must be enough approved specs as few-shot examples.** LLMs generating specs need reference examples. A spec generated without examples tends to hallucinate CDN-incompatible mechanics, wrong test hook names, or Bloom levels that don't match the interaction type. Each approved game in a session is a reference example for future games in the same domain.
+
+4. **The curriculum mapping must be grounded.** The LLM deciding "what games are needed for topic X" cannot invent the prerequisite DAG from scratch. It needs curriculum alignment data (NCERT chapter structure, Common Core progression) to ground its decisions. Without it, it will suggest games in the wrong order, or miss critical prerequisite concepts.
+
+---
+
+### The E2E User Flow
+
+A teacher opens Ralph and types:
+
+> **"My Class 9 students need to understand trigonometric ratios. By the end they should be able to find a missing side using sin, cos, or tan."**
+
+Ralph responds:
+
+> **Session Plan: "SOH-CAH-TOA — Right Triangle Trigonometry"**
+> 5 games · ~20 minutes · Bloom L1 → L3
+>
+> 1. Name the Sides (5 min, L1) — label hyp/opp/adj relative to a reference angle
+> 2. Which Ratio? (4 min, L2) — choose sin/cos/tan given what's known and wanted
+> 3. SOH-CAH-TOA Worked Example (5 min, L2) — follow a stepped procedure with scaffolding
+> 4. Find the Missing Side (5 min, L3) — compute numerically with calculator, ±0.15 tolerance
+> 5. Real-World Problem (5 min, L4) — given a word problem, identify the triangle and compute
+>
+> *Prerequisites detected: Pythagorean theorem (assumed known), angle vocabulary (assumed known)*
+> *Curriculum: NCERT Class 9 Ch 8, CC HSG-SRT.C.6*
+>
+> **Build this session? [Yes / Adjust / Cancel]**
+
+Teacher clicks Yes. Ralph queues 5 builds sequentially. Each game is generated, tested, and approved by the existing pipeline. 2-3 hours later, all 5 games are live and linked as a session.
+
+The teacher never writes a spec. The teacher never knows what CDN constraints are.
+
+---
+
+### The Procedure (High Level, Not Final Architecture)
+
+The Session Planner is a multi-step process, not a single LLM call. Each step has a narrow job:
+
+**Step 1 — Goal parsing:** Extract topic, grade level, target cognitive outcome from the teacher's input. Map to a curriculum standard. This is classification + lookup, not generation.
+
+**Step 2 — Prerequisite analysis:** Given the standard, identify what concepts must be known before this one. Generate the prerequisite DAG. This requires curriculum knowledge — either grounded in curriculum data or a model fine-tuned on it.
+
+**Step 3 — Session design:** Decide how many games, at what Bloom levels, in what order, with which interaction patterns. This is the pedagogically richest step — it requires reasoning about ZPD, cognitive load, and misconception targeting. It benefits most from a large, reasoning-capable model.
+
+**Step 4 — Spec generation (one per game):** For each game in the plan, generate a full spec using the closest approved game as a template. This is mostly template-filling with domain-specific content — a faster, cheaper step if the right template is provided.
+
+**Step 5 — Build loop:** Feed each spec into the existing Ralph pipeline. No changes to Ralph.
+
+The key principle is that each step reduces ambiguity so the next step has less to invent. By Step 4, the spec generator is not deciding Bloom levels, interaction type, CDN mechanics, or test hook names — all of that is already decided by Steps 1-3 and constrained by the template. The generator is filling in: what does the triangle look like, what are the answer options, what is the difficulty progression.
+
+---
+
+### Why We Are Not Building This Yet
+
+The bottleneck is Step 3 (session design) and Step 4 (spec generation). Both require:
+
+- A pattern library with enough coverage that any common interaction type has a proven example
+- Enough approved specs across enough topic areas that the few-shot examples are close to the new game
+- A reliable-enough Ralph pipeline that generated specs don't fail 60% of the time
+
+We currently have strong coverage in one topic area (trig) and 4 proven patterns. That is not enough. The education slot is building toward 15-20 proven patterns across 3-4 curriculum areas. At that point, the Session Planner becomes a genuine project, not a research hypothesis.
 
 ---
 
