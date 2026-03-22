@@ -2198,3 +2198,25 @@ Source: Build #538 RCA (right-triangle-area, 2026-03-22)
 **Evidence:** Build #549 logs show `static-validation-failed` → `static-fix` → `static-validation-passed` sequence. Final HTML (line 508): `new ProgressBarComponent({ slotId: 'mathai-progress-bar-slot', ... })` — correct options-object form.
 
 **Action:** Continue adding T1 checks for all CDN API misuse patterns. Each T1 check + static-fix is more reliable than prompt compliance alone.
+
+## Lesson 174 — `window.loadRound` missing → `__ralph.jumpToRound()` silent no-op → mechanics 0/6 (GEN-114) (2026-03-22, build #550 name-the-sides)
+
+**Source:** HTML analysis of `/tmp/name-the-sides-550/index.html`
+
+**Pattern:** CDN gen prompt lists `window.endGame`, `window.restartGame`, `window.nextRound` as required window exposures but does NOT include `window.loadRound`. The test harness `__ralph.jumpToRound(n)` checks `window.loadRound || window.jumpToRound || window.loadQuestion || window.goToRound` — if ALL absent, it sets `gameState.currentRound = n` directly but skips `nextRound()` and `renderRound()`, leaving phase stale.
+
+**Consequence:** When a mechanics test drives the game to `phase = 'results'` (via `endGame()`), the next test's `beforeEach` starts fresh but any call to `jumpToRound()` is a silent no-op. `waitForPhase(page, 'playing')` then times out. Result: mechanics 0/6 across all 3 fix iterations — the fix loop cannot remedy this because the HTML itself is missing the exposure and T1 does not flag it.
+
+**Evidence:** Build #550 mechanics tests failed with `data-phase: results` at every `waitForPhase('playing')` assertion. HTML confirmed `window.loadRound` absent (lines 591–593 expose only `endGame/restartGame/nextRound`). `gameState.gameEnded` guard at line 470 also prevents `nextRound()` from firing even if called indirectly.
+
+**Fix:** GEN-114 rule in `CDN_CONSTRAINTS_BLOCK` (prompts.js) requiring `window.loadRound` for any round-based game. T1 PART-021-LOADROUND warning when `currentRound`/`totalRounds` present in HTML but `window.loadRound` absent. Required exposure:
+
+```js
+window.loadRound = function(n) {
+  gameState.currentRound = n - 1;
+  gameState.gameEnded = false;
+  nextRound();
+};
+```
+
+**Take:** Any round-based CDN game missing `window.loadRound` will produce mechanics 0% no matter how many fix iterations run. The fix loop iterates on the symptom (timeout) but cannot diagnose or fix a missing window exposure. T1 check + static-fix is the correct backstop — same defense-in-depth pattern as GEN-112/PART-023-API (Lesson 172–173).
