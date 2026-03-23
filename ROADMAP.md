@@ -117,8 +117,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-025 DONE (dd13d73, 2026-03-23) — CSS token T1 check + GEN-TESTID-STEP (rule 57) + GEN-WINDOW-NEXTROUNDEXPOSED (rule 58). Next: mechanics root cause — mechanics=35.2% lowest batch (analytics). Diagnose via failed build mechanics.spec.js patterns (contract.spec.js separate issue). |
-| Status | 1100 tests pass. GEN-TESTID-STEP: multi-step games must use namespaced data-testids. GEN-WINDOW-NEXTROUNDEXPOSED: window.nextRound must always be exposed. CR-025: T1 WARNING fires on --feedback-color/--answer-color/--status-green. All deployed to GCP. |
+| Current task | M19 DONE (2026-03-23) — mechanics 35.2% root cause diagnosed. Top pattern: `#mathai-transition-slot button .not.toBeVisible()` in mechanics tests (5/30 failure batches = 17%). Added M19 TRANSITION SLOT GUARD (MECHANICS) to buildTestGenCategoryPrompt() mechanics section in lib/prompts.js. 1102/1102 tests pass. Next: diagnose worked-example-panel toBeHidden pattern (5/30 batches = 17%) — deferred hide timing issue. |
+| Status | 1102 tests pass. M19: mechanics tests must never assert transition slot visibility — use startGame() to dismiss intro screen, use expect.poll(getRound) to detect round completion. Three root causes identified: (1) transition slot .not.toBeVisible() 5/30 batches, (2) worked-example-panel timing 5/30 batches, (3) exact value assertions 8/30 batches. M19 fixes (1). |
 | Waiting on | none |
 | Blocked by | none |
 
