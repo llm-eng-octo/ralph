@@ -439,7 +439,7 @@ The play area (`#gameContent`) has three layers; visibility is toggled via the `
 │  #correct-feedback  data-testid="correct-feedback"   │
 │  (hidden by default)                                 │
 │  Brief green confirmation: "Correct! sin θ = O/H"   │
-│  Auto-advances after 1000ms                         │
+│  Auto-advances after FEEDBACK_DURATION_MS (1500ms)  │
 ├──────────────────────────────────────────────────────┤
 │  #worked-example-panel  (hidden by default)          │
 │  data-testid="worked-example-panel"                  │
@@ -530,7 +530,7 @@ function startGame() {
    - if (attemptsThisRound === 1): gameState.totalFirstAttemptCorrect++; gameState.score += 20
    - else: gameState.score += 10  (partial credit for correct on second attempt)
    - Show #correct-feedback with text "Correct! [round.correctOption] = [round.correctRatio] θ"
-   - After 1000ms: hide #correct-feedback; advance round
+   - After FEEDBACK_DURATION_MS (1500ms): hide #correct-feedback; advance round
    - gameState.isProcessing = false
 
 7. else (wrong):
@@ -544,7 +544,7 @@ function startGame() {
    - else (attemptsThisRound === 2):
        — Track event: 'ratio_skipped'
        — Show brief skip note: inject round.feedbackOnSkip into a #skip-note element
-       — After 1500ms: hide everything, advance round
+       — After FEEDBACK_DURATION_MS (1500ms): hide everything, advance round
        — gameState.isProcessing = false
 ```
 
@@ -563,8 +563,8 @@ function startGame() {
 1. Track event: 'ratio_skipped'
 2. Hide #worked-example-panel
 3. gameState.wrongFirstAttempt++
-4. Show #skip-note with round.feedbackOnSkip for 1500ms
-5. After 1500ms: advance round
+4. Show #skip-note with round.feedbackOnSkip for FEEDBACK_DURATION_MS (1500ms)
+5. After FEEDBACK_DURATION_MS (1500ms): advance round
 ```
 
 ### 6.6 Advance Round
@@ -628,7 +628,14 @@ function waitForPackages(callback) {
 }
 ```
 
-### 7.3 DOMContentLoaded Initialization
+### 7.3 Timing Constant
+
+```javascript
+// All feedback displays use FEEDBACK_DURATION_MS (1500ms) before auto-advance or hide.
+const FEEDBACK_DURATION_MS = 1500;
+```
+
+### 7.4 DOMContentLoaded Initialization
 
 ```javascript
 document.addEventListener('DOMContentLoaded', () => {
@@ -663,7 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 ```
 
-### 7.4 FeedbackManager (sound only — NO init)
+### 7.5 FeedbackManager (sound only — NO init)
 
 ```javascript
 // Correct answer:
@@ -705,7 +712,7 @@ The LLM generating this game must check each item before finalising the HTML:
 
 - **start-screen**: Page loads, start button is visible, `data-phase="start"`.
 - **game-start**: Clicking play transitions to `data-phase="playing"`; round 1 renders with SVG and 3 option buttons.
-- **correct-first-attempt-advances**: Selecting the correct option on first attempt shows `#correct-feedback` then auto-advances to round 2 after 1000ms.
+- **correct-first-attempt-advances**: Selecting the correct option on first attempt shows `#correct-feedback` then auto-advances to round 2 after FEEDBACK_DURATION_MS (1500ms).
 - **wrong-first-attempt-shows-worked-example**: Selecting a wrong option on first attempt shows `#worked-example-panel` with the SOH-CAH-TOA reference card. Option buttons are disabled.
 - **got-it-enables-second-attempt**: Clicking "Got it — try again" hides `#worked-example-panel` and re-enables option buttons for a second attempt.
 - **skip-advances-round**: Clicking "Skip this round" hides the worked-example panel and advances to the next round after the skip note fades.
