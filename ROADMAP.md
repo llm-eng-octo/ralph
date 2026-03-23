@@ -619,7 +619,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | researchCurriculum() DONE (commit TBD, 2026-03-23). Next: wire planSession() end-to-end and test with real objective text. |
+| Current task | researchCurriculum() DONE (commit a0483cb, 2026-03-23). Next: wire planSession() end-to-end and test with real objective text. |
 | Status | Session Planner v1 Steps 1+2 complete. 92 session-planner tests pass (77 existing + 15 new researchCurriculum tests). planSessionFromObjective() now calls researchCurriculum() automatically. |
 | Waiting on | nothing — unblocked |
 | Blocked by | nothing |
