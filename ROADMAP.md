@@ -511,7 +511,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | lib/pipeline.js review DONE (2026-03-23) — CR-066 through CR-071 filed (see log below). Next: fix CR-066 [HIGH] `handleFixJob` wrong `resolveFailurePattern` argument in worker.js line 298 — pass `(gameId, pattern.pattern)` not `(pattern.id)`. |
+| Current task | CR-066 [HIGH] fix deployed (3f29d2d) — resolveFailurePattern now passes (gameId, pattern.pattern) correctly in handleFixJob. Next: CR-067 MED — add writeReport() before spec-validation throw in pipeline.js line 626. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
@@ -580,7 +580,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-032 (689d668) + LP-2 (34d7fa8) + LP-3 (6a74ba9) deployed to GCP 2026-03-23 — worker restarted, active. W13 GEN-RESTART-RESET T1 check live; LP-2 banned-selector substitution live; LP-3 step-panel fix-loop reinforcement live. CR-024 [MED] flagged: GEN-PROGRESSBAR-LIVES regex misses negative totalLives — needs validate-static.js fix. Waiting on next approved build to verify CR-032 + LP-2 + LP-3 improvements. |
+| Current task | CR-032 (689d668) + LP-2 (34d7fa8) + LP-3 (6a74ba9) deployed to GCP 2026-03-23 — worker restarted, active. W13 GEN-RESTART-RESET T1 check live; LP-2 banned-selector substitution live; LP-3 step-panel fix-loop reinforcement live. CR-024 [MED] flagged: GEN-PROGRESSBAR-LIVES regex misses negative totalLives — needs validate-static.js fix. CR-066 fix deployed to GCP — verify resolve rate improves after next fix-job approval. Waiting on next approved build to verify CR-032 + LP-2 + LP-3 + CR-066 improvements. |
 | Waiting on | Next approved build to verify CR-032 + LP-2 + LP-3 improvements |
 | Blocked by | none |
 
