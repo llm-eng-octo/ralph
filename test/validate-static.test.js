@@ -3425,4 +3425,32 @@ describe('GEN-SYNCDOMSTATE-ALLATTRS: syncDOMState() must write data-round and da
       `Unexpected GEN-SYNCDOMSTATE-ALLATTRS warning for HTML with no syncDOMState() function: ${output}`,
     );
   });
+
+  it('GEN-ISACTIVE-GUARD: warns when endGame() guard uses !gameState.isActive', () => {
+    // endGame() uses isActive as a guard — results screen never shown on perfect playthrough
+    const html = VALID_HTML.replace(
+      'function endGame() {',
+      'function endGame() {\n    if (!gameState.isActive && gameState.lives > 0) return;',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('WARNING') && output.includes('GEN-ISACTIVE-GUARD'),
+      `Expected GEN-ISACTIVE-GUARD warning but got: ${output}`,
+    );
+  });
+
+  it('GEN-ISACTIVE-GUARD: does NOT warn when endGame() guard uses gameState.gameEnded', () => {
+    // Correct pattern: only gameEnded used as re-entry guard
+    const html = VALID_HTML.replace(
+      'function endGame() {',
+      'function endGame() {\n    if (gameState.gameEnded) return;\n    gameState.gameEnded = true;',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-ISACTIVE-GUARD'),
+      `Unexpected GEN-ISACTIVE-GUARD warning for correct gameEnded pattern: ${output}`,
+    );
+  });
 });
