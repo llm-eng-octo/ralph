@@ -117,7 +117,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CT-NEW-1/2/3/4 + GEN-PHASE-MCQ-FULL + GEN-TS-ONEARG + LP-NEW-1/2/3 all DONE (commits eea041e, e03bf6d, a320a31, 11ae0fc). Monitoring builds #568/#569 for CT-NEW verification. Next active task: GEN-TESTID-RESTART (btn-restart convention, UI-ODD-003) + postMessage dual-path gen rule (messaging 56% weakest — analytics session-4). |
+| Current task | GEN-TESTID-RESTART DONE (29137b3) — btn-restart T1 check + gen rule. GEN-ROUND-INDEX DONE (6786b87) — 0-based currentRound enforcement, rounds[currentRound-1] + loadRound→nextRound T1 checks. GEN-PM-DUAL-PATH in progress — game_complete postMessage must fire on all endGame() paths (messaging 56% weakest). Builds #568/#569 both failed (threadInfo masking). #570 keep-track queued to verify GEN-TS-ONEARG. stats-identify-class pending GEN-ROUND-INDEX deployment. |
 | Status | 1167/1167 tests pass. CT-NEW-1: closure-capture pattern replaces CT4+CT8 (~40% of CT failures). CT-NEW-2: phase-agnostic waitForPhase target (~13% of failures). CT-NEW-3: ban #results-screen as proxy selector. CT-NEW-4: ban exact star count (toBe(N)). CT_WRONG_PHASE T1 linter: catches waitForPhase('gameover'/'recall') in contract files. CT_STAR_EXACT T1 linter: catches .data.metrics.stars).toBe(N). 100-build RCA: 48% pass rate identified 4 distinct root causes. |
 | Waiting on | none |
 | Blocked by | none |
@@ -516,7 +516,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-058 DONE (eea041e) — categorizeFailure multiline Playwright diff. CR-084 DONE (8b45ab4) — early-review CSS strip bug. Next: worker.js threadInfo scoping investigation (build #567 failed with threadInfo is not defined after test-gen). |
+| Current task | CR-085 DONE — threadInfo ReferenceError root cause: let block-scoping in try/catch. Fix: typeof guard deployed to server. All future build failures will surface real error. Next: review lib/pipeline-fix-loop.js or lib/pipeline.js for any new issues from #570 result. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
