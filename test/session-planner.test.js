@@ -12,6 +12,7 @@ const {
   classifyObjective,
   buildResearchContext,
   getResearchPrompt,
+  researchCurriculum,
   planSession,
   generateSessionId,
   writeSessionDirectory,
@@ -892,5 +893,209 @@ describe('generateSessionSpecs — Phase 3', () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+});
+
+// ─── researchCurriculum tests ─────────────────────────────────────────────────
+describe('researchCurriculum — Step 2 curriculum research pipeline', () => {
+  // ── Shared mock tools ──────────────────────────────────────────────────────
+  // All tests inject mock tool functions to avoid real MCP/network calls.
+  const mockKgResult = {
+    statementCode: 'HSG-SRT.C.6',
+    description: 'Understand that by similarity, side ratios in right triangles are properties of the angles in the triangle, leading to definitions of trigonometric ratios for acute angles.',
+    caseIdentifierUUID: '3752ff25-ce4b-4c02-808b-95a71569a52f',
+    academicSubject: 'Mathematics',
+    gradeLevels: ['9', '10', '11', '12'],
+  };
+
+  const mockProgressionResult = {
+    standards: [
+      { statementCode: '7.RP.A.2', description: 'Recognize and represent proportional relationships between quantities.' },
+      { statementCode: 'HSG-SRT.A.3', description: 'Use the properties of similarity transformations to establish the AA criterion.' },
+      { statementCode: 'HSG-SRT.A.3', description: 'Duplicate — should be deduplicated.' }, // duplicate
+    ],
+  };
+
+  const mockExaMisconceptionText = [
+    'SOH-CAH-TOA mix-up: students confuse opposite and adjacent sides when labelling triangles.',
+    'Standard values: students forget trigonometric values of specific angles under exam conditions.',
+    'Hypotenuse identification: students mislabel sides relative to the reference angle.',
+    'sin^-1 vs 1/sin: students confuse inverse trig functions with reciprocal functions.',
+  ].join('\n');
+
+  const mockExaNcertText = [
+    'NCERT Solutions Class 10 Maths Chapter 8 Exercise 8.1 — Trigonometric Ratios',
+    'Exercise 8.2 — Trigonometric Ratios of Some Specific Angles',
+    'Exercise 8.3 — Trigonometric Ratios of Complementary Angles',
+  ].join('\n');
+
+  function makeTools(overrides) {
+    return {
+      findStandardStatement: async () => mockKgResult,
+      findProgressionFromStandard: async () => mockProgressionResult,
+      exaSearch: async ({ query }) => {
+        if (/misconception/i.test(query)) return mockExaMisconceptionText;
+        return mockExaNcertText;
+      },
+      ...overrides,
+    };
+  }
+
+  const trigGoal = {
+    topic: 'trigonometry',
+    gradeLevel: 10,
+    bloomTarget: 3,
+    ncertChapter: 'Ch 8 §8.1-8.3',
+    curriculumSystem: 'NCERT',
+  };
+
+  it('returns a structured research object with all required keys', async () => {
+    const result = await researchCurriculum(trigGoal, makeTools());
+    assert.ok(result, 'must return a result');
+    assert.ok(typeof result.standardStatement === 'string', 'standardStatement must be a string');
+    assert.ok(Array.isArray(result.prerequisites), 'prerequisites must be an array');
+    assert.ok(Array.isArray(result.misconceptions), 'misconceptions must be an array');
+    assert.ok(Array.isArray(result.ncertRefs), 'ncertRefs must be an array');
+    assert.ok(Array.isArray(result.realWorldContexts), 'realWorldContexts must be an array');
+    assert.ok(typeof result.researchComplete === 'boolean', 'researchComplete must be boolean');
+    assert.ok(typeof result.sourceCount === 'number', 'sourceCount must be a number');
+  });
+
+  it('standardStatement contains the KG description', async () => {
+    const result = await researchCurriculum(trigGoal, makeTools());
+    assert.ok(
+      result.standardStatement.includes('similarity') || result.standardStatement.includes('HSG-SRT.C.6'),
+      `standardStatement must include KG content, got: ${result.standardStatement}`,
+    );
+  });
+
+  it('prerequisites are deduplicated', async () => {
+    const result = await researchCurriculum(trigGoal, makeTools());
+    // mockProgressionResult has HSG-SRT.A.3 twice — should appear once
+    const codes = result.prerequisites;
+    const unique = [...new Set(codes)];
+    assert.deepEqual(codes, unique, 'prerequisites must be deduplicated');
+  });
+
+  it('prerequisites include standard codes from progression', async () => {
+    const result = await researchCurriculum(trigGoal, makeTools());
+    assert.ok(result.prerequisites.includes('7.RP.A.2'), 'must include 7.RP.A.2 from progression');
+    assert.ok(result.prerequisites.includes('HSG-SRT.A.3'), 'must include HSG-SRT.A.3 from progression');
+  });
+
+  it('misconceptions is a non-empty array with description+source fields', async () => {
+    const result = await researchCurriculum(trigGoal, makeTools());
+    assert.ok(result.misconceptions.length > 0, 'must have at least one misconception');
+    for (const m of result.misconceptions) {
+      assert.ok(typeof m.description === 'string' && m.description.length > 0, 'each misconception must have description');
+      assert.ok(typeof m.source === 'string' && m.source.length > 0, 'each misconception must have source');
+      assert.ok('url' in m, 'each misconception must have url field (can be null)');
+    }
+  });
+
+  it('ncertRefs is a non-empty array with chapter+section fields', async () => {
+    const result = await researchCurriculum(trigGoal, makeTools());
+    assert.ok(result.ncertRefs.length > 0, 'must have at least one NCERT ref');
+    for (const r of result.ncertRefs) {
+      assert.ok(typeof r.chapter === 'string' && r.chapter.length > 0, 'each ncertRef must have chapter');
+      assert.ok(typeof r.section === 'string' && r.section.length > 0, 'each ncertRef must have section');
+    }
+  });
+
+  it('realWorldContexts contains grade-appropriate trig contexts', async () => {
+    const result = await researchCurriculum(trigGoal, makeTools());
+    assert.ok(result.realWorldContexts.length > 0, 'must include real-world contexts for trig');
+    for (const ctx of result.realWorldContexts) {
+      assert.ok(typeof ctx.label === 'string', 'each context must have label');
+      assert.ok(typeof ctx.description === 'string', 'each context must have description');
+    }
+  });
+
+  it('researchComplete=true when both misconceptions and ncertRefs are present', async () => {
+    const result = await researchCurriculum(trigGoal, makeTools());
+    // We have misconceptions + ncertRefs — should meet the >=2 sources bar
+    assert.equal(result.researchComplete, true, 'researchComplete must be true when both sources present');
+  });
+
+  it('throws when parsedGoal is missing', async () => {
+    await assert.rejects(
+      () => researchCurriculum(null, makeTools()),
+      /parsedGoal must be an object/,
+    );
+  });
+
+  it('throws when parsedGoal.topic is missing', async () => {
+    await assert.rejects(
+      () => researchCurriculum({ gradeLevel: 10 }, makeTools()),
+      /parsedGoal\.topic is required/,
+    );
+  });
+
+  it('KG failure is non-fatal — falls back to concept graph standard', async () => {
+    const tools = makeTools({
+      findStandardStatement: async () => { throw new Error('KG unavailable'); },
+      findProgressionFromStandard: async () => { throw new Error('KG unavailable'); },
+    });
+    const result = await researchCurriculum(trigGoal, tools);
+    // Should fall back to CONCEPT_GRAPH's curriculumStandard string
+    assert.ok(typeof result.standardStatement === 'string', 'standardStatement must still be set after KG failure');
+    assert.ok(result.standardStatement.length > 0, 'standardStatement must be non-empty after KG failure');
+  });
+
+  it('Exa failure is non-fatal — fallback misconceptions and ncertRefs are returned', async () => {
+    const tools = makeTools({
+      exaSearch: async () => { throw new Error('Exa unavailable'); },
+    });
+    const result = await researchCurriculum(trigGoal, tools);
+    assert.ok(result.misconceptions.length > 0, 'must include fallback misconceptions after Exa failure');
+    assert.ok(result.ncertRefs.length > 0, 'must include fallback ncertRefs after Exa failure');
+  });
+
+  it('KG "Multiple standards" error triggers California jurisdiction fallback', async () => {
+    let callCount = 0;
+    const tools = makeTools({
+      findStandardStatement: async ({ jurisdiction }) => {
+        callCount++;
+        if (!jurisdiction) {
+          throw new Error('Multiple standards found for code. Please specify state or jurisdiction.');
+        }
+        return mockKgResult; // Second call with jurisdiction succeeds
+      },
+    });
+    const result = await researchCurriculum(trigGoal, tools);
+    assert.equal(callCount, 2, 'must retry with California jurisdiction after Multiple standards error');
+    assert.ok(result.standardStatement.includes('similarity') || result.standardStatement.includes('HSG-SRT.C.6'));
+  });
+
+  it('works with non-trig concept (multiplication)', async () => {
+    const multiGoal = {
+      topic: 'multiplication',
+      gradeLevel: 3,
+      bloomTarget: 2,
+      ncertChapter: null,
+      curriculumSystem: 'CC',
+    };
+    const tools = makeTools({
+      findStandardStatement: async () => ({
+        statementCode: '3.OA.C.7',
+        description: 'Fluently multiply and divide within 100.',
+        caseIdentifierUUID: 'fake-uuid-mult',
+      }),
+    });
+    const result = await researchCurriculum(multiGoal, tools);
+    assert.ok(typeof result.standardStatement === 'string');
+    assert.ok(result.realWorldContexts.length > 0, 'must include real-world contexts for multiplication');
+  });
+
+  it('output passes through buildResearchContext shape validation', async () => {
+    const result = await researchCurriculum(trigGoal, makeTools());
+    // buildResearchContext is the normaliser — verify all fields it expects are present
+    assert.ok('standardStatement' in result);
+    assert.ok('prerequisites' in result);
+    assert.ok('misconceptions' in result);
+    assert.ok('ncertRefs' in result);
+    assert.ok('realWorldContexts' in result);
+    assert.ok('researchComplete' in result);
+    assert.ok('sourceCount' in result);
   });
 });
