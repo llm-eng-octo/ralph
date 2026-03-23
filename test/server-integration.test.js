@@ -618,3 +618,189 @@ describe('Server integration: build deduplication', () => {
     assert.equal(mockQueue.jobs.length, beforeLen);
   });
 });
+
+// ─── CR-062: MCP endpoint Bearer token authentication ───────────────────────
+describe('Server integration: MCP endpoint authentication (CR-062)', () => {
+  const MCP_SECRET = 'test-mcp-secret-cr062';
+  let server;
+
+  before((_, done) => {
+    process.env.MCP_SECRET = MCP_SECRET;
+    const app = createApp({ queue: createMockQueue(), connection: createMockConnection() });
+    server = app.listen(0, done);
+  });
+
+  after((_, done) => {
+    delete process.env.MCP_SECRET;
+    server.close(done);
+  });
+
+  it('POST /mcp with correct Bearer token passes auth check (returns non-401)', async () => {
+    // The MCP SDK may not be installed in test env, so we expect 501 (not available)
+    // rather than 401. What matters is that auth passes and the request proceeds.
+    const res = await request(server, 'POST', '/mcp', {}, {
+      'authorization': `Bearer ${MCP_SECRET}`,
+    });
+    assert.notEqual(res.status, 401, 'Should not return 401 with correct Bearer token');
+  });
+
+  it('POST /mcp with missing/wrong token returns 401', async () => {
+    const resMissing = await request(server, 'POST', '/mcp', {});
+    assert.equal(resMissing.status, 401);
+    assert.equal(resMissing.body.error, 'Unauthorized');
+
+    const resWrong = await request(server, 'POST', '/mcp', {}, {
+      'authorization': 'Bearer wrong-secret',
+    });
+    assert.equal(resWrong.status, 401);
+    assert.equal(resWrong.body.error, 'Unauthorized');
+  });
+});
+
+// ─── CR-063: Rate limiting on POST /api/build and /api/fix ──────────────────
+describe('Server integration: rate limiting (CR-063)', () => {
+  let server, mockQueue;
+
+  before((_, done) => {
+    // Use BUILD_RATE_LIMIT_MAX=5 (default). Each createApp() gets its own Map,
+    // so this suite's requests do not share state with other describe blocks.
+    mockQueue = createMockQueue();
+    const app = createApp({ queue: mockQueue, connection: createMockConnection() });
+    server = app.listen(0, done);
+  });
+
+  after((_, done) => {
+    server.close(done);
+  });
+
+  it('first POST /api/build request is allowed (200)', async () => {
+    const res = await request(server, 'POST', '/api/build', { gameId: 'rl-game-1' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.queued, true);
+  });
+
+  it('fifth POST /api/build request in same window is still allowed (200)', async () => {
+    // First request was in previous test. Send 4 more to reach max=5.
+    for (let i = 2; i <= 4; i++) {
+      const res = await request(server, 'POST', '/api/build', { gameId: `rl-game-${i}` });
+      assert.equal(res.status, 200, `Request ${i} should be allowed`);
+    }
+    // 5th request (counter is now at 5, which equals RATE_LIMIT_MAX=5)
+    const res5 = await request(server, 'POST', '/api/build', { gameId: 'rl-game-5' });
+    assert.equal(res5.status, 200, 'Fifth request should be allowed (at the limit, not over)');
+  });
+
+  it('sixth POST /api/build request in same window returns 429', async () => {
+    // Previous tests consumed 5 slots for the same IP (127.0.0.1 / ::1).
+    const res = await request(server, 'POST', '/api/build', { gameId: 'rl-game-6' });
+    assert.equal(res.status, 429);
+    assert.ok(res.body.error.includes('Rate limit exceeded'));
+  });
+});
+
+// ─── CR-064: queue.add() catch block in /api/fix ─────────────────────────────
+describe('Server integration: /api/fix queue error handling (CR-064)', () => {
+  let server, failQueue;
+
+  before((_, done) => {
+    // Queue that throws on add() to simulate Redis being down
+    failQueue = {
+      add: async () => { throw new Error('Redis connection refused'); },
+      getJobCounts: async () => ({ waiting: 0, active: 0, completed: 0, failed: 0 }),
+    };
+    const app = createApp({ queue: failQueue, connection: createMockConnection() });
+    server = app.listen(0, done);
+  });
+
+  after((_, done) => {
+    server.close(done);
+  });
+
+  it('POST /api/fix returns 503 when queue.add() throws', async () => {
+    const res = await request(server, 'POST', '/api/fix', {
+      gameId: 'cr064-game',
+      feedbackPrompt: 'Fix the scoring bug',
+    });
+    assert.equal(res.status, 503);
+    assert.ok(res.body.error.includes('Queue unavailable'), `Expected 'Queue unavailable' in: ${res.body.error}`);
+  });
+
+  it('POST /api/fix rolls back DB record when queue.add() throws', async () => {
+    const res = await request(server, 'POST', '/api/fix', {
+      gameId: 'cr064-rollback-game',
+      feedbackPrompt: 'Another fix attempt',
+    });
+    assert.equal(res.status, 503);
+
+    // The DB record should have been failed (not left as 'queued')
+    const builds = db.getDb()
+      .prepare("SELECT status FROM builds WHERE game_id = ? ORDER BY id DESC LIMIT 1")
+      .get('cr064-rollback-game');
+    assert.ok(builds, 'A build record should have been created');
+    assert.equal(builds.status, 'failed', `Expected status='failed', got '${builds.status}'`);
+  });
+});
+
+// ─── /api/session endpoint ───────────────────────────────────────────────────
+describe('Server integration: /api/session', () => {
+  const stubSession = {
+    parsedGoal: { topic: 'trigonometry', gradeLevel: 9, skillIds: [] },
+    sessionPlan: { sessionId: 'sess-001', games: [] },
+    sessionId: 'sess-001',
+    outputPath: '/tmp/sess-001',
+    filesWritten: [],
+  };
+
+  let server;
+
+  before((_, done) => {
+    const mockPlanSessionFromObjective = async (objectiveText) => {
+      if (objectiveText === 'throw-error') throw new Error('LLM unavailable');
+      return stubSession;
+    };
+    const app = createApp({
+      queue: createMockQueue(),
+      connection: createMockConnection(),
+      planSessionFromObjective: mockPlanSessionFromObjective,
+    });
+    server = app.listen(0, done);
+  });
+
+  after((_, done) => {
+    server.close(done);
+  });
+
+  it('POST /api/session returns 200 and session JSON for valid objective', async () => {
+    const res = await request(server, 'POST', '/api/session', {
+      objective: 'Teach students to find missing sides of right triangles',
+    });
+    assert.equal(res.status, 200);
+    assert.ok(res.body.sessionId, 'response must include sessionId');
+    assert.ok(res.body.parsedGoal, 'response must include parsedGoal');
+    assert.ok(res.body.sessionPlan, 'response must include sessionPlan');
+  });
+
+  it('POST /api/session returns 400 when objective is missing', async () => {
+    const res = await request(server, 'POST', '/api/session', {});
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, 'objective is required');
+  });
+
+  it('POST /api/session returns 400 when objective is empty string', async () => {
+    const res = await request(server, 'POST', '/api/session', { objective: '   ' });
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, 'objective is required');
+  });
+
+  it('POST /api/session returns 400 when objective is not a string', async () => {
+    const res = await request(server, 'POST', '/api/session', { objective: 42 });
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, 'objective is required');
+  });
+
+  it('POST /api/session returns 500 when planSessionFromObjective throws', async () => {
+    const res = await request(server, 'POST', '/api/session', { objective: 'throw-error' });
+    assert.equal(res.status, 500);
+    assert.equal(res.body.error, 'LLM unavailable');
+  });
+});

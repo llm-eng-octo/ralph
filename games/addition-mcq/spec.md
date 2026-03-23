@@ -452,10 +452,10 @@ function endGame() {
 ```
 Handler sets `gameState.questions`, `gameState.totalRounds`, then shows start TransitionScreen.
 
-### Outgoing: `game_end`
+### Outgoing: `game_complete` (MANDATORY — contract tests verify this exact type)
 ```json
 {
-  "type": "game_end",
+  "type": "game_complete",
   "score": 70,
   "correctAnswers": 7,
   "incorrectAnswers": 2,
@@ -511,7 +511,7 @@ const progressBar = new ProgressBarComponent({
 | 12 | Disabled after answer | After selecting option | All 4 buttons disabled, no double-click |
 | 13 | Score tracking | 5 correct answers | Score shows 50 |
 | 14 | Visibility pause | Tab away | Timer pauses |
-| 15 | Metrics output | On game end | game_end postMessage fired with all fields |
+| 15 | Metrics output | On game end | game_complete postMessage fired with all fields (type MUST be 'game_complete' — contract tests verify this) |
 
 ---
 

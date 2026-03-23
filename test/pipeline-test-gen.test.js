@@ -10,7 +10,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { lintGeneratedTests } = require('../lib/pipeline-test-gen');
+const { lintGeneratedTests, hasRunnableTestCalls } = require('../lib/pipeline-test-gen');
 
 // Silence lint WARN output during tests
 const silentLog = () => {};
@@ -484,5 +484,354 @@ test.describe('Game flow', () => {
     const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
     const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
     assert.equal(ht.length, 1, 'HARDCODED_TIMEOUT inside test body after test.describe must still be flagged');
+  });
+});
+
+describe('hasRunnableTestCalls — zero-test guard after banned-selector strip', () => {
+  it('returns true for content with a top-level test() call', () => {
+    const content = `
+test('level progression works', async ({ page }) => {
+  await startGame(page);
+  await clickNextLevel(page);
+});
+`;
+    assert.equal(hasRunnableTestCalls(content), true, 'Should return true when test() call is present');
+  });
+
+  it('returns true for content with test() indented inside test.describe()', () => {
+    const content = `test.describe('Game flow', () => {
+  test('starts correctly', async ({ page }) => {
+    await startGame(page);
+  });
+});`;
+    assert.equal(hasRunnableTestCalls(content), true, 'Should return true when test() is inside test.describe()');
+  });
+
+  it('returns false when all tests were stripped to REMOVED comments', () => {
+    // Simulates output after banned-selector strip removes every test() block:
+    const content = [
+      '// REMOVED: direct #mathai-transition-slot button click (banned — use clickNextLevel())',
+      '// REMOVED: #mathai-transition-slot button assertion (banned — CDN clears slot after startGame)',
+      '// REMOVED: #mathai-transition-slot button poll assertion (banned — CDN clears slot after startGame)',
+    ].join('\n') + '\n';
+    assert.equal(hasRunnableTestCalls(content), false, 'Should return false when only REMOVED comments remain');
+  });
+
+  it('returns false for empty string', () => {
+    assert.equal(hasRunnableTestCalls(''), false, 'Should return false for empty content');
+  });
+
+  it('returns false for boilerplate-only content with no test() calls', () => {
+    const content = `async function startGame(page) {
+  await page.locator('#mathai-transition-slot button').first().click();
+}
+
+async function clickNextLevel(page) {
+  await page.locator('#mathai-transition-slot button').first().click();
+}
+`;
+    assert.equal(hasRunnableTestCalls(content), false, 'Should return false when only helper functions are present');
+  });
+});
+
+// ─── NO_LIVES_ASSERT lint rule ─────────────────────────────────────────────────
+// The NO_LIVES_ASSERT rule fires when gameFeatures indicates a non-lives game
+// (unlimitedLives: true OR hasLives: false) and getLives() appears in test bodies.
+
+describe('lintGeneratedTests — NO_LIVES_ASSERT: getLives() in non-lives game', () => {
+  // Boilerplate + describe block structure for tests below.
+  // The boilerplate defines getLives() — rule must NOT fire on the definition.
+  const boilerplateAndDescribe = `import { test, expect } from '@playwright/test';
+
+async function getLives(page) {
+  const val = await page.locator('#app').getAttribute('data-lives');
+  return val !== null ? parseInt(val, 10) : await page.evaluate(() => window.gameState?.lives ?? null);
+}
+
+test.describe('mechanics', () => {
+`;
+
+  it('flags getLives() in test body when unlimitedLives: true', () => {
+    const content = boilerplateAndDescribe + `
+  test('lives decrease on wrong answer', async ({ page }) => {
+    const livesBefore = await getLives(page);
+    await expect.poll(() => getLives(page), { timeout: 5000 }).toBe(livesBefore - 1);
+  });
+});
+`;
+    const gameFeatures = { unlimitedLives: true, hasLives: false };
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog, gameFeatures);
+    const noLivesViolations = violations.filter((v) => v.rule === 'NO_LIVES_ASSERT');
+    assert.ok(noLivesViolations.length > 0, 'Should flag NO_LIVES_ASSERT when getLives() used in non-lives game (unlimitedLives: true)');
+    assert.equal(noLivesViolations[0].category, 'mechanics');
+  });
+
+  it('flags getLives() in test body when hasLives: false (spec does not mention lives)', () => {
+    const content = boilerplateAndDescribe + `
+  test('check lives display', async ({ page }) => {
+    await expect.poll(() => getLives(page), { timeout: 3000 }).toBe(3);
+  });
+});
+`;
+    const gameFeatures = { unlimitedLives: false, hasLives: false };
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog, gameFeatures);
+    const noLivesViolations = violations.filter((v) => v.rule === 'NO_LIVES_ASSERT');
+    assert.ok(noLivesViolations.length > 0, 'Should flag NO_LIVES_ASSERT when getLives() used and spec has no lives mention');
+  });
+
+  it('does NOT flag getLives() when game has finite lives (hasLives: true)', () => {
+    const content = boilerplateAndDescribe + `
+  test('lives decrease on wrong answer', async ({ page }) => {
+    const livesBefore = await getLives(page);
+    await expect.poll(() => getLives(page), { timeout: 5000 }).toBe(livesBefore - 1);
+  });
+});
+`;
+    const gameFeatures = { unlimitedLives: false, hasLives: true };
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog, gameFeatures);
+    const noLivesViolations = violations.filter((v) => v.rule === 'NO_LIVES_ASSERT');
+    assert.equal(noLivesViolations.length, 0, 'Should NOT flag NO_LIVES_ASSERT when game has finite lives');
+  });
+
+  it('does NOT flag getLives() when no gameFeatures provided (rule disabled)', () => {
+    const content = boilerplateAndDescribe + `
+  test('lives check', async ({ page }) => {
+    const lives = getLives(page);
+  });
+});
+`;
+    // No gameFeatures argument — rule should be disabled
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog);
+    const noLivesViolations = violations.filter((v) => v.rule === 'NO_LIVES_ASSERT');
+    assert.equal(noLivesViolations.length, 0, 'Should NOT flag NO_LIVES_ASSERT when gameFeatures not provided');
+  });
+
+  it('does NOT flag getLives() definition in boilerplate (only test bodies)', () => {
+    // The boilerplate defines getLives — this must not be flagged even for non-lives games
+    const boilerplateOnly = `import { test, expect } from '@playwright/test';
+
+async function getLives(page) {
+  const val = await page.locator('#app').getAttribute('data-lives');
+  return val !== null ? parseInt(val, 10) : await page.evaluate(() => window.gameState?.lives ?? null);
+}
+
+test.describe('mechanics', () => {
+  test('score increases on correct answer', async ({ page }) => {
+    await expect.poll(() => getScore(page), { timeout: 3000 }).toBeGreaterThan(0);
+  });
+});
+`;
+    const gameFeatures = { unlimitedLives: true, hasLives: false };
+    const { violations } = lintGeneratedTests({ mechanics: boilerplateOnly }, silentLog, gameFeatures);
+    const noLivesViolations = violations.filter((v) => v.rule === 'NO_LIVES_ASSERT');
+    assert.equal(noLivesViolations.length, 0, 'Should NOT flag getLives() in boilerplate helper definition');
+  });
+});
+
+// ─── CR-052: LP-2 click substitution handles .first().click() ─────────────────
+// Regression test: the LP-2 banned-selector click regex must substitute both
+// `button.click()` and `button.first().click()` forms to `await clickNextLevel(page)`.
+
+describe('LP-2 banned-selector click substitution — CR-052', () => {
+  // The regex used in generateTests() for click substitution (CR-052 fix):
+  const LP2_CLICK_RE =
+    /^(\s*)await\s+page\.locator\s*\(\s*['"]#mathai-transition-slot\s+button['"]\s*\)\s*(?:\.first\s*\(\s*\))?\s*\.click\s*\([^)]*\)\s*;?\s*$/gm;
+  const REPLACEMENT = '$1await clickNextLevel(page); // LP-2: substituted banned selector click \u2192 clickNextLevel()';
+
+  it('substitutes button.click() to clickNextLevel()', () => {
+    const input = `  await page.locator('#mathai-transition-slot button').click();`;
+    LP2_CLICK_RE.lastIndex = 0;
+    const result = input.replace(LP2_CLICK_RE, REPLACEMENT);
+    assert.ok(result.includes('clickNextLevel(page)'), 'button.click() should be substituted to clickNextLevel()');
+    assert.ok(!result.includes("locator('#mathai-transition-slot button').click()"), 'original click should be removed');
+  });
+
+  it('substitutes button.first().click() to clickNextLevel() — CR-052', () => {
+    const input = `  await page.locator('#mathai-transition-slot button').first().click();`;
+    LP2_CLICK_RE.lastIndex = 0;
+    const result = input.replace(LP2_CLICK_RE, REPLACEMENT);
+    assert.ok(result.includes('clickNextLevel(page)'), 'button.first().click() should be substituted to clickNextLevel()');
+    assert.ok(!result.includes('.first().click()'), 'original .first().click() should be removed');
+  });
+
+  it('does not substitute clickNextLevel() line (already correct)', () => {
+    const input = `  await clickNextLevel(page);`;
+    LP2_CLICK_RE.lastIndex = 0;
+    const result = input.replace(LP2_CLICK_RE, REPLACEMENT);
+    assert.equal(result, input, 'clickNextLevel() line must not be altered');
+  });
+});
+
+// ─── CT-NEW-1/2/3: contract prompt rule content verification ──────────────────
+// Verifies that the updated CT rules appear in buildTestGenCategoryPrompt output
+// for category='contract'. These rules fix ~66% of contract test failures.
+
+const { buildTestGenCategoryPrompt } = require('../lib/prompts');
+
+const MINIMAL_CONTRACT_PROMPT_OPTS = {
+  category: 'contract',
+  categoryDescription: 'Verify postMessage contract',
+  testCaseCount: 2,
+  testCasesText: '1. verify game_complete postMessage\n2. verify stars field',
+  learningsBlock: '',
+  testHintsBlock: '',
+  gameFeaturesBlock: '',
+  domSnapshot: null,
+  htmlContent: '<html><body><div id="app" data-phase="init"></div></body></html>',
+  specScenarios: [],
+};
+
+describe('buildTestGenCategoryPrompt — CT-NEW-1: closure capture appears in contract prompt', () => {
+  it('contains "closure capture" keyword in contract prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes('closure capture'),
+      'Contract prompt must contain "closure capture" from CT-NEW-1 rule'
+    );
+  });
+
+  it('contains the forbidden expect.poll() assignment pattern as WRONG example', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes('WRONG: const msg = await expect.poll'),
+      'Contract prompt must show expect.poll() assignment as WRONG'
+    );
+  });
+
+  it('contains the RIGHT closure-capture pattern with let msg', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes('let msg;') && prompt.includes('return msg?.type;'),
+      'Contract prompt must show closure-capture RIGHT pattern (let msg + return msg?.type)'
+    );
+  });
+});
+
+describe('buildTestGenCategoryPrompt — CT-NEW-2: phase-agnostic pattern appears in contract prompt', () => {
+  it('contains "phase-agnostic" keyword in contract prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes('phase-agnostic'),
+      'Contract prompt must contain "phase-agnostic" from CT-NEW-2 rule'
+    );
+  });
+
+  it('contains waitForFunction phase-agnostic pattern', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes("['results', 'gameover'].includes"),
+      "Contract prompt must contain ['results', 'gameover'].includes() phase-agnostic pattern"
+    );
+  });
+});
+
+describe('buildTestGenCategoryPrompt — CT9 bilateral ban: both directions shown as WRONG', () => {
+  it('shows toBeVisible() direction as ALSO WRONG', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes('ALSO WRONG: await expect(page.locator(\'#mathai-transition-slot button\')).toBeVisible()'),
+      'Contract prompt must show toBeVisible() as ALSO WRONG (bilateral ban)'
+    );
+  });
+});
+
+// ─── CT-NEW linter rules: CT_WRONG_PHASE and CT_STAR_EXACT ───────────────────
+// Verifies the two new contract-category-specific linter rules fire correctly.
+// Root cause evidence:
+//   CT_WRONG_PHASE: word-pairs #529 (gameover), soh-cah-toa-worked-example #531 (recall)
+//   CT_STAR_EXACT:  memory-flip #453, kakuro #391, match-the-cards #514
+
+describe('lintGeneratedTests — CT_WRONG_PHASE: wrong waitForPhase phase name in contract test', () => {
+  it('flags waitForPhase(page, "gameover") in contract category', () => {
+    const content = `
+test.describe('contract', () => {
+  test('game over postMessage', async ({ page }) => {
+    await skipToEnd(page, 'game_over');
+    await waitForPhase(page, 'gameover', 20000);
+    const msg = await page.evaluate(() => window.__ralph.getLastPostMessage());
+  });
+});`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_WRONG_PHASE');
+    assert.equal(ct.length, 1, 'Should flag CT_WRONG_PHASE for waitForPhase("gameover") in contract');
+    assert.equal(ct[0].category, 'contract');
+  });
+
+  it('flags waitForPhase(page, "recall") in contract category', () => {
+    const content = `
+test.describe('contract', () => {
+  test('victory postMessage', async ({ page }) => {
+    await skipToEnd(page, 'victory');
+    await waitForPhase(page, 'recall', 20000);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_WRONG_PHASE');
+    assert.equal(ct.length, 1, 'Should flag CT_WRONG_PHASE for waitForPhase("recall") in contract');
+  });
+
+  it('does NOT flag waitForPhase(page, "results") in contract — correct phase', () => {
+    const content = `
+test.describe('contract', () => {
+  test('victory postMessage', async ({ page }) => {
+    await skipToEnd(page, 'victory');
+    await waitForPhase(page, 'results', 20000);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_WRONG_PHASE');
+    assert.equal(ct.length, 0, 'Should NOT flag CT_WRONG_PHASE when correct phase "results" is used');
+  });
+
+  it('does NOT flag waitForPhase(page, "gameover") in edge-cases — only enforced for contract', () => {
+    const content = `
+test.describe('edge-cases', () => {
+  test('lives exhausted', async ({ page }) => {
+    await skipToEnd(page, 'game_over');
+    await waitForPhase(page, 'gameover', 20000);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'edge-cases': content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_WRONG_PHASE');
+    assert.equal(ct.length, 0, 'CT_WRONG_PHASE must NOT fire for edge-cases category');
+  });
+});
+
+describe('lintGeneratedTests — CT_STAR_EXACT: exact star count assertion in contract test', () => {
+  it('flags .data.metrics.stars).toBe(3) in contract category', () => {
+    const content = `
+test.describe('contract', () => {
+  test('3 stars on perfect game', async ({ page }) => {
+    await skipToEnd(page, 'victory');
+    await waitForPhase(page, 'results', 20000);
+    const msg = await page.evaluate(() => window.__ralph.getLastPostMessage());
+    expect(msg.data.metrics.stars).toBe(3);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_STAR_EXACT');
+    assert.equal(ct.length, 1, 'Should flag CT_STAR_EXACT for .data.metrics.stars).toBe(3)');
+    assert.equal(ct[0].category, 'contract');
+  });
+
+  it('flags .data.metrics.stars).toBe(0) in contract category', () => {
+    const content = `  expect(msg.data.metrics.stars).toBe(0);`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_STAR_EXACT');
+    assert.equal(ct.length, 1, 'Should flag CT_STAR_EXACT for .data.metrics.stars).toBe(0)');
+  });
+
+  it('does NOT flag .data.metrics.stars).toBeGreaterThanOrEqual(0) — correct assertion', () => {
+    const content = `  expect(msg.data.metrics.stars).toBeGreaterThanOrEqual(0);`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_STAR_EXACT');
+    assert.equal(ct.length, 0, 'Should NOT flag CT_STAR_EXACT for toBeGreaterThanOrEqual()');
+  });
+
+  it('does NOT flag .data.metrics.stars).toBe(3) in mechanics — only enforced for contract', () => {
+    const content = `  expect(msg.data.metrics.stars).toBe(3);`;
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_STAR_EXACT');
+    assert.equal(ct.length, 0, 'CT_STAR_EXACT must NOT fire for mechanics category');
   });
 });

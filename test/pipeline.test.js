@@ -1901,3 +1901,304 @@ describe('pipeline-fix-loop.js getMatchingLessons (R&D #56)', () => {
     );
   });
 });
+
+// ─── M16: buildTestGenCategoryPrompt .option-btn touch-target coverage ────────
+// Verifies that the M16 prompt rule includes .option-btn 44px assertions
+// (11th confirmed instance: mcq-addition-blitz UI/UX audit — 4-button MCQ grid)
+
+const { buildTestGenCategoryPrompt } = require('../lib/prompts');
+
+describe('buildTestGenCategoryPrompt — M16: .option-btn touch target rule', () => {
+  const baseOpts = {
+    category: 'mechanics',
+    categoryDescription: 'Core game mechanics tests',
+    testCaseCount: 3,
+    testCasesText: '1. Verify answer submission\n2. Verify score update\n3. Verify lives decrease',
+    learningsBlock: '',
+    testHintsBlock: '',
+    gameFeaturesBlock: '',
+    htmlContent: '<html><body></body></html>',
+    specScenarios: [],
+  };
+
+  it('includes .option-btn pattern in M16 rule when .option-btn present in DOM snapshot', () => {
+    const domSnapshot = `<div id="app" data-phase="playing">
+  <button class="option-btn">Option A</button>
+  <button class="option-btn">Option B</button>
+</div>`;
+    const prompt = buildTestGenCategoryPrompt({ ...baseOpts, domSnapshot });
+    assert.ok(
+      prompt.includes('.option-btn'),
+      'M16 rule must reference .option-btn when it appears in the DOM snapshot',
+    );
+    assert.ok(
+      prompt.includes('optBtn') || prompt.includes('option-btn'),
+      'M16 rule must include .option-btn locator pattern for MCQ games',
+    );
+  });
+
+  it('includes .choice-btn pattern in M16 rule (existing coverage)', () => {
+    const domSnapshot = `<div id="app" data-phase="playing">
+  <button class="choice-btn">Choice A</button>
+  <button class="choice-btn">Choice B</button>
+</div>`;
+    const prompt = buildTestGenCategoryPrompt({ ...baseOpts, domSnapshot });
+    assert.ok(
+      prompt.includes('.choice-btn'),
+      'M16 rule must continue to reference .choice-btn for existing MCQ games',
+    );
+    assert.ok(
+      prompt.includes('44'),
+      'M16 rule must include 44px minimum touch target height reference',
+    );
+  });
+
+  it('M16 rule text is always emitted for mechanics category (contains all three selector patterns)', () => {
+    // CR-001 fix: previous test passed an empty DOM snapshot — this test verifies the static
+    // rule text itself is present for any mechanics prompt, regardless of DOM snapshot content.
+    const domSnapshot = `<div id="app">
+  <button class="choice-btn">Choice A</button>
+  <button class="option-btn">Option A</button>
+</div>`;
+    const prompt = buildTestGenCategoryPrompt({ ...baseOpts, domSnapshot });
+    assert.ok(prompt.includes('.choice-btn'), 'M16 must mention .choice-btn');
+    assert.ok(prompt.includes('.option-btn'), 'M16 must mention .option-btn');
+    assert.ok(prompt.includes('.answer-btn'), 'M16 must mention .answer-btn');
+    assert.ok(
+      prompt.includes('toBeGreaterThanOrEqual(44)') || prompt.includes('44'),
+      'M16 must include 44px assertion',
+    );
+  });
+
+  it('includes .answer-btn pattern in M16 rule when .answer-btn present in DOM snapshot', () => {
+    // CR-002: .answer-btn was previously carved out of M16 — now covered
+    const domSnapshot = `<div id="app" data-phase="playing">
+  <button class="answer-btn">True</button>
+  <button class="answer-btn">False</button>
+</div>`;
+    const prompt = buildTestGenCategoryPrompt({ ...baseOpts, domSnapshot });
+    assert.ok(
+      prompt.includes('.answer-btn'),
+      'M16 rule must reference .answer-btn when it appears in the DOM snapshot',
+    );
+    assert.ok(
+      prompt.includes('ansBtn') || prompt.includes('answer-btn'),
+      'M16 rule must include .answer-btn locator pattern',
+    );
+    assert.ok(
+      prompt.includes('GEN-UX-002') || prompt.includes('44'),
+      'M16 .answer-btn pattern must reference 44px touch target (GEN-UX-002)',
+    );
+  });
+
+  it('includes .answer-btn minHeight assertion using getComputedStyle in M16 rule', () => {
+    // CR-002: .answer-btn uses CSS minHeight (getComputedStyle) rather than getBoundingClientRect
+    // because GEN-UX-002 mandates the CSS property itself, not just the rendered height
+    const domSnapshot = `<div id="app" data-phase="playing">
+  <button class="answer-btn">Submit</button>
+</div>`;
+    const prompt = buildTestGenCategoryPrompt({ ...baseOpts, domSnapshot });
+    assert.ok(
+      prompt.includes('getComputedStyle') || prompt.includes('minHeight'),
+      'M16 .answer-btn assertion must use getComputedStyle to check CSS minHeight (GEN-UX-002)',
+    );
+    assert.ok(
+      prompt.includes('toBeGreaterThanOrEqual(44)') || prompt.includes('44'),
+      'M16 .answer-btn assertion must enforce 44px minimum',
+    );
+  });
+
+  it('does not include M16 rule for non-mechanics categories', () => {
+    const domSnapshot = `<div class="option-btn"></div>`;
+    const prompt = buildTestGenCategoryPrompt({
+      ...baseOpts,
+      category: 'game-flow',
+      categoryDescription: 'Game flow tests',
+      domSnapshot,
+    });
+    // M16 rule text is mechanics-only — the pattern text must not appear in game-flow
+    assert.ok(
+      !prompt.includes('CHOICE-BTN / OPTION-BTN TOUCH TARGET'),
+      'M16 rule text must not appear in non-mechanics category prompts',
+    );
+  });
+});
+
+// ─── LP-NEW rules: level-progression prompt content ───────────────────────────
+// Verifies LP-NEW-1/2/3 rule text appears in buildTestGenCategoryPrompt()
+// for the level-progression category.
+// Evidence: name-the-sides #557–562 (LP-NEW-1), interactive-chat #387 (LP-NEW-2),
+// find-triangle-side #547 + name-the-sides #553 (LP-NEW-3).
+
+const lpBaseOpts = {
+  category: 'level-progression',
+  categoryDescription: 'Level/round structure tests',
+  testCaseCount: 3,
+  testCasesText: '1. Verify round advances\n2. Verify content changes\n3. Verify difficulty scaling',
+  learningsBlock: '',
+  testHintsBlock: '',
+  gameFeaturesBlock: '',
+  htmlContent: '<html><body></body></html>',
+  domSnapshot: '<div id="app" data-phase="playing" data-round="1"></div>',
+  specScenarios: [],
+};
+
+describe('buildTestGenCategoryPrompt — LP-NEW-1: debugGame() RangeError guard', () => {
+  it('includes LP-NEW-1 rule text in level-progression prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(lpBaseOpts);
+    assert.ok(
+      prompt.includes('LP-NEW-1'),
+      'LP-NEW-1 rule must appear in level-progression prompt',
+    );
+    assert.ok(
+      prompt.includes('debugGame') || prompt.includes('RangeError'),
+      'LP-NEW-1 must reference debugGame or RangeError: Invalid count value',
+    );
+    assert.ok(
+      prompt.includes('fallbackContent.rounds'),
+      'LP-NEW-1 must reference fallbackContent.rounds length guard',
+    );
+  });
+
+  it('LP-NEW-1 is NOT emitted for non-level-progression categories', () => {
+    const prompt = buildTestGenCategoryPrompt({ ...lpBaseOpts, category: 'mechanics' });
+    assert.ok(
+      !prompt.includes('LP-NEW-1'),
+      'LP-NEW-1 rule must NOT appear in non-level-progression prompts',
+    );
+  });
+});
+
+describe('buildTestGenCategoryPrompt — LP-NEW-2: start-button selector timeout guard', () => {
+  it('includes LP-NEW-2 rule text in level-progression prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(lpBaseOpts);
+    assert.ok(
+      prompt.includes('LP-NEW-2'),
+      'LP-NEW-2 rule must appear in level-progression prompt',
+    );
+    assert.ok(
+      prompt.includes('startGame(page)'),
+      'LP-NEW-2 must reference startGame(page) as the correct navigation approach',
+    );
+  });
+
+  it('LP-NEW-2 is NOT emitted for game-flow category', () => {
+    const prompt = buildTestGenCategoryPrompt({ ...lpBaseOpts, category: 'game-flow' });
+    assert.ok(
+      !prompt.includes('LP-NEW-2'),
+      'LP-NEW-2 rule must NOT appear in game-flow prompts',
+    );
+  });
+});
+
+describe('buildTestGenCategoryPrompt — LP-NEW-3: not.toBeVisible transition slot guard', () => {
+  it('includes LP-NEW-3 rule text in level-progression prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(lpBaseOpts);
+    assert.ok(
+      prompt.includes('LP-NEW-3'),
+      'LP-NEW-3 rule must appear in level-progression prompt',
+    );
+    assert.ok(
+      prompt.includes('not.toBeVisible') || prompt.includes('not.toBeVisible()'),
+      'LP-NEW-3 must reference the not.toBeVisible() anti-pattern on transition slot',
+    );
+    assert.ok(
+      prompt.includes('getRound(page)') || prompt.includes('getRound'),
+      'LP-NEW-3 must recommend getRound() polling as the correct round-advancement detection',
+    );
+  });
+
+  it('LP-NEW-3 is NOT emitted for contract category', () => {
+    const prompt = buildTestGenCategoryPrompt({ ...lpBaseOpts, category: 'contract' });
+    assert.ok(
+      !prompt.includes('LP-NEW-3'),
+      'LP-NEW-3 rule must NOT appear in contract prompts',
+    );
+  });
+});
+
+
+// ─── CT-NEW rules: contract prompt content ────────────────────────────────────
+// Verifies CT-NEW-3 and CT-NEW-4 rule text appears in
+// buildTestGenCategoryPrompt() for the contract category.
+// Root cause evidence from 100-build analysis:
+//   CT-NEW-3: 1x #results-screen selector (associations #513)
+//   CT-NEW-4: 2x exact star count (memory-flip #453, kakuro #391, match-the-cards #514)
+// Note: CT-NEW-1 (closure capture) and CT-NEW-2 (terminal phase match) were added in a prior session.
+
+const ctBaseOpts = {
+  category: 'contract',
+  categoryDescription: 'postMessage contract tests',
+  testCaseCount: 2,
+  testCasesText: '1. Victory postMessage contract\n2. Game over postMessage contract',
+  learningsBlock: '',
+  testHintsBlock: '',
+  gameFeaturesBlock: '',
+  htmlContent: '<html><body></body></html>',
+  domSnapshot: '<div id="app" data-phase="playing"></div>',
+  specScenarios: [],
+};
+
+describe('buildTestGenCategoryPrompt — CT-NEW-3: no internal results-screen selector as proxy', () => {
+  it('includes CT-NEW-3 rule text in contract prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(ctBaseOpts);
+    assert.ok(
+      prompt.includes('CT-NEW-3'),
+      'CT-NEW-3 rule must appear in contract prompt',
+    );
+  });
+
+  it('CT-NEW-3 warns against #results-screen selector', () => {
+    const prompt = buildTestGenCategoryPrompt(ctBaseOpts);
+    assert.ok(
+      prompt.includes('#results-screen'),
+      'CT-NEW-3 must reference #results-screen as a banned selector proxy',
+    );
+  });
+
+  it('CT-NEW-3 recommends waitForPhase(results) as the correct approach', () => {
+    const prompt = buildTestGenCategoryPrompt(ctBaseOpts);
+    assert.ok(
+      prompt.includes("waitForPhase(page, 'results'") || prompt.includes("waitForPhase"),
+      'CT-NEW-3 must recommend waitForPhase() as the reliable completion signal',
+    );
+  });
+
+  it('CT-NEW-3 is NOT emitted for mechanics category', () => {
+    const prompt = buildTestGenCategoryPrompt({ ...ctBaseOpts, category: 'mechanics' });
+    assert.ok(
+      !prompt.includes('CT-NEW-3'),
+      'CT-NEW-3 rule must NOT appear in mechanics prompts',
+    );
+  });
+});
+
+describe('buildTestGenCategoryPrompt — CT-NEW-4: no exact star count assertion in contract', () => {
+  it('includes CT-NEW-4 rule text in contract prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(ctBaseOpts);
+    assert.ok(
+      prompt.includes('CT-NEW-4'),
+      'CT-NEW-4 rule must appear in contract prompt',
+    );
+  });
+
+  it('CT-NEW-4 warns against toBe(3) and recommends toBeGreaterThanOrEqual', () => {
+    const prompt = buildTestGenCategoryPrompt(ctBaseOpts);
+    assert.ok(
+      prompt.includes('toBe(3)'),
+      'CT-NEW-4 must call out toBe(3) as the wrong pattern',
+    );
+    assert.ok(
+      prompt.includes('toBeGreaterThanOrEqual'),
+      'CT-NEW-4 must recommend toBeGreaterThanOrEqual() as the correct assertion',
+    );
+  });
+
+  it('CT-NEW-4 is NOT emitted for edge-cases category', () => {
+    const prompt = buildTestGenCategoryPrompt({ ...ctBaseOpts, category: 'edge-cases' });
+    assert.ok(
+      !prompt.includes('CT-NEW-4'),
+      'CT-NEW-4 rule must NOT appear in edge-cases prompts',
+    );
+  });
+});

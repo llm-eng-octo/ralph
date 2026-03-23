@@ -12,7 +12,7 @@ const { promisify } = require('util');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { runPipeline, runTargetedFix } = require('./lib/pipeline');
+const { runPipeline, runTargetedFix, fixCdnDomainsInFile, fixCdnPathsInFile } = require('./lib/pipeline');
 const db = require('./lib/db');
 const slack = require('./lib/slack');
 const gcp = require('./lib/gcp');
@@ -56,22 +56,9 @@ const RAM_GATE_MB = parseFloat(process.env.RALPH_RAM_GATE_MB || '512');
 const RALPH_GITHUB_REPO = process.env.RALPH_GITHUB_REPO || '';
 
 // ─── E7: Failure categorization ───────────────────────────────────────────────
-function categorizeFailure(failureDesc) {
-  const desc = failureDesc.toLowerCase();
-  if (/render|dom|element|visible|display/.test(desc)) return 'rendering';
-  if (/gamestate|state|init/.test(desc)) return 'state';
-  if (/score|star|progress/.test(desc)) return 'scoring';
-  if (/timer|timeout|countdown/.test(desc)) return 'timing';
-  if (/click|input|touch|interact/.test(desc)) return 'interaction';
-  if (/postmessage|message|event/.test(desc)) return 'messaging';
-  if (/layout|responsive|width|480/.test(desc)) return 'layout';
-  if (/endgame|complete|finish/.test(desc)) return 'completion';
-  if (/undefined|null|cannot read prop|TypeError/i.test(desc)) return 'state';
-  if (/lives|wrong answer|correct answer|retry|interaction/i.test(desc)) return 'interaction';
-  if (/victory|game over|out of lives|completion/i.test(desc)) return 'completion';
-  if (/cannot find module|module not found|require/i.test(desc)) return 'infra';
-  return 'unknown';
-}
+// Imported from lib/categorize-failure.js so tests can require it directly
+// without loading the full worker (which would trigger Redis/BullMQ init).
+const { categorizeFailure } = require('./lib/categorize-failure');
 
 // ─── Learning extraction from pipeline events ────────────────────────────────
 function extractLearnings(gameId, buildId, report) {
@@ -271,18 +258,25 @@ async function handleFixJob(job) {
     onProgress: (step, detail) => {
       console.log(`[worker] fix progress: ${step}`, detail);
     },
+    fixCdnDomainsInFile,
+    fixCdnPathsInFile,
   });
 
   if (buildId) db.completeBuild(buildId, report);
 
   // GCP upload — always upload for preview link regardless of status
+  // CR-056: wrapped in try/catch — GCP failure must not flip an approved build to failed
   if (gcp.isEnabled()) {
     const htmlFile = path.join(gameDir, 'index.html');
     if (fs.existsSync(htmlFile)) {
-      const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
-      if (gcpUrl) {
-        db.updateBuildGcpUrl(buildId, gcpUrl);
-        db.updateGameGcpUrl(gameId, gcpUrl);
+      try {
+        const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
+        if (gcpUrl) {
+          db.updateBuildGcpUrl(buildId, gcpUrl);
+          db.updateGameGcpUrl(gameId, gcpUrl);
+        }
+      } catch (gcpErr) {
+        logger.warn(`[worker] handleFixJob GCP upload failed (build ${buildId}): ${gcpErr.message} — build remains approved`);
       }
     }
   }
@@ -297,6 +291,21 @@ async function handleFixJob(job) {
 
   // Update game status
   db.updateGameStatus(gameId, report.status === 'APPROVED' ? 'approved' : 'fix-failed');
+
+  // CR-055: Resolve all unresolved failure patterns on APPROVED path (mirrors handleJob CODE-001 fix)
+  if (report.status === 'APPROVED') {
+    try {
+      const patterns = db.getFailurePatterns(gameId).filter(p => !p.resolved);
+      for (const pattern of patterns) {
+        db.resolveFailurePattern(gameId, pattern.pattern);
+      }
+      if (patterns.length > 0) {
+        logger.info(`[worker] handleFixJob: resolved ${patterns.length} failure pattern(s) for ${gameId}`);
+      }
+    } catch (err) {
+      logger.warn(`[worker] handleFixJob: could not resolve failure patterns for ${gameId}: ${err.message}`);
+    }
+  }
 
   return report;
 }
@@ -1175,14 +1184,19 @@ const worker = new Worker(
     extractLearnings(gameId, buildId, report);
 
     // GCP upload — always upload so a preview link is available regardless of status
+    // CR-056: wrapped in try/catch — GCP failure must not flip an approved build to failed
     if (gcp.isEnabled()) {
       const gameBuildDir = path.join(REPO_DIR, 'data', 'games', gameId, 'builds', String(buildId));
       const htmlFile = path.join(gameBuildDir, 'index.html');
       if (fs.existsSync(htmlFile)) {
-        const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
-        if (gcpUrl) {
-          if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
-          db.updateGameGcpUrl(gameId, gcpUrl);
+        try {
+          const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
+          if (gcpUrl) {
+            if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
+            db.updateGameGcpUrl(gameId, gcpUrl);
+          }
+        } catch (gcpErr) {
+          logger.warn(`[worker] GCP upload failed (build ${buildId}): ${gcpErr.message} — build remains approved`);
         }
       }
     }
@@ -1233,24 +1247,28 @@ const worker = new Worker(
             ? new Queue('ralph-builds', { connection: worker.opts.connection })
             : null;
           if (buildQueue) {
-            const newJob = await buildQueue.add('build', { gameId, retryOf: buildId });
-            logger.info(
-              `[worker] Auto-retry queued for ${gameId} (build #${buildId} scored 0/${total}) → new job ${newJob.id}`,
-            );
-            db.getDb().prepare('UPDATE builds SET retry_count = 1 WHERE id = ?').run(buildId);
-            const retryThread =
-              threadInfo ||
-              (db.getGame(gameId)?.slack_thread_ts
-                ? { ts: db.getGame(gameId).slack_thread_ts, channel: db.getGame(gameId).slack_channel_id }
-                : null);
-            if (retryThread) {
-              await slack.postThreadUpdate(
-                retryThread.ts,
-                retryThread.channel,
-                `🔄 Auto-retry queued — build #${buildId} scored 0/${total} tests. Starting fresh build...`,
+            // CR-059: ensure buildQueue.close() runs on all code paths (add() throw or Slack throw)
+            try {
+              const newJob = await buildQueue.add('build', { gameId, retryOf: buildId });
+              logger.info(
+                `[worker] Auto-retry queued for ${gameId} (build #${buildId} scored 0/${total}) → new job ${newJob.id}`,
               );
+              db.getDb().prepare('UPDATE builds SET retry_count = 1 WHERE id = ?').run(buildId);
+              const retryThread =
+                threadInfo ||
+                (db.getGame(gameId)?.slack_thread_ts
+                  ? { ts: db.getGame(gameId).slack_thread_ts, channel: db.getGame(gameId).slack_channel_id }
+                  : null);
+              if (retryThread) {
+                await slack.postThreadUpdate(
+                  retryThread.ts,
+                  retryThread.channel,
+                  `🔄 Auto-retry queued — build #${buildId} scored 0/${total} tests. Starting fresh build...`,
+                );
+              }
+            } finally {
+              await buildQueue.close();
             }
-            await buildQueue.close();
           }
         } else {
           logger.warn(`[worker] Auto-retry skipped for ${gameId} — already retried once (build #${buildId})`);
@@ -1260,6 +1278,25 @@ const worker = new Worker(
 
     // Update game status
     db.updateGameStatus(gameId, report.status === 'APPROVED' ? 'approved' : report.status.toLowerCase());
+
+    // Post-approval: resolve all open failure patterns for this game (CODE-001)
+    // resolveFailurePattern() was never called on the approval path — fix loop patterns accumulated
+    // indefinitely, degrading cross-build pattern injection with noise. Resolve all unresolved
+    // patterns for the game so the pattern DB stays clean after a successful build.
+    // CR-015: wrapped in try/catch so a DB error here cannot skip warehouse sync below.
+    if (report.status === 'APPROVED') {
+      try {
+        const openPatterns = db.getFailurePatterns(gameId).filter((p) => !p.resolved);
+        if (openPatterns.length > 0) {
+          for (const fp of openPatterns) {
+            db.resolveFailurePattern(gameId, fp.pattern);
+          }
+          logger.info(`[worker] Resolved ${openPatterns.length} failure pattern(s) for ${gameId}`);
+        }
+      } catch (err) {
+        logger.warn(`[worker] Could not resolve failure patterns for ${gameId}: ${err.message}`);
+      }
+    }
 
     // Post-approval: sync approved HTML back to warehouse so future builds start from known-good base
     if (report.status === 'APPROVED') {
@@ -1302,7 +1339,9 @@ const worker = new Worker(
           // DB write itself failed — nothing more we can do; BullMQ will fire worker.on('failed')
         }
         // Update parent message to show failed status
-        if (threadInfo) {
+        // CR-085: threadInfo is declared with `let` inside the try block and is not in scope
+        // in the catch block. Guard with typeof to prevent ReferenceError masking the original error.
+        if (typeof threadInfo !== 'undefined' && threadInfo) {
           try {
             await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId,
               { status: 'FAILED', buildId: _topLevelBuildId, iterations: 0 },

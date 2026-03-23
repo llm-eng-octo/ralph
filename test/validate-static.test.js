@@ -9,8 +9,9 @@ const os = require('os');
 
 const VALIDATOR = path.join(__dirname, '..', 'lib', 'validate-static.js');
 
+let _tmpCounter = 0;
 function runValidator(html) {
-  const tmpFile = path.join(os.tmpdir(), `ralph-test-${Date.now()}.html`);
+  const tmpFile = path.join(os.tmpdir(), `ralph-test-${Date.now()}-${++_tmpCounter}-${process.pid}.html`);
   fs.writeFileSync(tmpFile, html);
   try {
     const output = execFileSync('node', [VALIDATOR, tmpFile], {
@@ -21,7 +22,7 @@ function runValidator(html) {
   } catch (err) {
     return { exitCode: err.status, output: err.stdout || '' };
   } finally {
-    fs.unlinkSync(tmpFile);
+    try { fs.unlinkSync(tmpFile); } catch (_) { /* ignore if already deleted */ }
   }
 }
 
@@ -74,7 +75,7 @@ const VALID_HTML = `<!DOCTYPE html>
   function endGame() {
     const pct = gameState.score / gameState.totalQuestions;
     const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
-    window.parent.postMessage({ type: 'gameOver', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
+    window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
     document.getElementById('gameArea').innerHTML = '<h2>Game Over! Score: ' + gameState.score + '/' + gameState.totalQuestions + '</h2>';
   }
 
@@ -174,6 +175,21 @@ describe('validate-static.js', () => {
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 1);
     assert.ok(output.includes('postMessage'));
+  });
+
+  it('GEN-PM-001: fails when postMessage uses wrong type (not game_complete)', () => {
+    const html = VALID_HTML.replace("type: 'game_complete'", "type: 'completed'");
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
+    assert.ok(output.includes('GEN-PM-001'), `Expected GEN-PM-001 error but got: ${output}`);
+    assert.ok(output.includes("type: 'game_complete'"), `Expected game_complete mention but got: ${output}`);
+  });
+
+  it('GEN-PM-001: passes when postMessage uses correct type game_complete', () => {
+    // VALID_HTML already uses type: 'game_complete' — should pass without GEN-PM-001 error
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(!output.includes('GEN-PM-001'), `Unexpected GEN-PM-001 error: ${output}`);
   });
 
   it('fails when missing style block', () => {
@@ -537,6 +553,8 @@ describe('validate-static.js', () => {
 
   it('passes when waitForPackages has correct 120000ms timeout and throw', () => {
     // Lesson 117: 120000ms is now the required timeout (CDN cold-start takes 30–120s)
+    // Note: use typeof SentryConfig (not FeedbackManager, not ScreenLayout) to avoid triggering
+    // GEN-WAITFOR-MATCH-A (FeedbackManager without script) or the ScreenLayout.inject() check.
     const html = VALID_HTML.replace(
       '<script>',
       '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n<script>'
@@ -546,7 +564,7 @@ describe('validate-static.js', () => {
     const timeout = 120000;
     const interval = 50;
     let elapsed = 0;
-    while (typeof FeedbackManager === 'undefined') {
+    while (typeof SentryConfig === 'undefined') {
       if (elapsed >= timeout) { throw new Error('Packages failed to load within 120s'); }
       await new Promise(resolve => setTimeout(resolve, interval));
       elapsed += interval;
@@ -713,7 +731,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       `window.endGame = endGame;
 window.gameState = gameState;
 window.nextRound = nextRound;
-window.loadRound = function(n) { gameState.currentRound = n - 1; nextRound(); };
+window.loadRound = function(n) { gameState.currentRound = n - 1; }; // GEN-ROUND-INDEX: set index directly, do NOT call nextRound()
 window.addEventListener('DOMContentLoaded', async () => {
   window.gameState.totalRounds = 5;
   window.gameState.currentRound = 0;
@@ -977,6 +995,55 @@ describe('progressBar hallucinated methods check (5f10)', () => {
   });
 });
 
+describe('LP-1: progressBar.update() 2nd arg must not be totalRounds (GEN-112)', () => {
+  it('fails when progressBar.update() 2nd arg is bare totalRounds', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(round, totalRounds);');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR [GEN-112]') && output.includes('totalRounds'),
+      `Expected GEN-112 totalRounds error but got: ${output}`,
+    );
+  });
+
+  it('fails when progressBar.update() 2nd arg is gameState.totalRounds', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(gameState.currentRound, gameState.totalRounds);');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR [GEN-112]') && output.includes('totalRounds'),
+      `Expected GEN-112 totalRounds error but got: ${output}`,
+    );
+  });
+
+  it('passes when progressBar.update() 2nd arg is livesRemaining', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(gameState.currentRound, gameState.livesRemaining);');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-112') || !output.includes('totalRounds'),
+      `Unexpected LP-1 error for livesRemaining: ${output}`,
+    );
+  });
+
+  it('passes when progressBar.update() 2nd arg is 0 (no-lives game)', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(gameState.currentRound, 0);');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-112') || !output.includes('totalRounds'),
+      `Unexpected LP-1 error for literal 0: ${output}`,
+    );
+  });
+
+  it('passes when progressBar.update() 2nd arg is gameState.lives', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(gameState.currentRound, gameState.lives);');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-112') || !output.includes('totalRounds'),
+      `Unexpected LP-1 error for gameState.lives: ${output}`,
+    );
+  });
+});
+
 describe('TimerComponent slot not created by ScreenLayout (5f8)', () => {
   const cdnHtmlWithTimer = (slotsConfig) => `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>T</title><style>body{}</style></head>
@@ -990,7 +1057,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!document.getElementById('gameContent')) throw new Error('ScreenLayout.inject() did not create #gameContent');
   const timer = new TimerComponent('mathai-timer-slot', { timerType: 'decrease', startTime: 30, endTime: 0 });
   timer.start();
-  window.parent.postMessage({ type: 'gameOver', score: 0, stars: 1, total: 1 }, '*');
+  window.parent.postMessage({ type: 'game_complete', score: 0, stars: 1, total: 1 }, '*');
 });
 </script></body></html>`;
 
@@ -1419,7 +1486,7 @@ describe('require() / ES import in CDN game script checks (5l)', () => {
     initSentry();
     initGame();
   });
-  window.parent.postMessage({ type: 'gameOver', score: 0, stars: 1, total: 10 }, '*');
+  window.parent.postMessage({ type: 'game_complete', score: 0, stars: 1, total: 10 }, '*');
   const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;
 </script>
 </body>
@@ -1455,7 +1522,7 @@ describe('waitForPackages() wrong CDN check pattern (5fa)', () => {
     '  }\n' +
     '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
     '    await waitForPackages();\n' +
-    '    window.parent.postMessage({ type: \'gameOver\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+    '    window.parent.postMessage({ type: \'game_complete\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
     '  });\n' +
     '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
     '</script></body></html>';
@@ -1572,6 +1639,16 @@ describe('PART-028: CSS stylesheet integrity check', () => {
     );
   });
 
+  it('fails with PART-028-CSS-STRIPPED when <style> block contains only whitespace', () => {
+    const html = VALID_HTML.replace(/<style[^>]*>[\s\S]*?<\/style>/i, '<style>   </style>');
+    const { exitCode, output } = runValidator(html);
+    assert.strictEqual(exitCode, 1, `Expected exit code 1 but got ${exitCode}. Output: ${output}`);
+    assert.ok(
+      output.includes('PART-028-CSS-STRIPPED'),
+      `Expected PART-028-CSS-STRIPPED error in output: ${output}`,
+    );
+  });
+
   it('emits PART-028-NO-CSS warning when no <style> block exists', () => {
     const html = VALID_HTML.replace(/<style[^>]*>[\s\S]*?<\/style>/i, '');
     const { exitCode, output } = runValidator(html);
@@ -1660,6 +1737,1479 @@ describe('ARIA-001: feedback div aria-live warning (W5)', () => {
     assert.ok(
       !output.includes('ARIA-001'),
       `Unexpected ARIA-001 warning on HTML with no feedback divs. Output: ${output}`,
+    );
+  });
+
+  // TE-CR-001: order-independence — aria-live must be detected regardless of attribute position
+  it('does NOT emit ARIA-001 warning when aria-live is present but id is not the first attribute', () => {
+    // data-phase appears before id — regex must not anchor to id as first attribute
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div data-phase="results" id="feedback" aria-live="polite">Nice work!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 warning: aria-live present but id is not first attribute. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-001 warning when aria-live is present with class before id and extra data attrs', () => {
+    // class and data-testid both precede aria-live — all ordering variants must pass
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div class="feedback-box" data-testid="fb" aria-live="polite">Try again!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 warning: aria-live present with class-first ordering. Output: ${output}`,
+    );
+  });
+
+  it('emits ARIA-001 warning when data-phase is first attribute but aria-live is missing', () => {
+    // data-phase before id must still trigger warning when aria-live is absent
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div data-phase="results" id="feedback">Correct!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning: data-phase first, id="feedback" present, but no aria-live. Output: ${output}`,
+    );
+  });
+
+  // New expanded coverage: compound variants confirmed across 9 audit instances
+  it('emits ARIA-001 warning for #answer-feedback without aria-live (audit variant)', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="answer-feedback" class="hidden"></div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning for #answer-feedback without aria-live. Output: ${output}`,
+    );
+  });
+
+  it('emits ARIA-001 warning for #result-feedback without aria-live (audit variant)', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="result-feedback"></div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning for #result-feedback without aria-live. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-001 warning for bare #answers container (no false positive)', () => {
+    // #answers is a container div, not a dynamic feedback element
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 false positive on #answers container. Output: ${output}`,
+    );
+  });
+
+  it('emits ARIA-001 warning for #hint-text without aria-live (audit variant)', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="hint-text" class="hidden"></div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning for #hint-text without aria-live. Output: ${output}`,
+    );
+  });
+});
+
+describe('ARIA-002: aria-live=assertive without role=alert warning (W6)', () => {
+  it('does NOT emit ARIA-002 warning when aria-live=assertive has role=alert', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="error-msg" role="alert" aria-live="assertive">Error!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-002'),
+      `Unexpected ARIA-002 warning when aria-live=assertive has role=alert. Output: ${output}`,
+    );
+  });
+
+  it('emits ARIA-002 warning when aria-live=assertive lacks role=alert', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="feedback" aria-live="assertive">Wrong!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-002'),
+      `Expected ARIA-002 warning when aria-live=assertive lacks role=alert. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-002 warning when there is no aria-live=assertive', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="feedback" aria-live="polite" role="status">Nice!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-002'),
+      `Unexpected ARIA-002 warning when no aria-live=assertive present. Output: ${output}`,
+    );
+  });
+});
+
+describe('GEN-CSS-TOKENS: banned CSS custom property tokens (W7)', () => {
+  it('emits GEN-CSS-TOKENS warning when --mathai-green is used', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--mathai-green);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--mathai-green'),
+      `Expected GEN-CSS-TOKENS warning for --mathai-green. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --color-red is used', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--color-red);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--color-red'),
+      `Expected GEN-CSS-TOKENS warning for --color-red. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --color-orange is used', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--color-orange);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--color-orange'),
+      `Expected GEN-CSS-TOKENS warning for --color-orange. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --color-green is used', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--color-green);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--color-green'),
+      `Expected GEN-CSS-TOKENS warning for --color-green. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --color-success is used', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--color-success);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--color-success'),
+      `Expected GEN-CSS-TOKENS warning for --color-success. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-CSS-TOKENS warning when --mathai-success is used (valid token)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--mathai-success);');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CSS-TOKENS'),
+      `Unexpected GEN-CSS-TOKENS warning when using valid token --mathai-success. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-CSS-TOKENS warning when --mathai-error is used (valid token)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--mathai-error);');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CSS-TOKENS'),
+      `Unexpected GEN-CSS-TOKENS warning when using valid token --mathai-error. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-CSS-TOKENS warning when --mathai-warning is used (valid token)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--mathai-warning);');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CSS-TOKENS'),
+      `Unexpected GEN-CSS-TOKENS warning when using valid token --mathai-warning. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --feedback-color is used (CR-025)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'color: var(--feedback-color);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--feedback-color'),
+      `Expected GEN-CSS-TOKENS warning for --feedback-color. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --answer-color is used (CR-025)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'color: var(--answer-color);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--answer-color'),
+      `Expected GEN-CSS-TOKENS warning for --answer-color. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --status-green is used (CR-025)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'color: var(--status-green);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--status-green'),
+      `Expected GEN-CSS-TOKENS warning for --status-green. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-CSS-TOKENS warning when --primary-color is used (not in ban list)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--primary-color);');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CSS-TOKENS'),
+      `Unexpected GEN-CSS-TOKENS warning for --primary-color (not a banned token). Output: ${output}`,
+    );
+  });
+});
+
+describe('GEN-UX-003 extension: ProgressBarComponent options object missing slotId key', () => {
+  it('fails when ProgressBarComponent options object lacks slotId key', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); if (typeof ProgressBarComponent !== "undefined") { var pb = new ProgressBarComponent({ totalRounds: 5, totalLives: 3 }); }',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('FORBIDDEN') && output.includes('GEN-UX-003'),
+      `Expected GEN-UX-003 error but got: ${output}`,
+    );
+  });
+
+  it('passes when ProgressBarComponent options object has slotId key', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); if (typeof ProgressBarComponent !== \"undefined\") { var pb = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 }); }",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-UX-003'),
+      `Unexpected GEN-UX-003 error when slotId is present: ${output}`,
+    );
+  });
+});
+
+describe('GEN-UX-004: alert() call ban', () => {
+  it('fails when game uses alert() call', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); function showError() { alert('Something went wrong!'); }",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('FORBIDDEN') && output.includes('GEN-UX-004'),
+      `Expected GEN-UX-004 error but got: ${output}`,
+    );
+  });
+});
+
+describe('GEN-UX-005: SignalCollector must not be called with no args', () => {
+  it('fails when SignalCollector called with no args', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); const sc = new SignalCollector();',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('FORBIDDEN') && output.includes('GEN-UX-005'),
+      `Expected GEN-UX-005 error but got: ${output}`,
+    );
+  });
+
+  it('passes when SignalCollector called with args object', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); const sc = new SignalCollector({ sessionId: 'abc', studentId: '123', templateId: 'tpl' });",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-UX-005'),
+      `Unexpected GEN-UX-005 error when SignalCollector has args: ${output}`,
+    );
+  });
+
+  // ─── GEN-LOCAL-ASSETS tests ─────────────────────────────────────────────────
+  it('GEN-LOCAL-ASSETS: fires ERROR for src="assets/icon.svg"', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<img src="assets/icon.svg">\';',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-LOCAL-ASSETS'),
+      `Expected GEN-LOCAL-ASSETS error but got: ${output}`,
+    );
+  });
+
+  it('GEN-LOCAL-ASSETS: does NOT fire for CDN src URL', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<img src="https://storage.googleapis.com/mathai-temp-assets/icon.svg">\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-LOCAL-ASSETS'),
+      `Unexpected GEN-LOCAL-ASSETS error for CDN URL: ${output}`,
+    );
+  });
+
+  it('GEN-LOCAL-ASSETS: fires ERROR for icons: ["assets/icon.png"] pattern', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); const cfg = { icons: ['assets/icon.png'] };",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-LOCAL-ASSETS'),
+      `Expected GEN-LOCAL-ASSETS error but got: ${output}`,
+    );
+  });
+
+  it('GEN-LOCAL-ASSETS: does NOT fire for icons: ["🎯"] emoji pattern', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); const cfg = { icons: ['🎯'] };",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-LOCAL-ASSETS'),
+      `Unexpected GEN-LOCAL-ASSETS error for emoji icons: ${output}`,
+    );
+  });
+
+  it('GEN-LOCAL-ASSETS: fires ERROR for CSS url("images/bg.png") pattern', () => {
+    const html = VALID_HTML.replace(
+      '* { margin: 0; padding: 0; box-sizing: border-box; }',
+      '* { margin: 0; padding: 0; box-sizing: border-box; } body { background: url("images/bg.png"); }',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-LOCAL-ASSETS'),
+      `Expected GEN-LOCAL-ASSETS error but got: ${output}`,
+    );
+  });
+
+  it('GEN-LOCAL-ASSETS: does NOT fire for data: URI', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<img src="data:image/png;base64,abc123">\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-LOCAL-ASSETS'),
+      `Unexpected GEN-LOCAL-ASSETS error for data: URI: ${output}`,
+    );
+  });
+
+  // ─── GEN-SVG-CONTRAST tests ─────────────────────────────────────────────────
+  it('GEN-SVG-CONTRAST: fires WARNING for stroke="#64748b" (lowercase)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><circle stroke="#64748b" r="10"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SVG-CONTRAST'),
+      `Expected GEN-SVG-CONTRAST warning but got: ${output}`,
+    );
+  });
+
+  it('GEN-SVG-CONTRAST: fires WARNING for stroke="#64748B" (uppercase — case-insensitive)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><circle stroke="#64748B" r="10"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SVG-CONTRAST'),
+      `Expected GEN-SVG-CONTRAST warning for uppercase hex but got: ${output}`,
+    );
+  });
+
+  it('GEN-SVG-CONTRAST: does NOT fire for stroke="#374151" (passing contrast)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><circle stroke="#374151" r="10"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-SVG-CONTRAST'),
+      `Unexpected GEN-SVG-CONTRAST warning for #374151: ${output}`,
+    );
+  });
+
+  it('GEN-SVG-CONTRAST: fires WARNING for fill="#9ca3af" (gray-400)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><rect fill="#9ca3af" width="20" height="20"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SVG-CONTRAST'),
+      `Expected GEN-SVG-CONTRAST warning for fill #9ca3af but got: ${output}`,
+    );
+  });
+
+  it('GEN-SVG-CONTRAST: fires WARNING for fill="#94a3b8" (slate-400)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><path fill="#94a3b8" d="M0 0h10v10z"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SVG-CONTRAST'),
+      `Expected GEN-SVG-CONTRAST warning for fill #94a3b8 but got: ${output}`,
+    );
+  });
+
+  it('GEN-SVG-CONTRAST: does NOT fire for fill="#1f2937" (gray-800, high contrast)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><path fill="#1f2937" d="M0 0h10v10z"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-SVG-CONTRAST'),
+      `Unexpected GEN-SVG-CONTRAST warning for #1f2937: ${output}`,
+    );
+  });
+});
+
+describe('GEN-PROGRESSBAR-LIVES: totalLives zero, negative, and double-zero (CR-024)', () => {
+  // Helper: inject a ProgressBarComponent with the given totalLives value, wrapped in typeof guard
+  function pbHtml(totalLivesExpr) {
+    return VALID_HTML.replace(
+      'initGame();',
+      `initGame(); if (typeof ProgressBarComponent !== "undefined") { var pb = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: ${totalLivesExpr} }); }`,
+    );
+  }
+
+  it('fails for totalLives: 0', () => {
+    const { exitCode, output } = runValidator(pbHtml('0'));
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Expected GEN-PROGRESSBAR-LIVES error for totalLives: 0 but got: ${output}`,
+    );
+  });
+
+  it('fails for totalLives: -1 (negative)', () => {
+    const { exitCode, output } = runValidator(pbHtml('-1'));
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Expected GEN-PROGRESSBAR-LIVES error for totalLives: -1 but got: ${output}`,
+    );
+  });
+
+  it('fails for totalLives: -5 (negative)', () => {
+    const { exitCode, output } = runValidator(pbHtml('-5'));
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Expected GEN-PROGRESSBAR-LIVES error for totalLives: -5 but got: ${output}`,
+    );
+  });
+
+  it('fails for totalLives: 00 (double-zero)', () => {
+    const { exitCode, output } = runValidator(pbHtml('00'));
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Expected GEN-PROGRESSBAR-LIVES error for totalLives: 00 but got: ${output}`,
+    );
+  });
+
+  it('passes for totalLives: 1 (valid minimum)', () => {
+    const { output } = runValidator(pbHtml('1'));
+    assert.ok(
+      !output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Unexpected GEN-PROGRESSBAR-LIVES error for totalLives: 1. Output: ${output}`,
+    );
+  });
+
+  it('passes for totalLives: 3 (valid positive)', () => {
+    const { output } = runValidator(pbHtml('3'));
+    assert.ok(
+      !output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Unexpected GEN-PROGRESSBAR-LIVES error for totalLives: 3. Output: ${output}`,
+    );
+  });
+});
+
+describe('W13 GEN-RESTART-RESET: restartGame() must reset required gameState fields (CR-032)', () => {
+  // Base HTML that has a valid restartGame() with full state reset — should NOT trigger warning
+  const FULL_RESET_HTML = VALID_HTML.replace(
+    'initGame();',
+    `initGame();
+  function restartGame() {
+    gameState.currentRound = 0;
+    gameState.lives = gameState.totalLives;
+    gameState.score = 0;
+    gameState.events = [];
+    gameState.attempts = [];
+    gameState.gameEnded = false;
+    gameState.phase = 'start';
+    showStartScreen();
+  }
+  function showStartScreen() {}`,
+  );
+
+  it('does NOT warn when restartGame() resets all required fields', () => {
+    const { output } = runValidator(FULL_RESET_HTML);
+    assert.ok(
+      !output.includes('GEN-RESTART-RESET'),
+      `Unexpected GEN-RESTART-RESET warning for complete reset. Output: ${output}`,
+    );
+  });
+
+  it('does NOT warn when restartGame() is not defined (game has no restart)', () => {
+    // VALID_HTML has no restartGame() — should pass cleanly
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-RESTART-RESET'),
+      `Unexpected GEN-RESTART-RESET warning when restartGame is absent. Output: ${output}`,
+    );
+  });
+
+  it('warns when restartGame() only resets gameEnded (missing currentRound, score, lives, events, attempts)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  function restartGame() {
+    gameState.gameEnded = false;
+    gameState.phase = 'start';
+    showStartScreen();
+  }
+  function showStartScreen() {}`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-RESTART-RESET'),
+      `Expected GEN-RESTART-RESET warning for incomplete reset. Output: ${output}`,
+    );
+    // Confirm the missing fields are listed
+    assert.ok(output.includes('currentRound'), `Expected 'currentRound' in warning: ${output}`);
+    assert.ok(output.includes('score'), `Expected 'score' in warning: ${output}`);
+    assert.ok(output.includes('lives'), `Expected 'lives' in warning: ${output}`);
+  });
+
+  it('warns when restartGame() resets lives/currentRound but not events or attempts', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  function restartGame() {
+    gameState.currentRound = 0;
+    gameState.lives = gameState.totalLives;
+    gameState.score = 0;
+    gameState.gameEnded = false;
+    showStartScreen();
+  }
+  function showStartScreen() {}`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-RESTART-RESET'),
+      `Expected GEN-RESTART-RESET warning when events/attempts missing. Output: ${output}`,
+    );
+    assert.ok(output.includes('events'), `Expected 'events' in warning: ${output}`);
+    assert.ok(output.includes('attempts'), `Expected 'attempts' in warning: ${output}`);
+  });
+
+  it('warns when restartGame() only resets score but not lives, currentRound, events, attempts', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  function restartGame() {
+    gameState.score = 0;
+    gameState.gameEnded = false;
+    showStartScreen();
+  }
+  function showStartScreen() {}`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-RESTART-RESET'),
+      `Expected GEN-RESTART-RESET warning for partial reset (score only). Output: ${output}`,
+    );
+    assert.ok(output.includes('currentRound'), `Expected 'currentRound' in warning: ${output}`);
+    assert.ok(output.includes('lives'), `Expected 'lives' in warning: ${output}`);
+  });
+});
+
+// ─── W14: LP-PROGRESSBAR-CLAMP ───────────────────────────────────────────────
+describe('W14: LP-PROGRESSBAR-CLAMP — progressBar.update() lives must be clamped', () => {
+  const PB_BASE = VALID_HTML.replace(
+    'initGame();',
+    `initGame();
+  const progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });
+  function loadRound() {`,
+  );
+
+  it('warns when progressBar.update() passes gameState.lives directly without Math.max clamp', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  const progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });
+  function loadRound() {
+    progressBar.update(gameState.currentRound, gameState.lives);
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('W14') || output.includes('LP-PROGRESSBAR-CLAMP'),
+      `Expected W14/LP-PROGRESSBAR-CLAMP warning when gameState.lives passed directly. Output: ${output}`,
+    );
+    assert.ok(
+      output.includes('Math.max'),
+      `Expected Math.max fix hint in warning. Output: ${output}`,
+    );
+  });
+
+  it('does NOT warn when progressBar.update() uses Math.max(0, gameState.lives)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  const progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });
+  function loadRound() {
+    const displayLives = Math.max(0, gameState.lives);
+    progressBar.update(gameState.currentRound, displayLives);
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('LP-PROGRESSBAR-CLAMP'),
+      `Expected NO LP-PROGRESSBAR-CLAMP warning when Math.max(0, gameState.lives) is used. Output: ${output}`,
+    );
+  });
+
+  it('does NOT warn when progressBar.update() uses Math.max(0, lives) via local variable', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  const progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });
+  function loadRound() {
+    const lives = Math.max(0, gameState.lives);
+    progressBar.update(gameState.currentRound, lives);
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('LP-PROGRESSBAR-CLAMP'),
+      `Expected NO LP-PROGRESSBAR-CLAMP warning when clampedLives=Math.max pattern used. Output: ${output}`,
+    );
+  });
+
+  it('does NOT warn when progressBar is not used in the HTML', () => {
+    // VALID_HTML has no progressBar reference
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('LP-PROGRESSBAR-CLAMP'),
+      `Expected NO LP-PROGRESSBAR-CLAMP warning when progressBar not used. Output: ${output}`,
+    );
+  });
+
+  it('does NOT warn when progressBar.update() passes literal 0 for lives (no-lives game)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  const progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 5 });
+  function loadRound() {
+    progressBar.update(gameState.currentRound, 0);
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('LP-PROGRESSBAR-CLAMP'),
+      `Expected NO LP-PROGRESSBAR-CLAMP warning when literal 0 passed (no-lives game). Output: ${output}`,
+    );
+  });
+});
+
+describe('GEN-WAITFOR-MATCH — FeedbackManager checked in waitForPackages but not loaded (5fb)', () => {
+  // CDN HTML without feedback-manager script (PART-017=NO)
+  const cdnHtmlNoFeedbackScript = (waitForCondition) =>
+    '<!DOCTYPE html>\n' +
+    '<html lang="en"><head><meta charset="UTF-8"><title>T</title>\n' +
+    '<style>body{} #gameContent{max-width:480px;}</style></head>\n' +
+    '<body><div id="app"></div>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n' +
+    '<script>\n' +
+    '  window.gameState = { phase: \'start\', score: 0, lives: 3 };\n' +
+    '  window.endGame = function endGame() {};\n' +
+    '  window.restartGame = function restartGame() {};\n' +
+    '  window.nextRound = function nextRound() {};\n' +
+    '  async function waitForPackages() {\n' +
+    '    const timeout = 120000; const interval = 50; let elapsed = 0;\n' +
+    '    while (' + waitForCondition + ') {\n' +
+    '      if (elapsed >= timeout) { throw new Error(\'Packages failed to load within 120s\'); }\n' +
+    '      await new Promise(resolve => setTimeout(resolve, interval));\n' +
+    '      elapsed += interval;\n' +
+    '    }\n' +
+    '  }\n' +
+    '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
+    '    await waitForPackages();\n' +
+    '    window.parent.postMessage({ type: \'game_complete\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+    '  });\n' +
+    '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
+    '</script></body></html>';
+
+  // CDN HTML WITH feedback-manager script (PART-017=YES)
+  // Note: feedback-manager script is in <head> (as CDN games require) so GEN-WAITFOR-MATCH-A
+  // checks <head> for the presence of the feedback-manager script tag.
+  const cdnHtmlWithFeedbackScript = (waitForCondition) =>
+    '<!DOCTYPE html>\n' +
+    '<html lang="en"><head><meta charset="UTF-8"><title>T</title>\n' +
+    '<style>body{} #gameContent{max-width:480px;}</style>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n' +
+    '</head>\n' +
+    '<body><div id="app"></div>\n' +
+    '<script>\n' +
+    '  window.gameState = { phase: \'start\', score: 0, lives: 3 };\n' +
+    '  window.endGame = function endGame() {};\n' +
+    '  window.restartGame = function restartGame() {};\n' +
+    '  window.nextRound = function nextRound() {};\n' +
+    '  async function waitForPackages() {\n' +
+    '    const timeout = 120000; const interval = 50; let elapsed = 0;\n' +
+    '    while (' + waitForCondition + ') {\n' +
+    '      if (elapsed >= timeout) { throw new Error(\'Packages failed to load within 120s\'); }\n' +
+    '      await new Promise(resolve => setTimeout(resolve, interval));\n' +
+    '      elapsed += interval;\n' +
+    '    }\n' +
+    '  }\n' +
+    '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
+    '    await waitForPackages();\n' +
+    '    window.parent.postMessage({ type: \'game_complete\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+    '  });\n' +
+    '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
+    '</script></body></html>';
+
+  it('fails when PART-017=NO game checks typeof FeedbackManager === "undefined" but has no feedback-manager script (Lesson 72)', () => {
+    const html = cdnHtmlNoFeedbackScript('typeof FeedbackManager === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-WAITFOR-MATCH'),
+      `Expected GEN-WAITFOR-MATCH error but got: ${output}`,
+    );
+  });
+
+  it('fails when PART-017=NO game checks typeof FeedbackManager !== "undefined" but has no feedback-manager script', () => {
+    const html = cdnHtmlNoFeedbackScript('typeof FeedbackManager !== "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-WAITFOR-MATCH'),
+      `Expected GEN-WAITFOR-MATCH error but got: ${output}`,
+    );
+  });
+
+  it('passes when PART-017=YES game checks typeof FeedbackManager and feedback-manager script IS present', () => {
+    const html = cdnHtmlWithFeedbackScript('typeof FeedbackManager === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH'),
+      `Unexpected GEN-WAITFOR-MATCH error when feedback-manager script IS present: ${output}`,
+    );
+  });
+
+  it('passes when PART-017=NO game checks typeof ScreenLayout (correct fallback) and has no feedback-manager script', () => {
+    const html = cdnHtmlNoFeedbackScript('typeof ScreenLayout === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH'),
+      `Unexpected GEN-WAITFOR-MATCH error when ScreenLayout check is used correctly: ${output}`,
+    );
+  });
+});
+
+describe('GEN-WAITFOR-BANNEDNAMES — waitForPackages checks hallucinated non-CDN package names (5c3)', () => {
+  // Minimal CDN HTML with waitForPackages — whileCondition replaces the while loop predicate
+  function makeBannedNameHtml(whileCondition) {
+    return (
+      '<!DOCTYPE html>\n' +
+      '<html lang="en"><head><meta charset="UTF-8"><title>T</title>\n' +
+      '<style>body{} #gameContent{max-width:480px;}</style></head>\n' +
+      '<body><div id="app"></div>\n' +
+      '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>\n' +
+      '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n' +
+      '<script>\n' +
+      '  window.gameState = { phase: \'start\', score: 0, lives: 3 };\n' +
+      '  window.endGame = function endGame() {};\n' +
+      '  window.restartGame = function restartGame() {};\n' +
+      '  window.nextRound = function nextRound() {};\n' +
+      '  async function waitForPackages() {\n' +
+      '    const timeout = 180000; const interval = 50; let elapsed = 0;\n' +
+      '    while (' + whileCondition + ') {\n' +
+      '      if (elapsed >= timeout) { throw new Error(\'Packages failed to load within 180s\'); }\n' +
+      '      await new Promise(resolve => setTimeout(resolve, interval));\n' +
+      '      elapsed += interval;\n' +
+      '    }\n' +
+      '  }\n' +
+      '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
+      '    await waitForPackages();\n' +
+      '    window.parent.postMessage({ type: \'game_complete\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+      '  });\n' +
+      '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
+      '</script></body></html>'
+    );
+  }
+
+  it('fails when waitForPackages checks typeof Components (banned — never a CDN global)', () => {
+    const html = makeBannedNameHtml('typeof Components === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected failure but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-WAITFOR-BANNEDNAMES') && output.includes('"Components"'),
+      `Expected GEN-WAITFOR-BANNEDNAMES error for "Components" but got: ${output}`,
+    );
+  });
+
+  it('fails when waitForPackages checks typeof Helpers (banned — never a CDN global)', () => {
+    const html = makeBannedNameHtml('typeof Helpers === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected failure but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-WAITFOR-BANNEDNAMES') && output.includes('"Helpers"'),
+      `Expected GEN-WAITFOR-BANNEDNAMES error for "Helpers" but got: ${output}`,
+    );
+  });
+
+  it('passes when waitForPackages checks typeof ScreenLayout (correct CDN global)', () => {
+    const html = makeBannedNameHtml('typeof ScreenLayout === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-BANNEDNAMES'),
+      `Unexpected GEN-WAITFOR-BANNEDNAMES error for correct ScreenLayout check: ${output}`,
+    );
+  });
+});
+
+describe('GEN-WAITFOR-MATCH B/C/D: new X() used but typeof X absent from waitForPackages (WARNING)', () => {
+  // Minimal CDN HTML: feedback-manager absent, waitForPackages checks only ScreenLayout by default.
+  // extraScript is injected into the game body to simulate new X() calls.
+  function makeCdnHtmlForBCD(waitForCondition, extraScript) {
+    return (
+      '<!DOCTYPE html>\n' +
+      '<html lang="en"><head><meta charset="UTF-8"><title>T</title>\n' +
+      '<style>body{} #gameContent{max-width:480px;}</style></head>\n' +
+      '<body><div id="app"></div>\n' +
+      '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>\n' +
+      '<script>\n' +
+      '  window.gameState = { phase: \'start\', score: 0, lives: 3 };\n' +
+      '  window.endGame = function endGame() {};\n' +
+      '  window.restartGame = function restartGame() {};\n' +
+      '  async function waitForPackages() {\n' +
+      '    const timeout = 120000; const interval = 50; let elapsed = 0;\n' +
+      '    while (' + waitForCondition + ') {\n' +
+      '      if (elapsed >= timeout) { throw new Error(\'Packages failed to load within 120s\'); }\n' +
+      '      await new Promise(resolve => setTimeout(resolve, interval));\n' +
+      '      elapsed += interval;\n' +
+      '    }\n' +
+      '  }\n' +
+      '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
+      '    await waitForPackages();\n' +
+      '    ' + extraScript + '\n' +
+      '    window.parent.postMessage({ type: \'game_complete\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+      '  });\n' +
+      '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
+      '</script></body></html>'
+    );
+  }
+
+  // ─── Check B: TimerComponent ─────────────────────────────────────────────
+
+  it('Check B fires WARNING when new TimerComponent() used but typeof TimerComponent absent from waitForPackages', () => {
+    const html = makeCdnHtmlForBCD(
+      'typeof ScreenLayout === "undefined"',
+      "const timer = new TimerComponent('timer-container', { timerType: 'decrease', startTime: 60, onEnd: function() {} });",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-WAITFOR-MATCH-B'),
+      `Expected GEN-WAITFOR-MATCH-B warning when new TimerComponent() used but typeof check absent. Output: ${output}`,
+    );
+  });
+
+  it('Check B does NOT fire when new TimerComponent() used AND typeof TimerComponent in waitForPackages', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined' || typeof TimerComponent === 'undefined'",
+      "const timer = new TimerComponent('timer-container', { timerType: 'decrease', startTime: 60, onEnd: function() {} });",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH-B'),
+      `Unexpected GEN-WAITFOR-MATCH-B warning when TimerComponent typeof guard is present. Output: ${output}`,
+    );
+  });
+
+  it('Check B does NOT fire when TimerComponent is not used at all', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined'",
+      '// no TimerComponent usage',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH-B'),
+      `Unexpected GEN-WAITFOR-MATCH-B warning when TimerComponent not used. Output: ${output}`,
+    );
+  });
+
+  // ─── Check C: ProgressBarComponent ──────────────────────────────────────
+
+  it('Check C fires WARNING when new ProgressBarComponent() used but typeof ProgressBarComponent absent', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined'",
+      "const pb = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-WAITFOR-MATCH-C'),
+      `Expected GEN-WAITFOR-MATCH-C warning when new ProgressBarComponent() used but typeof check absent. Output: ${output}`,
+    );
+  });
+
+  it('Check C does NOT fire when new ProgressBarComponent() used AND typeof ProgressBarComponent in waitForPackages', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined' || typeof ProgressBarComponent === 'undefined'",
+      "const pb = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH-C'),
+      `Unexpected GEN-WAITFOR-MATCH-C warning when ProgressBarComponent typeof guard is present. Output: ${output}`,
+    );
+  });
+
+  // ─── Check D: TransitionScreenComponent ─────────────────────────────────
+
+  it('Check D fires WARNING when new TransitionScreenComponent() used but typeof TransitionScreenComponent absent', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined'",
+      "const ts = new TransitionScreenComponent('slot-id', {});",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-WAITFOR-MATCH-D'),
+      `Expected GEN-WAITFOR-MATCH-D warning when new TransitionScreenComponent() used but typeof check absent. Output: ${output}`,
+    );
+  });
+
+  it('Check D does NOT fire when new TransitionScreenComponent() used AND typeof TransitionScreenComponent in waitForPackages', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined' || typeof TransitionScreenComponent === 'undefined'",
+      "const ts = new TransitionScreenComponent('slot-id', {});",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH-D'),
+      `Unexpected GEN-WAITFOR-MATCH-D warning when TransitionScreenComponent typeof guard is present. Output: ${output}`,
+    );
+  });
+});
+
+describe('GEN-RESULTS-FIXED: #results-screen must have position:fixed (GEN-UX-001)', () => {
+  it('does not warn when #results-screen has position:fixed in CSS', () => {
+    // Correct pattern: results screen has position:fixed as GEN-UX-001 requires
+    const html = VALID_HTML.replace(
+      '</style>',
+      `#results-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; background: white; display: none; }
+</style>`,
+    ).replace(
+      '</div>\n<script>',
+      `</div>
+  <div id="results-screen"></div>
+<script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-RESULTS-FIXED'),
+      `Unexpected GEN-RESULTS-FIXED warning for correct position:fixed usage: ${output}`,
+    );
+  });
+
+  it('warns when #results-screen element exists but has position:static (no position:fixed)', () => {
+    // Bad pattern: results screen exists but lacks position:fixed → renders off-screen
+    const html = VALID_HTML.replace(
+      '</style>',
+      `#results-screen { position: static; top: 0; left: 0; width: 100%; height: 100%; background: white; display: none; }
+</style>`,
+    ).replace(
+      '</div>\n<script>',
+      `</div>
+  <div id="results-screen"></div>
+<script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-RESULTS-FIXED'),
+      `Expected GEN-RESULTS-FIXED warning when position:static used but got: ${output}`,
+    );
+  });
+
+  it('does not warn when no #results-screen element exists (CDN TransitionScreen games)', () => {
+    // Games using CDN TransitionScreen have no custom #results-screen — no warning expected
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-RESULTS-FIXED'),
+      `Unexpected GEN-RESULTS-FIXED warning when no results-screen element present: ${output}`,
+    );
+  });
+});
+
+describe('GEN-TRANSITION-API-CALL: transitionScreen.show() string-mode API check (5h2)', () => {
+  it('emits ERROR when transitionScreen.show() is called with single-quote string first arg', () => {
+    // String-mode call: transitionScreen.show('victory', ...) — no string API in CDN
+    const html = VALID_HTML.replace(
+      '</script>',
+      `let transitionScreen = { show: async function(opts) {}, hide: async function() {} };
+  async function endGameTransition() {
+    await transitionScreen.show('victory', { score: 10 });
+    await transitionScreen.hide();
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected failure (ERROR) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('GEN-TRANSITION-API'),
+      `Expected GEN-TRANSITION-API ERROR but got: ${output}`,
+    );
+  });
+
+  it('emits ERROR when transitionScreen.show() is called with double-quote string first arg', () => {
+    // String-mode call with double quotes: transitionScreen.show("gameover", ...)
+    const html = VALID_HTML.replace(
+      '</script>',
+      `let transitionScreen = { show: async function(opts) {}, hide: async function() {} };
+  async function endGameTransition() {
+    await transitionScreen.show("gameover", { score: 0 });
+    await transitionScreen.hide();
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected failure (ERROR) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('GEN-TRANSITION-API'),
+      `Expected GEN-TRANSITION-API ERROR for double-quote string mode but got: ${output}`,
+    );
+  });
+
+  it('does not emit GEN-TRANSITION-API error when transitionScreen.show() uses object API', () => {
+    // Correct object API: transitionScreen.show({ buttons, title, subtitle, icons })
+    const html = VALID_HTML.replace(
+      '</script>',
+      `let transitionScreen = { show: async function(opts) {}, hide: async function() {} };
+  async function endGameTransition() {
+    await transitionScreen.show({ icons: ['🎉'], title: 'Well Done!', subtitle: 'You scored 10 points.', buttons: [{ text: 'Play Again', type: 'primary', action: restartGame }] });
+    await transitionScreen.hide();
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-TRANSITION-API'),
+      `Unexpected GEN-TRANSITION-API error for object-mode transitionScreen.show(): ${output}`,
+    );
+  });
+});
+
+describe('GEN-PHASE-MCQ: MCQ/timed games must call syncDOMState() at all phase transitions', () => {
+  // Helper: build a minimal MCQ game fragment with exactly N syncDOMState() call sites.
+  // We write the function body as a comment-style stub to avoid counting the definition
+  // itself, then add exactly N calls inside showStartScreen().
+  // Note: the definition `function _syncDOM() {}` + alias avoids the regex matching the stub.
+  function mcqHtml(syncCallCount, useTimer = false) {
+    // Each call is spelled out as a separate statement so the count is exact
+    const syncs = Array.from({ length: syncCallCount }, () => 'syncDOMState();').join('\n    ');
+    const timerLine = useTimer ? 'const timer = new TimerComponent("timer-container", { timerType: "decrease", startTime: 30, endTime: 0, onEnd: function() {} });' : '';
+    return VALID_HTML.replace(
+      '</script>',
+      `
+  /* stub: syncDOMState writes gameState.phase to #app[data-phase] */
+  var syncDOMState = function() { /* stub */ };
+  ${timerLine}
+  window.gameState = { phase: 'start', totalLives: 3, currentRound: 0, totalRounds: 5, score: 0, events: [], attempts: [], gameEnded: false };
+  function showStartScreen() { gameState.phase = 'start'; ${syncs} }
+  function handleClick(answer) { gameState.score++; }
+  </script>`,
+    ).replace(
+      // inject an option button so the MCQ pattern is detected
+      '<div id="answers"></div>',
+      '<div id="answers"><button class="option-btn" data-testid="option-0">A</button></div>',
+    );
+  }
+
+  it('emits WARNING [GEN-PHASE-MCQ] when MCQ game has 0 syncDOMState() calls', () => {
+    const html = mcqHtml(0);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('WARNING [GEN-PHASE-MCQ]'),
+      `Expected GEN-PHASE-MCQ warning for 0 syncDOMState() calls but got: ${output}`,
+    );
+    assert.ok(
+      output.includes('found 0'),
+      `Expected "found 0" in warning message but got: ${output}`,
+    );
+  });
+
+  it('emits WARNING [GEN-PHASE-MCQ] when MCQ game has 1 syncDOMState() call', () => {
+    const html = mcqHtml(1);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('WARNING [GEN-PHASE-MCQ]'),
+      `Expected GEN-PHASE-MCQ warning for 1 syncDOMState() call but got: ${output}`,
+    );
+    assert.ok(
+      output.includes('found 1'),
+      `Expected "found 1" in warning message but got: ${output}`,
+    );
+  });
+
+  it('emits WARNING [GEN-PHASE-MCQ] when MCQ game has 2 syncDOMState() calls', () => {
+    const html = mcqHtml(2);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('WARNING [GEN-PHASE-MCQ]'),
+      `Expected GEN-PHASE-MCQ warning for 2 syncDOMState() calls but got: ${output}`,
+    );
+    assert.ok(
+      output.includes('found 2'),
+      `Expected "found 2" in warning message but got: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-PHASE-MCQ warning when MCQ game has 3 syncDOMState() calls', () => {
+    const html = mcqHtml(3);
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-PHASE-MCQ'),
+      `Unexpected GEN-PHASE-MCQ warning for 3 syncDOMState() calls: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-PHASE-MCQ warning when MCQ game has 4 syncDOMState() calls (all 4 sites)', () => {
+    const html = mcqHtml(4);
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-PHASE-MCQ'),
+      `Unexpected GEN-PHASE-MCQ warning for 4 syncDOMState() calls: ${output}`,
+    );
+  });
+
+  it('emits WARNING [GEN-PHASE-MCQ] for timed MCQ game (TimerComponent) with fewer than 3 calls', () => {
+    // Timed games use TimerComponent — also MCQ pattern trigger
+    const html = mcqHtml(1, true);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('WARNING [GEN-PHASE-MCQ]'),
+      `Expected GEN-PHASE-MCQ warning for timed MCQ with 1 syncDOMState() call but got: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-PHASE-MCQ warning for non-MCQ game without option buttons or lives', () => {
+    // VALID_HTML has no .option-btn and no gameState.lives — not an MCQ game
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-PHASE-MCQ'),
+      `Unexpected GEN-PHASE-MCQ warning for non-MCQ game: ${output}`,
+    );
+  });
+
+  it('includes all 4 required call sites in the warning message', () => {
+    const html = mcqHtml(1);
+    const { output } = runValidator(html);
+    assert.ok(output.includes('showStartScreen()'), `Missing showStartScreen call site in warning: ${output}`);
+    assert.ok(output.includes('startGame()/renderRound()'), `Missing renderRound call site in warning: ${output}`);
+    assert.ok(output.includes("'gameover'"), `Missing gameover phase in warning: ${output}`);
+    assert.ok(output.includes("'results'"), `Missing results phase in warning: ${output}`);
+  });
+
+  // ─── GEN-PM-DUAL-PATH tests ───────────────────────────────────────────────
+
+  it('GEN-PM-DUAL-PATH: fails when postMessage is inside a simple if-victory guard', () => {
+    // Bug: postMessage only fires on 'victory' path — game_over path never sends it
+    const html = VALID_HTML.replace(
+      `  function endGame() {
+    const pct = gameState.score / gameState.totalQuestions;
+    const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
+    window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
+    document.getElementById('gameArea').innerHTML = '<h2>Game Over! Score: ' + gameState.score + '/' + gameState.totalQuestions + '</h2>';
+  }`,
+      `  function endGame(reason) {
+    document.getElementById('gameArea').innerHTML = '<h2>Game Over!</h2>';
+    if (reason === 'victory') { window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: 3, total: gameState.totalQuestions }, '*'); }
+  }`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected GEN-PM-DUAL-PATH error but got exit 0: ${output}`);
+    assert.ok(output.includes('GEN-PM-DUAL-PATH'), `Expected GEN-PM-DUAL-PATH in output but got: ${output}`);
+  });
+
+  it('GEN-PM-DUAL-PATH: fails when postMessage is inside a multiline if-victory guard', () => {
+    // Bug: same issue across multiple lines — the s-flag on the regex handles newlines
+    const html = VALID_HTML.replace(
+      `  function endGame() {
+    const pct = gameState.score / gameState.totalQuestions;
+    const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
+    window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
+    document.getElementById('gameArea').innerHTML = '<h2>Game Over! Score: ' + gameState.score + '/' + gameState.totalQuestions + '</h2>';
+  }`,
+      `  function endGame(reason) {
+    if (reason === 'victory') {
+      window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: 3, total: gameState.totalQuestions }, '*');
+    }
+    document.getElementById('gameArea').innerHTML = '<h2>Game Over!</h2>';
+  }`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected GEN-PM-DUAL-PATH error for multiline guard but got exit 0: ${output}`);
+    assert.ok(output.includes('GEN-PM-DUAL-PATH'), `Expected GEN-PM-DUAL-PATH in output but got: ${output}`);
+  });
+
+  it('GEN-PM-DUAL-PATH: does NOT fire when postMessage is unconditional after an if-victory block', () => {
+    // Correct: if-victory block handles UI only; postMessage fires unconditionally after
+    const html = VALID_HTML.replace(
+      `  function endGame() {
+    const pct = gameState.score / gameState.totalQuestions;
+    const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
+    window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
+    document.getElementById('gameArea').innerHTML = '<h2>Game Over! Score: ' + gameState.score + '/' + gameState.totalQuestions + '</h2>';
+  }`,
+      `  function endGame(reason) {
+    const pct = gameState.score / gameState.totalQuestions;
+    const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
+    if (reason === 'victory') { playVictorySound(); }
+    window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
+    document.getElementById('gameArea').innerHTML = '<h2>Done!</h2>';
+  }`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass for correct dual-path postMessage but got: ${output}`);
+    assert.ok(!output.includes('GEN-PM-DUAL-PATH'), `Unexpected GEN-PM-DUAL-PATH error: ${output}`);
+  });
+
+  // ─── GEN-ROUND-INDEX tests ────────────────────────────────────────────────
+
+  it('GEN-ROUND-INDEX: warns when rounds[currentRound - 1] is used', () => {
+    // Bug: currentRound is 0-based — rounds[-1] on first click crashes the game
+    const html = VALID_HTML.replace(
+      `  function showQuestion() {
+    var a = Math.floor(Math.random() * 12) + 1;
+    var b = Math.floor(Math.random() * 12) + 1;
+    gameState.correct = a * b;
+    document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+  }`,
+      `  var rounds = [{q:'1+1',a:2},{q:'2+2',a:4}];
+  function showQuestion() {
+    var r = rounds[gameState.currentRound - 1];
+    document.getElementById('questionText').textContent = r.q;
+    gameState.correct = r.a;
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-ROUND-INDEX'),
+      `Expected GEN-ROUND-INDEX warning for rounds[currentRound-1] but got: ${output}`,
+    );
+  });
+
+  it('GEN-ROUND-INDEX: warns when loadRound calls nextRound causing double-increment', () => {
+    // Bug: loadRound sets currentRound = n-1 then nextRound increments again → off-by-one
+    const html = VALID_HTML.replace(
+      `  function showQuestion() {
+    var a = Math.floor(Math.random() * 12) + 1;
+    var b = Math.floor(Math.random() * 12) + 1;
+    gameState.correct = a * b;
+    document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+  }`,
+      `  function nextRound() { gameState.currentRound++; showQuestion(); }
+  function loadRound(n) { gameState.currentRound = n - 1; nextRound(); }
+  function showQuestion() {
+    var a = 2; document.getElementById('questionText').textContent = a + ' x ' + a;
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-ROUND-INDEX'),
+      `Expected GEN-ROUND-INDEX warning for loadRound→nextRound but got: ${output}`,
+    );
+  });
+
+  it('GEN-ROUND-INDEX: does NOT warn when rounds[currentRound] (0-based) is used correctly', () => {
+    // Correct: rounds[currentRound] — 0-based direct index
+    const html = VALID_HTML.replace(
+      `  function showQuestion() {
+    var a = Math.floor(Math.random() * 12) + 1;
+    var b = Math.floor(Math.random() * 12) + 1;
+    gameState.correct = a * b;
+    document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+  }`,
+      `  var rounds = [{q:'1+1',a:2},{q:'2+2',a:4}];
+  function showQuestion() {
+    var r = rounds[gameState.currentRound];
+    document.getElementById('questionText').textContent = r.q;
+    gameState.correct = r.a;
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-ROUND-INDEX'),
+      `Unexpected GEN-ROUND-INDEX warning for correct 0-based index: ${output}`,
+    );
+  });
+
+  // ─── GEN-TESTID-RESTART tests ─────────────────────────────────────────────
+
+  it('GEN-TESTID-RESTART: warns when restart button uses data-testid="restart-btn"', () => {
+    // Bug: test harness clicks [data-testid="btn-restart"] — "restart-btn" fails silently
+    const html = VALID_HTML.replace(
+      '</div>\n</div>',
+      '</div>\n  <button data-testid="restart-btn" onclick="initGame()">Play Again</button>\n</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-TESTID-RESTART'),
+      `Expected GEN-TESTID-RESTART warning for restart-btn but got: ${output}`,
+    );
+  });
+
+  it('GEN-TESTID-RESTART: warns when restart button uses data-testid="replay-btn"', () => {
+    const html = VALID_HTML.replace(
+      '</div>\n</div>',
+      '</div>\n  <button data-testid="replay-btn" onclick="initGame()">Replay</button>\n</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-TESTID-RESTART'),
+      `Expected GEN-TESTID-RESTART warning for replay-btn but got: ${output}`,
+    );
+  });
+
+  it('GEN-TESTID-RESTART: does NOT warn when restart button uses correct data-testid="btn-restart"', () => {
+    // Correct: btn-restart matches test harness selector
+    const html = VALID_HTML.replace(
+      '</div>\n</div>',
+      '</div>\n  <button data-testid="btn-restart" onclick="initGame()">Play Again</button>\n</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-TESTID-RESTART'),
+      `Unexpected GEN-TESTID-RESTART warning for correct btn-restart: ${output}`,
+    );
+  });
+
+  // ─── GEN-BTN-START tests ──────────────────────────────────────────────────
+
+  it('GEN-BTN-START: warns when TransitionScreen present but no data-testid="btn-start"', () => {
+    // Game with TransitionScreen but missing btn-start testid
+    const html = VALID_HTML.replace(
+      'function initGame()',
+      'function setupGame() { const transitionScreen = new TransitionScreenComponent(); } function initGame()',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-BTN-START'),
+      `Expected GEN-BTN-START warning when TransitionScreen present without btn-start: ${output}`,
+    );
+  });
+
+  it('GEN-BTN-START: warns when mathai-transition-slot present but no data-testid="btn-start"', () => {
+    const html = VALID_HTML.replace(
+      '<div id="gameContent">',
+      '<div id="mathai-transition-slot"></div>\n<div id="gameContent">',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-BTN-START'),
+      `Expected GEN-BTN-START warning when mathai-transition-slot present without btn-start: ${output}`,
+    );
+  });
+
+  it('GEN-BTN-START: does NOT warn when data-testid="btn-start" is present', () => {
+    const html = VALID_HTML.replace(
+      '<div id="gameContent">',
+      '<div id="mathai-transition-slot"><button data-testid="btn-start">Let\'s go!</button></div>\n<div id="gameContent">',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-BTN-START'),
+      `Unexpected GEN-BTN-START warning when btn-start present: ${output}`,
+    );
+  });
+
+  it('GEN-BTN-START: does NOT warn when no transition screen present', () => {
+    // VALID_HTML has no transition screen — GEN-BTN-START should not fire
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-BTN-START'),
+      `Unexpected GEN-BTN-START warning for non-transition game: ${output}`,
+    );
+  });
+
+  // ─── GEN-PHASE-INIT tests ─────────────────────────────────────────────────
+
+  it('GEN-PHASE-INIT: warns when #app data-phase="start" but gameState.phase="start_screen"', () => {
+    const html = VALID_HTML.replace(
+      '<div id="gameContent">',
+      '<div id="app" data-phase="start"></div>\n<div id="gameContent">',
+    ).replace(
+      'let gameState = {',
+      'let gameState = { phase: \'start_screen\',',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-PHASE-INIT'),
+      `Expected GEN-PHASE-INIT warning for data-phase/gameState.phase mismatch: ${output}`,
+    );
+  });
+
+  it('GEN-PHASE-INIT: does NOT warn when #app data-phase matches gameState.phase', () => {
+    const html = VALID_HTML.replace(
+      '<div id="gameContent">',
+      '<div id="app" data-phase="start_screen"></div>\n<div id="gameContent">',
+    ).replace(
+      'let gameState = {',
+      'let gameState = { phase: \'start_screen\',',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-PHASE-INIT'),
+      `Unexpected GEN-PHASE-INIT warning when data-phase matches gameState.phase: ${output}`,
+    );
+  });
+
+  it('GEN-PHASE-INIT: does NOT warn when #app has no data-phase', () => {
+    // No data-phase on #app → check does not apply
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-PHASE-INIT'),
+      `Unexpected GEN-PHASE-INIT warning for HTML without data-phase: ${output}`,
     );
   });
 });

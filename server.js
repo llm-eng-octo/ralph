@@ -11,7 +11,7 @@ const slack = require('./lib/slack');
 const logger = require('./lib/logger');
 const sentry = require('./lib/sentry');
 const metrics = require('./lib/metrics');
-const { buildSessionPlan } = require('./lib/session-planner');
+const { buildSessionPlan, planSessionFromObjective: _planSessionFromObjective } = require('./lib/session-planner');
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 const BULK_THRESHOLD = parseInt(process.env.RALPH_BULK_THRESHOLD || '5', 10);
@@ -67,6 +67,25 @@ function createApp(deps = {}) {
   const queue = deps.queue || null;
   const connection = deps.connection || null;
   const webhookSecret = deps.webhookSecret !== undefined ? deps.webhookSecret : process.env.GITHUB_WEBHOOK_SECRET;
+  const planSessionFromObjective = deps.planSessionFromObjective || _planSessionFromObjective;
+
+  // ─── Per-app in-process rate limiter for build/fix endpoints ───────────────
+  // State is scoped to each createApp() call so test instances are isolated.
+  const buildRateLimits = new Map(); // ip -> { count, windowStart }
+  const RATE_LIMIT_MAX = parseInt(process.env.BUILD_RATE_LIMIT_MAX || '5', 10);
+  const RATE_LIMIT_WINDOW_MS = parseInt(process.env.BUILD_RATE_LIMIT_WINDOW_MS || '60000', 10);
+
+  function checkBuildRateLimit(ip) {
+    const now = Date.now();
+    const entry = buildRateLimits.get(ip);
+    if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+      buildRateLimits.set(ip, { count: 1, windowStart: now });
+      return true; // allowed
+    }
+    if (entry.count >= RATE_LIMIT_MAX) return false; // rate limited
+    entry.count++;
+    return true;
+  }
 
   const app = express();
 
@@ -228,6 +247,10 @@ function createApp(deps = {}) {
       return res.status(400).json({ error: 'gameId is required' });
     }
 
+    if (!/^[a-z0-9-]+$/.test(gameId)) {
+      return res.status(400).json({ error: 'Invalid gameId: must match [a-z0-9-]+' });
+    }
+
     if (specUrl && specPath) {
       return res.status(400).json({ error: 'Provide specPath or specUrl, not both' });
     }
@@ -258,6 +281,13 @@ function createApp(deps = {}) {
         logger.info(`Build skipped for ${gameId} — game already approved`, { gameId, event: 'build_skipped_approved' });
         return res.json({ buildId: null, skipped: true, reason: 'game already approved', gameId });
       }
+    }
+
+    // Rate limit check — applied after validation and dedup/approved-skip so only
+    // requests that will create a new build consume rate limit tokens.
+    const clientIp = req.ip || req.connection.remoteAddress;
+    if (!checkBuildRateLimit(clientIp)) {
+      return res.status(429).json({ error: 'Rate limit exceeded — max 5 builds per 60 seconds per IP' });
     }
 
     const buildId = db.createBuild(gameId, null, { requestedBy: requestedBy || null });
@@ -632,22 +662,40 @@ function createApp(deps = {}) {
 
   // ─── Targeted fix API ──────────────────────────────────────────────────────
   app.post('/api/fix', async (req, res) => {
+    const clientIp = req.ip || req.connection.remoteAddress;
+    if (!checkBuildRateLimit(clientIp)) {
+      return res.status(429).json({ error: 'Rate limit exceeded — max 5 builds per 60 seconds per IP' });
+    }
+
     const { gameId, feedbackPrompt, buildId } = req.body;
     if (!gameId || !feedbackPrompt) {
       return res.status(400).json({ error: 'gameId and feedbackPrompt are required' });
+    }
+
+    if (!/^[a-z0-9-]+$/.test(gameId)) {
+      return res.status(400).json({ error: 'Invalid gameId: must match [a-z0-9-]+' });
     }
 
     const newBuildId = db.createBuild(gameId, null);
     db.updateBuildFeedback(newBuildId, feedbackPrompt);
 
     if (queue) {
-      await queue.add('build-game', {
-        type: 'fix',
-        gameId,
-        buildId: newBuildId,
-        parentBuildId: buildId || null,
-        feedbackPrompt,
-      });
+      let job;
+      try {
+        job = await queue.add('build-game', {
+          type: 'fix',
+          gameId,
+          buildId: newBuildId,
+          parentBuildId: buildId || null,
+          feedbackPrompt,
+        });
+      } catch (queueErr) {
+        // Roll back the DB record to prevent orphaned 'queued' status
+        try { db.failBuild(newBuildId, `Queue error: ${queueErr.message}`); } catch (_) {}
+        logger.error({ err: queueErr }, 'Failed to queue fix job');
+        return res.status(503).json({ error: 'Queue unavailable — fix job not created' });
+      }
+      void job; // suppress unused variable lint warning
     }
 
     logger.info(`Targeted fix queued for ${gameId}`, { gameId, buildId: newBuildId, event: 'fix_queued' });
@@ -665,6 +713,21 @@ function createApp(deps = {}) {
       return res.status(404).json(plan);
     }
     res.json(plan);
+  });
+
+  // ─── Session Planner API (Phase 2: LLM-driven objective → session JSON) ────
+  app.post('/api/session', async (req, res) => {
+    const { objective } = req.body;
+    if (!objective || typeof objective !== 'string' || objective.trim().length === 0) {
+      return res.status(400).json({ error: 'objective is required' });
+    }
+    try {
+      const session = await planSessionFromObjective(objective.trim());
+      res.json(session);
+    } catch (err) {
+      logger.error({ err }, 'Session planning failed');
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // ─── Slack Events API ──────────────────────────────────────────────────────
@@ -721,7 +784,19 @@ function createApp(deps = {}) {
     }
   }
 
-  app.post('/mcp', async (req, res) => {
+  // ─── MCP Bearer token authentication middleware ─────────────────────────
+  function verifyMcpAuth(req, res, next) {
+    const mcpSecret = process.env.MCP_SECRET;
+    if (mcpSecret) {
+      const authHeader = req.headers['authorization'];
+      if (!authHeader || authHeader !== `Bearer ${mcpSecret}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+    return next();
+  }
+
+  app.post('/mcp', verifyMcpAuth, async (req, res) => {
     const mcpServer = getMcpServer();
     if (!mcpServer) {
       return res.status(501).json({ error: 'MCP not available — install @modelcontextprotocol/sdk' });
@@ -755,7 +830,7 @@ function createApp(deps = {}) {
     }
   });
 
-  app.get('/mcp', async (req, res) => {
+  app.get('/mcp', verifyMcpAuth, async (req, res) => {
     const sessionId = req.headers['mcp-session-id'];
     const transport = sessionId ? mcpSessions.get(sessionId) : null;
     if (!transport) {
@@ -771,7 +846,7 @@ function createApp(deps = {}) {
     }
   });
 
-  app.delete('/mcp', async (req, res) => {
+  app.delete('/mcp', verifyMcpAuth, async (req, res) => {
     const sessionId = req.headers['mcp-session-id'];
     const transport = sessionId ? mcpSessions.get(sessionId) : null;
     if (transport) {
@@ -842,6 +917,11 @@ if (require.main === module) {
   if (!GITHUB_WEBHOOK_SECRET && process.env.NODE_ENV === 'production') {
     console.error('[FATAL] GITHUB_WEBHOOK_SECRET must be set in production. Refusing to start.');
     process.exit(1);
+  }
+
+  // Warn if MCP_SECRET is not set (endpoint will be unauthenticated)
+  if (!process.env.MCP_SECRET) {
+    console.warn('[ralph-server] WARNING: MCP_SECRET not set — /mcp endpoint is unauthenticated');
   }
 
   const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });

@@ -2,6 +2,35 @@
 
 Accumulated insights from build failures, bug fixes, and proofs. Update immediately after every notable build or bug fix.
 
+---
+
+## Browser Audit Lessons (2026-03-23 batch)
+
+**Lesson 192: adjustment-strategy rendering toBeVisible failures are all CDN init failures** | Source: TE diagnosis 2026-03-23, build #381
+The "rendering" failure category (53 occurrences in DB) is almost entirely caused by `waitForPackages()` timeout=10000ms instead of 120000ms. On CDN cold-start, packages take 30-120s to load — the 10s timeout fires first, "Packages failed to load" aborts beforeEach, and EVERY test in EVERY batch fails with toBeVisible. Secondary: unawaited `transitionScreen.show()` corrupts CDN state machine — buttons stay visibility:hidden in subsequent calls. Diagnostic: if test_results=[] for a build, CDN never loaded. If ALL tests fail toBeVisible across all batches, check waitForPackages timeout first.
+
+**Lesson 193: transitionScreen.show() string mode ('victory', 'gameover') doesn't exist in CDN** | Source: which-ratio #561 browser audit, BROWSER-P0-001
+The CDN TransitionScreenComponent has no string-mode shorthand. `transitionScreen.show('victory', {...})` logs `{title: undefined, buttons: undefined}` and renders a completely blank screen — user stranded with no Play Again button. ALL transitionScreen.show() calls must use the object API: `transitionScreen.show({ icons: ['🎉'], title: '...', buttons: [{...}] })`. Rules shipped: GEN-TRANSITION-API, GEN-TRANSITION-ICONS, GEN-PROGRESSBAR-LIVES.
+
+**Lesson 194: SVG markup strings in icons[] are HTML-escaped by CDN** | Source: which-ratio #561, BROWSER-P0-002
+`icons: ['<svg ...>']` — the CDN inserts icons as textContent (not innerHTML), so SVG string renders as escaped text filling the screen. Use emoji only: `icons: ['🔺', '🎉']`. Never pass SVG, HTML, or file paths.
+
+## Gen Rule Lessons (2026-03-23 batch — game-flow root cause analysis)
+
+**Lesson L-GF-001: Test-name trigger phrases cause `#mathai-transition-slot button` violations** | Source: game-flow analytics 2026-03-23, GF9-ENFORCEMENT commit 870c6d5
+The LLM generates the banned `#mathai-transition-slot button` selector predictably when test names contain specific phrases: "start screen to game start", "game starts when start is clicked", "transition to playing", "screen advances to game", "start button starts game", "clicking start shows game screen". Adding explicit test-name → correct-implementation mapping in GF9-ENFORCEMENT reduced this 27% of game-flow failures class.
+
+**Lesson L-GF-002: `progressBar.update(currentRound, totalRounds)` causes `RangeError: Invalid count value`** | Source: which-ratio #559/#560/#561, GEN-112 wrong-args commit 870c6d5+d76ecb0
+`ProgressBarComponent.update()` takes `(currentRound, livesRemaining)` as 2nd arg — NOT totalRounds. When a game has `totalLives=0` and `totalRounds=5`, passing `totalRounds` as 2nd arg passes `5` as lives to a 0-lives bar, computing a fill ratio of `(5-0)/0 = Infinity` → `String.repeat(-5)` → RangeError. Fix: explicit WRONG/CORRECT block in both `buildGenerationPrompt()` AND `buildCliGenPrompt()` — both paths are independent and both need the rule.
+
+**Lesson L-GF-003: `answer(page, true)` is MCQ-only — step-panel games need DOM-derived selectors** | Source: real-world-problem #563-#565, find-triangle-side #547, GF10 commit 870c6d5
+`answer(page, selector)` targets MCQ option buttons by CSS class. Step-based games (step1-panel, step2-panel, faded-panel, practice-panel) have panel interaction elements with IDs/classes derived from the spec — they cannot be navigated with the generic `answer()` helper. Test gen must use DOM-snapshot-derived selectors for step interactions.
+
+**Lesson L-TE-001: failure_patterns rows with `pattern='unknown'` are noise, not signal** | Source: TE-UNKNOWN-001 analysis 2026-03-23
+Pre-GEN-ANALYTICS-001 builds stored `recordFailurePattern(gameId, 'unknown', 'unknown')` when `categorizeFailure()` returned 'unknown'. The pattern field stored the literal string 'unknown' — no diagnostic content. These rows skew category counts and failure-pattern injection into fix prompts. Fix: mark `resolved=1` where `pattern='unknown'` (11 rows cleaned up). New rows are prevented by GEN-ANALYTICS-001's expanded categorizeFailure() branches.
+
+---
+
 ## Build Proofs
 
 | Build | Game | Result | Score | Notes |
@@ -2389,3 +2418,241 @@ Then re-queue the build.
 **RULE-003 TRANSITION (transitionScreen try/catch):** `transitionScreen.hide()` and `transitionScreen.show()` calls without try/catch cause uncaught promise rejections during game-over transition. Both CDN_CONSTRAINTS_BLOCK (gen prompt) and REVIEW_SHARED_GUIDANCE (review prompt) updated with explicit WRONG/RIGHT examples. Root cause: build #560 review rejection for unguarded transitionScreen calls.
 
 **Commit:** 4e8fca8 — deployed to server, ralph-worker restarted.
+
+
+## Lesson 186 — Cross-batch fix regression: per-batch fixes can conflict when shared state is involved (Build #565, 2026-03-23)
+
+**Source:** real-world-problem build #565 | **Date:** 2026-03-23
+
+**Pattern observed:** Both edge-cases and contract per-batch fixes independently regressed mechanics from 6/6 → 5/6. The pipeline cross-batch guard correctly detected both regressions and rolled back both fixes. The global fix loop (Step 3c) was triggered with 3 batches still failing.
+
+**Root cause:** The real-world-problem step-panel state machine is shared across test categories. Level-progression tests check "panel hides between rounds". Edge-cases tests check "input not prematurely visible". Mechanics tests check "step 3 panel only shows after answer submit". Fixes that touch the panel reset path to fix one category inadvertently change the timing invariant that mechanics depends on.
+
+**Lesson:** Per-batch fix loops have tunnel vision — they optimize for one batch at the cost of others when the same HTML state machine element is tested from multiple angles. When cross-batch regressions occur, the global fix loop is correct — it sees all failing tests simultaneously. Do NOT kill builds in the cross-batch regression + rollback phase; it is the pipeline working correctly.
+
+**Prevention:** Complex step-based games (multi-part interactions with per-step panel visibility) are more susceptible to cross-batch fix conflicts. The gen prompt should explicitly state the invariants that must hold simultaneously: (1) panel N only visible when gameState.step >= N, (2) panel hidden at round start, (3) answer input hidden until step N complete.
+
+**Action taken:** Global fix loop started — monitoring outcome for lesson on whether holistic fix resolves all 3 batches simultaneously.
+
+## Lesson 187 — Global fix loop resolved cross-batch regression; review approved 12/14 (Build #565, 2026-03-23)
+
+**Source:** real-world-problem build #565 | **Date:** 2026-03-23
+
+**Outcome:** Build approved with 12/14 tests passing (game-flow 3/3, mechanics 6/6, contract 1/1; level-progression 0/1, edge-cases 2/3 failing). Review model (gemini-3.1-pro-preview) approved because core gameplay is fully functional.
+
+**Global fix loop effectiveness:** Global fix 1 improved score from 9→10, global fix 2 achieved 11→12/14. The per-batch cross-batch regressions (see Lesson 186) were resolved by the holistic global fix approach. Both global fixes together brought mechanics from 5/6 → 6/6, edge-cases from 0/3 → 2/3, contract from 0/1 → 1/1.
+
+**Persistent bug (GEN-STEP-001):** The level-progression test (step 3 panel visible from previous round at new round start) failed across ALL 5 fix attempts (3 per-batch + 2 global). Root cause: step-based games need explicit panel-hide-all at round start. Will become gen rule GEN-STEP-001: "At the start of each new round in a step-based game, ALL step panels must be explicitly set to hidden before showing step1."
+
+**Review threshold:** 12/14 (85.7%) approved. game-flow, mechanics, and contract all passing = game is completable and functionally correct. Review approved despite 1 level-progression failure.
+
+**Worker restart:** Worker restarts after #565 completion. All new gen rules now active: GEN-PM-001, GEN-RESTART-001, GEN-PHASE-001, GEN-GAMEID, GEN-WINDOW-EXPOSE. Next queued build is the first true test of combined gen rules.
+
+## Lesson 188 — First complete trig session: all 5 games approved (2026-03-23)
+
+**Source:** games/index.md | **Date:** 2026-03-23
+
+**Milestone:** The SOH-CAH-TOA Trigonometry session (5 games, Bloom L2→L4) is now fully approved:
+1. name-the-sides — #562, iter=3 (L2 Understand — label triangle sides)
+2. which-ratio — #561, iter=3 (L2 Understand — identify SOH/CAH/TOA ratio)
+3. soh-cah-toa-worked-example — #544, iter=1 (L2 Understand — worked example scaffold)
+4. find-triangle-side — #549, iter=1 (L3 Apply — two-step: ratio MCQ + typed computation)
+5. real-world-problem — #564, iter=2 (L4 Analyze — step-based real-world word problem)
+
+This is the first complete Bloom L2→L4 learning session produced by the Ralph pipeline. The session covers the full NCERT Class 10 Ch 8 trigonometry curriculum from prerequisite identification through real-world application.
+
+**What made it possible:** 
+- Warehouse hygiene gate (eliminated generation bypass)
+- CDN constraint rules (ARIA, progressBar, transitionScreen)
+- Per-game spec improvements from UI/UX audits
+- Per-batch fix loop with cross-batch guard
+- Global fix loop for holistic correction
+
+**Next:** Session Planner can now produce Session 2 (Statistics) using the same pipeline — 5 specs written, Session Planner architecture validated.
+
+## Lesson 189 — PAGEERROR listener in sharedBoilerplate catches silent JS errors (2026-03-23)
+
+**Source:** TE slot 2026-03-23, commit 1b783f1 | **Build:** multiple (progressBar.update(-9) pattern)
+
+**Problem:** `progressBar.update(-9)` fires `RangeError: Invalid count value` every round but tests still pass — the error is logged to console but not caught by any assertion. A game can be "approved" while generating a JS error on every round.
+
+**Fix:** Added `page.on('pageerror')` listener to sharedBoilerplate in `lib/pipeline-test-gen.js`. Errors accumulate in `pageErrors[]`. `test.afterEach()` throws if array is non-empty: `"Page JS errors during test: ..."`. Now any unhandled JS error during a test causes an immediate test failure.
+
+**Impact:** Eliminates silent-pass games with runtime errors. progressBar.update() wrong-args (GEN-112) now produces visible test failures rather than invisible console noise. Every future game must have zero JS errors during gameplay.
+
+## Lesson 190 — Gen rules confirmed already-shipped via grep (2026-03-23)
+
+**Source:** Gen Quality slot 2026-03-23 | **Batch:** 8221ae2
+
+**Finding:** Several "pending" ROADMAP entries (GEN-GAMEID, GEN-INPUT-001/Enter-key, GEN-UX-002-EXT/.choice-btn/.option-btn, GEN-WINDOW-EXPOSE) were already shipped in prior commits but not marked done in ROADMAP. Before implementing a gen rule, grep CDN_CONSTRAINTS_BLOCK and buildGenerationPrompt() for the key concept. Running the grep takes 10 seconds; re-implementing a shipped rule wastes agent budget.
+
+**Process:** Always check prompts.js before adding a new rule. Check for: the rule concept (e.g., "Enter" for keyboard input, "gameId" for gameState field, "choice-btn" for touch target), not just the exact rule name (names evolve between commits).
+
+## Lesson 191 — Browser audit reveals issues invisible to static analysis (quadratic-formula #546, 2026-03-23)
+
+**Source:** UI/UX slot 2026-03-23, full Playwright browser playthrough | **Build:** #546
+
+**Why static analysis misses these:**
+
+1. **P0 — results screen off-screen via flex layout:** `#results-screen { position: static }` + body's CDN-injected `display: flex; flex-direction: row` renders results as a horizontal flex sibling to `#app`, pushed to the right edge at 208px computed width. Static analysis sees valid CSS on the element; browser sees the stacking context created by ScreenLayout CDN component. No static check can detect this — only a live render confirms the overlap/overflow.
+
+2. **P1 — restartGame() doesn't reset all gameState fields:** Static analysis checks for function presence. Browser confirms that after game 1, `data-lives="2"` and `data-round="3"` remain set at game 2 start — gameState.lives and gameState.currentRound were never reset. The omission is not detectable from HTML structure.
+
+**Rule added:** GEN-RESTART-RESET — restartGame() must reset ALL gameState fields. Two existing confirmed patterns also missed by static: ARIA live regions (ariaLive:null only visible in computed style) and ProgressBar slotId errors (slot-injection failure visible only in rendered DOM).
+
+**Process implication:** Every approved game needs a browser playthrough. "Static analysis only" audits miss the class of bugs that require a live DOM/CSS interaction. Prioritize browser audits over static-only audits when choosing audit targets.
+
+## Lesson 192 — signalCollector.reset() does not exist in CDN SignalCollector API (2026-03-23)
+
+**Source:** CR-030 code review, CDN source verification | **Build:** multiple
+
+**Problem:** Gen code calls `signalCollector.reset()` inside `restartGame()`. The CDN SignalCollector prototype does NOT expose a `reset()` method. Calling it throws `TypeError: signalCollector.reset is not a function` — same failure class as `signalCollector.trackEvent()` which causes a blank page.
+
+**CDN SignalCollector public API (confirmed):** `recordViewEvent`, `recordCustomEvent`, `startProblem`, `endProblem`, `seal()`, `pause()`, `resume()` — no `reset()`.
+
+**Correct pattern for restartGame():**
+```js
+signalCollector = new SignalCollector({
+  sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+  studentId: window.gameVariableState?.studentId || null,
+  templateId: gameState.gameId || null
+});
+```
+
+**Rule:** GEN-SIGNAL-RESET (rule 50) updated to use re-instantiation instead of reset().
+
+## Lesson 193 — syncDOMState sets data attributes on #app, not body — confirmed in 2+ games (2026-03-23)
+
+**Source:** UI/UX browser audits count-and-tap #551 + real-world-problem #564 | **Build:** #551, #564
+
+**Problem:** Gen produces `document.getElementById('app').dataset.phase = gameState.phase` instead of `document.body.dataset.phase = gameState.phase`. PART-003 spec requires body. All contract/game-flow test assertions on `body[data-phase]` return null when the game writes to `#app[data-phase]`.
+
+**Impact:** Every game-flow test that checks `body[data-phase]` fails silently or returns incorrect state — the game appears to be in the wrong phase during test execution even when rendering correctly for a human player.
+
+**Fix:** Gen rule GEN-SYNC-TARGET added — explicitly bans `#app.dataset.phase` with a WRONG/RIGHT example. T1 static check added to `validate-static.js` to catch `getElementById('app').dataset` at build time.
+
+## Lesson 194 — ProgressBar shows "N-1 of N" at victory — off-by-one on final round (2026-03-23)
+
+**Source:** count-and-tap #551 browser audit | **Build:** #551
+
+**Problem:** `renderRound(index)` calls `progressBar.update(index, lives)` where `index` is 0-based. After the player answers the last round, `endGame()` is called without a terminal `progressBar.update(totalRounds, lives)`. Victory screen shows "4/5 rounds completed" even when all 5 rounds were answered correctly.
+
+**Classification:** Gen rule gap — `endGame()` must call `progressBar.update(gameState.totalRounds, gameState.lives)` before `transitionScreen.show()`.
+
+**Affected scope:** Any game where `endGame()` is called immediately after the last round answer without a final progressBar sync. Pattern is present across multiple approved games.
+
+## Lesson 196 — LP-4 FALSE ALARM: syncDOMState #app is consistent with test harness (2026-03-23)
+
+**Source:** LP-4 cross-session investigation | **Commits:** 93290bf (revert), 3138f43 (wrong rule)
+
+**Problem:** UI/UX audits confirmed games write `data-phase` to `#app` via syncDOMState(). This was classified as a HIGH test gap, assuming tests read from `document.body`. A GEN-SYNC-TARGET rule was committed (3138f43) telling the LLM to use `document.body` instead.
+
+**Why it was WRONG:** Investigation of pipeline-test-gen.js (lines 323, 328, 336) confirmed:
+- `waitForPhase()` → `page.locator('#app').toHaveAttribute('data-phase', phase)`
+- `getLives()` → `page.locator('#app').getAttribute('data-lives')`
+- `getRound()` → `page.locator('#app').getAttribute('data-round')`
+
+Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug, no rule needed.
+
+**Danger:** The wrong GEN-SYNC-TARGET rule would have instructed all future LLM generations to write to `document.body` while tests read from `#app` → 100% game-flow failures on all subsequent builds.
+
+**Rule:** Before classifying any "#app vs body" finding as a test gap, verify BOTH sides: what element the game writes to (syncDOMState in HTML) AND what element the test harness reads from (pipeline-test-gen.js waitForPhase/getLives/getRound). Never ship a gen rule based on only one side.
+
+## Lesson 195 — CSS strip in build #551 — confirmed first style block replaced with comment (2026-03-23)
+
+**Source:** count-and-tap #551 browser audit | **Build:** #551
+
+**Problem:** First `<style>` block replaced with `/* [CSS stripped — 59 chars, not relevant to JS fix] */` during a fix iteration. The game's custom layout CSS is removed.
+
+**Why it still passes tests:** CDN `ScreenLayout` and `ProgressBar` components inject their own CSS via CDN at runtime. Interactive elements fall back to browser defaults — correct behavior but wrong visual presentation (no min-height, incorrect colors, unpolished touch targets).
+
+**Root cause:** Static validator in a fix iteration strips the style block, judging it irrelevant to the JS-only fix being applied. This is a recurring pattern — see also Lesson 156 (CSS stripped in fix loop).
+
+**Rule:** Fix-loop prompt must explicitly state: "Never remove or comment out `<style>` blocks. Preserve all CSS exactly as-is unless the fix specifically targets a CSS rule."
+
+## Lesson 197 — endGame() guard using !isActive blocks results screen on perfect playthrough (2026-03-23)
+
+**Source:** visual-memory #528 browser audit | **Build:** #528
+
+**Problem:** `endGame()` had guard `if (gameState.gameEnded || !gameState.isActive) return;`. On a perfect playthrough, the correct-answer handler sets `gameState.isActive = false` before the `setTimeout(() => nextRound())` fires. When `nextRound()` calls `endGame()`, the guard trips (`isActive=false`) and endGame() returns without showing the results screen. `gameEnded` stays `false`. Game is permanently stuck.
+
+**Cascade P0:** The `nextRound()` logic then shows a "Continue" transition screen for the "next round" that doesn't exist. The Continue button calls `setupRound()` which accesses `rounds[5]` (undefined) → `TypeError: Cannot read properties of undefined (reading 'gridSize')`.
+
+**Root cause:** `isActive` is a "currently processing answer" flag, not an "endGame allowed" flag. Using it as an endGame guard conflates two different state concepts.
+
+**Rule:** `endGame()` guard must use ONLY `gameEnded`: `if (gameState.gameEnded) return;`. Never use `!isActive` as an endGame guard. Use a separate `isProcessing` flag for answer double-click protection. (GEN-ENDGAME-GUARD, Rule 53)
+
+## Lesson 198 — Results screen position:static clips content on mobile (2026-03-23)
+
+**Source:** UI/UX audits — 6 confirmed instances (quadratic-formula, soh-cah-toa, right-triangle-area, word-pairs, name-the-sides, find-triangle-side) | **Pattern across session**
+
+**Problem:** Results screen uses `position: static` (default), causing it to stack in document flow. On `#app` containers with `overflow: hidden`, the results screen is clipped below the visible area. On mobile, the "Play Again" button is unreachable without scrolling. Tests still pass because the element exists in DOM — but user cannot interact with it.
+
+**Root cause:** LLMs default to hiding/showing elements with `display: none → block`, inheriting whatever position the element has in DOM flow. The `#app` container is typically `height: 100vh; overflow: hidden`, clipping any child that overflows.
+
+**Rule:** Results screen MUST use `position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100`. Never `position: static` for the results screen. (GEN-RESULTS-FIXED, Rule 54). Playwright assertion TE-RES-002: `checkResultsScreenViewport()` guards against this — checks `position:fixed OR (coversViewport AND rectTop <= 10)`.
+
+## Lesson 199 — LP-2 banned-selector substitution misses .first().click() form (2026-03-23)
+
+**Source:** Code Review CR-052 of pipeline-test-gen.js | **Build pattern: all test-gen builds**
+
+**Problem:** The LP-2 substitution regex correctly handles `page.locator('#mathai-transition-slot button').click()` and `page.locator('#mathai-transition-slot button').first().toBeVisible()` — but NOT `page.locator('#mathai-transition-slot button').first().click()`. The `.first()` group is present in the `.toBeVisible()` regex but not in the `.click()` regex. The banned selector escapes post-processing and appears in emitted contract/game-flow tests → test timeouts.
+
+**Rule:** LP-2 regex for click substitution must handle both `button.click()` AND `button.first().click()`. Asymmetric regex coverage is a common bug when adding `.first()` support — always check BOTH the click and the visibility assertion variants.
+
+## Lesson 200 — progressBar.destroy() + null assignment inside setTimeout crashes restartGame() (2026-03-23)
+
+**Source:** right-triangle-area #543 browser audit P0 | **Build:** #543
+
+**Problem:** endGame() ran `setTimeout(() => { progressBar.destroy(); progressBar = null; }, 10000)` (10s after game ends). restartGame() called `progressBar.update(...)` unconditionally. User clicks Play Again after 10s → crash: TypeError: Cannot read properties of null (reading 'update').
+
+**Root cause:** CDN components don't need to be destroyed. The game treated ProgressBarComponent like a DOM element (remove after use), but it's a CDN wrapper that persists in the slot. The setTimeout destroy serves no purpose and creates a null-trap.
+
+**Rule:** Never use setTimeout to destroy ProgressBarComponent (or any CDN component). In endGame(), call .update() to show "Game Over" state — never .destroy() or null-assignment. restartGame() can safely call .update() to reset. (GEN-PROGRESSBAR-DESTROY)
+
+## Lesson 201 — resolveFailurePattern() called with wrong args in handleFixJob (2026-03-23)
+
+**Source:** Code Review CR-066 of worker.js | **Fix:** commit 3f29d2d
+
+**Problem:** CR-055 added `resolveFailurePattern()` call to the handleFixJob APPROVED path, but passed `pattern.id` (a numeric row ID) as the first arg. The function signature is `(gameId, pattern)` — two strings matched by `WHERE game_id = ? AND pattern = ?`. The SQL `WHERE game_id = <number> AND pattern = undefined` matched nothing. Fix-loop approved builds never resolved failure patterns.
+
+**Root cause:** The APPROVED path in handleJob (line 1286) correctly calls `db.resolveFailurePattern(gameId, fp.pattern)`. The handleFixJob path was copy-pasted with an incorrect arg shape.
+
+**Rule:** When adding resolveFailurePattern() calls, always pass `(gameId, pattern.pattern)` not `(pattern.id)`. The resolve key is `(game_id, pattern)` — a text match — not a row ID.
+
+## Lesson 202 — waitForPackages typeof check must match loaded scripts (GEN-WAITFOR-MATCH) (2026-03-23)
+
+**Source:** T1 static validation GEN-WAITFOR-MATCH — 4 checks added | **Fix:** commit ab0c3fe
+
+**Problem:** If the generated HTML checks `typeof FeedbackManager === 'undefined'` in waitForPackages() but `feedback-manager/index.js` is NOT in `<head>`, waitForPackages() waits 180 seconds before throwing — ALL tests fail. Similarly, if `new TimerComponent()` is used but `typeof TimerComponent` is absent from the while-loop condition, the game crashes with ReferenceError at instantiation.
+
+**Root cause:** The gen prompt rule "include typeof X for every CDN component you instantiate" existed but had no T1 backstop. The LLM occasionally added FeedbackManager check without the script, or forgot to add TimerComponent.
+
+**Rule:** T1 GEN-WAITFOR-MATCH enforces cross-validation: Check A (ERROR) — `typeof FeedbackManager` in waitForPackages without feedback-manager script in `<head>`; Checks B/C/D (WARNING) — `new X()` used without matching `typeof X` guard in waitForPackages. Any CHECK A violation guarantees 180s timeout → 0% on all categories.
+
+## Lesson 203 — syncDOMState() must write data-lives for lives games (GEN-DATA-LIVES-SYNC) (2026-03-23)
+
+**Source:** UI/UX audit addition-mcq-lives F7 | **Fix:** commit 0cbb269
+
+**Problem:** Games with `totalLives > 0` that only track `gameState.lives` in JS — but never write `data-lives` to the DOM — cause `getLives()` in the test harness to return `undefined`. `getLives()` reads `parseInt(app.getAttribute('data-lives'), 10)`. If `data-lives` is never set, all mechanics assertions on life decrements fail silently.
+
+**Root cause:** `syncDOMState()` only set `data-phase`, `data-round`, `data-score`. `data-lives` was absent — games tracked lives in JS state only.
+
+**Rule:** `syncDOMState()` must include `if (gameState.totalLives > 0) { app.dataset.lives = String(gameState.lives); }`. Non-lives games (totalLives=0) skip this — test gen GEN-DATA-LIVES-GUARD already skips getLives() assertions for those games. T1 check W15 warns if this is absent.
+
+## Lesson 204 — Spec validation errors missing writeReport() left no diagnostic artifact (2026-03-23)
+
+**Source:** Code Review CR-067 of lib/pipeline.js | **Fix:** commit 91e430d
+
+**Problem:** When `validateSpec()` found errors in Step 0, the pipeline threw `new Error(...)`. The worker.js catch block called `db.failBuild()` — DB was correct — but `ralph-report.json` was never written. No artifact for diagnosis, unlike spec-not-found and spec-too-small paths which both call `writeReport()` before returning.
+
+**Rule:** All early-exit paths in pipeline.js must: (1) push errors to `report.errors`, (2) call `writeReport()`, (3) return `report` (not throw). The default `report.status = 'FAILED'` is picked up correctly by worker.js without needing an exception.
+
+## Lesson 205 — Fix loop never called fixCdnDomainsInFile after LLM HTML writes (CR-070) (2026-03-23)
+
+**Source:** Code Review CR-070 | **Fix:** commit b87189a
+
+**Problem:** `fixCdnDomainsInFile` and `fixCdnPathsInFile` are defined in `pipeline.js` and called after every LLM HTML write there, but were never passed to `runFixLoop` via `ctx`. Two paths in `pipeline-fix-loop.js` were affected: (1) the warehouse-regen path (stale-init-failure recovery, ~line 891) wrote LLM-regenerated HTML and called `injectHarnessToFile` but not the CDN domain fixers — regenerated HTML could land on disk with wrong CDN domains; (2) the main per-iteration fix write (~line 1450) similarly skipped CDN cleanup after every LLM fix application.
+
+**Rule:** Any new LLM HTML write path added to `pipeline-fix-loop.js` must call `ctx.fixCdnDomainsInFile` and `ctx.fixCdnPathsInFile` (with guards) immediately after `fs.writeFileSync`, before `injectHarnessToFile`. Rollback/snapshot-restore paths are safe (they restore from already-CDN-fixed snapshots). Add functions to `ctx` in `pipeline.js` at the `runFixLoop` call site.
+
