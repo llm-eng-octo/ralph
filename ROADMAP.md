@@ -217,7 +217,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-UX-002 extended — all buttons min-height 44px (not just .game-btn); adj-btn/choice-btn WRONG/RIGHT examples added. Next: data-testid/id alignment rule. |
+| Current task | GEN-UX-002 extended (1848223, deployed GCP). Next: data-testid/id alignment rule or restartGame() stale DOM attrs sync rule. |
 | Status | Rules 53 (GEN-ENDGAME-GUARD), 53b (GEN-DATA-LIVES-GUARD b66270a), 54 (GEN-RESULTS-FIXED 290e1d9) all shipped + deployed GCP 2026-03-23. |
 | Waiting on | Next agent commits — monitor for deploys needed |
 | Blocked by | none |
