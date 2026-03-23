@@ -513,7 +513,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-072: GEN-GRID-TESTID + GEN-RESTART-PHASE rules added from light-up UI/UX audit. Next: review game-flow test gen section for exact-value-assertion patterns (test count 8/30 batches). |
+| Current task | CR-072/073/074 DONE (commit TBD) — rules 57+58 added to numbered list in buildGenerationPrompt; CR-073 display:none scope clarification; CR-074 no-op definition tightened. Next: review lib/pipeline-fix-loop.js for exact-value-assertion patterns in game-flow. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
