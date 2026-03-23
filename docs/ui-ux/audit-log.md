@@ -18,10 +18,10 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** stats-median — next game in Statistics Session 2 — no spec yet (Education slot to write)
-**Last completed:** stats-mean-direct — 2026-03-23 — 2 findings (0 P0, 1d low, 1 low). Cleanest spec audited to date — all major gen rules pre-applied.
-**Next target:** stats-median (Session 2 Game 3) or next queued game
-**Waiting on:** stats-median spec from Education slot
+**Current task:** stats-mode — spec not yet written; waiting on Education slot
+**Last completed:** stats-median — 2026-03-23 — 3 findings (0 P0, 1a low, 0b, 0c, 2d-low). Tied with stats-mean-direct as cleanest spec audited — all major gen rules pre-applied.
+**Next target:** stats-mode (Session 2 Game 4) — spec not yet written
+**Waiting on:** stats-mode spec from Education slot
 
 ### Batch 2 — Completed 2026-03-23 (static analysis)
 
@@ -41,6 +41,7 @@ addition-mcq (next active target)
 
 | Date | Game | Build | Issues Found | Actions Taken |
 |------|------|-------|-------------|---------------|
+| 2026-03-23 | stats-median | spec-only | 3 issues (1a-low, 0b, 0c, 2d-low) | No P0 blockers; FeedbackManager.init() absent (PASS); gameState.gameId first field (PASS); syncDOMState() full 4-phase machine (PASS); window.endGame/restartGame/loadQuestion assigned (PASS); ARIA aria-live="polite" + role="status" on answer-feedback (PASS); ProgressBar slotId 'mathai-progress-slot' (PASS); game_complete on both paths (PASS); results-screen position:fixed z-index:100 (PASS); option-btn min-height:52px (PASS); timer destroy+recreate in restartGame() (PASS); F1: SignalCollector not instantiated (low — GEN-UX-005 already shipped, gen prompt handles it); F2: Sentry three-script absent (10th instance, warehouse gap, low); F3: window.gameState double-assignment ambiguity (same as stats-mean-direct, low risk). Pre-build checklist: all PASS. |
 | 2026-03-23 | stats-mean-direct | spec-only | 2 issues (0a, 0b, 0c, 2d-low) | No P0 blockers; FeedbackManager.init() absent (PASS); gameState.gameId first field (PASS); syncDOMState() full 4-phase machine (PASS); window.endGame/restartGame/loadQuestion assigned (PASS); ARIA live region correct (PASS); ProgressBar slotId correct (PASS); game_complete on both paths (PASS); results-screen position:fixed z-index:100 (PASS); option-btn min-height:52px (PASS); timer destroy+recreate in restartGame() (PASS); F1: window.gameState double-assignment (module scope + DOMContentLoaded end — contradicts Anti-Pattern #2, spec clarification needed, low risk); F2: Sentry v10 three-script absent (9th instance, warehouse gap, low priority) |
 | 2026-03-23 | stats-identify-class | spec-only | 6 issues (0a-HIGH, 2b, 3a-low/med, 1d) | No P0; FeedbackManager.init() absent (PASS); window.endGame assigned (PASS); data-phase/syncDOMState full (PASS); gameState.gameId first field (PASS); ProgressBar slotId correct (PASS); ARIA live region correct (PASS); CRITICAL: postMessage type casing conflict Section 13 GAME_COMPLETE vs Section 6.8 game_complete (spec-b fix before build); restartGame() body missing (spec-b addition); SignalCollector not instantiated (7th — GEN-UX-005 shipped, add to spec); got-it-btn/skip-btn min-height absent (12th — GEN-UX-002 shipped); Sentry v10 three-script absent (8th — warehouse template gap); ScreenLayout wait/auto-mount ambiguity (new — test gap) |
 |------|------|-------|-------------|---------------|
@@ -63,6 +64,14 @@ addition-mcq (next active target)
 | 2026-03-23 | soh-cah-toa-worked-example | #544 | 7 issues (5a, 1b, 1 low) | CSS intact — cleanest build in batch; results not fixed (4th); ARIA-001 (5th); slot ID options missing key; min-height 44px (5th); hide()/show() string selector bug found; formula accessibility spec addition |
 | 2026-03-23 | right-triangle-area | #543 | 9 issues (7a, 1b, 1c) | CSS STRIPPED (4th instance); canvas 500px > 480px new rule; undefined CSS vars for feedback color; ProgressBar hash-prefix slot ID (4th); ARIA-001 (6th); results not fixed (5th); FeedbackManager.sound.play non-standard API; Google Fonts dependency |
 | 2026-03-23 | word-pairs | #529 | 8 issues (5a, 1b, 1d, 1 low) | CSS STRIPPED (5th instance); ARIA-001 (7th); results not fixed (6th); data-testid/id mismatch; data-lives hardcoded 0; Sentry SDK v7 vs v10 inconsistency; no learn-phase countdown spec addition |
+
+---
+
+## stats-median Audit (2026-03-23)
+
+See [games/stats-median/ui-ux.md](../../games/stats-median/ui-ux.md)
+
+**Spec-only audit — no build in DB.** 3 findings (1a-low, 0b, 0c, 2d-low). Tied with stats-mean-direct as cleanest spec audited to date. All 12 critical gen rules correctly pre-applied. No P0 blockers. Ready for first build without pre-build fixes. F1: SignalCollector not instantiated (GEN-UX-005 already shipped, gen prompt handles it — low risk). F2: Sentry three-script absent (10th warehouse-gap instance, low). F3: window.gameState double-assignment ambiguity (same low-risk pattern as stats-mean-direct).
 
 ---
 
