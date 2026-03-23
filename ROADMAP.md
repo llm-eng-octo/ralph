@@ -608,7 +608,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | stats-which-measure spec written (game 5 of stats session, L4 Analyze). All 5 stats specs now READY. Awaiting human approval. |
+| Current task | Cross-consistency review DONE (docs/education/stats-specs-review.md). All 5 specs verified. Human approval queue order: stats-identify-class first (L1 prerequisite), then stats-mean-direct → stats-median → stats-mode → stats-which-measure last. |
 | Status | All 5 specs READY to queue after human approval. stats-identify-class must build first (Bloom L1 prerequisite per session ordering rule). stats-which-measure queues last (L4 cap). |
 | Waiting on | Human approval to queue builds — stats-identify-class first, then stats-mean-direct, stats-median, stats-mode, stats-which-measure. |
 | Blocked by | Human approval |
