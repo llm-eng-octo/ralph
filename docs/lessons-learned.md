@@ -2,6 +2,24 @@
 
 Accumulated insights from build failures, bug fixes, and proofs. Update immediately after every notable build or bug fix.
 
+---
+
+## Gen Rule Lessons (2026-03-23 batch — game-flow root cause analysis)
+
+**Lesson L-GF-001: Test-name trigger phrases cause `#mathai-transition-slot button` violations** | Source: game-flow analytics 2026-03-23, GF9-ENFORCEMENT commit 870c6d5
+The LLM generates the banned `#mathai-transition-slot button` selector predictably when test names contain specific phrases: "start screen to game start", "game starts when start is clicked", "transition to playing", "screen advances to game", "start button starts game", "clicking start shows game screen". Adding explicit test-name → correct-implementation mapping in GF9-ENFORCEMENT reduced this 27% of game-flow failures class.
+
+**Lesson L-GF-002: `progressBar.update(currentRound, totalRounds)` causes `RangeError: Invalid count value`** | Source: which-ratio #559/#560/#561, GEN-112 wrong-args commit 870c6d5+d76ecb0
+`ProgressBarComponent.update()` takes `(currentRound, livesRemaining)` as 2nd arg — NOT totalRounds. When a game has `totalLives=0` and `totalRounds=5`, passing `totalRounds` as 2nd arg passes `5` as lives to a 0-lives bar, computing a fill ratio of `(5-0)/0 = Infinity` → `String.repeat(-5)` → RangeError. Fix: explicit WRONG/CORRECT block in both `buildGenerationPrompt()` AND `buildCliGenPrompt()` — both paths are independent and both need the rule.
+
+**Lesson L-GF-003: `answer(page, true)` is MCQ-only — step-panel games need DOM-derived selectors** | Source: real-world-problem #563-#565, find-triangle-side #547, GF10 commit 870c6d5
+`answer(page, selector)` targets MCQ option buttons by CSS class. Step-based games (step1-panel, step2-panel, faded-panel, practice-panel) have panel interaction elements with IDs/classes derived from the spec — they cannot be navigated with the generic `answer()` helper. Test gen must use DOM-snapshot-derived selectors for step interactions.
+
+**Lesson L-TE-001: failure_patterns rows with `pattern='unknown'` are noise, not signal** | Source: TE-UNKNOWN-001 analysis 2026-03-23
+Pre-GEN-ANALYTICS-001 builds stored `recordFailurePattern(gameId, 'unknown', 'unknown')` when `categorizeFailure()` returned 'unknown'. The pattern field stored the literal string 'unknown' — no diagnostic content. These rows skew category counts and failure-pattern injection into fix prompts. Fix: mark `resolved=1` where `pattern='unknown'` (11 rows cleaned up). New rows are prevented by GEN-ANALYTICS-001's expanded categorizeFailure() branches.
+
+---
+
 ## Build Proofs
 
 | Build | Game | Result | Score | Notes |
