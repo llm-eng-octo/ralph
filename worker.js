@@ -12,7 +12,7 @@ const { promisify } = require('util');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { runPipeline, runTargetedFix } = require('./lib/pipeline');
+const { runPipeline, runTargetedFix, fixCdnDomainsInFile, fixCdnPathsInFile } = require('./lib/pipeline');
 const db = require('./lib/db');
 const slack = require('./lib/slack');
 const gcp = require('./lib/gcp');
@@ -258,6 +258,8 @@ async function handleFixJob(job) {
     onProgress: (step, detail) => {
       console.log(`[worker] fix progress: ${step}`, detail);
     },
+    fixCdnDomainsInFile,
+    fixCdnPathsInFile,
   });
 
   if (buildId) db.completeBuild(buildId, report);
