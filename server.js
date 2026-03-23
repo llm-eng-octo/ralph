@@ -228,6 +228,10 @@ function createApp(deps = {}) {
       return res.status(400).json({ error: 'gameId is required' });
     }
 
+    if (!/^[a-z0-9-]+$/.test(gameId)) {
+      return res.status(400).json({ error: 'Invalid gameId: must match [a-z0-9-]+' });
+    }
+
     if (specUrl && specPath) {
       return res.status(400).json({ error: 'Provide specPath or specUrl, not both' });
     }
@@ -635,6 +639,10 @@ function createApp(deps = {}) {
     const { gameId, feedbackPrompt, buildId } = req.body;
     if (!gameId || !feedbackPrompt) {
       return res.status(400).json({ error: 'gameId and feedbackPrompt are required' });
+    }
+
+    if (!/^[a-z0-9-]+$/.test(gameId)) {
+      return res.status(400).json({ error: 'Invalid gameId: must match [a-z0-9-]+' });
     }
 
     const newBuildId = db.createBuild(gameId, null);
