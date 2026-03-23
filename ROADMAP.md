@@ -117,7 +117,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | M16 .option-btn SHIPPED (a8524a0, 986 tests). Investigating `unknown` failure_patterns (28 prod patterns, uncategorized). Real prod analytics: rendering 30 > unknown 28 > scoring 16 > messaging 9. NOTE: prior "category pass rates" were from local test DB artifact, not prod. |
+| Current task | M16 .option-btn SHIPPED (a8524a0, 986 tests). Investigating `unknown` batch (33%, 154/466 tests) — root cause agent running. Analytics confirmed from builds.test_results JSON — prod data. Failure_patterns table also tracked: rendering 30 > unknown 28 > scoring 16 > messaging 9. |
 | Status | 986/986 tests pass. First-attempt rate: 47.9% (45/94 approved). |
 | Waiting on | unknown category root cause agent result |
 | Blocked by | none |
@@ -210,7 +210,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Rendering failures: 30 unresolved patterns (prod DB #1 category). Top patterns: #mathai-transition-slot button toBeVisible, gameState init, responsive layout 480px. Also: messaging 9 patterns (game_complete type wrong). NOTE: game-flow % was from LOCAL test DB — not prod. Real data: rendering > unknown > scoring > messaging. |
+| Current task | game-flow 63% is #1 real category (after unknown 33% is resolved by TE). Confirmed prod analytics: unknown 154/466=33%, game-flow 419/669=63%, LP 258/386=67%, mechanics 706/1039=68%, contract 249/361=69%, edge-cases 341/490=70%. Data sourced from builds.test_results JSON. Next: trace game-flow failures to HTML vs test-gen bug. |
 | Status | All shipped: GEN-STEP-001 (c7a59c2), CR-013/008/009/012 (188bbaa), CR-015 (3154415), M16 .option-btn (a8524a0). GEN-CR-004 confirmed already done (ae3c2ad). |
 | Waiting on | none |
 | Blocked by | none |
