@@ -68,6 +68,24 @@ function createApp(deps = {}) {
   const connection = deps.connection || null;
   const webhookSecret = deps.webhookSecret !== undefined ? deps.webhookSecret : process.env.GITHUB_WEBHOOK_SECRET;
 
+  // ─── Per-app in-process rate limiter for build/fix endpoints ───────────────
+  // State is scoped to each createApp() call so test instances are isolated.
+  const buildRateLimits = new Map(); // ip -> { count, windowStart }
+  const RATE_LIMIT_MAX = parseInt(process.env.BUILD_RATE_LIMIT_MAX || '5', 10);
+  const RATE_LIMIT_WINDOW_MS = parseInt(process.env.BUILD_RATE_LIMIT_WINDOW_MS || '60000', 10);
+
+  function checkBuildRateLimit(ip) {
+    const now = Date.now();
+    const entry = buildRateLimits.get(ip);
+    if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+      buildRateLimits.set(ip, { count: 1, windowStart: now });
+      return true; // allowed
+    }
+    if (entry.count >= RATE_LIMIT_MAX) return false; // rate limited
+    entry.count++;
+    return true;
+  }
+
   const app = express();
 
   // Raw body for webhook/slack signature verification, then JSON parse
@@ -262,6 +280,13 @@ function createApp(deps = {}) {
         logger.info(`Build skipped for ${gameId} — game already approved`, { gameId, event: 'build_skipped_approved' });
         return res.json({ buildId: null, skipped: true, reason: 'game already approved', gameId });
       }
+    }
+
+    // Rate limit check — applied after validation and dedup/approved-skip so only
+    // requests that will create a new build consume rate limit tokens.
+    const clientIp = req.ip || req.connection.remoteAddress;
+    if (!checkBuildRateLimit(clientIp)) {
+      return res.status(429).json({ error: 'Rate limit exceeded — max 5 builds per 60 seconds per IP' });
     }
 
     const buildId = db.createBuild(gameId, null, { requestedBy: requestedBy || null });
@@ -636,6 +661,11 @@ function createApp(deps = {}) {
 
   // ─── Targeted fix API ──────────────────────────────────────────────────────
   app.post('/api/fix', async (req, res) => {
+    const clientIp = req.ip || req.connection.remoteAddress;
+    if (!checkBuildRateLimit(clientIp)) {
+      return res.status(429).json({ error: 'Rate limit exceeded — max 5 builds per 60 seconds per IP' });
+    }
+
     const { gameId, feedbackPrompt, buildId } = req.body;
     if (!gameId || !feedbackPrompt) {
       return res.status(400).json({ error: 'gameId and feedbackPrompt are required' });

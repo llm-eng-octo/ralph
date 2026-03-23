@@ -656,3 +656,44 @@ describe('Server integration: MCP endpoint authentication (CR-062)', () => {
     assert.equal(resWrong.body.error, 'Unauthorized');
   });
 });
+
+// ─── CR-063: Rate limiting on POST /api/build and /api/fix ──────────────────
+describe('Server integration: rate limiting (CR-063)', () => {
+  let server, mockQueue;
+
+  before((_, done) => {
+    // Use BUILD_RATE_LIMIT_MAX=5 (default). Each createApp() gets its own Map,
+    // so this suite's requests do not share state with other describe blocks.
+    mockQueue = createMockQueue();
+    const app = createApp({ queue: mockQueue, connection: createMockConnection() });
+    server = app.listen(0, done);
+  });
+
+  after((_, done) => {
+    server.close(done);
+  });
+
+  it('first POST /api/build request is allowed (200)', async () => {
+    const res = await request(server, 'POST', '/api/build', { gameId: 'rl-game-1' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.queued, true);
+  });
+
+  it('fifth POST /api/build request in same window is still allowed (200)', async () => {
+    // First request was in previous test. Send 4 more to reach max=5.
+    for (let i = 2; i <= 4; i++) {
+      const res = await request(server, 'POST', '/api/build', { gameId: `rl-game-${i}` });
+      assert.equal(res.status, 200, `Request ${i} should be allowed`);
+    }
+    // 5th request (counter is now at 5, which equals RATE_LIMIT_MAX=5)
+    const res5 = await request(server, 'POST', '/api/build', { gameId: 'rl-game-5' });
+    assert.equal(res5.status, 200, 'Fifth request should be allowed (at the limit, not over)');
+  });
+
+  it('sixth POST /api/build request in same window returns 429', async () => {
+    // Previous tests consumed 5 slots for the same IP (127.0.0.1 / ::1).
+    const res = await request(server, 'POST', '/api/build', { gameId: 'rl-game-6' });
+    assert.equal(res.status, 429);
+    assert.ok(res.body.error.includes('Rate limit exceeded'));
+  });
+});
