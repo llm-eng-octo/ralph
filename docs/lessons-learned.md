@@ -2541,6 +2541,23 @@ signalCollector = new SignalCollector({
 
 **Affected scope:** Any game where `endGame()` is called immediately after the last round answer without a final progressBar sync. Pattern is present across multiple approved games.
 
+## Lesson 196 — LP-4 FALSE ALARM: syncDOMState #app is consistent with test harness (2026-03-23)
+
+**Source:** LP-4 cross-session investigation | **Commits:** 93290bf (revert), 3138f43 (wrong rule)
+
+**Problem:** UI/UX audits confirmed games write `data-phase` to `#app` via syncDOMState(). This was classified as a HIGH test gap, assuming tests read from `document.body`. A GEN-SYNC-TARGET rule was committed (3138f43) telling the LLM to use `document.body` instead.
+
+**Why it was WRONG:** Investigation of pipeline-test-gen.js (lines 323, 328, 336) confirmed:
+- `waitForPhase()` → `page.locator('#app').toHaveAttribute('data-phase', phase)`
+- `getLives()` → `page.locator('#app').getAttribute('data-lives')`
+- `getRound()` → `page.locator('#app').getAttribute('data-round')`
+
+Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug, no rule needed.
+
+**Danger:** The wrong GEN-SYNC-TARGET rule would have instructed all future LLM generations to write to `document.body` while tests read from `#app` → 100% game-flow failures on all subsequent builds.
+
+**Rule:** Before classifying any "#app vs body" finding as a test gap, verify BOTH sides: what element the game writes to (syncDOMState in HTML) AND what element the test harness reads from (pipeline-test-gen.js waitForPhase/getLives/getRound). Never ship a gen rule based on only one side.
+
 ## Lesson 195 — CSS strip in build #551 — confirmed first style block replaced with comment (2026-03-23)
 
 **Source:** count-and-tap #551 browser audit | **Build:** #551
