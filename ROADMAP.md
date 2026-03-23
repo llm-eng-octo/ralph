@@ -618,9 +618,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | which-ratio spec FEEDBACK_DURATION_MS fix done. All 5 stats specs awaiting human approval. Waiting on: human approval to queue stats-identify-class first. |
-| Status | All 5 specs READY to queue after human approval. stats-identify-class must build first (Bloom L1 prerequisite per session ordering rule). stats-which-measure queues last (L4 cap). |
-| Waiting on | Human approval to queue builds — stats-identify-class first, then stats-mean-direct, stats-median, stats-mode, stats-which-measure. |
+| Current task | All 5 stats spec template dirs created on GCP server (2026-03-23). Ready to queue on human approval. Queue order: stats-identify-class first (L1 prerequisite), then stats-mean-direct → stats-median → stats-mode → stats-which-measure. |
+| Status | All 5 specs DEPLOYED to /opt/ralph/warehouse/templates/ on GCP. Ready to queue. |
+| Waiting on | Human approval to queue builds |
 | Blocked by | Human approval |
 
 | Task | Status | Notes |
