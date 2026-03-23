@@ -117,8 +117,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | LP-NEW-1/2/3 DONE — level-progression 47% root cause analysis + rules shipped. Next: deploy to GCP and monitor LP rate on next 2 builds. |
-| Status | 1144/1144 tests pass. LP-NEW-1/2/3 rules added to prompts.js LP section. LP-NEW-1: debugGame() RangeError guard (13 occurrences — name-the-sides/which-ratio). LP-NEW-2: start-button locator.click timeout guard (8 occurrences — interactive-chat/adjustment-strategy). LP-NEW-3: not.toBeVisible() on transition slot guard (3 occurrences — find-triangle-side/name-the-sides). Also fixed: CT-NEW-1 backtick syntax bug in prompts.js (4-file SyntaxError, was masking test runs). 6 new unit tests in pipeline.test.js. |
+| Current task | CT-NEW-1/2/3 DONE (commit 802d161) — CT4/CT8 contradiction fixed (closure capture), CT-NEW-2 phase target, CT-NEW-3 bilateral CT9. Expected: contract 42% → 70-75%. Next: deploy + verify on next approved build. |
+| Status | 1150/1150 tests pass. CT-NEW-1: CT4/CT8 merged into unified closure-capture rule (~40% of CT failures). CT-NEW-2: phase-agnostic waitForPhase target (~13% of CT failures). CT9: strengthened to bilateral ban — both toBeVisible AND not.toBeVisible shown as WRONG. CT8 marked superseded. 6 new unit tests verify prompt content in pipeline-test-gen.test.js. |
 | Waiting on | none |
 | Blocked by | none |
 
