@@ -1051,7 +1051,7 @@ Toggle visibility with: `panel.classList.add('visible')` / `panel.classList.remo
 ```javascript
 // Send on every answer attempt:
 window.parent.postMessage({
-  type: 'GAME_EVENT',
+  type: 'game_event',
   payload: {
     event: eventName,           // 'measure_correct_first' | 'measure_correct_second' | 'measure_incorrect' | 'measure_skipped'
     roundNumber: gameState.currentRound,
