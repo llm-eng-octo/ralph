@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-SVG-CONTRAST (rule 48) + GEN-LOCAL-ASSETS (rule 49) shipped (2026-03-23, commit 2edf689). Rules added to CDN_CONSTRAINTS_BLOCK + buildGenerationPrompt() (numbered) + buildCliGenPrompt(). 1017/1017 tests pass. Deployed. Next: CR-014 (GEN-RESTART-RESET minimum reset clarification — "for any field set during setupGame()/startGame(), reset it in restartGame()"). |
-| Status | 1017/1017 tests pass. 49 gen rules active. find-triangle-side #549 audit fully addressed (UI-FTS-005 + UI-FTS-007). Awaiting next build to measure lift from 63% baseline. |
-| Waiting on | next approved build to confirm game-flow rate improvement |
+| Current task | CR-025 (SVG contrast WHY clause, commit 152dfe7) + CR-024 (totalLives negative, commit a3f0a4a) DONE. LP/contract trace running — LP=49% and contract=49% are new primary targets (corrected analytics). CR-014 (GEN-RESTART-RESET minimum reset clarification) DONE (commit dd520f0). Next: add gen rules to address LP/contract root causes once trace completes. |
+| Status | 1038/1038 tests pass. 49 gen rules active. find-triangle-side #549 audit fully addressed (UI-FTS-005 + UI-FTS-007). LP=49% and contract=49% confirmed lowest categories — primary targets for next gen rule improvement cycle. |
+| Waiting on | LP/contract root cause trace to complete before writing new gen rules |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
@@ -557,7 +557,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-STEP-001 + CR-013/008/009/012 (188bbaa) + CR-015 (3154415) + GF9-ENFORCEMENT + GF10 (870c6d5) + GEN-112 in CLI path (2d5721b) + CR-002 .answer-btn (870c6d5) — all deployed 2026-03-23. PAGEERROR listener added to sharedBoilerplate (1b783f1, deployed 2026-03-23). results-screen viewport assertion added (TE-RES-001, 2026-03-23, commit 121ac01). Waiting on next build to measure game-flow lift (63% → target 85%+). |
+| Current task | GEN-STEP-001 + CR-013/008/009/012 (188bbaa) + CR-015 (3154415) + GF9-ENFORCEMENT + GF10 (870c6d5) + GEN-112 in CLI path (2d5721b) + CR-002 .answer-btn (870c6d5) — all deployed 2026-03-23. PAGEERROR listener added to sharedBoilerplate (1b783f1, deployed 2026-03-23). results-screen viewport assertion added (TE-RES-001, 2026-03-23, commit 121ac01). T1 checks for GEN-SVG-CONTRAST (WARNING) + GEN-LOCAL-ASSETS (ERROR) deployed (fad96d9, 2026-03-23) — both verified against find-triangle-side #549 (true positives confirmed). Waiting on next build to measure game-flow lift (63% → target 85%+). |
 | Waiting on | Next approved build to verify game-flow category improvement |
 | Blocked by | none |
 
