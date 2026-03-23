@@ -1,51 +1,50 @@
-# Addition Quest — MCQ Game Spec v1
+# Addition MCQ Blitz — Game Spec v2
 
 ## 1. Overview
 
 | Field | Value |
-|---|---|
+|-------|-------|
 | **Game ID** | `addition-mcq` |
-| **Title** | Addition Quest |
-| **Concept** | Multiple-choice addition game. A math question appears with 4 answer options. The player selects the correct sum. |
-| **Input Method** | Tap / click MCQ buttons |
-| **Timer** | Countdown, 30 seconds per question |
-| **Lives** | 3 (lost on wrong answer OR timeout) |
-| **Validation** | Fixed answer (single correct option) |
-| **Win Condition** | Answer all questions without losing all lives |
-| **Lose Condition** | Lose all 3 lives (wrong answer or timeout) |
-| **Stories** | No |
-| **Rounds** | Determined by content set (default 10 questions) |
+| **Title** | Addition MCQ Blitz |
+| **Description** | A multiple-choice quiz game where players solve addition problems by selecting the correct answer from 4 options. 3 lives, 30-second countdown per question. |
+| **Input Method** | Tap / Click |
+| **Validation Type** | Fixed Answer (PART-013) |
+| **Timer** | Countdown, 30 seconds per question (PART-006) |
+| **Lives** | 3 |
+| **Questions per Session** | Configurable via content (default: 10) |
+| **Win Condition** | Answer all questions before running out of lives |
+| **Lose Condition** | Lose all 3 lives OR timer reaches 0 on any question |
 
 ---
 
 ## 2. Parts Used
 
-| Part | Reason |
-|---|---|
-| PART-001 | HTML Shell |
-| PART-002 | Package Scripts |
-| PART-003 | waitForPackages |
-| PART-004 | Initialization Block |
-| PART-005 | VisibilityTracker |
-| PART-006 | TimerComponent (30s countdown) |
-| PART-007 | Game State Object |
-| PART-008 | PostMessage Protocol |
-| PART-009 | Attempt Tracking |
-| PART-010 | Event Tracking & SignalCollector |
-| PART-011 | End Game & Metrics |
-| PART-012 | Debug Functions |
-| PART-013 | Validation — Fixed Answer |
-| PART-019 | Results Screen UI |
-| PART-020 | CSS Variables & Colors |
-| PART-021 | Screen Layout CSS |
-| PART-022 | Game Buttons |
-| PART-023 | ProgressBar Component |
-| PART-024 | TransitionScreen Component |
-| PART-025 | ScreenLayout Component |
-| PART-026 | Anti-Patterns (verification) |
-| PART-027 | Play Area Construction |
-| PART-028 | InputSchema Patterns |
-| PART-030 | Sentry Error Tracking |
+| Part | Name | Reason |
+|------|------|--------|
+| PART-001 | HTML Shell | Mandatory |
+| PART-002 | Package Scripts | Mandatory |
+| PART-003 | waitForPackages | Mandatory |
+| PART-004 | Initialization Block | Mandatory |
+| PART-005 | VisibilityTracker | Mandatory |
+| PART-006 | TimerComponent | 30-second countdown per question |
+| PART-007 | Game State Object | Mandatory |
+| PART-008 | PostMessage Protocol | Mandatory |
+| PART-009 | Attempt Tracking | Mandatory |
+| PART-010 | Event Tracking & SignalCollector | Mandatory |
+| PART-011 | End Game & Metrics | Mandatory |
+| PART-012 | Debug Functions | Mandatory |
+| PART-013 | Validation — Fixed Answer | Single correct MCQ answer |
+| PART-019 | Results Screen UI | Mandatory |
+| PART-020 | CSS Variables & Colors | Mandatory |
+| PART-021 | Screen Layout CSS | Mandatory |
+| PART-022 | Game Buttons | 4 MCQ option buttons |
+| PART-023 | ProgressBar Component | Show question progress + lives |
+| PART-024 | TransitionScreen Component | Start screen, game-over screen |
+| PART-025 | ScreenLayout Component | Required by ProgressBar + TransitionScreen |
+| PART-026 | Anti-Patterns | Verification checklist |
+| PART-027 | Play Area Construction | Mandatory |
+| PART-028 | InputSchema Patterns | Mandatory |
+| PART-030 | Sentry Error Tracking | Mandatory |
 
 ---
 
@@ -53,322 +52,100 @@
 
 ```javascript
 const gameState = {
-  // Standard fields
-  isGameActive: false,
-  isGameOver: false,
-  currentRound: 0,           // 0-based index into questions array
-  totalRounds: 0,            // set from content
-  score: 0,
-  correctAnswers: 0,
-  incorrectAnswers: 0,
-
-  // Lives system
+  currentRound: 0,
+  totalRounds: 10,       // overwritten by postMessage content
   lives: 3,
   totalLives: 3,
-
-  // Current question
-  currentQuestion: null,     // { question, options: [str,str,str,str], correctAnswer, id }
-  selectedOption: null,      // index 0-3 of chosen option
-  isAnswered: false,         // true after player selects or timer expires
-
-  // Tracking
-  attempts: [],
+  score: 0,
+  isGameOver: false,
   startTime: null,
+  questions: [],
+  selectedAnswer: null,
+  isAnswered: false,
 };
 ```
 
 ---
 
-## 4. InputSchema (Content Structure)
+## 4. Content Structure (InputSchema)
 
 ```json
 {
   "questions": [
     {
-      "id": "q1",
-      "question": "12 + 7 = ?",
-      "options": ["17", "18", "19", "20"],
-      "correctAnswer": "19"
+      "question": "What is 7 + 8?",
+      "options": ["12", "14", "15", "16"],
+      "correctAnswer": "15"
     },
     {
-      "id": "q2",
-      "question": "25 + 13 = ?",
-      "options": ["36", "37", "38", "39"],
-      "correctAnswer": "38"
-    },
-    {
-      "id": "q3",
-      "question": "8 + 6 = ?",
-      "options": ["12", "13", "14", "15"],
-      "correctAnswer": "14"
-    },
-    {
-      "id": "q4",
-      "question": "45 + 30 = ?",
-      "options": ["73", "74", "75", "76"],
-      "correctAnswer": "75"
-    },
-    {
-      "id": "q5",
-      "question": "17 + 9 = ?",
-      "options": ["24", "25", "26", "27"],
-      "correctAnswer": "26"
+      "question": "What is 23 + 45?",
+      "options": ["58", "67", "68", "78"],
+      "correctAnswer": "68"
     }
   ]
 }
 ```
 
-**Field mapping:**
-- `questions[i].question` → displayed in `#question-text`
-- `questions[i].options` → rendered as 4 MCQ buttons in `#options-grid`
-- `questions[i].correctAnswer` → used in `validateAnswer()`
-- `questions[i].id` → used in attempt tracking
+| Field | Type | Description |
+|-------|------|-------------|
+| `questions` | array | Array of question objects |
+| `questions[].question` | string | The addition problem text |
+| `questions[].options` | string[4] | Exactly 4 answer choices |
+| `questions[].correctAnswer` | string | Must match one of the options exactly |
 
 ---
 
-## 5. HTML Structure
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Addition Quest</title>
-  <!-- Package scripts (PART-002) -->
-  <script src="..."></script>
-</head>
-<body>
-  <div id="app">
-    <!-- ScreenLayout injects: progress bar slot + transition screen slot + game screen -->
-
-    <!-- Game Screen -->
-    <div id="game-screen" class="screen" style="display:none;">
-      <!-- Timer -->
-      <div id="timer-container"></div>
-
-      <!-- Question Card -->
-      <div id="question-card">
-        <p id="question-text"></p>
-      </div>
-
-      <!-- 4 MCQ Option Buttons -->
-      <div id="options-grid">
-        <button class="option-btn" data-index="0"></button>
-        <button class="option-btn" data-index="1"></button>
-        <button class="option-btn" data-index="2"></button>
-        <button class="option-btn" data-index="3"></button>
-      </div>
-    </div>
-
-    <!-- Results Screen (PART-019) -->
-    <div id="results-screen" class="screen" style="display:none;"></div>
-  </div>
-</body>
-</html>
-```
-
----
-
-## 6. Screen Flow
+## 5. Screen Flow
 
 ```
-PostMessage (content) received
-        ↓
-TransitionScreen: Start Screen
-  [icon: ➕, title: "Addition Quest!", subtitle: "3 lives · 30 seconds per question"]
-  [Button: "Start!" → startGame()]
-        ↓
-Game Screen: Show question + 4 options + 30s timer
-        ↓
-  Player taps option OR timer reaches 0
-        ↓
-  ┌── Correct Answer ──┐         ┌── Wrong / Timeout ──┐
-  │  Highlight green   │         │  Highlight red       │
-  │  score++           │         │  lives--             │
-  │  correctAnswers++  │         │  incorrectAnswers++  │
-  └────────────────────┘         └──────────────────────┘
-        ↓                                 ↓
-  [Check: more questions?]        [Check: lives == 0?]
-  Yes → next question             Yes → TransitionScreen: Game Over
-  No  → endGame() → Results            [Button: "Try Again" → restartGame()]
-                                  No → next question
-        ↓
-  endGame() → Results Screen
+PostMessage received
+       │
+       ▼
+  Start Screen          [TransitionScreen]
+  "Addition Blitz!"
+  [Let's Go!] button
+       │
+       ▼
+  Game Screen           [ProgressBar: question X/Y + ❤️ lives]
+  ┌─────────────────┐
+  │  ⏱ 30          │   [TimerComponent — sec format]
+  │                 │
+  │  "7 + 8 = ?"    │   [Question display]
+  │                 │
+  │  [12]    [14]   │   [4 MCQ buttons — 2x2 grid]
+  │  [15]    [16]   │
+  └─────────────────┘
+       │
+   ┌───┴──────────────────┐
+   │ Correct              │ Wrong / Timer = 0
+   ▼                      ▼
+  Button turns green     Button turns red
+  +1 score               -1 life
+  800ms pause            800ms pause
+       │                      │
+       ▼                      ▼
+  Next question         Lives left? ──► No ──► Game Over Screen
+                             │                  [TransitionScreen]
+                             ▼
+                        Yes → Next question
+       │
+   All questions done
+       ▼
+  Results Screen        [Standard PART-019]
 ```
 
 ---
 
-## 7. Core Logic
+## 6. Timer Behavior
 
-### 7a. startGame()
-
-```javascript
-function startGame() {
-  transitionScreen.hide();
-  gameState.isGameActive = true;
-  gameState.currentRound = 0;
-  gameState.lives = gameState.totalLives;
-  gameState.score = 0;
-  gameState.correctAnswers = 0;
-  gameState.incorrectAnswers = 0;
-  gameState.attempts = [];
-  gameState.startTime = Date.now();
-  showScreen('game-screen');
-  progressBar.update(0, gameState.lives);
-  loadQuestion(0);
-}
-```
-
-### 7b. loadQuestion(index)
-
-```javascript
-function loadQuestion(index) {
-  const q = gameState.questions[index];
-  gameState.currentQuestion = q;
-  gameState.isAnswered = false;
-  gameState.selectedOption = null;
-
-  // Render question
-  document.getElementById('question-text').textContent = q.question;
-
-  // Render 4 options
-  const buttons = document.querySelectorAll('.option-btn');
-  buttons.forEach((btn, i) => {
-    btn.textContent = q.options[i];
-    btn.className = 'option-btn'; // reset styles
-    btn.disabled = false;
-  });
-
-  // Reset and start 30s timer
-  timer.reset();
-  timer.start();
-}
-```
-
-### 7c. handleOptionSelect(index)
-
-```javascript
-function handleOptionSelect(index) {
-  if (gameState.isAnswered || !gameState.isGameActive) return;
-  gameState.isAnswered = true;
-  gameState.selectedOption = index;
-  timer.pause();
-
-  const q = gameState.currentQuestion;
-  const chosen = q.options[index];
-  const isCorrect = validateAnswer(chosen, q.correctAnswer);
-
-  // Visual feedback
-  const buttons = document.querySelectorAll('.option-btn');
-  buttons.forEach(btn => btn.disabled = true);
-  buttons[index].classList.add(isCorrect ? 'correct' : 'incorrect');
-  if (!isCorrect) {
-    // Reveal correct answer
-    const correctIndex = q.options.indexOf(q.correctAnswer);
-    if (correctIndex >= 0) buttons[correctIndex].classList.add('correct');
-  }
-
-  // Track attempt
-  recordAttempt({
-    questionId: q.id,
-    userAnswer: chosen,
-    correctAnswer: q.correctAnswer,
-    isCorrect,
-    timeTaken: timer.getTimeTaken()
-  });
-
-  if (isCorrect) {
-    gameState.score += 10;
-    gameState.correctAnswers++;
-  } else {
-    gameState.lives--;
-    gameState.incorrectAnswers++;
-  }
-
-  setTimeout(() => advanceGame(), 900);
-}
-```
-
-### 7d. handleTimeout() — called by timer's onEnd
-
-```javascript
-function handleTimeout() {
-  if (gameState.isAnswered || !gameState.isGameActive) return;
-  gameState.isAnswered = true;
-  gameState.lives--;
-  gameState.incorrectAnswers++;
-
-  const q = gameState.currentQuestion;
-  recordAttempt({
-    questionId: q.id,
-    userAnswer: null,
-    correctAnswer: q.correctAnswer,
-    isCorrect: false,
-    timeTaken: 30
-  });
-
-  // Reveal correct answer
-  const buttons = document.querySelectorAll('.option-btn');
-  buttons.forEach(btn => btn.disabled = true);
-  const correctIndex = q.options.indexOf(q.correctAnswer);
-  if (correctIndex >= 0) buttons[correctIndex].classList.add('correct');
-
-  setTimeout(() => advanceGame(), 900);
-}
-```
-
-### 7e. advanceGame()
-
-```javascript
-function advanceGame() {
-  // Check lives
-  if (gameState.lives <= 0) {
-    gameState.isGameActive = false;
-    showGameOver();
-    return;
-  }
-
-  gameState.currentRound++;
-  progressBar.update(gameState.currentRound, gameState.lives);
-
-  // Check if more questions
-  if (gameState.currentRound >= gameState.totalRounds) {
-    endGame();
-    return;
-  }
-
-  loadQuestion(gameState.currentRound);
-}
-```
-
-### 7f. showGameOver()
-
-```javascript
-function showGameOver() {
-  showScreen('game-screen'); // keep game screen hidden behind transition
-  transitionScreen.show({
-    icons: ['💔'],
-    iconSize: 'large',
-    title: 'Game Over!',
-    subtitle: `You answered ${gameState.correctAnswers} correctly`,
-    buttons: [
-      { text: 'Try Again', type: 'primary', action: () => restartGame() }
-    ]
-  });
-}
-```
-
-### 7g. restartGame()
-
-```javascript
-function restartGame() {
-  transitionScreen.hide();
-  startGame();
-}
-```
-
-### 7h. Timer Config
+- Timer type: `decrease` (countdown)
+- Start time: `30` seconds per question
+- End time: `0`
+- Format: `'sec'` (shows SS only)
+- On timer end: treat as wrong answer — deduct a life, check lives, load next question or show game over
+- Timer resets to 30 seconds on each new question via `timer.reset()` then `timer.start()`
+- Timer pauses/resumes via VisibilityTracker flags (see PART-006 cross-system pause)
+- Timer is destroyed in both `endGame()` and `showGameOver()`
 
 ```javascript
 timer = new TimerComponent('timer-container', {
@@ -385,143 +162,425 @@ timer = new TimerComponent('timer-container', {
 
 ---
 
-## 8. Validation
+## 7. Helper Functions
+
+### 7a. getOptionButtons() → HTMLButtonElement[]
+
+Returns all 4 option button elements in order.
 
 ```javascript
-function validateAnswer(userAnswer, correctAnswer) {
-  return String(userAnswer).trim().toLowerCase() === String(correctAnswer).trim().toLowerCase();
+function getOptionButtons() {
+  return [0, 1, 2, 3].map(i => document.getElementById(`option-${i}`));
+}
+```
+
+### 7b. disableAllOptions()
+
+Disables all 4 option buttons immediately (prevents double-tap after answer).
+
+```javascript
+function disableAllOptions() {
+  getOptionButtons().forEach(btn => { btn.disabled = true; });
 }
 ```
 
 ---
 
-## 9. EndGame Metrics
+## 8. Core Game Logic
+
+### 8a. loadQuestion(index)
 
 ```javascript
-function endGame() {
-  gameState.isGameActive = false;
-  gameState.isGameOver = true;
-  timer.stop();
-  timer.destroy();
-  progressBar.destroy();
-
-  const metrics = {
-    score: gameState.score,
-    correctAnswers: gameState.correctAnswers,
-    incorrectAnswers: gameState.incorrectAnswers,
-    totalRounds: gameState.totalRounds,
-    livesRemaining: gameState.lives,
-    totalLives: gameState.totalLives,
-    timeTaken: Math.round((Date.now() - gameState.startTime) / 1000),
-    attempts: gameState.attempts
-  };
-
-  signalCollector.send('game_end', metrics);
-  showResultsScreen(metrics);
+function loadQuestion(index) {
+  const q = gameState.questions[index];
+  document.getElementById('question-text').textContent = q.question;
+  getOptionButtons().forEach((btn, i) => {
+    btn.textContent = q.options[i];
+    btn.className = 'option-btn';
+    btn.disabled = false;
+  });
+  gameState.isAnswered = false;
+  gameState.selectedAnswer = null;
+  timer.reset();
+  timer.start();
+  progressBar.update(gameState.currentRound, gameState.lives);
 }
 ```
 
----
+### 8b. handleOptionClick(buttonElement)
 
-## 10. CSS / Styling
+Called from inline onclick with `this` (the button element). Receives the DOM button directly — no lookup needed.
 
-- **Background:** `--mathai-background` (white/light)
-- **Question card:** Centered, large font (2rem+), rounded card with shadow, `--mathai-card-bg`
-- **Options grid:** 2×2 grid layout, full-width buttons
-- **Option buttons:**
-  - Default: white bg, `--mathai-blue` border, rounded, 1rem font
-  - Hover: light blue bg
-  - `.correct`: green bg (`--mathai-green`), white text
-  - `.incorrect`: red bg (`--mathai-red`), white text
-  - `disabled`: reduced opacity, no pointer events
-- **Timer:** Bold, centered above question card. Turns red when ≤ 10 seconds.
-- **Lives:** Shown as heart icons ❤️ in progress bar (filled = remaining, empty = lost)
+```javascript
+function handleOptionClick(buttonElement) {
+  if (gameState.isAnswered) return;
+  gameState.isAnswered = true;
+  timer.pause();
 
----
+  const selectedOption = buttonElement.textContent.trim();
+  const q = gameState.questions[gameState.currentRound];
+  const isCorrect = validateAnswer(selectedOption, q.correctAnswer);
 
-## 11. PostMessage Integration (PART-008)
+  buttonElement.classList.add(isCorrect ? 'correct' : 'incorrect');
+  disableAllOptions();
 
-### Incoming: `game_init`
-```json
-{
-  "type": "game_init",
-  "data": {
-    "questions": [ ... ]
+  trackAttempt({
+    question: q.question,
+    userAnswer: selectedOption,
+    correctAnswer: q.correctAnswer,
+    isCorrect
+  });
+
+  if (isCorrect) {
+    gameState.score++;
+  } else {
+    gameState.lives--;
   }
+
+  setTimeout(() => {
+    advanceGame();
+  }, 800);
 }
 ```
-Handler sets `gameState.questions`, `gameState.totalRounds`, then shows start TransitionScreen.
 
-### Outgoing: `game_complete` (MANDATORY — contract tests verify this exact type)
-```json
-{
-  "type": "game_complete",
-  "score": 70,
-  "correctAnswers": 7,
-  "incorrectAnswers": 2,
-  "totalRounds": 10,
-  "livesRemaining": 1,
-  "timeTaken": 143,
-  "attempts": [ ... ]
+### 8c. handleTimeout()
+
+```javascript
+function handleTimeout() {
+  if (gameState.isAnswered) return;
+  gameState.isAnswered = true;
+  gameState.lives--;
+
+  const q = gameState.questions[gameState.currentRound];
+  trackAttempt({
+    question: q.question,
+    userAnswer: null,
+    correctAnswer: q.correctAnswer,
+    isCorrect: false
+  });
+
+  disableAllOptions();
+
+  setTimeout(() => {
+    advanceGame();
+  }, 800);
+}
+```
+
+### 8d. advanceGame()
+
+```javascript
+function advanceGame() {
+  gameState.currentRound++;
+
+  if (gameState.lives <= 0) {
+    showGameOver();
+    return;
+  }
+
+  if (gameState.currentRound >= gameState.totalRounds) {
+    endGame();
+    return;
+  }
+
+  loadQuestion(gameState.currentRound);
+}
+```
+
+### 8e. showGameOver()
+
+Destroys the timer before showing game-over screen to prevent phantom `onEnd` callbacks during retry. TransitionScreen overlays the game screen — no need to explicitly hide `#game-screen`.
+
+```javascript
+function showGameOver() {
+  timer.destroy();   // destroy, not just stop, to prevent phantom callbacks on retry
+  progressBar.destroy();
+  transitionScreen.show({
+    icons: ['💔'],
+    iconSize: 'large',
+    title: 'Game Over!',
+    subtitle: `You scored ${gameState.score} out of ${gameState.totalRounds}`,
+    buttons: [{ text: 'Try Again', type: 'primary', action: () => restartGame() }]
+  });
+}
+```
+
+### 8f. startGame()
+
+```javascript
+function startGame() {
+  transitionScreen.hide();
+  document.getElementById('game-screen').style.display = 'flex';
+  gameState.startTime = Date.now();
+  loadQuestion(0);
+}
+```
+
+### 8g. restartGame()
+
+Resets all game state, recreates timer and ProgressBar, and starts from question 0. Bypasses intro screen on retry — goes straight to question 1 for better UX.
+
+```javascript
+function restartGame() {
+  // Reset game state
+  gameState.currentRound = 0;
+  gameState.lives = gameState.totalLives;
+  gameState.score = 0;
+  gameState.isGameOver = false;
+  gameState.isAnswered = false;
+  gameState.selectedAnswer = null;
+  gameState.startTime = null;
+
+  // Recreate timer (previous one was destroyed in showGameOver)
+  timer = new TimerComponent('timer-container', {
+    timerType: 'decrease',
+    format: 'sec',
+    startTime: 30,
+    endTime: 0,
+    autoStart: false,
+    onEnd: (timeTaken) => { handleTimeout(); }
+  });
+
+  // Recreate ProgressBar
+  progressBar = new ProgressBarComponent({
+    autoInject: true,
+    totalRounds: gameState.totalRounds,
+    totalLives: gameState.totalLives
+  });
+  progressBar.update(0, gameState.totalLives);
+
+  // Start fresh
+  startGame();
 }
 ```
 
 ---
 
-## 12. ScreenLayout Configuration
+## 9. PostMessage Handler
+
+ProgressBar is created **inside** the postMessage handler, after `totalRounds` is known from content — not during initialization.
+
+```javascript
+// Inside postMessage handler, after content is received:
+gameState.questions = content.questions;
+gameState.totalRounds = content.questions.length;
+
+// ProgressBar created here, not at init time, so totalRounds is correct
+progressBar = new ProgressBarComponent({
+  autoInject: true,
+  totalRounds: gameState.totalRounds,
+  totalLives: gameState.totalLives
+});
+progressBar.update(0, gameState.totalLives);
+
+// Show start screen
+transitionScreen.show({
+  icons: ['➕'],
+  iconSize: 'large',
+  title: 'Addition Blitz!',
+  subtitle: 'Answer fast — you have 3 lives and 30 seconds per question.',
+  buttons: [{ text: "Let's Go!", type: 'primary', action: () => startGame() }]
+});
+```
+
+---
+
+## 10. HTML Structure
+
+Note: `onclick="handleOptionClick(this)"` passes the button element directly — no text lookup needed.
+
+```html
+<div id="app">
+  <!-- ScreenLayout injects progress bar and transition slots -->
+
+  <!-- Game Screen -->
+  <div id="game-screen" style="display:none">
+    <div id="timer-container"></div>
+    <div id="question-container">
+      <p id="question-text"></p>
+    </div>
+    <div id="options-grid">
+      <button id="option-0" class="option-btn" onclick="handleOptionClick(this)"></button>
+      <button id="option-1" class="option-btn" onclick="handleOptionClick(this)"></button>
+      <button id="option-2" class="option-btn" onclick="handleOptionClick(this)"></button>
+      <button id="option-3" class="option-btn" onclick="handleOptionClick(this)"></button>
+    </div>
+  </div>
+
+  <!-- Results Screen (PART-019) -->
+  <div id="results-screen" style="display:none"></div>
+</div>
+```
+
+---
+
+## 11. ScreenLayout Setup
 
 ```javascript
 ScreenLayout.inject('app', {
-  slots: {
-    progressBar: true,
-    transitionScreen: true
-  }
+  slots: { progressBar: true, transitionScreen: true }
 });
+
+const transitionScreen = new TransitionScreenComponent({ autoInject: true });
+// Note: progressBar is created in postMessage handler (Section 9), not here
 ```
 
 ---
 
-## 13. ProgressBar Configuration
+## 12. CSS Specifications
+
+```css
+#game-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 16px;
+  height: 100%;
+}
+
+#question-container {
+  background: var(--mathai-white);
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+#question-text {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--mathai-dark);
+  margin: 0;
+}
+
+#options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+
+.option-btn {
+  background: var(--mathai-white);
+  border: 2px solid var(--mathai-blue);
+  border-radius: 12px;
+  padding: 18px 12px;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--mathai-blue);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.option-btn:hover:not(:disabled) {
+  background: var(--mathai-blue);
+  color: white;
+  transform: scale(1.03);
+}
+
+.option-btn.correct {
+  background: var(--mathai-green);
+  border-color: var(--mathai-green);
+  color: white;
+}
+
+.option-btn.incorrect {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: white;
+}
+
+.option-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+```
+
+---
+
+## 13. Metrics (endGame)
 
 ```javascript
-const progressBar = new ProgressBarComponent({
-  autoInject: true,
+{
+  score: gameState.score,
   totalRounds: gameState.totalRounds,
-  totalLives: 3
-});
+  livesRemaining: gameState.lives,
+  totalLives: gameState.totalLives,
+  accuracy: gameState.score / gameState.totalRounds,
+  // total elapsed game time in seconds
+  timeTaken: Math.round((Date.now() - gameState.startTime) / 1000),
+  attempts: gameState.attempts
+}
 ```
 
 ---
 
-## 14. Test Scenarios
+## 14. Verification Checklist (PART-026)
 
-| # | Scenario | Steps | Expected |
-|---|---|---|---|
-| 1 | Page load | Open index.html | Start transition screen shown |
-| 2 | Start button | Click "Start!" | Game screen shown, first question loaded, timer starts |
-| 3 | Correct answer | Select correct option | Button turns green, score +10, next question loads |
-| 4 | Wrong answer | Select wrong option | Button turns red, correct highlighted green, lives -1 |
-| 5 | Timer expires | Let 30s run out | Lives -1, correct answer revealed, next question |
-| 6 | Lives depleted | Lose 3 lives | Game Over transition screen shown |
-| 7 | Try again | Click "Try Again" | Game resets, first question reloads |
-| 8 | All questions answered | Complete all Qs with lives | endGame called, results screen shown |
-| 9 | Progress bar | After each answer | Lives hearts and round count update correctly |
-| 10 | PostMessage | Send game_init | Game initializes with provided questions |
-| 11 | Timer color | ≤10s remaining | Timer text turns red |
-| 12 | Disabled after answer | After selecting option | All 4 buttons disabled, no double-click |
-| 13 | Score tracking | 5 correct answers | Score shows 50 |
-| 14 | Visibility pause | Tab away | Timer pauses |
-| 15 | Metrics output | On game end | game_complete postMessage fired with all fields (type MUST be 'game_complete' — contract tests verify this) |
+- [ ] `handleOptionClick` accepts `buttonElement` (DOM element via `this`), not a string
+- [ ] `handleOptionClick` and `handleTimeout` defined on `window` (global scope)
+- [ ] `getOptionButtons()` and `disableAllOptions()` defined as helpers
+- [ ] Timer uses `TimerComponent`, no `setInterval`
+- [ ] `timer.destroy()` called in BOTH `endGame()` and `showGameOver()`
+- [ ] `progressBar.destroy()` called in BOTH `endGame()` and `showGameOver()`
+- [ ] ProgressBar instantiated INSIDE postMessage handler (not at init time)
+- [ ] `restartGame()` fully resets all gameState fields and recreates timer + ProgressBar
+- [ ] Answer comparison via `validateAnswer()` (PART-013)
+- [ ] Buttons disabled immediately after click via `disableAllOptions()`
+- [ ] `gameState.isAnswered` guard in both `handleOptionClick` and `handleTimeout`
+- [ ] `timeTaken` in metrics uses `Date.now() - gameState.startTime` (total game duration)
+- [ ] ProgressBar `update()` first param = rounds completed (0-based)
+- [ ] Results screen shown after all questions answered (not on game-over)
+- [ ] 4 option buttons use `onclick="handleOptionClick(this)"` (pass element, not text)
 
 ---
 
-## 15. Anti-Pattern Checklist (PART-026)
+## 15. Test Scenarios
 
-- [ ] No `setInterval` / `setTimeout` used for timer (using TimerComponent)
-- [ ] No custom validation regex (using validateAnswer from PART-013)
-- [ ] No hardcoded question content (loaded via postMessage)
-- [ ] Global event handlers attached via `window.handleOptionSelect` pattern
-- [ ] `timer.destroy()` called in endGame
-- [ ] `progressBar.destroy()` called in endGame
-- [ ] No mix of `duration` + `buttons` on same transitionScreen
-- [ ] VisibilityTracker passes `fromVisibilityTracker` flag to timer pause/resume
+### Page Load
+1. Page loads without JS errors
+2. Start screen NOT visible until postMessage content is received
+
+### PostMessage
+3. Game receives content via postMessage
+4. Content has 10 questions → `totalRounds` = 10
+5. ProgressBar shows "0/10 rounds completed" immediately after content load
+6. Start screen shown after content arrives
+
+### Start
+7. Clicking "Let's Go!" hides start screen, shows game screen
+8. First question text displayed
+9. 4 option buttons populated with content options
+10. Timer starts counting down from 30
+
+### Correct Answer
+11. Click correct option → that button turns green, others disabled
+12. `score` increments by 1
+13. After 800ms, next question loads, timer resets to 30
+
+### Wrong Answer
+14. Click wrong option → that button turns red, others disabled
+15. `lives` decrements by 1
+16. After 800ms, next question loads
+
+### Timeout
+17. Wait 30s → `handleTimeout` fires
+18. `lives` decrements, buttons disabled
+19. After 800ms, next question loads (or game over)
+
+### Game Over
+20. After 3 wrong/timeout events, game-over TransitionScreen shown
+21. "Try Again" button fully resets game: score=0, lives=3, round=0
+22. New timer created, ProgressBar recreated with correct totalRounds
+
+### Win / End
+23. After answering all questions, Results screen shown
+24. Score and accuracy displayed correctly
+25. `timeTaken` reflects total elapsed seconds from startGame() to endGame()
+
+### ProgressBar
+26. Progress bar shows "0/N rounds completed" at start
+27. Increments by 1 after each question (including wrong answers)
+28. Hearts update after each life lost
