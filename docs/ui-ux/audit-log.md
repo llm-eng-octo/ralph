@@ -18,10 +18,10 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** Session 3 planning — no spec yet
-**Last completed:** quadratic-formula-worked-example build #546 — 2026-03-23 — full browser playthrough complete. 4 FAIL / 8 PASS on critical gen rules. P0: results screen off-screen (position:static + body flex-row from ScreenLayout). New finding: restartGame() doesn't reset lives/round. 4 gen rules confirmed (GEN-UX-001, ARIA-001, GEN-UX-003, GEN-UX-002).
-**Next target:** Session 3 (no spec written yet)
-**Waiting on:** Education slot to draft Session 3 spec
+**Current task:** soh-cah-toa-worked-example #544 — browser playthrough (was static-analysis-only in batch 2)
+**Last completed:** quadratic-formula-worked-example #546 — 2026-03-23 — P0 + 5 findings (browser-specific P0 not visible in static)
+**Next target:** soh-cah-toa-worked-example #544
+**Waiting on:** none
 
 ### Batch 2 — Completed 2026-03-23
 
@@ -61,6 +61,7 @@ addition-mcq (next active target)
 | 2026-03-23 | which-ratio | #561 | 7 issues (4a, 2b, 1c) | CSS stripping resolved; 4 gen prompt rules confirmed pending in ROADMAP.md; 2 spec additions proposed; 1 CDN constraint unchanged |
 | 2026-03-23 | count-and-tap | #551 | 7 issues (4a, 1b, 2 low) | CSS strip CRITICAL confirmed; ARIA-001 extension proposed; 44px gap confirmed 3rd instance; dead-code guard new rule proposed; dot-warning spec addition; all handoffs routed |
 | 2026-03-23 | find-triangle-side | #549 | 10 issues (6a, 2b, 2 low) | Results static CRITICAL confirmed 2nd instance; 4 new gen rules added to ROADMAP (slot ID, local assets, SignalCollector args, results fixed); ARIA-001 coverage verified; all handoffs routed |
+| 2026-03-23 | quadratic-formula-worked-example | #546 | P0+5 findings (1P0, 1P1, 3 confirmed-from-static) | **P0 UI-QF-001: results screen off-screen** — body flex-row layout pushes #results-screen out of viewport; computed width 208px, position:static, z-index:auto. GEN-UX-001 already shipped. **P1 UI-QF-NEW-001: restartGame() doesn't reset full gameState** — lives/currentRound/score/attempts not reset; second session starts wrong. New gen rule added to ROADMAP. 3 browser-confirmed: ARIA-001 absent (#faded-feedback + #practice-feedback ariaLive:null), ProgressBar wrong slotId ('mathai-progress-bar-slot'), .btn-option min-height:auto. 8/12 critical rules PASS: data-phase transitions, data-lives deduction, data-round increment, game flow, CDN load, zero PAGEERRORs. Full browser playthrough complete: 3 rounds × 3 sub-phases, wrong answers tested in both phases, results + restart tested. |
 | 2026-03-23 | quadratic-formula-worked-example | #546 | **11 issues (6a, 0b, 1c, 4 low) — FULL BROWSER PLAYTHROUGH** | 4 FAIL / 8 PASS on gen rules. P0 (browser-confirmed): results-screen renders off-screen as body flex-sibling (~209px wide) — ScreenLayout sets body flex-row, position:static is broken; GEN-UX-001 4th+ instance. ARIA-001 confirmed (both feedback divs ariaLive:null). Slot ID wrong ('mathai-progress-bar-slot'). min-height:auto on .btn-option (45px computed only). NEW: restartGame() doesn't reset lives/round/score (data-lives=2, data-round=3 after restart). All handoffs routed to Gen Quality + Test Engineering. |
 | 2026-03-23 | soh-cah-toa-worked-example | #544 | 7 issues (5a, 1b, 1 low) | CSS intact — cleanest build in batch; results not fixed (4th); ARIA-001 (5th); slot ID options missing key; min-height 44px (5th); hide()/show() string selector bug found; formula accessibility spec addition |
 | 2026-03-23 | right-triangle-area | #543 | 9 issues (7a, 1b, 1c) | CSS STRIPPED (4th instance); canvas 500px > 480px new rule; undefined CSS vars for feedback color; ProgressBar hash-prefix slot ID (4th); ARIA-001 (6th); results not fixed (5th); FeedbackManager.sound.play non-standard API; Google Fonts dependency |

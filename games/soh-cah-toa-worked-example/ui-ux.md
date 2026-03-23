@@ -2,6 +2,8 @@
 
 **Build:** #544  **Date:** 2026-03-23  **Auditor:** UI/UX slot (static analysis)
 
+> **STATUS: BROWSER PLAYTHROUGH REQUIRED** — This audit was static-analysis-only (batch 2). Active Audit Target as of 2026-03-23: full browser playthrough via `diagnostic.js` needed to confirm UI-SC-001 (results off-screen), UI-SC-007 (hide()/show() string selector TypeError), and runtime behavior of ProgressBarComponent without slotId. See `docs/ui-ux/audit-log.md` Active Audit Target section.
+
 ---
 
 ## Summary
