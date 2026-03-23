@@ -2544,6 +2544,68 @@ describe('GEN-WAITFOR-MATCH — FeedbackManager checked in waitForPackages but n
   });
 });
 
+describe('GEN-WAITFOR-BANNEDNAMES — waitForPackages checks hallucinated non-CDN package names (5c3)', () => {
+  // Minimal CDN HTML with waitForPackages — whileCondition replaces the while loop predicate
+  function makeBannedNameHtml(whileCondition) {
+    return (
+      '<!DOCTYPE html>\n' +
+      '<html lang="en"><head><meta charset="UTF-8"><title>T</title>\n' +
+      '<style>body{} #gameContent{max-width:480px;}</style></head>\n' +
+      '<body><div id="app"></div>\n' +
+      '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>\n' +
+      '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n' +
+      '<script>\n' +
+      '  window.gameState = { phase: \'start\', score: 0, lives: 3 };\n' +
+      '  window.endGame = function endGame() {};\n' +
+      '  window.restartGame = function restartGame() {};\n' +
+      '  window.nextRound = function nextRound() {};\n' +
+      '  async function waitForPackages() {\n' +
+      '    const timeout = 180000; const interval = 50; let elapsed = 0;\n' +
+      '    while (' + whileCondition + ') {\n' +
+      '      if (elapsed >= timeout) { throw new Error(\'Packages failed to load within 180s\'); }\n' +
+      '      await new Promise(resolve => setTimeout(resolve, interval));\n' +
+      '      elapsed += interval;\n' +
+      '    }\n' +
+      '  }\n' +
+      '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
+      '    await waitForPackages();\n' +
+      '    window.parent.postMessage({ type: \'game_complete\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+      '  });\n' +
+      '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
+      '</script></body></html>'
+    );
+  }
+
+  it('fails when waitForPackages checks typeof Components (banned — never a CDN global)', () => {
+    const html = makeBannedNameHtml('typeof Components === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected failure but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-WAITFOR-BANNEDNAMES') && output.includes('"Components"'),
+      `Expected GEN-WAITFOR-BANNEDNAMES error for "Components" but got: ${output}`,
+    );
+  });
+
+  it('fails when waitForPackages checks typeof Helpers (banned — never a CDN global)', () => {
+    const html = makeBannedNameHtml('typeof Helpers === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected failure but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-WAITFOR-BANNEDNAMES') && output.includes('"Helpers"'),
+      `Expected GEN-WAITFOR-BANNEDNAMES error for "Helpers" but got: ${output}`,
+    );
+  });
+
+  it('passes when waitForPackages checks typeof ScreenLayout (correct CDN global)', () => {
+    const html = makeBannedNameHtml('typeof ScreenLayout === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-BANNEDNAMES'),
+      `Unexpected GEN-WAITFOR-BANNEDNAMES error for correct ScreenLayout check: ${output}`,
+    );
+  });
+});
+
 describe('GEN-WAITFOR-MATCH B/C/D: new X() used but typeof X absent from waitForPackages (WARNING)', () => {
   // Minimal CDN HTML: feedback-manager absent, waitForPackages checks only ScreenLayout by default.
   // extraScript is injected into the game body to simulate new X() calls.
