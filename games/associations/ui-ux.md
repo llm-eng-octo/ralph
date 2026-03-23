@@ -1,130 +1,152 @@
-# UI/UX Audit — associations
+# associations — UI/UX Audit
 
-**Build audited:** #513 (approved, 2 iterations)
+**Build audited:** #472
 **Audit date:** 2026-03-23
-**Audit method:** Static HTML analysis — full checklist against downloaded GCP build HTML
-**HTML URL:** https://storage.googleapis.com/mathai-temp-assets/games/associations/builds/513/index.html
-**CSS status:** INTACT — stylesheet fully present, no stripping
+**Auditor:** UI/UX Slot (full browser playthrough)
+**HTML URL:** https://storage.googleapis.com/mathai-temp-assets/games/associations/builds/472/index.html
+**Previous audit:** #513 static HTML analysis (2026-03-23) — 5 findings (4a, 0b, 0c, 1d)
 
 ---
 
 ## Summary
 
-No P0 flow bugs. CSS is intact. All mandatory structure checks pass. 5 actionable findings: 4 gen prompt rules (a), 1 test gap (d). No P0 blockers.
+1 P0 (restartGame() state not reset), 0 HIGH, 4 MEDIUM, 2 LOW findings confirmed via full browser playthrough. All 3 rounds completable end-to-end. Restart shows start screen but game state is NOT reset (P0). Timer error fires throughout gameplay. Total: **7 findings — 5(a), 0(b), 0(c), 2(d)**.
 
-**Issue count:** 5 total — 4(a), 0(b), 0(c), 1(d)
+**Issue count:** 7 total — 5a gen rule, 0b spec, 0c CDN constraint, 2d test gap
 
 ---
 
-## Mandatory Checklist
+## Checklist Results (Browser Playthrough)
 
 | Check | Result | Notes |
 |-------|--------|-------|
-| CSS stylesheet intact | PASS | Full stylesheet present, not stripped |
-| FeedbackManager.init() absent | PASS | Not present anywhere in HTML |
-| alert()/confirm()/prompt() absent | PASS | Not present |
-| window.endGame assigned | PASS | Line 1110: `window.endGame = endGame;` |
-| data-phase transitions with syncDOMState() | PASS | syncDOMState() called at all phase transitions; data-phase set on #app |
-| Enter key handler (text inputs) | N/A | MCQ/button game — no text input fields |
-| ProgressBar slotId: 'mathai-progress-slot' | FAIL — F1 | `new ProgressBarComponent({ totalRounds: 3, totalLives: 0 })` — no slotId key |
-| aria-live="polite" on dynamic feedback | FAIL — F2 | No feedback text element at all; correct/wrong feedback is CSS class only |
-| SignalCollector constructor args | PASS | sessionId, studentId, templateId all passed |
-| gameState.gameId field present | FAIL — F3 | gameState object has no gameId field; templateId falls back to null |
-| Results screen position:fixed | FAIL — F4 | results-screen shown via data-phase CSS override (display:flex), no position:fixed; static in normal flow |
-| Touch targets min-height 44px | FAIL — F5 | choice-btn: padding only (14px 8px), no min-height; game-btn (Play Again): padding only (12px 32px), no min-height |
+| CDN packages load | PASS | All packages load, ScreenLayout injected correctly |
+| `waitForPackages()` timeout | FAIL — UI-ASC-007 | 10000ms (10s) — should be 120000ms per GEN-CDN-TIMEOUT |
+| Start screen renders | PASS | TransitionScreen shows with object API: icons, title, subtitle, button |
+| `data-phase` on `body` | FAIL — UI-ASC-001 | `body` has no `data-phase`. Only `#app` has `data-phase`. Confirmed LP-4 pattern. |
+| `data-phase` on `#app` | PASS | Set correctly at all phase transitions (start, learn, recall, transition, results) |
+| `syncDOMState()` sets `data-lives` | FAIL — UI-ASC-001 | syncDOMState() only sets `data-phase` on `#app`, nothing else |
+| `transitionScreen.show()` API | PASS | Object API used throughout — `{icons, title, subtitle, buttons}` |
+| All 3 rounds reachable | PASS | Round 1 → Round 2 → Round 3 all functional |
+| Learn phase (emoji + name display) | PASS | Pair 1 of N shown correctly with timer counting up |
+| Recall phase (MCQ buttons) | PASS | 4 choice buttons, emoji shown, "Who is this?" prompt |
+| Wrong answer visual feedback | PARTIAL | Border color change visible on `.wrong` class, but no text feedback, no aria-live |
+| Progress bar updates | PASS | "0/3" → "1/3" → "2/3" → "3/3" correctly at each round completion |
+| Results screen reaches | PASS | "Game Complete!" with score, accuracy, time, Play Again |
+| Results screen `position:fixed` | FAIL — UI-ASC-004 | `position: static`, `top: 64px` — does NOT cover viewport |
+| Play Again button | PASS | 47.5px height — passes 44px minimum |
+| `choice-btn` height | PASS | 51px measured — passes 44px via padding (14px top+bottom) |
+| `restartGame()` resets state | FAIL — P0 UI-ASC-P0-001 | `currentRound=3`, `score=5` retained after Play Again. NOT reset. |
+| `restartGame()` shows start screen | PASS | TransitionScreen start screen shown correctly via object API |
+| `aria-live` region present | FAIL — UI-ASC-003 | No `aria-live` in inline script or DOM. Zero text feedback on answers. |
+| `gameState.gameId` field | FAIL — UI-ASC-005 | `gameState` has no `gameId` field; templateId always resolves to null |
+| ProgressBar `slotId` key | FAIL — UI-ASC-002 | `new ProgressBarComponent({ totalRounds: 3, totalLives: 0 })` — no slotId |
+| `progressBar.update()` 2nd arg | PASS | `progressBar.update(currentRound, 0)` — second arg is 0 (lives); correct for unlimited-lives |
+| Console errors (non-audio) | FAIL — UI-ASC-006 | `timer.getTime is not a function` fires on every answer click (~20+ times per game) |
 | Sentry SDK v10.23.0 | PASS | v10.23.0 three-script pattern present |
-| initSentry() called | PASS | Called inside waitForPackages() on line ~442 |
+| SignalCollector constructor args | PASS | sessionId, studentId, templateId all passed |
+| FeedbackManager.init() absent | PASS | Not called anywhere |
+| alert()/confirm()/prompt() absent | PASS | None present |
+| window.endGame assigned | PASS | `window.endGame = endGame;` present |
 
 ---
 
 ## Findings
 
-### F1 — ProgressBarComponent missing slotId key (gen prompt rule)
+### [P0] UI-ASC-P0-001 — restartGame() does not reset gameState (same pattern as find-triangle-side)
 
-**Classification:** (a) gen prompt rule
-**Severity:** Medium — progress bar may not render in correct CDN slot
-
-`new ProgressBarComponent({ totalRounds: 3, totalLives: 0 })` — the `slotId: 'mathai-progress-slot'` key is absent. GEN-UX-003 was shipped (25bdad0 2026-03-23) but this build predates it. This is the **7th confirmed instance** of this pattern.
-
-**Action:** No new rule needed — GEN-UX-003 already addresses this. Increment instance count in audit-log.md. Confirm next build fixes it.
-
----
-
-### F2 — No aria-live region for correct/wrong feedback (gen prompt rule)
-
-**Classification:** (a) gen prompt rule
-**Severity:** High — screen reader users get zero feedback on answer selection
-
-The game's feedback mechanism is purely visual: when a choice button is clicked, buttons get `.correct` or `.wrong` CSS classes applied. There is no text element with `aria-live="polite"` announcing the result. The `#learn-name` and `#learn-emoji` divs that update dynamically during the learn phase also lack `aria-live`. FeedbackManager plays audio (with guard), but that is not a substitute for DOM accessibility.
-
-This is the **12th confirmed instance** of ARIA-001. The rule was shipped (c826ec1 2026-03-23) — this build predates it.
-
-**Action:** No new rule needed — ARIA-001 already shipped. Increment instance count in audit-log.md. For this specific game: a feedback message div should be added to the recall area (e.g. `<div id="feedback-msg" aria-live="polite" role="status"></div>`) and populated with "Correct!" or "That was [name]!" text on each answer.
+- **Observed:** After completing all 3 rounds and clicking "Play Again", the start screen is shown via TransitionScreen (correct). However `window.gameState.currentRound = 3` and `window.gameState.score = 5` are retained. The `data-round` attribute on `#app` still shows `"3"`. The DOM `data-round` never changes from the final round value.
+- **Code evidence:** `restartGame()` hides the results screen, re-initializes SignalCollector, then calls `transitionScreen.show(...)` to show the start screen. It contains no `gameState.currentRound = 0`, `gameState.score = 0`, or `gameState.correctCount = 0` assignments.
+- **Impact:** If the player starts a second game, `currentRound` starts at 3, which immediately triggers `endGame()` after the first answer (since `currentRound >= totalRounds` evaluates true). Game is broken on replay.
+- **Classification:** (a) gen prompt rule — restartGame() must reset all mutable gameState fields
+- **Action:** This is the **3rd confirmed instance** of this pattern (find-triangle-side #549 was 2nd). A gen rule already exists in ROADMAP. Verify GEN-RESTART-RESET is in the prompt and covers all mutable fields: `currentRound`, `score`, `correctCount`, `attempts`, `events`, `startTime`, `gameEnded`, `isActive`, `isProcessing`.
 
 ---
 
-### F3 — gameState.gameId absent (gen prompt rule)
+### [MEDIUM] UI-ASC-001 — syncDOMState() only sets data-phase on #app, not body; no data-lives/data-round
 
-**Classification:** (a) gen prompt rule
-**Severity:** Medium — SignalCollector templateId always null; analytics data unattributable
-
-The `window.gameState` object has no `gameId` field. Both SignalCollector instantiations use `templateId: window.gameState.gameId || null` which always resolves to `null`. The spec Section 1 lists Game ID as `game_associations` but that value was never put into gameState.
-
-This is the **3rd confirmed instance** (adjustment-strategy #385 was 2nd, addition-mcq spec was 2nd — now confirmed in a live build).
-
-**Action:** Add to ROADMAP.md Gen Quality backlog (already has 2-instance entry — escalate to 3). Ship the gen prompt rule now: `gameState` must always include `gameId: '<game_id_from_spec>'`.
+- **Observed:** `document.body.getAttribute('data-phase')` returns `null` at all phases. `#app` correctly has `data-phase` set. `syncDOMState()` implementation: `app.setAttribute('data-phase', window.gameState.phase)` — one line only, no `data-lives`, `data-round`, or `data-score`.
+- **Classification:** (a) gen prompt rule + (d) test gap — confirmed LP-4 pattern (2nd after count-and-tap, real-world-problem)
+- **Action:** Any Playwright test asserting `body[data-phase]` will always fail. Test Engineering must target `#app[data-phase]` not `body[data-phase]`. No new gen rule needed (already in ROADMAP from count-and-tap audit). Route to Test Engineering: update test selectors for associations-specific tests.
 
 ---
 
-### F4 — Results screen not position:fixed overlay (gen prompt rule)
+### [MEDIUM] UI-ASC-002 — ProgressBarComponent missing slotId key
 
-**Classification:** (a) gen prompt rule
-**Severity:** High — on mobile, results screen may not cover viewport
-
-The `#results-screen` div is inside the game template as a normal `game-block` element. It is shown by the CSS rule `#app[data-phase="results"] #results-screen { display: flex !important; }` but has no `position: fixed; inset: 0` styling. The `.results-card` is centered with `max-width: 340px` but the results-screen container itself is in normal flow.
-
-GEN-UX-001 was shipped (d402b3b 2026-03-23) — this build (#513) predates it. This is the **9th confirmed instance**.
-
-**Action:** No new rule needed — GEN-UX-001 already ships. Increment instance count in audit-log.md.
+- **Observed:** `new ProgressBarComponent({ totalRounds: 3, totalLives: 0 })` — no `slotId: 'mathai-progress-slot'` key.
+- **Classification:** (a) gen prompt rule
+- **Action:** No new rule needed — GEN-UX-003 already addresses this. This is the **8th confirmed instance**. Increment instance count. Next build should fix if GEN-UX-003 is active.
 
 ---
 
-### F5 — choice-btn and game-btn missing min-height 44px (gen prompt rule + test gap)
+### [MEDIUM] UI-ASC-003 — No aria-live region; wrong/correct feedback is CSS-only
 
-**Classification:** (a) gen prompt rule + (d) test gap
-**Severity:** Medium — choice buttons use only `padding: 14px 8px` which may not meet 44px on smaller fonts; game-btn uses `padding: 12px 32px`
+- **Observed:** No `aria-live` element in the DOM or inline scripts. When a choice button is clicked, only CSS classes (`.correct`, `.wrong`) are applied — no text is announced. Wrong answer shows a blue border highlight only. Correct answer shows a green border only. Screen reader users get zero feedback.
+- **Classification:** (a) gen prompt rule
+- **Action:** No new rule needed — ARIA-001 already shipped. This is the **13th confirmed instance**. The game specifically needs a `<div id="feedback-msg" aria-live="polite" role="status"></div>` element populated with "Correct!" or "That was [name]!" on each answer.
 
-Neither `.choice-btn` nor `.game-btn` declares `min-height: 44px`. GEN-UX-002 (GEN-TOUCH-TARGET) was shipped (d402b3b 2026-03-23) — this build predates it. This is the **9th confirmed touch-target instance**.
+---
 
-**Test gap:** No test assertion checks that `.choice-btn` computed height >= 44px. The choice buttons are dynamically generated so static HTML analysis cannot catch this — needs a Playwright assertion.
+### [MEDIUM] UI-ASC-004 — Results screen not position:fixed overlay
 
-**Action:** No new rule needed — GEN-UX-002 already ships for `.game-btn`. Note: `.choice-btn` is a game-specific class not covered by GEN-UX-002 which targets `.game-btn`. The rule should be extended to cover all interactive answer-selection buttons regardless of class name. Route to Test Engineering: add Playwright assertion that `await expect(page.locator('.choice-btn').first()).toHaveCSS('min-height', '44px')`.
+- **Observed:** `#results-screen` has `position: static`, `top: 64px` from viewport top. `display: flex` is set by `style.display = 'flex'` in JavaScript (not CSS data-phase rule). The results card is visible but does NOT cover the full viewport — scroll required on small screens.
+- **Classification:** (a) gen prompt rule
+- **Action:** No new rule needed — GEN-UX-001 already ships. This is the **10th confirmed instance** in live builds.
+
+---
+
+### [LOW] UI-ASC-005 — gameState.gameId absent; templateId always null
+
+- **Observed:** `window.gameState` has no `gameId` field. Both SignalCollector instantiations use `templateId: window.gameState.gameId || null` which always resolves to `null`. Confirmed at runtime: `gameState.gameId` is `undefined`.
+- **Classification:** (a) gen prompt rule
+- **Action:** No new rule needed — GEN-GAMEID already shipped. This is the **4th confirmed instance** in a live build (build #472). Analytics data for this game is entirely unattributable.
+
+---
+
+### [LOW] UI-ASC-006 — timer.getTime is not a function — repeating error throughout gameplay
+
+- **Observed:** `{"error":"Signal Error","details":"timer.getTime is not a function"}` fires on every answer click and at regular intervals — ~20+ times in a single game session. The error is caught and logged but does not crash the game. The `timer` object exposed to the CDN's audio kit apparently lacks a `getTime()` method.
+- **Classification:** (d) test gap — should be caught by a Playwright assertion checking for non-audio console errors
+- **Action:** Route to Test Engineering: add a Playwright assertion that no console errors besides `[FeedbackManager]` audio 404s appear after each answer click. This recurring error is masking real issues.
+
+---
+
+### [LOW] UI-ASC-007 — waitForPackages timeout is 10000ms (10s), not 120000ms
+
+- **Observed:** `const timeout = 10000;` in the `waitForPackages()` loop. If CDN packages take more than 10s to load (network congestion, cold start), the game throws "Packages failed to load" and shows a blank screen.
+- **Classification:** (a) gen prompt rule
+- **Action:** GEN-CDN-TIMEOUT rule requires 120000ms. This is the **Nth confirmed instance** of the 10s timeout. Verify the rule is shipping correctly.
 
 ---
 
 ## Positive Observations
 
-- CSS fully intact — no stripping
+- CDN packages all load successfully (all 9 components present)
+- TransitionScreen used with object API throughout — no string mode (PASS)
+- All 3 rounds functional and completable end-to-end
+- Progress bar text updates correctly: 0/3 → 1/3 → 2/3 → 3/3
+- Round transition screen uses TransitionScreen CDN (not custom HTML) — correct
+- FeedbackManager audio plays on every answer, guarded correctly (no crash on 404)
+- Timer pause/resume on audio playback working correctly
+- Play Again button 47.5px — passes 44px minimum
+- choice-btn 51px rendered height — passes 44px (via 14px top+bottom padding)
+- Sentry SDK v10.23.0 three-script pattern present
+- SignalCollector constructor args all passed (sessionId, studentId, templateId)
 - FeedbackManager.init() correctly absent
-- All alert()/confirm()/prompt() absent
+- No alert()/confirm()/prompt() calls
 - window.endGame properly assigned
-- data-phase transitions on every game state change via syncDOMState()
-- SignalCollector instantiated with full constructor args
-- Sentry SDK v10.23.0 correctly configured
-- initSentry() called correctly
-- FeedbackManager audio playback guarded with `typeof FeedbackManager !== 'undefined'`
-- Fallback content is well-structured with realistic names and emoji
-- Timer (increase type) properly destroyed and recreated in restartGame()
 
 ---
 
 ## Routing
 
-| Finding | Slot | Action |
-|---------|------|--------|
-| F1 — ProgressBarComponent slotId | Gen Quality | Already in ROADMAP; 7th instance — confirm fix in next build |
-| F2 — ARIA-001 no aria-live | Gen Quality | Already shipped; 12th instance — confirm coverage via T1 |
-| F3 — gameState.gameId absent | Gen Quality | ROADMAP entry already present — escalate to 3 instances, ship rule now |
-| F4 — Results screen not fixed | Gen Quality | Already shipped; 9th instance |
-| F5 (a) — choice-btn min-height | Gen Quality | Extend GEN-UX-002 to cover all answer-selection buttons (not just .game-btn) |
-| F5 (d) — no test assertion for choice-btn height | Test Engineering | Add Playwright assertion: choice-btn computed min-height >= 44px |
+| Finding | Severity | Slot | Action |
+|---------|----------|------|--------|
+| UI-ASC-P0-001 — restartGame() no state reset | P0 | Gen Quality | 3rd confirmed instance — verify GEN-RESTART-RESET rule covers all mutable fields; consider re-queue |
+| UI-ASC-001 — syncDOMState only #app not body | MEDIUM | Test Engineering | Update test selectors from `body[data-phase]` to `#app[data-phase]` for associations tests |
+| UI-ASC-002 — ProgressBar missing slotId | MEDIUM | Gen Quality | 8th instance — GEN-UX-003 already ships; confirm in next build |
+| UI-ASC-003 — No aria-live feedback | MEDIUM | Gen Quality | 13th ARIA-001 instance — rule shipped; confirm in next build |
+| UI-ASC-004 — Results screen position:static | MEDIUM | Gen Quality | 10th GEN-UX-001 instance — rule shipped; confirm in next build |
+| UI-ASC-005 — gameState.gameId absent | LOW | Gen Quality | 4th confirmed live-build instance — GEN-GAMEID shipped; confirm coverage |
+| UI-ASC-006 — timer.getTime repeating error | LOW | Test Engineering | Add Playwright assertion: no non-audio console errors after answer click |
+| UI-ASC-007 — waitForPackages 10s timeout | LOW | Gen Quality | GEN-CDN-TIMEOUT rule requires 120s; verify rule is active and shipping |
