@@ -627,3 +627,37 @@ test.describe('mechanics', () => {
     assert.equal(noLivesViolations.length, 0, 'Should NOT flag getLives() in boilerplate helper definition');
   });
 });
+
+// ─── CR-052: LP-2 click substitution handles .first().click() ─────────────────
+// Regression test: the LP-2 banned-selector click regex must substitute both
+// `button.click()` and `button.first().click()` forms to `await clickNextLevel(page)`.
+
+describe('LP-2 banned-selector click substitution — CR-052', () => {
+  // The regex used in generateTests() for click substitution (CR-052 fix):
+  const LP2_CLICK_RE =
+    /^(\s*)await\s+page\.locator\s*\(\s*['"]#mathai-transition-slot\s+button['"]\s*\)\s*(?:\.first\s*\(\s*\))?\s*\.click\s*\([^)]*\)\s*;?\s*$/gm;
+  const REPLACEMENT = '$1await clickNextLevel(page); // LP-2: substituted banned selector click \u2192 clickNextLevel()';
+
+  it('substitutes button.click() to clickNextLevel()', () => {
+    const input = `  await page.locator('#mathai-transition-slot button').click();`;
+    LP2_CLICK_RE.lastIndex = 0;
+    const result = input.replace(LP2_CLICK_RE, REPLACEMENT);
+    assert.ok(result.includes('clickNextLevel(page)'), 'button.click() should be substituted to clickNextLevel()');
+    assert.ok(!result.includes("locator('#mathai-transition-slot button').click()"), 'original click should be removed');
+  });
+
+  it('substitutes button.first().click() to clickNextLevel() — CR-052', () => {
+    const input = `  await page.locator('#mathai-transition-slot button').first().click();`;
+    LP2_CLICK_RE.lastIndex = 0;
+    const result = input.replace(LP2_CLICK_RE, REPLACEMENT);
+    assert.ok(result.includes('clickNextLevel(page)'), 'button.first().click() should be substituted to clickNextLevel()');
+    assert.ok(!result.includes('.first().click()'), 'original .first().click() should be removed');
+  });
+
+  it('does not substitute clickNextLevel() line (already correct)', () => {
+    const input = `  await clickNextLevel(page);`;
+    LP2_CLICK_RE.lastIndex = 0;
+    const result = input.replace(LP2_CLICK_RE, REPLACEMENT);
+    assert.equal(result, input, 'clickNextLevel() line must not be altered');
+  });
+});
