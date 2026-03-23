@@ -3858,3 +3858,49 @@ describe('GEN-TIMER-GETTIME: banned CDN timer methods', () => {
     );
   });
 });
+
+describe('GEN-CORRECT-ANSWER-EXPOSURE: round string correct-answer field must be exposed on gameState', () => {
+  it('no warning when game uses round.correctOption AND sets gameState.correctAnswer', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; gameState.correctAnswer = round.correctOption; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Unexpected GEN-CORRECT-ANSWER-EXPOSURE warning when gameState.correctAnswer is set: ${output}`,
+    );
+  });
+
+  it('warns when game uses round.correctOption but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; syncDOMState(); }\nfunction renderOptions() { options.forEach(o => { if (o === round.correctOption) o.selected = true; }); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning when round.correctOption used but gameState.correctAnswer not set, got: ${output}`,
+    );
+  });
+
+  it('warns when game uses round.correctAnswer but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const label = round.correctAnswer; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning when round.correctAnswer used but gameState.correctAnswer not set, got: ${output}`,
+    );
+  });
+
+  it('no warning when game has no round.correctOption or similar field', () => {
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Unexpected GEN-CORRECT-ANSWER-EXPOSURE warning on game with no round.correctOption: ${output}`,
+    );
+  });
+});
