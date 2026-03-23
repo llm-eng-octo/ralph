@@ -638,7 +638,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | stats-identify-class build #566 QUEUED (2026-03-23) — CBSE Class 9 stats Game 1 (Bloom L1 MCQ). Monitoring — queue stats-mean-direct after #566 approved. |
+| Current task | stats-identify-class build #566 running; stats-mean-direct pre-build review DONE (2026-03-23) — 0 spec fixes applied. All 7 checklist items PASS. ui-ux.md already existed with comprehensive audit (F1 window.gameState double-assignment LOW, F2 Sentry missing LOW). Queue stats-mean-direct after #566 approved. |
 | Status | 5-game CBSE Class 9/10 statistics session written — L1→L4 Bloom ladder, 43 min total, NCERT Ch 9–14 anchored, 4 misconceptions per game documented with Exa-sourced citations. |
 | Waiting on | Build #566 to complete (stats-identify-class) |
 | Blocked by | nothing |
@@ -715,6 +715,45 @@ NOTE: Previous unknown high-occurrence patterns (occ=19/4) no longer appear — 
 - Education: real-world-problem has 2 approved builds — ready for session 2 spec alignment review
 
 **Last updated:** 2026-03-23 (new session — corrected Q1 field names)
+
+---
+
+**ANALYTICS UPDATE (2026-03-23 ~session-end — failure_patterns table, builds table):**
+
+NOTE: test_progress table does not exist. Category pass rates proxied via failure_patterns occurrences. All 10 unresolved patterns have freq=1 (each seen once in latest builds). Previous high-frequency adjustment-strategy patterns (freq=2+) no longer appear — fully resolved or re-categorized.
+
+**Top unresolved failure categories (by occurrences):**
+1. rendering — 6 total occ | contract.spec.js: #mathai-transition-slot button hidden/not-found, game completion postMessage locator failures
+2. messaging — 4 total occ | contract.spec.js: postMessage payload assertion failures
+3. scoring — 4 total occ | contract.spec.js: game-over postMessage contract, perfect/low-score path timeouts
+4. timing — 1 total occ | contract.spec.js: Okay! button 15s timeout on game complete contract
+
+**First-attempt rate (last 15 builds):** 1/15 — build #565 real-world-problem (iter=null = approved without fix loop). 0 builds with iter=0 + approved in remaining 14.
+
+**Never-approved games (>3 failed/cancelled builds):** none
+
+**Build #566 (stats-identify-class):** running, iter=0
+
+**Recent 15 builds summary:**
+- #566 stats-identify-class — running (iter=0)
+- #565 real-world-problem — approved (iter=null)
+- #564 real-world-problem — approved (iter=2)
+- #563 real-world-problem — failed (iter=0)
+- #562 name-the-sides — approved (iter=3)
+- #561 which-ratio — approved (iter=3)
+- #560 which-ratio — approved (iter=3)
+- #559 which-ratio — failed (iter=null)
+- #558 which-ratio — failed (iter=0)
+- #557 name-the-sides — approved (iter=3)
+- #556–#552 name-the-sides — mixed failed/rejected
+
+**Slot routing:**
+- Gen Quality: rendering (6 occ) + messaging (4 occ) dominate — all contract.spec.js. Root cause: #mathai-transition-slot button hidden on game-complete path. Trace GEN rule for transition-slot visibility timing.
+- Test Engineering: contract category is primary target — all 10 unresolved patterns are contract.spec.js. Improve contract test resilience for transition-slot button selector.
+- Code Review: CODE-001 fix is live; unresolved count dropped from 37 to 15 across categories — positive signal. Monitor next approval to confirm resolveFailurePattern() fires correctly.
+- Education: stats-identify-class build #566 running — monitor result to assess if spec needs revision.
+
+**Last updated:** 2026-03-23 (latest session analytics run)
 
 ---
 
