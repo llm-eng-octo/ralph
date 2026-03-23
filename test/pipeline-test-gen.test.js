@@ -661,3 +661,177 @@ describe('LP-2 banned-selector click substitution — CR-052', () => {
     assert.equal(result, input, 'clickNextLevel() line must not be altered');
   });
 });
+
+// ─── CT-NEW-1/2/3: contract prompt rule content verification ──────────────────
+// Verifies that the updated CT rules appear in buildTestGenCategoryPrompt output
+// for category='contract'. These rules fix ~66% of contract test failures.
+
+const { buildTestGenCategoryPrompt } = require('../lib/prompts');
+
+const MINIMAL_CONTRACT_PROMPT_OPTS = {
+  category: 'contract',
+  categoryDescription: 'Verify postMessage contract',
+  testCaseCount: 2,
+  testCasesText: '1. verify game_complete postMessage\n2. verify stars field',
+  learningsBlock: '',
+  testHintsBlock: '',
+  gameFeaturesBlock: '',
+  domSnapshot: null,
+  htmlContent: '<html><body><div id="app" data-phase="init"></div></body></html>',
+  specScenarios: [],
+};
+
+describe('buildTestGenCategoryPrompt — CT-NEW-1: closure capture appears in contract prompt', () => {
+  it('contains "closure capture" keyword in contract prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes('closure capture'),
+      'Contract prompt must contain "closure capture" from CT-NEW-1 rule'
+    );
+  });
+
+  it('contains the forbidden expect.poll() assignment pattern as WRONG example', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes('WRONG: const msg = await expect.poll'),
+      'Contract prompt must show expect.poll() assignment as WRONG'
+    );
+  });
+
+  it('contains the RIGHT closure-capture pattern with let msg', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes('let msg;') && prompt.includes('return msg?.type;'),
+      'Contract prompt must show closure-capture RIGHT pattern (let msg + return msg?.type)'
+    );
+  });
+});
+
+describe('buildTestGenCategoryPrompt — CT-NEW-2: phase-agnostic pattern appears in contract prompt', () => {
+  it('contains "phase-agnostic" keyword in contract prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes('phase-agnostic'),
+      'Contract prompt must contain "phase-agnostic" from CT-NEW-2 rule'
+    );
+  });
+
+  it('contains waitForFunction phase-agnostic pattern', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes("['results', 'gameover'].includes"),
+      "Contract prompt must contain ['results', 'gameover'].includes() phase-agnostic pattern"
+    );
+  });
+});
+
+describe('buildTestGenCategoryPrompt — CT9 bilateral ban: both directions shown as WRONG', () => {
+  it('shows toBeVisible() direction as ALSO WRONG', () => {
+    const prompt = buildTestGenCategoryPrompt(MINIMAL_CONTRACT_PROMPT_OPTS);
+    assert.ok(
+      prompt.includes('ALSO WRONG: await expect(page.locator(\'#mathai-transition-slot button\')).toBeVisible()'),
+      'Contract prompt must show toBeVisible() as ALSO WRONG (bilateral ban)'
+    );
+  });
+});
+
+// ─── CT-NEW linter rules: CT_WRONG_PHASE and CT_STAR_EXACT ───────────────────
+// Verifies the two new contract-category-specific linter rules fire correctly.
+// Root cause evidence:
+//   CT_WRONG_PHASE: word-pairs #529 (gameover), soh-cah-toa-worked-example #531 (recall)
+//   CT_STAR_EXACT:  memory-flip #453, kakuro #391, match-the-cards #514
+
+describe('lintGeneratedTests — CT_WRONG_PHASE: wrong waitForPhase phase name in contract test', () => {
+  it('flags waitForPhase(page, "gameover") in contract category', () => {
+    const content = `
+test.describe('contract', () => {
+  test('game over postMessage', async ({ page }) => {
+    await skipToEnd(page, 'game_over');
+    await waitForPhase(page, 'gameover', 20000);
+    const msg = await page.evaluate(() => window.__ralph.getLastPostMessage());
+  });
+});`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_WRONG_PHASE');
+    assert.equal(ct.length, 1, 'Should flag CT_WRONG_PHASE for waitForPhase("gameover") in contract');
+    assert.equal(ct[0].category, 'contract');
+  });
+
+  it('flags waitForPhase(page, "recall") in contract category', () => {
+    const content = `
+test.describe('contract', () => {
+  test('victory postMessage', async ({ page }) => {
+    await skipToEnd(page, 'victory');
+    await waitForPhase(page, 'recall', 20000);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_WRONG_PHASE');
+    assert.equal(ct.length, 1, 'Should flag CT_WRONG_PHASE for waitForPhase("recall") in contract');
+  });
+
+  it('does NOT flag waitForPhase(page, "results") in contract — correct phase', () => {
+    const content = `
+test.describe('contract', () => {
+  test('victory postMessage', async ({ page }) => {
+    await skipToEnd(page, 'victory');
+    await waitForPhase(page, 'results', 20000);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_WRONG_PHASE');
+    assert.equal(ct.length, 0, 'Should NOT flag CT_WRONG_PHASE when correct phase "results" is used');
+  });
+
+  it('does NOT flag waitForPhase(page, "gameover") in edge-cases — only enforced for contract', () => {
+    const content = `
+test.describe('edge-cases', () => {
+  test('lives exhausted', async ({ page }) => {
+    await skipToEnd(page, 'game_over');
+    await waitForPhase(page, 'gameover', 20000);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'edge-cases': content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_WRONG_PHASE');
+    assert.equal(ct.length, 0, 'CT_WRONG_PHASE must NOT fire for edge-cases category');
+  });
+});
+
+describe('lintGeneratedTests — CT_STAR_EXACT: exact star count assertion in contract test', () => {
+  it('flags .data.metrics.stars).toBe(3) in contract category', () => {
+    const content = `
+test.describe('contract', () => {
+  test('3 stars on perfect game', async ({ page }) => {
+    await skipToEnd(page, 'victory');
+    await waitForPhase(page, 'results', 20000);
+    const msg = await page.evaluate(() => window.__ralph.getLastPostMessage());
+    expect(msg.data.metrics.stars).toBe(3);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_STAR_EXACT');
+    assert.equal(ct.length, 1, 'Should flag CT_STAR_EXACT for .data.metrics.stars).toBe(3)');
+    assert.equal(ct[0].category, 'contract');
+  });
+
+  it('flags .data.metrics.stars).toBe(0) in contract category', () => {
+    const content = `  expect(msg.data.metrics.stars).toBe(0);`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_STAR_EXACT');
+    assert.equal(ct.length, 1, 'Should flag CT_STAR_EXACT for .data.metrics.stars).toBe(0)');
+  });
+
+  it('does NOT flag .data.metrics.stars).toBeGreaterThanOrEqual(0) — correct assertion', () => {
+    const content = `  expect(msg.data.metrics.stars).toBeGreaterThanOrEqual(0);`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_STAR_EXACT');
+    assert.equal(ct.length, 0, 'Should NOT flag CT_STAR_EXACT for toBeGreaterThanOrEqual()');
+  });
+
+  it('does NOT flag .data.metrics.stars).toBe(3) in mechanics — only enforced for contract', () => {
+    const content = `  expect(msg.data.metrics.stars).toBe(3);`;
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog);
+    const ct = violations.filter((v) => v.rule === 'CT_STAR_EXACT');
+    assert.equal(ct.length, 0, 'CT_STAR_EXACT must NOT fire for mechanics category');
+  });
+});
