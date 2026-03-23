@@ -1937,6 +1937,42 @@ describe('GEN-CSS-TOKENS: banned CSS custom property tokens (W7)', () => {
       `Unexpected GEN-CSS-TOKENS warning when using valid token --mathai-warning. Output: ${output}`,
     );
   });
+
+  it('emits GEN-CSS-TOKENS warning when --feedback-color is used (CR-025)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'color: var(--feedback-color);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--feedback-color'),
+      `Expected GEN-CSS-TOKENS warning for --feedback-color. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --answer-color is used (CR-025)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'color: var(--answer-color);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--answer-color'),
+      `Expected GEN-CSS-TOKENS warning for --answer-color. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --status-green is used (CR-025)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'color: var(--status-green);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--status-green'),
+      `Expected GEN-CSS-TOKENS warning for --status-green. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-CSS-TOKENS warning when --primary-color is used (not in ban list)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--primary-color);');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CSS-TOKENS'),
+      `Unexpected GEN-CSS-TOKENS warning for --primary-color (not a banned token). Output: ${output}`,
+    );
+  });
 });
 
 describe('GEN-UX-003 extension: ProgressBarComponent options object missing slotId key', () => {
