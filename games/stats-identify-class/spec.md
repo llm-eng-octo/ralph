@@ -1033,7 +1033,7 @@ window.parent.postMessage({
 
 // Send on game end:
 window.parent.postMessage({
-  type: 'GAME_COMPLETE',
+  type: 'game_complete',
   payload: {
     score: gameState.score,
     totalRounds: gameState.totalRounds,
