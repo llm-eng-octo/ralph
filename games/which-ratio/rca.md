@@ -42,12 +42,33 @@
 
 ---
 
+## Browser Audit Findings — Build #561 (APPROVED)
+
+Three P0 patterns found in browser playthrough of which-ratio #561. Gen rules shipped commit c0d5391 (2026-03-23).
+
+### BROWSER-P0-001: transitionScreen.show() string-mode API (GEN-TRANSITION-API, rule 45)
+- **Symptom:** Victory screen rendered completely blank — no title, no subtitle, no Play Again button. User stranded.
+- **Root cause:** Generated code called `transitionScreen.show('victory', { score, stars, onRestart })`. The CDN TransitionScreenComponent has no string-mode API. Passing a string as the first argument causes all fields (title, buttons, icons) to resolve to `undefined`.
+- **Console evidence:** `{title: undefined, stars: undefined, buttons: undefined}`
+- **Fix:** GEN-TRANSITION-API rule 45 added — MUST always use object API. NEVER pass string as first arg.
+
+### BROWSER-P0-002: SVG markup in icons array (GEN-TRANSITION-ICONS, rule 46)
+- **Symptom:** The transition screen was filled with raw SVG source code text — `<svg xmlns="http://www.w3.org/2000/svg"...>` visible as literal characters across the entire screen.
+- **Root cause:** Generated code used `icons: ['<svg xmlns="http://www.w3.org/2000/svg"><path d="..."/></svg>']`. The CDN inserts icon values via `textContent` (not `innerHTML`), which HTML-escapes all markup.
+- **Fix:** GEN-TRANSITION-ICONS rule 46 added — icons MUST be plain emoji strings only. NEVER SVG/HTML.
+
+### BROWSER-NEW-001: totalLives=0 in ProgressBarComponent (GEN-PROGRESSBAR-LIVES, rule 47)
+- **Symptom:** `RangeError: Invalid count value: -5` thrown on every round during `progressBar.update()`.
+- **Root cause:** Generated code used `new ProgressBarComponent({ totalLives: 0, totalRounds: 5, ... })`. The CDN computes a lives repeat count as `(totalLives - currentLives)`. With `totalLives=0` and `currentLives=5`, result is `-5` — a negative repeat count throws RangeError.
+- **Fix:** GEN-PROGRESSBAR-LIVES rule 47 added — totalLives MUST be ≥1. For no-lives games, pass `totalLives=totalRounds` and call `progressBar.update(currentRound, 0)`.
+
 ## Failure History
 
 | Build | Symptom | Root Cause | Status |
 |-------|---------|------------|--------|
 | #558 | Step 1d smoke — "Blank page: missing #gameContent element" | JS SyntaxError in fallbackContent: closing `}` squashed inline at end of rounds array | FAILED — GEN-119 fix shipped, #559 queued |
 | #559 | APPROVED by reviewer (8/10 tests), FAILED post-approval — EACCES: permission denied on warehouse/templates/which-ratio/game/ (root-owned) | Same infra bug as name-the-sides #555: warehouse template dir root-owned, post-approval copy failed. Fix: sudo chown -R the-hw-app:the-hw-app + chmod 775 | FAILED (infra) — permissions fixed, #560 re-queued |
+| #561 | APPROVED — browser audit found 3 P0 patterns post-approval: blank victory screen (string-mode API), SVG icons as raw text, RangeError on every round (totalLives=0) | See BROWSER-P0-001, BROWSER-P0-002, BROWSER-NEW-001 above | GEN rules 45/46/47 shipped commit c0d5391; re-queue to verify |
 
 ## Manual Run Findings
 

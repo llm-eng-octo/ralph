@@ -9,7 +9,7 @@
 | [stats-median](stats-median/index.md) | Stats 3/4 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
 | [stats-mode](stats-mode/index.md) | Stats 4/4 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
 | [name-the-sides](name-the-sides/index.md) | Trig 1/5 | L2 Understand | ✅ Approved | #562 | 3 | ~35 min | ✅ 10 findings | — |
-| [which-ratio](which-ratio/index.md) | Trig 2/5 | L2 Understand | ✅ Approved | #561 | 3 | ~28 min | ⚠️ 2 P0s + 8 issues | Re-queue: P0-A victory screen blank, P0-B SVG icon text |
+| [which-ratio](which-ratio/index.md) | Trig 2/5 | L2 Understand | ✅ Approved | #561 | 3 | ~28 min | ⚠️ 3 P0s + 8 issues | Gen rules 45/46/47 shipped (c0d5391). Re-queue to verify P0 fixes (GEN-TRANSITION-API, GEN-TRANSITION-ICONS, GEN-PROGRESSBAR-LIVES) |
 | [soh-cah-toa-worked-example](soh-cah-toa-worked-example/index.md) | Trig 3/5 | L2 Understand | ✅ Approved | #544 | 1 | ~28 min | ⚠️ P0+5 findings | GEN-UX-001 confirmed (results not fixed), UI-SC-007 retracted |
 | [find-triangle-side](find-triangle-side/index.md) | Trig 4/5 | L3 Apply | ✅ Approved | #549 | 1 | ~28 min | ⚠️ 10 findings | — |
 | [real-world-problem](real-world-problem/index.md) | Trig 5/5 | L4 Analyze | ✅ Approved | #564 | 2 | ~32 min | ✅ 8 findings | — |
@@ -24,7 +24,7 @@
 | [math-mcq-quiz](math-mcq-quiz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [mcq-addition-blitz](mcq-addition-blitz/index.md) | Standalone | TBD | TBD | — | — | — | ⚠️ 9 issues | Audited 2026-03-23 (6a 2b 1d) |
 
-*Updated: 2026-03-23 — adjustment-strategy RCA written: approved #385 (8.8% rate, CDN timeout+await gen rule failures); soh-cah-toa-worked-example browser playthrough complete: P0 results screen not position:fixed confirmed; UI-SC-007 (hide/show TypeError) retracted — hide() takes selector strings (correct). Statistics Session 2 all 4 specs written; real-world-problem #564 APPROVED; name-the-sides re-approved #562; which-ratio APPROVED #561*
+*Updated: 2026-03-23 — adjustment-strategy RCA written: approved #385 (8.8% rate, CDN timeout+await gen rule failures); soh-cah-toa-worked-example browser playthrough complete: P0 results screen not position:fixed confirmed; UI-SC-007 (hide/show TypeError) retracted — hide() takes selector strings (correct). Statistics Session 2 all 4 specs written; real-world-problem #564 APPROVED; name-the-sides re-approved #562; which-ratio APPROVED #561. which-ratio #561 browser audit: 3 P0s found (BROWSER-P0-001 string-mode transitionScreen, BROWSER-P0-002 SVG icons, BROWSER-NEW-001 totalLives=0); gen rules GEN-TRANSITION-API/GEN-TRANSITION-ICONS/GEN-PROGRESSBAR-LIVES (rules 45/46/47) shipped commit c0d5391.*
 
 ---
 
