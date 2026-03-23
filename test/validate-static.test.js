@@ -3903,4 +3903,76 @@ describe('GEN-CORRECT-ANSWER-EXPOSURE: round string correct-answer field must be
       `Unexpected GEN-CORRECT-ANSWER-EXPOSURE warning on game with no round.correctOption: ${output}`,
     );
   });
+
+  it('warns when game uses round.correctValue but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const label = round.correctValue; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for round.correctValue, got: ${output}`,
+    );
+  });
+
+  it('warns when game uses round.solution but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const correct = round.solution; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for round.solution, got: ${output}`,
+    );
+  });
+
+  it('warns when game uses round.correctWord but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const word = round.correctWord; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for round.correctWord, got: ${output}`,
+    );
+  });
+
+  it('warns when game uses round.correctItem but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const item = round.correctItem; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for round.correctItem, got: ${output}`,
+    );
+  });
+
+  it('warns when game uses optional-chaining round?.correctOption but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const opt = round?.correctOption; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for round?.correctOption (optional chaining), got: ${output}`,
+    );
+  });
+
+  it('no warning for text-input game that sets gameState.answer = round.answer', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; gameState.answer = round.answer; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Unexpected GEN-CORRECT-ANSWER-EXPOSURE warning when gameState.answer is set (text-input carve-out): ${output}`,
+    );
+  });
 });
