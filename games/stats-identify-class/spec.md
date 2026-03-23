@@ -8,7 +8,7 @@
 
 > **CRITICAL — window.endGame, window.restartGame, window.nextRound MUST be set.** These must be assigned in DOMContentLoaded after the functions are defined: `window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound`. Tests call these directly.
 
-> **PEDAGOGICAL DESIGN NOTE.** This game implements Bloom's Level 1 (Remember) for the skill `stats-identify-class`: given a real-world dataset and context, the learner must classify which measure of central tendency (Mean, Median, or Mode) is most appropriate. This is pure recognition/classification — no computation is required. The three-button MCQ (Mean / Median / Mode) forces recall of the defining property of each measure. On the first incorrect attempt, a worked-example panel expands showing the "Measure Selector" reference card with the correct reasoning highlighted. On the second incorrect attempt the game advances with a soft note — no lives are deducted (this is a learning game, not a drill). The 9 rounds cover all three measures across varied Indian Class 10–relevant contexts (marks, salary, shoe sizes, temperature, fruit sales, etc.), directly targeting the four primary misconceptions documented in the research literature. Interaction type: `measure-classification-mcq`.
+> **PEDAGOGICAL DESIGN NOTE.** This game implements Bloom's Level 1 (Remember) for the skill `stats-identify-class`: given a real-world dataset and context, the learner must classify which measure of central tendency (Mean, Median, or Mode) is most appropriate. This is pure recognition/classification — no computation is required. The three-button MCQ (Mean / Median / Mode) forces recall of the defining property of each measure. On the first incorrect attempt, a worked-example panel expands showing the "Measure Selector" reference card with the correct reasoning highlighted. On the second incorrect attempt a life is deducted and the game advances with a soft note. The 10 rounds cover all three measures across varied Indian Class 10–relevant contexts (marks, salary, shoe sizes, temperature, fruit sales, etc.), directly targeting the four primary misconceptions documented in the research literature. Interaction type: `measure-classification-mcq`.
 >
 > **RESEARCH SOURCES (Exa, 2026-03-23):**
 > - Source A: Lumen Learning / OpenStax "When to use each measure of Central Tendency" (https://courses.lumenlearning.com/introstats1/chapter/when-to-use-each-measure-of-central-tendency/) — primary decision rules for median (outliers, ordinal data, open-ended distributions) and mode (nominal/categorical data).
@@ -24,7 +24,7 @@
 - **Title:** Which Measure?
 - **Game ID:** stats-identify-class
 - **Type:** standard
-- **Description:** Students identify the most appropriate measure of central tendency (Mean, Median, or Mode) given a real-world dataset and context description. 9 rounds covering all three measures across varied Indian Class 10 contexts. MCQ interaction: 3 buttons per round. Worked-example panel reveals on first wrong attempt; round skipped on second wrong attempt. No lives deducted — this is a learning-first game. Stars based on first-attempt accuracy. Targets Grade 10 / NCERT Chapter 14 (Statistics). Prerequisite: ability to compute mean, median, mode (but this game does NOT require computation). Session successor: stats-mean-direct (L2-L3 computation).
+- **Description:** Students identify the most appropriate measure of central tendency (Mean, Median, or Mode) given a real-world dataset and context description. 10 rounds covering all three measures across varied Indian Class 10 contexts. MCQ interaction: 3 buttons per round. Worked-example panel reveals on first wrong attempt; a life is deducted on the second wrong attempt (Skip). Game over if all 3 lives are lost. Stars based on first-attempt accuracy. Targets Grade 10 / NCERT Chapter 14 (Statistics). Prerequisite: ability to compute mean, median, mode (but this game does NOT require computation). Session successor: stats-mean-direct (L2-L3 computation).
 
 ---
 
@@ -42,7 +42,7 @@
 | PART-008 | PostMessage Protocol          | YES             | —                                                                                                                                                                             |
 | PART-009 | Attempt Tracking              | YES             | —                                                                                                                                                                             |
 | PART-010 | Event Tracking                | YES             | Custom events: measure_correct_first, measure_correct_second, measure_skipped, worked_example_shown, round_complete                                                           |
-| PART-011 | End Game & Metrics            | YES             | Star logic: ≥7/9 first-attempt correct = 3★; ≥5/9 = 2★; <5 = 1★. No game-over state (no lives system).                                                                     |
+| PART-011 | End Game & Metrics            | YES             | Star logic: ≥8/10 first-attempt correct = 3★; ≥6/10 = 2★; <6 = 1★. Game-over path active (lives system).                                                                   |
 | PART-012 | Debug Functions               | YES             | —                                                                                                                                                                             |
 | PART-013 | Validation Fixed              | YES             | MCQ: string equality check (selectedOption === round.correctOption)                                                                                                           |
 | PART-014 | Validation Function           | NO              | —                                                                                                                                                                             |
@@ -55,7 +55,7 @@
 | PART-021 | Screen Layout CSS             | YES             | —                                                                                                                                                                             |
 | PART-022 | Game Buttons                  | YES             | —                                                                                                                                                                             |
 | PART-023 | ProgressBar Component         | YES             | `new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 10, totalLives: 3 })`                                                                               |
-| PART-024 | TransitionScreen Component    | YES             | Screens: start, victory only (no game-over — the game cannot end in failure)                                                                                                  |
+| PART-024 | TransitionScreen Component    | YES             | Screens: start, victory, game_over (lives reach 0)                                                                                                                            |
 | PART-025 | ScreenLayout Component        | YES             | slots: progressBar=true, transitionScreen=true                                                                                                                                |
 | PART-026 | Anti-Patterns                 | YES (REFERENCE) | Verification checklist                                                                                                                                                        |
 | PART-027 | Play Area Construction        | YES             | Layout: dataset display panel (table or list) above context sentence above MCQ buttons; worked-example panel hidden by default, slides in below question on first wrong attempt |
@@ -659,12 +659,9 @@ function advanceRound() {
 - Set gameState.phase = isVictory ? 'results' : 'game_over'
 - syncDOMState()   — MANDATORY on BOTH paths
 - Star calculation from totalFirstAttemptCorrect (out of 10):
-    10    → 5★   "Perfect! You know exactly when to use each measure."
-    8-9   → 4★
-    6-7   → 3★
-    4-5   → 2★
-    1-3   → 1★
-    0     → 0★   "Keep practising!"
+    8-10  → 3★   "Excellent! You know exactly when to use each measure."
+    6-7   → 2★
+    0-5   → 1★   (minimum 1 star — this is a learning game)
 - Send postMessage game_complete on BOTH victory AND game_over paths:
     window.parent.postMessage({
       type: 'game_complete',
@@ -674,7 +671,9 @@ function advanceRound() {
       firstAttemptAccuracy: Math.round((gameState.totalFirstAttemptCorrect / gameState.totalRounds) * 100),
       roundsCompleted: gameState.currentRound,
       livesRemaining: gameState.lives,
-      isVictory: isVictory
+      isVictory: isVictory,
+      duration: Date.now() - gameState.startTime,
+      attempts: gameState.attempts
     }, '*')
 - if (isVictory): transitionScreen.show({ title: 'Well done!', subtitle: 'You identified every measure correctly.', icons: ['🌟'], buttons: [{ label: 'Play again', action: 'restart', style: 'primary' }] })
   else:           transitionScreen.show({ title: 'Game Over', subtitle: 'Keep practising — knowing when to use Mean, Median, or Mode takes time.', icons: ['💔'], buttons: [{ label: 'Try again', action: 'restart', style: 'primary' }] })
@@ -751,7 +750,7 @@ function syncDOMState() {
 ```javascript
 function waitForPackages(callback) {
   const required = ['ScreenLayout', 'TransitionScreenComponent', 'ProgressBarComponent', 'FeedbackManager'];
-  const maxWait = 10000;
+  const maxWait = 180000;
   const interval = 100;
   let elapsed = 0;
 
@@ -828,8 +827,8 @@ The LLM generating this game must check each item before finalising the HTML:
 2. **Do NOT assign `window.gameState` inside DOMContentLoaded** — it must be at module scope, immediately after the `gameState` object declaration.
 3. **Do NOT forget `window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound`** — assign in DOMContentLoaded after function definitions. Also add `window.loadRound = function(n) { ... }` — required for test harness `__ralph.jumpToRound()`.
 4. **Do NOT use static HTML for context or data** — `#context-text` and `#data-display` MUST be updated dynamically in `renderRound()` from `round.context` and `round.data.join(', ')`. Hard-coded text that does not change between rounds is a bug.
-5. **Do NOT deduct lives** — this game has no lives system. Never call `progressBar.loseLife()` or decrement any lives variable. The game always ends in victory after 9 rounds.
-6. **Do NOT show a game-over screen** — there is no game-over in this game. `endGame()` always calls `transitionScreen.show({...victory object...})`.
+5. **DO deduct a life on the second wrong attempt (Skip)** — call `progressBar.loseLife()` and decrement `gameState.lives`. Call `endGame(false)` when lives reach 0. The FIRST wrong attempt shows the explanation panel with no life deduction.
+6. **DO show the game-over screen when lives reach 0** — `endGame(false)` must call `transitionScreen.show({...game_over object...})`. Victory screen only shows when all 10 rounds complete with ≥1 life remaining.
 7. **Do NOT skip the `isProcessing` guard** — fast taps can fire `handleOptionClick` twice. Set `isProcessing = true` at the start and `false` after each async completion.
 8. **Do NOT allow option buttons to remain enabled while the worked-example panel is visible** — buttons must be disabled when the panel is shown, to prevent second attempt before reading the explanation.
 9. **Do NOT forget to re-enable option buttons when "Got it — try again" is clicked** — if buttons stay disabled the learner cannot make their second attempt.
@@ -854,14 +853,14 @@ The LLM generating this game must check each item before finalising the HTML:
 - **skip-advances-round**: Clicking "Skip this round" hides the worked-example panel and advances to the next round after the skip note.
 - **correct-second-attempt-advances**: Selecting the correct option on second attempt (after explanation shown) shows `#feedback-text` then advances.
 - **wrong-second-attempt-skips**: Selecting wrong measure on second attempt advances the round with `feedbackOnSkip` note.
-- **complete-9-rounds**: Completing all 9 rounds (any combination of correct/skip) transitions to `data-phase="results"` (victory).
+- **complete-10-rounds**: Completing all 10 rounds (any combination of correct/skip, or victory after 10 rounds with lives remaining) transitions to `data-phase="results"` (victory).
 - **no-game-over**: Confirm that no game-over transition screen ever appears, regardless of answer choices.
 
 ### Category: mechanics
 
-- **three-star-threshold**: Answering ≥7/9 rounds correctly on first attempt → 3★ on results screen.
-- **two-star-threshold**: Answering 5/9 or 6/9 correctly on first attempt → 2★.
-- **one-star-threshold**: Answering <5/9 correctly on first attempt → 1★.
+- **three-star-threshold**: Answering ≥8/10 rounds correctly on first attempt → 3★ on results screen.
+- **two-star-threshold**: Answering 6/10 or 7/10 correctly on first attempt → 2★.
+- **one-star-threshold**: Answering <6/10 correctly on first attempt → 1★.
 - **second-attempt-partial-credit**: Correct on second attempt adds 10 points (not 20) to score.
 - **isprocessing-guard**: Rapid double-click on a measure button does not fire two answer evaluations.
 
@@ -890,7 +889,7 @@ The LLM generating this game must check each item before finalising the HTML:
 
 | Curriculum     | Standard/Reference     | Alignment                                                                                                         |
 | -------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| NCERT Class 10 | Ch 14, §14.1–14.4      | All 9 rounds use contexts from the chapter's exercise domain (marks, salary, frequency tables, grouped data).     |
+| NCERT Class 10 | Ch 14, §14.1–14.4      | All 10 rounds use contexts from the chapter's exercise domain (marks, salary, frequency tables, grouped data).    |
 | NCERT Class 10 | Ch 14 Exercise 14.3 Q1 | Round 4 (district area outlier) mirrors the "compare mean, median, mode" exercise on electricity consumption data.|
 | NCERT Class 10 | Ch 14 §14.4 note       | Empirical relationship 3×Median = Mode + 2×Mean — Rounds 7+4 explicitly surface why median ≠ mean when skewed.    |
 | Common Core    | 6.SP.B.5.d             | "Summarize numerical data sets in relation to their context" — choosing appropriate measure based on distribution. |
@@ -1098,13 +1097,13 @@ These are the canonical test cases the test generator must produce. Each case ma
 **Assert:** After 1500ms, `window.gameState.currentRound === 2`.
 
 ### TC-007: mechanics / three-star-threshold
-**Description:** ≥7/9 first-attempt correct yields 3 stars.
-**Steps:** Use `window.loadRound` to step through 9 rounds, answering the correct measure on first attempt for all 9.
-**Assert:** After round 9 completes, `data-phase === 'results'` AND the results screen shows 3 stars.
+**Description:** ≥8/10 first-attempt correct yields 3 stars.
+**Steps:** Use `window.loadRound` to step through 10 rounds, answering the correct measure on first attempt for all 10.
+**Assert:** After round 10 completes, `data-phase === 'results'` AND the results screen shows 3 stars.
 
 ### TC-008: mechanics / one-star-threshold
-**Description:** <5 first-attempt correct yields 1 star.
-**Steps:** Use `window.loadRound` to step through all 9 rounds, giving wrong answers on first attempt every round, then skipping.
+**Description:** <6 first-attempt correct yields 1 star.
+**Steps:** Use `window.loadRound` to step through all 10 rounds, giving wrong answers on first attempt every round, then skipping.
 **Assert:** `data-phase === 'results'` AND results screen shows 1 star.
 
 ### TC-009: mechanics / isprocessing-guard
@@ -1113,9 +1112,9 @@ These are the canonical test cases the test generator must produce. Each case ma
 **Assert:** `window.gameState.totalFirstAttemptCorrect === 1` (not 2).
 
 ### TC-010: state-sync / data-round-updates
-**Description:** `data-round` attribute increments through all 9 rounds.
+**Description:** `data-round` attribute increments through all 10 rounds.
 **Steps:** Start game. For each round, record `document.getElementById('app').dataset.round`.
-**Assert:** Values are 1, 2, 3, 4, 5, 6, 7, 8, 9 in sequence.
+**Assert:** Values are 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 in sequence.
 
 ### TC-011: contract / option-buttons-testid-and-value
 **Description:** All 3 option buttons have required `data-testid` and `data-value` attributes.
