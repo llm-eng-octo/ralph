@@ -553,6 +553,8 @@ describe('validate-static.js', () => {
 
   it('passes when waitForPackages has correct 120000ms timeout and throw', () => {
     // Lesson 117: 120000ms is now the required timeout (CDN cold-start takes 30–120s)
+    // Note: use typeof SentryConfig (not FeedbackManager, not ScreenLayout) to avoid triggering
+    // GEN-WAITFOR-MATCH-A (FeedbackManager without script) or the ScreenLayout.inject() check.
     const html = VALID_HTML.replace(
       '<script>',
       '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n<script>'
@@ -562,7 +564,7 @@ describe('validate-static.js', () => {
     const timeout = 120000;
     const interval = 50;
     let elapsed = 0;
-    while (typeof FeedbackManager === 'undefined') {
+    while (typeof SentryConfig === 'undefined') {
       if (elapsed >= timeout) { throw new Error('Packages failed to load within 120s'); }
       await new Promise(resolve => setTimeout(resolve, interval));
       elapsed += interval;
@@ -2402,6 +2404,229 @@ describe('W14: LP-PROGRESSBAR-CLAMP — progressBar.update() lives must be clamp
     assert.ok(
       !output.includes('LP-PROGRESSBAR-CLAMP'),
       `Expected NO LP-PROGRESSBAR-CLAMP warning when literal 0 passed (no-lives game). Output: ${output}`,
+    );
+  });
+});
+
+describe('GEN-WAITFOR-MATCH — FeedbackManager checked in waitForPackages but not loaded (5fb)', () => {
+  // CDN HTML without feedback-manager script (PART-017=NO)
+  const cdnHtmlNoFeedbackScript = (waitForCondition) =>
+    '<!DOCTYPE html>\n' +
+    '<html lang="en"><head><meta charset="UTF-8"><title>T</title>\n' +
+    '<style>body{} #gameContent{max-width:480px;}</style></head>\n' +
+    '<body><div id="app"></div>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n' +
+    '<script>\n' +
+    '  window.gameState = { phase: \'start\', score: 0, lives: 3 };\n' +
+    '  window.endGame = function endGame() {};\n' +
+    '  window.restartGame = function restartGame() {};\n' +
+    '  window.nextRound = function nextRound() {};\n' +
+    '  async function waitForPackages() {\n' +
+    '    const timeout = 120000; const interval = 50; let elapsed = 0;\n' +
+    '    while (' + waitForCondition + ') {\n' +
+    '      if (elapsed >= timeout) { throw new Error(\'Packages failed to load within 120s\'); }\n' +
+    '      await new Promise(resolve => setTimeout(resolve, interval));\n' +
+    '      elapsed += interval;\n' +
+    '    }\n' +
+    '  }\n' +
+    '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
+    '    await waitForPackages();\n' +
+    '    window.parent.postMessage({ type: \'game_complete\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+    '  });\n' +
+    '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
+    '</script></body></html>';
+
+  // CDN HTML WITH feedback-manager script (PART-017=YES)
+  // Note: feedback-manager script is in <head> (as CDN games require) so GEN-WAITFOR-MATCH-A
+  // checks <head> for the presence of the feedback-manager script tag.
+  const cdnHtmlWithFeedbackScript = (waitForCondition) =>
+    '<!DOCTYPE html>\n' +
+    '<html lang="en"><head><meta charset="UTF-8"><title>T</title>\n' +
+    '<style>body{} #gameContent{max-width:480px;}</style>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n' +
+    '</head>\n' +
+    '<body><div id="app"></div>\n' +
+    '<script>\n' +
+    '  window.gameState = { phase: \'start\', score: 0, lives: 3 };\n' +
+    '  window.endGame = function endGame() {};\n' +
+    '  window.restartGame = function restartGame() {};\n' +
+    '  window.nextRound = function nextRound() {};\n' +
+    '  async function waitForPackages() {\n' +
+    '    const timeout = 120000; const interval = 50; let elapsed = 0;\n' +
+    '    while (' + waitForCondition + ') {\n' +
+    '      if (elapsed >= timeout) { throw new Error(\'Packages failed to load within 120s\'); }\n' +
+    '      await new Promise(resolve => setTimeout(resolve, interval));\n' +
+    '      elapsed += interval;\n' +
+    '    }\n' +
+    '  }\n' +
+    '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
+    '    await waitForPackages();\n' +
+    '    window.parent.postMessage({ type: \'game_complete\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+    '  });\n' +
+    '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
+    '</script></body></html>';
+
+  it('fails when PART-017=NO game checks typeof FeedbackManager === "undefined" but has no feedback-manager script (Lesson 72)', () => {
+    const html = cdnHtmlNoFeedbackScript('typeof FeedbackManager === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-WAITFOR-MATCH'),
+      `Expected GEN-WAITFOR-MATCH error but got: ${output}`,
+    );
+  });
+
+  it('fails when PART-017=NO game checks typeof FeedbackManager !== "undefined" but has no feedback-manager script', () => {
+    const html = cdnHtmlNoFeedbackScript('typeof FeedbackManager !== "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-WAITFOR-MATCH'),
+      `Expected GEN-WAITFOR-MATCH error but got: ${output}`,
+    );
+  });
+
+  it('passes when PART-017=YES game checks typeof FeedbackManager and feedback-manager script IS present', () => {
+    const html = cdnHtmlWithFeedbackScript('typeof FeedbackManager === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH'),
+      `Unexpected GEN-WAITFOR-MATCH error when feedback-manager script IS present: ${output}`,
+    );
+  });
+
+  it('passes when PART-017=NO game checks typeof ScreenLayout (correct fallback) and has no feedback-manager script', () => {
+    const html = cdnHtmlNoFeedbackScript('typeof ScreenLayout === "undefined"');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH'),
+      `Unexpected GEN-WAITFOR-MATCH error when ScreenLayout check is used correctly: ${output}`,
+    );
+  });
+});
+
+describe('GEN-WAITFOR-MATCH B/C/D: new X() used but typeof X absent from waitForPackages (WARNING)', () => {
+  // Minimal CDN HTML: feedback-manager absent, waitForPackages checks only ScreenLayout by default.
+  // extraScript is injected into the game body to simulate new X() calls.
+  function makeCdnHtmlForBCD(waitForCondition, extraScript) {
+    return (
+      '<!DOCTYPE html>\n' +
+      '<html lang="en"><head><meta charset="UTF-8"><title>T</title>\n' +
+      '<style>body{} #gameContent{max-width:480px;}</style></head>\n' +
+      '<body><div id="app"></div>\n' +
+      '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>\n' +
+      '<script>\n' +
+      '  window.gameState = { phase: \'start\', score: 0, lives: 3 };\n' +
+      '  window.endGame = function endGame() {};\n' +
+      '  window.restartGame = function restartGame() {};\n' +
+      '  async function waitForPackages() {\n' +
+      '    const timeout = 120000; const interval = 50; let elapsed = 0;\n' +
+      '    while (' + waitForCondition + ') {\n' +
+      '      if (elapsed >= timeout) { throw new Error(\'Packages failed to load within 120s\'); }\n' +
+      '      await new Promise(resolve => setTimeout(resolve, interval));\n' +
+      '      elapsed += interval;\n' +
+      '    }\n' +
+      '  }\n' +
+      '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
+      '    await waitForPackages();\n' +
+      '    ' + extraScript + '\n' +
+      '    window.parent.postMessage({ type: \'game_complete\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+      '  });\n' +
+      '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
+      '</script></body></html>'
+    );
+  }
+
+  // ─── Check B: TimerComponent ─────────────────────────────────────────────
+
+  it('Check B fires WARNING when new TimerComponent() used but typeof TimerComponent absent from waitForPackages', () => {
+    const html = makeCdnHtmlForBCD(
+      'typeof ScreenLayout === "undefined"',
+      "const timer = new TimerComponent('timer-container', { timerType: 'decrease', startTime: 60, onEnd: function() {} });",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-WAITFOR-MATCH-B'),
+      `Expected GEN-WAITFOR-MATCH-B warning when new TimerComponent() used but typeof check absent. Output: ${output}`,
+    );
+  });
+
+  it('Check B does NOT fire when new TimerComponent() used AND typeof TimerComponent in waitForPackages', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined' || typeof TimerComponent === 'undefined'",
+      "const timer = new TimerComponent('timer-container', { timerType: 'decrease', startTime: 60, onEnd: function() {} });",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH-B'),
+      `Unexpected GEN-WAITFOR-MATCH-B warning when TimerComponent typeof guard is present. Output: ${output}`,
+    );
+  });
+
+  it('Check B does NOT fire when TimerComponent is not used at all', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined'",
+      '// no TimerComponent usage',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH-B'),
+      `Unexpected GEN-WAITFOR-MATCH-B warning when TimerComponent not used. Output: ${output}`,
+    );
+  });
+
+  // ─── Check C: ProgressBarComponent ──────────────────────────────────────
+
+  it('Check C fires WARNING when new ProgressBarComponent() used but typeof ProgressBarComponent absent', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined'",
+      "const pb = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-WAITFOR-MATCH-C'),
+      `Expected GEN-WAITFOR-MATCH-C warning when new ProgressBarComponent() used but typeof check absent. Output: ${output}`,
+    );
+  });
+
+  it('Check C does NOT fire when new ProgressBarComponent() used AND typeof ProgressBarComponent in waitForPackages', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined' || typeof ProgressBarComponent === 'undefined'",
+      "const pb = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH-C'),
+      `Unexpected GEN-WAITFOR-MATCH-C warning when ProgressBarComponent typeof guard is present. Output: ${output}`,
+    );
+  });
+
+  // ─── Check D: TransitionScreenComponent ─────────────────────────────────
+
+  it('Check D fires WARNING when new TransitionScreenComponent() used but typeof TransitionScreenComponent absent', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined'",
+      "const ts = new TransitionScreenComponent('slot-id', {});",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-WAITFOR-MATCH-D'),
+      `Expected GEN-WAITFOR-MATCH-D warning when new TransitionScreenComponent() used but typeof check absent. Output: ${output}`,
+    );
+  });
+
+  it('Check D does NOT fire when new TransitionScreenComponent() used AND typeof TransitionScreenComponent in waitForPackages', () => {
+    const html = makeCdnHtmlForBCD(
+      "typeof ScreenLayout === 'undefined' || typeof TransitionScreenComponent === 'undefined'",
+      "const ts = new TransitionScreenComponent('slot-id', {});",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-WAITFOR-MATCH-D'),
+      `Unexpected GEN-WAITFOR-MATCH-D warning when TransitionScreenComponent typeof guard is present. Output: ${output}`,
     );
   });
 });
