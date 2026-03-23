@@ -3522,9 +3522,9 @@ describe('GEN-MOBILE-STACK: flex-direction:row detection', () => {
     );
   });
 
-  it('GEN-MOBILE-STACK WARNING: warns when options-grid uses flex-direction:row', () => {
-    // MCQ options grid in row direction — each option becomes a narrow column
-    const html = withCss('.options-grid { display: flex; flex-direction: row; flex-wrap: wrap; }');
+  it('GEN-MOBILE-STACK WARNING: warns when options-grid uses flex-direction:row without flex-wrap', () => {
+    // MCQ options grid in row direction without flex-wrap — each option becomes a narrow column
+    const html = withCss('.options-grid { display: flex; flex-direction: row; gap: 8px; }');
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
     assert.ok(
@@ -3578,6 +3578,49 @@ describe('GEN-MOBILE-STACK: flex-direction:row detection', () => {
     assert.ok(
       !output.includes('GEN-MOBILE-STACK'),
       `Unexpected GEN-MOBILE-STACK warning for VALID_HTML: ${output}`,
+    );
+  });
+
+  // ─── GEN-MOBILE-STACK FLEX-WRAP sub-rule tests ──────────────────────────────
+  it('GEN-MOBILE-STACK FLEX-WRAP: warns when options-grid uses flex-direction:row with NO flex-wrap and no @media 480px', () => {
+    // stats-identify-class #581 P0-1: 3-column flex row, no flex-wrap → overflow at 480px
+    const html = withCss('.options-grid { display:flex; flex-direction:row; gap:12px; }');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-MOBILE-STACK'),
+      `Expected GEN-MOBILE-STACK warning for options-grid flex-direction:row without flex-wrap but got: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK FLEX-WRAP: does NOT warn when options-grid uses flex-direction:row WITH flex-wrap:wrap', () => {
+    // Correct: flex-wrap:wrap present → graceful wrapping on mobile
+    const html = withCss('.options-grid { display:flex; flex-direction:row; flex-wrap:wrap; gap:12px; }');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK warning when flex-wrap:wrap is present: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK FLEX-WRAP: does NOT warn when @media max-width:480px override is present', () => {
+    // Correct: @media 480px override present → stacks on mobile even without flex-wrap
+    const html = withCss(
+      '.options-grid { display:flex; flex-direction:row; gap:12px; }\n  @media(max-width:480px) { .options-grid { flex-direction:column; } }',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK warning when @media max-width:480px is present: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK FLEX-WRAP: does NOT warn when HTML has no options-grid at all', () => {
+    // No option container CSS at all → no warning
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK FLEX-WRAP warning for VALID_HTML (no options-grid): ${output}`,
     );
   });
 
