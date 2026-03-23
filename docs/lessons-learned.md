@@ -2665,3 +2665,15 @@ Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug
 
 **Rule:** Any new LLM HTML write path added to `pipeline-fix-loop.js` must call `ctx.fixCdnDomainsInFile` and `ctx.fixCdnPathsInFile` (with guards) immediately after `fs.writeFileSync`, before `injectHarnessToFile`. Rollback/snapshot-restore paths are safe (they restore from already-CDN-fixed snapshots). Add functions to `ctx` in `pipeline.js` at the `runFixLoop` call site.
 
+
+## Lesson 206 — timer.getTime() is a hallucinated CDN method — blocks game_complete postMessage (2026-03-23)
+
+**Source:** associations #578 — contract 0/2 all 3 iterations | **Fix:** commit c68ef5a (GEN-TIMER-GETTIME T1 ERROR)
+
+**Problem:** LLM generated `const totalTime = timer ? timer.getTime() / 1000 : (Date.now() - gameState.startTime) / 1000` in endGame(). `timer.getTime()` is not a method on CDN TimerComponent — throws `TypeError: timer.getTime is not a function`. The null-guard (`timer ? ... : ...`) does NOT protect against this because `timer` IS a valid non-null object (a TimerComponent instance); the method just doesn't exist. The TypeError fires BEFORE `window.parent.postMessage`, so game_complete is never sent to the parent app. The build was approved (7/9 tests passing) but the game never signals completion in production.
+
+**Valid CDN timer methods:** `timer.start()`, `timer.stop()`, `timer.pause()`, `timer.resume()`, `timer.reset()`, `timer.destroy()`.
+
+**Pattern for elapsed time:** `(Date.now() - gameState.startTime) / 1000` — use startTime tracked in gameState.
+
+**Rule:** T1 ERROR [GEN-TIMER-GETTIME] now bans timer.getTime(), timer.getCurrentTime(), timer.getElapsed() etc. in all generated HTML. Any build using these hallucinated methods fails static validation before tests run.
