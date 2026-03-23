@@ -2105,3 +2105,65 @@ describe('GEN-UX-005: SignalCollector must not be called with no args', () => {
     );
   });
 });
+
+describe('GEN-PROGRESSBAR-LIVES: totalLives zero, negative, and double-zero (CR-024)', () => {
+  // Helper: inject a ProgressBarComponent with the given totalLives value, wrapped in typeof guard
+  function pbHtml(totalLivesExpr) {
+    return VALID_HTML.replace(
+      'initGame();',
+      `initGame(); if (typeof ProgressBarComponent !== "undefined") { var pb = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: ${totalLivesExpr} }); }`,
+    );
+  }
+
+  it('fails for totalLives: 0', () => {
+    const { exitCode, output } = runValidator(pbHtml('0'));
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Expected GEN-PROGRESSBAR-LIVES error for totalLives: 0 but got: ${output}`,
+    );
+  });
+
+  it('fails for totalLives: -1 (negative)', () => {
+    const { exitCode, output } = runValidator(pbHtml('-1'));
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Expected GEN-PROGRESSBAR-LIVES error for totalLives: -1 but got: ${output}`,
+    );
+  });
+
+  it('fails for totalLives: -5 (negative)', () => {
+    const { exitCode, output } = runValidator(pbHtml('-5'));
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Expected GEN-PROGRESSBAR-LIVES error for totalLives: -5 but got: ${output}`,
+    );
+  });
+
+  it('fails for totalLives: 00 (double-zero)', () => {
+    const { exitCode, output } = runValidator(pbHtml('00'));
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Expected GEN-PROGRESSBAR-LIVES error for totalLives: 00 but got: ${output}`,
+    );
+  });
+
+  it('passes for totalLives: 1 (valid minimum)', () => {
+    const { output } = runValidator(pbHtml('1'));
+    assert.ok(
+      !output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Unexpected GEN-PROGRESSBAR-LIVES error for totalLives: 1. Output: ${output}`,
+    );
+  });
+
+  it('passes for totalLives: 3 (valid positive)', () => {
+    const { output } = runValidator(pbHtml('3'));
+    assert.ok(
+      !output.includes('GEN-PROGRESSBAR-LIVES'),
+      `Unexpected GEN-PROGRESSBAR-LIVES error for totalLives: 3. Output: ${output}`,
+    );
+  });
+});
