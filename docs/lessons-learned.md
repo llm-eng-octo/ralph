@@ -2609,3 +2609,13 @@ Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug
 **Root cause:** CDN components don't need to be destroyed. The game treated ProgressBarComponent like a DOM element (remove after use), but it's a CDN wrapper that persists in the slot. The setTimeout destroy serves no purpose and creates a null-trap.
 
 **Rule:** Never use setTimeout to destroy ProgressBarComponent (or any CDN component). In endGame(), call .update() to show "Game Over" state — never .destroy() or null-assignment. restartGame() can safely call .update() to reset. (GEN-PROGRESSBAR-DESTROY)
+
+## Lesson 200 — progressBar.destroy() + setTimeout null assignment crashes restartGame() (2026-03-23)
+
+**Source:** right-triangle-area #543 browser audit P0 | **Build:** #543
+
+**Problem:** `endGame()` included `setTimeout(() => { progressBar.destroy(); progressBar = null; }, 10000)`. After 10 seconds, `progressBar` is null. When the user clicks Play Again, `restartGame()` called `progressBar.update(...)` unconditionally → crash: `TypeError: Cannot read properties of null (reading 'update')`. The game is permanently stuck on the results screen — cannot restart.
+
+**Root cause:** CDN components don't need to be destroyed. The generator applied a "cleanup after use" pattern from regular DOM programming. ProgressBarComponent persists in its slot (`#mathai-progress-slot`) and can be reused by calling `.update()` with new state.
+
+**Rule:** Never use `setTimeout` to destroy ProgressBarComponent (or any CDN component). In `endGame()`, just update state or hide the element — never `.destroy()` + null assignment. `restartGame()` can safely call `.update()` on the still-live component. (GEN-PROGRESSBAR-DESTROY)
