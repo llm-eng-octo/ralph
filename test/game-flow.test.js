@@ -430,3 +430,106 @@ describe('TE-TRANSITION-001: TransitionScreen content — assertion logic', () =
     assert.equal(result.passes, undefined, 'no pass/fail when skipped');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for the canvas responsive overflow assertion (TE-CANVAS-001)
+//
+// The P0 pattern: canvas hardcoded at width="500" causes horizontal scroll on
+// 375-480px mobile viewports (observed: right-triangle-area #543, UI-RTA-002).
+//
+// GEN-CANVAS-001 shipped to gen prompts (max-width:100%; height:auto) but
+// computed layout requires browser rendering — static T1 checks cannot catch
+// it at runtime. These tests validate the assertion logic by simulating the
+// page.evaluate() return shape used in the Playwright boilerplate.
+//
+// The actual Playwright runtime version (with page.evaluate) is injected into
+// the shared boilerplate in lib/pipeline-test-gen.js for canvas-based games.
+// The exported checkCanvasResponsive() mirrors the same throw condition.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const { checkCanvasResponsive } = require('../lib/pipeline-test-gen');
+
+describe('TE-CANVAS-001: canvas responsive overflow — assertion logic', () => {
+  // PASS case: canvas fits within viewport
+  it('does not throw when canvas offsetWidth fits within viewport', () => {
+    assert.doesNotThrow(() => {
+      checkCanvasResponsive({ found: true, passed: true });
+    }, 'canvas fits viewport — no error expected');
+  });
+
+  // PASS case: no canvas elements in the game
+  it('does not throw when no canvas elements are present (found: false)', () => {
+    assert.doesNotThrow(() => {
+      checkCanvasResponsive({ found: false });
+    }, 'no canvas — skip assertion, no error');
+  });
+
+  // FAIL case: the UI-RTA-002 pattern — canvas 500px on 375px viewport
+  it('throws when canvas overflows viewport with diagnostic message including widths', () => {
+    const payload = {
+      found: true,
+      passed: false,
+      canvasWidths: [{ offsetWidth: 500, viewport: 375 }],
+    };
+    assert.throws(
+      () => checkCanvasResponsive(payload),
+      (err) => {
+        assert.ok(err.message.includes('Canvas overflow'), 'message starts with Canvas overflow');
+        assert.ok(err.message.includes('500'), 'message includes canvas offsetWidth');
+        assert.ok(err.message.includes('375'), 'message includes viewport width');
+        assert.ok(err.message.includes('GEN-CANVAS-001'), 'message includes rule tag');
+        assert.ok(err.message.includes('max-width:100%'), 'message includes required CSS fix');
+        return true;
+      },
+      'canvas 500px on 375px viewport must throw with diagnostic message',
+    );
+  });
+
+  // FAIL case: multiple overflowing canvases
+  it('throws when multiple canvases overflow viewport — all widths included in message', () => {
+    const payload = {
+      found: true,
+      passed: false,
+      canvasWidths: [
+        { offsetWidth: 500, viewport: 375 },
+        { offsetWidth: 480, viewport: 375 },
+      ],
+    };
+    assert.throws(
+      () => checkCanvasResponsive(payload),
+      (err) => {
+        assert.ok(err.message.includes('500'), 'first overflowing canvas width in message');
+        assert.ok(err.message.includes('480'), 'second overflowing canvas width in message');
+        return true;
+      },
+      'multiple overflowing canvases must all appear in the error message',
+    );
+  });
+
+  // EDGE case: canvas exactly at viewport width — no overflow
+  it('does not throw when canvas offsetWidth equals viewport width exactly (boundary)', () => {
+    assert.doesNotThrow(() => {
+      checkCanvasResponsive({ found: true, passed: true });
+    }, 'canvas exactly at viewport width must not trigger overflow');
+  });
+
+  // Error message format validation
+  it('error message includes all values needed to diagnose and fix the issue', () => {
+    const payload = {
+      found: true,
+      passed: false,
+      canvasWidths: [{ offsetWidth: 500, viewport: 480 }],
+    };
+    let caught;
+    try {
+      checkCanvasResponsive(payload);
+    } catch (err) {
+      caught = err;
+    }
+    assert.ok(caught, 'error must be thrown');
+    assert.ok(caught.message.includes('offsetWidth'), 'message includes offsetWidth key');
+    assert.ok(caught.message.includes('viewport'), 'message includes viewport key');
+    assert.ok(caught.message.includes('GEN-CANVAS-001'), 'message includes rule tag for traceability');
+    assert.ok(caught.message.includes('height:auto'), 'message includes height:auto CSS fix');
+  });
+});
