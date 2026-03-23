@@ -253,7 +253,7 @@ const fallbackContent = {
     // Source B (ABS): symmetric distribution → mean preferred
     // ============================================================
     {
-      scenario: 'A class of 10 students scores: 45 · 67 · 71 · 73 · 75 · 76 · 78 · 80 · 82 · 95. Scores are spread fairly evenly, with no extreme outliers at either end.',
+      scenario: 'A class of 10 students scores: 62 · 67 · 71 · 73 · 75 · 76 · 78 · 80 · 82 · 95. Scores are spread fairly evenly, with no extreme outliers at either end.',
       question: 'Which measure of central tendency best represents this data?',
       options: [
         { label: 'Mean', justification: 'it uses all values in the data' },
@@ -809,7 +809,7 @@ Score per correct answer: +10. Maximum score: 60. Game-over on 0 lives (can happ
 |---|---|---|---|---|
 | 1 | Salaries [18k, 20k, 22k, 24k, 120k] | **Median** | CEO salary is extreme outlier; mean inflated | MC-outlier-ignore |
 | 2 | Shoe sizes [38,40,40,41,40,39,42,40] | **Mode** | Store needs most-demanded size; mode = 40 (×4) | MC-mode-discrete |
-| 3 | Test scores [45,67,71,73,75,76,78,80,82,95] | **Mean** | Symmetric, no outliers; mean most informative | MC-symmetric-median |
+| 3 | Test scores [62,67,71,73,75,76,78,80,82,95] | **Mean** | Symmetric, no outliers; mean most informative | MC-symmetric-median |
 | 4 | House prices [4.2L,4.5L,4.8L,5.1L,5.3L,18.9L] | **Median** | Luxury penthouse is outlier; mean inflated | MC-outlier-ignore |
 | 5 | Favourite colours (Red×8, Blue×12, Green×5, Yellow×3) | **Mode** | Categorical data; mean/median meaningless for colours | MC-categorical-mean |
 | 6 | Daily rainfall [0,0,0,2,3,5,8,12,15,45] | **Median** | Many zeros + one storm spike; mean (9mm) misleads | MC-outlier-ignore |

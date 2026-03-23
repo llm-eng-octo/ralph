@@ -244,7 +244,7 @@ const fallbackContent = {
     // ============================================================
     // ROUND 3: MODE — M2 (categorical data — shoe sizes, inventory)
     // Context: Shoe shop needs to stock most popular size
-    // Misconception M2: students pick Mean (6.8 is not a real shoe size)
+    // Misconception M2: students pick Mean (6.92 is not a real shoe size)
     // ============================================================
     {
       context: 'A shoe shop recorded the sizes sold in one day. The owner wants to know which size to order the most from the supplier.',
@@ -252,17 +252,17 @@ const fallbackContent = {
       question: 'Which measure best helps the owner decide which size to restock most?',
       options: ['Mean', 'Median', 'Mode'],
       correctOption: 'Mode',
-      // M2: Mode = 7 (appears 5 times). Mean ≈ 6.8 (not a real shoe size). Median = 7.
+      // M2: Mode = 7 (appears 5 times). Mean ≈ 6.92 (83÷12, not a real shoe size). Median = 7.
       // The question is "which size is sold most often" = Mode.
       explanationHtml: \`
         <div class="exp-card">
           <p class="exp-title">Answer: <strong>Mode</strong></p>
           <div class="exp-definition"><strong>Mode</strong> = the most frequently occurring value. Size 7 appears 5 times → Mode = <strong>7</strong>.</div>
           <div class="exp-reason"><strong>Why Mode?</strong> The owner wants to stock the size sold <em>most often</em>. Mode (size 7) directly answers this. Ordering more size 7 maximises sales potential.</div>
-          <div class="exp-wrong"><strong>Why not Mean?</strong> Mean ≈ 6.8 — not a real shoe size. You cannot order "size 6.8" from a supplier. Mode gives an actual, actionable size.</div>
+          <div class="exp-wrong"><strong>Why not Mean?</strong> Mean ≈ 6.92 — not a real shoe size. You cannot order "size 6.92" from a supplier. Mode gives an actual, actionable size.</div>
         </div>
       \`,
-      feedbackOnSkip: 'Mode = size 7 (appears 5 times) is the size to restock most. Mean gives 6.8 — not a real shoe size.',
+      feedbackOnSkip: 'Mode = size 7 (appears 5 times) is the size to restock most. Mean gives 6.92 — not a real shoe size.',
       misconceptionTag: 'M2'
     },
 

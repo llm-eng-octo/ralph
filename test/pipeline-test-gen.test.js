@@ -433,6 +433,67 @@ test.describe('Game flow', () => {
   });
 });
 
+describe('lintGeneratedTests — GF8 blanket ban: toBeVisible and toBeHidden entirely banned', () => {
+  it('flags toBeVisible() alone as GF8 violation', () => {
+    const content = `
+test.describe('Game flow', () => {
+  test('checks element visible', async ({ page }) => {
+    await startGame(page);
+    await expect(page.locator('[data-testid="answer-input"]')).toBeVisible();
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const gf8 = violations.filter((v) => v.rule === 'GF8');
+    assert.equal(gf8.length, 1, 'toBeVisible() alone should be flagged as GF8');
+  });
+
+  it('flags toBeVisible() even when waitForPhase() appears on the preceding line', () => {
+    const content = `
+test.describe('Game flow', () => {
+  test('checks element visible after phase', async ({ page }) => {
+    await startGame(page);
+    await waitForPhase(page, 'playing', 15000);
+    await expect(page.locator('[data-testid="answer-input"]')).toBeVisible({ timeout: 10000 });
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const gf8 = violations.filter((v) => v.rule === 'GF8');
+    assert.equal(
+      gf8.length,
+      1,
+      'toBeVisible() is banned entirely — waitForPhase on preceding line does NOT make it legal'
+    );
+  });
+
+  it('flags toBeHidden() as GF8 violation', () => {
+    const content = `
+test.describe('Game flow', () => {
+  test('checks element hidden', async ({ page }) => {
+    await skipToEnd(page, 'victory');
+    await expect(page.locator('#game-screen')).toBeHidden({ timeout: 5000 });
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const gf8 = violations.filter((v) => v.rule === 'GF8');
+    assert.equal(gf8.length, 1, 'toBeHidden() should be flagged as GF8');
+  });
+
+  it('does not flag data attribute assertions as GF8', () => {
+    const content = `
+test.describe('Game flow', () => {
+  test('checks data-phase attribute', async ({ page }) => {
+    await startGame(page);
+    await waitForPhase(page, 'playing', 15000);
+    await expect(page.locator('#app')).toHaveAttribute('data-phase', 'playing');
+    await expect(page.locator('#app')).toHaveAttribute('data-score', '0');
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const gf8 = violations.filter((v) => v.rule === 'GF8');
+    assert.equal(gf8.length, 0, 'toHaveAttribute() assertions should not trigger GF8');
+  });
+});
+
 describe('lintGeneratedTests — boilerplate suppression: beforeEach block', () => {
   it('does not flag TRANSITION_SLOT inside beforeEach block (before test.describe)', () => {
     const content = `async function startGame(page) {

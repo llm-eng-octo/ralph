@@ -12,7 +12,7 @@
 
 > **CRITICAL — gameId MUST be the FIRST field in the gameState object literal.** The pipeline validator checks that `gameState.gameId` is set and matches the game directory name. Any other field before gameId causes the contract check to fail.
 
-> **PEDAGOGICAL DESIGN NOTE.** This game implements Bloom's Level 3 (Apply) for the skill `stats-mode`: given a small dataset or a grouped frequency table, the learner must find the mode (most frequently occurring value, or modal class plus formula application for grouped data) and select the correct answer from four MCQ options. The four distractors are designed to surface documented student misconceptions about computing mode: (1) M-mean-confusion — student computes the arithmetic mean instead of finding the most frequent value; (2) M-median-confusion — student picks the middle-positioned value (median) instead of the mode; (3) M-multiple-mode — student incorrectly identifies only one mode in a bimodal dataset (failing to report all modes); (4) M-formula-error — for grouped data, student substitutes f₀ and f₂ incorrectly (off-by-one in frequency table rows when reading L, f₁, f₀, f₂, h). Difficulty increases across three tiers: Easy (small ungrouped datasets n=7–9 with one clear mode — median and mean are distractors), Medium (bimodal datasets or careful frequency-counting challenges where the M-multiple-mode misconception is targeted), Hard (grouped frequency table data requiring the empirical formula Mode = L + [(f₁-f₀)/(2f₁-f₀-f₂)]×h). 45 seconds per round. Session predecessor: stats-median (L3 — find median). Session successor: none — terminal game in Statistics Session 2.
+> **PEDAGOGICAL DESIGN NOTE.** This game implements Bloom's Level 3 (Apply) for the skill `stats-mode`: given a small dataset or a grouped frequency table, the learner must find the mode (most frequently occurring value, or modal class plus formula application for grouped data) and select the correct answer from four MCQ options. The four distractors are designed to surface documented student misconceptions about computing mode: (1) M-mean-confusion — student computes the arithmetic mean instead of finding the most frequent value; (2) M-median-confusion — student picks the middle-positioned value (median) instead of the mode; (3) M-multiple-mode — student incorrectly identifies only one mode in a bimodal dataset (failing to report all modes); (4) M-formula-error — for grouped data, student substitutes f₀ and f₂ incorrectly (off-by-one in frequency table rows when reading L, f₁, f₀, f₂, h). Difficulty increases across three tiers: Easy (small ungrouped datasets n=7–9 with one clear mode — median and mean are distractors), Medium (bimodal datasets or careful frequency-counting challenges where the M-multiple-mode misconception is targeted), Hard (grouped frequency table data requiring the empirical formula Mode = L + [(f₁-f₀)/(2f₁-f₀-f₂)]×h). 90 seconds per round (Hard rounds require 5+ computation steps; extra time prevents timeout-driven guessing). Session predecessor: stats-median (L3 — find median). Session successor: none — terminal game in Statistics Session 2.
 >
 > **RESEARCH SOURCES (Exa, 2026-03-23):**
 > - Source A: NCERT Class 10 Maths Chapter 13 Statistics (ncert.nic.in/textbook/pdf/jemh113.pdf, 2024-25 edition) — canonical Indian curriculum definition and examples for grouped-data mode. Section 13.3 "Mode of Grouped Data": "A mode is a value among the observations which occurs most often, that is, the value of the observation having the maximum frequency." For grouped data with equal class widths, the modal class is the class with the highest frequency. The mode formula: `Mode = L + [(f₁ − f₀) / (2f₁ − f₀ − f₂)] × h` where L = lower limit of modal class, f₁ = frequency of modal class, f₀ = frequency of class PRECEDING modal class, f₂ = frequency of class SUCCEEDING modal class, h = class size. NCERT Example 5: family size data — modal class 3–5 (f₁=8), preceding class 1–3 (f₀=7), succeeding class 5–7 (f₂=2), L=3, h=2 → Mode = 3 + [(8−7)/(16−7−2)]×2 = 3 + (1/7)×2 ≈ 3.286. NCERT Example 6: marks distribution — modal class 40–55 (f₁=7), f₀=3, f₂=6, L=40, h=15 → Mode = 40 + [(7−3)/(14−3−6)]×15 = 40 + 12 = 52.
@@ -30,7 +30,7 @@
 | **Type** | standard |
 | **Session** | Statistics Session 2 — Game 4 of 4 |
 | **Bloom Level** | L3 Apply |
-| **Description** | Students find the mode of a dataset: the most frequently occurring value (ungrouped data, Easy/Medium rounds) or the value from the empirical formula applied to a grouped frequency table (Hard rounds). MCQ with 4 options. 9 rounds across 3 difficulty tiers. 3 lives — a life is lost on wrong answer OR timeout. Timer: 45 seconds per round. Stars based on correct answers. Session predecessor: stats-median (L3 — find median). No successor — terminal game of Statistics Session 2. Targets NCERT Class 10 Ch 13 Section 13.3 (Mode of Grouped Data) and basic ungrouped mode. |
+| **Description** | Students find the mode of a dataset: the most frequently occurring value (ungrouped data, Easy/Medium rounds) or the value from the empirical formula applied to a grouped frequency table (Hard rounds). MCQ with 4 options. 9 rounds across 3 difficulty tiers. 3 lives — a life is lost on wrong answer OR timeout. Timer: 90 seconds per round. Stars based on correct answers. Session predecessor: stats-median (L3 — find median). No successor — terminal game of Statistics Session 2. Targets NCERT Class 10 Ch 13 Section 13.3 (Mode of Grouped Data) and basic ungrouped mode. |
 
 ---
 
@@ -43,7 +43,7 @@
 | PART-003 | waitForPackages               | YES             | required = ['ScreenLayout', 'TransitionScreenComponent', 'ProgressBarComponent', 'TimerComponent', 'FeedbackManager']            |
 | PART-004 | Initialization Block          | YES             | —                                                                                                                                |
 | PART-005 | VisibilityTracker             | YES             | popupProps: default                                                                                                               |
-| PART-006 | TimerComponent                | YES             | 45s countdown per round; loses a life on timeout. Destroyed and recreated on restartGame().                                      |
+| PART-006 | TimerComponent                | YES             | 90s countdown per round; loses a life on timeout. Destroyed and recreated on restartGame().                                      |
 | PART-007 | Game State Object             | YES             | Custom fields: isProcessing, correctAnswers, incorrectAnswers, gameEnded                                                         |
 | PART-008 | PostMessage Protocol          | YES             | game_complete on BOTH victory and game_over paths                                                                                |
 | PART-009 | Attempt Tracking              | YES             | —                                                                                                                                |
@@ -865,7 +865,7 @@ function restartGame() {
   timer = new TimerComponent('timer-container', {
     timerType: 'decrease',
     format: 'sec',
-    startTime: 45,
+    startTime: 90,
     endTime: 0,
     autoStart: false,
     onEnd: () => handleTimeout()
@@ -883,7 +883,7 @@ function restartGame() {
 timer = new TimerComponent('timer-container', {
   timerType: 'decrease',
   format: 'sec',
-  startTime: 45,
+  startTime: 90,
   endTime: 0,
   autoStart: false,
   onEnd: () => handleTimeout()

@@ -1044,6 +1044,49 @@ describe('LP-1: progressBar.update() 2nd arg must not be totalRounds (GEN-112)',
   });
 });
 
+describe('GEN-112 false-positive regression: Math.max(0, lives) must NOT trigger 3-arg error', () => {
+  // stats-mean-direct build #575: progressBar.update(currentRound, Math.max(0, lives))
+  // was falsely flagged as a 3-arg call because the regex counted the comma inside Math.max().
+  // The paren-depth-aware arg counter must correctly identify this as a 2-arg call.
+
+  it('passes when 2nd arg is Math.max(0, gameState.lives)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); if (progressBar) progressBar.update(gameState.currentRound, Math.max(0, gameState.lives));',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      exitCode === 0 || !output.includes('3 args'),
+      `False positive: Math.max(0, lives) wrongly flagged as 3-arg call: ${output}`,
+    );
+  });
+
+  it('passes when 2nd arg is Math.max(0, lives) (shorthand)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(round, Math.max(0, lives));',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      exitCode === 0 || !output.includes('3 args'),
+      `False positive: Math.max(0, lives) shorthand wrongly flagged: ${output}`,
+    );
+  });
+
+  it('still fails when progressBar.update() has a genuine 3rd top-level arg', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(gameState.currentRound, gameState.totalRounds, gameState.lives);',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail for genuine 3-arg call but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('3 args'),
+      `Expected 3-arg error but got: ${output}`,
+    );
+  });
+});
+
 describe('TimerComponent slot not created by ScreenLayout (5f8)', () => {
   const cdnHtmlWithTimer = (slotsConfig) => `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>T</title><style>body{}</style></head>
@@ -3210,6 +3253,509 @@ describe('GEN-PHASE-MCQ: MCQ/timed games must call syncDOMState() at all phase t
     assert.ok(
       !output.includes('GEN-PHASE-INIT'),
       `Unexpected GEN-PHASE-INIT warning for HTML without data-phase: ${output}`,
+    );
+  });
+
+  // ─── GEN-PHASE-SEQUENCE tests ──────────────────────────────────────────────
+  // Helper: minimal CDN-style HTML with a custom endGame body for GEN-PHASE-SEQUENCE testing
+  function makeEndGameHtml(endGameBody) {
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Test</title><style>body{}</style></head>
+<body><div id="app"></div><div id="gameContent"></div>
+<script>
+window.gameState = { score: 0, lives: 3, totalLives: 3, phase: 'start', gameEnded: false, isActive: true, currentRound: 0, totalRounds: 3, events: [], attempts: [] };
+var gameState = window.gameState;
+function calcStars(outcome) { if(outcome==='game_over') return 0; var pct=gameState.score/gameState.totalRounds; return pct>=0.8?3:pct>=0.5?2:1; }
+function syncDOMState() { var app=document.getElementById('app'); if(!app) return; app.dataset.phase=gameState.phase||'start'; app.dataset.lives=String(gameState.lives); }
+${endGameBody}
+function restartGame() { gameState.gameEnded=false; gameState.phase='start'; syncDOMState(); }
+function nextRound() { gameState.currentRound++; }
+window.addEventListener('DOMContentLoaded', async function() {
+  try {
+    ScreenLayout.inject('app', { slots: { transitionScreen: true } });
+    window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound;
+  } catch(e) { window.__initError = e.message; }
+});
+</script></body></html>`;
+  }
+
+  it('GEN-PHASE-SEQUENCE: warns when endGame() calls syncDOMState() without assigning gameState.phase first', () => {
+    // Simulates LLM pattern from GEN-PM-DUAL-PATH WRONG: syncDOMState() called but phase not set
+    const html = makeEndGameHtml(`function endGame(reason) {
+  if (gameState.gameEnded) return; gameState.gameEnded = true; gameState.isActive = false;
+  syncDOMState();
+  window.parent.postMessage({ type: 'game_complete', data: { metrics: { score: gameState.score, stars: calcStars(reason), accuracy: 1 } } }, '*');
+}`);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-PHASE-SEQUENCE'),
+      `Expected GEN-PHASE-SEQUENCE warning when syncDOMState() is called without phase assignment but got: ${output}`,
+    );
+  });
+
+  it('GEN-PHASE-SEQUENCE: warns when endGame() assigns phase AFTER syncDOMState()', () => {
+    // Phase assigned after syncDOMState — still wrong ordering
+    const html = makeEndGameHtml(`function endGame(reason) {
+  if (gameState.gameEnded) return; gameState.gameEnded = true; gameState.isActive = false;
+  syncDOMState();
+  gameState.phase = reason === 'victory' ? 'results' : 'gameover';
+  window.parent.postMessage({ type: 'game_complete', data: { metrics: { score: gameState.score, stars: calcStars(reason), accuracy: 1 } } }, '*');
+}`);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-PHASE-SEQUENCE'),
+      `Expected GEN-PHASE-SEQUENCE warning when phase is assigned after syncDOMState() but got: ${output}`,
+    );
+  });
+
+  it('GEN-PHASE-SEQUENCE: does NOT warn when endGame() assigns phase BEFORE syncDOMState()', () => {
+    // Correct order: phase assigned first, then syncDOMState()
+    const html = makeEndGameHtml(`function endGame(reason) {
+  if (gameState.gameEnded) return; gameState.gameEnded = true; gameState.isActive = false;
+  gameState.phase = reason === 'victory' ? 'results' : 'gameover';
+  syncDOMState();
+  window.parent.postMessage({ type: 'game_complete', data: { metrics: { score: gameState.score, stars: calcStars(reason), accuracy: 1 } } }, '*');
+}`);
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-PHASE-SEQUENCE'),
+      `Unexpected GEN-PHASE-SEQUENCE warning for correct phase-before-sync pattern: ${output}`,
+    );
+  });
+
+  it('GEN-PHASE-SEQUENCE: does NOT warn when endGame() does not call syncDOMState() at all', () => {
+    // endGame with no syncDOMState — different issue, not covered by this check
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-PHASE-SEQUENCE'),
+      `Unexpected GEN-PHASE-SEQUENCE warning for endGame without syncDOMState: ${output}`,
+    );
+  });
+
+  // ─── GEN-SHOWRESULTS-SYNC tests ────────────────────────────────────────────
+  // Helper: minimal CDN-style HTML with a custom showResults body for GEN-SHOWRESULTS-SYNC testing
+  function makeShowResultsHtml(showResultsBody) {
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Test</title><style>body{}</style></head>
+<body><div id="app"></div><div id="gameContent"></div><div id="results-screen" style="display:none"></div>
+<script>
+window.gameState = { score: 0, lives: 3, totalLives: 3, phase: 'playing', gameEnded: false, isActive: true, currentRound: 0, totalRounds: 3, events: [], attempts: [] };
+var gameState = window.gameState;
+function calcStars(outcome) { if(outcome==='game_over') return 0; var pct=gameState.score/gameState.totalRounds; return pct>=0.8?3:pct>=0.5?2:1; }
+function syncDOMState() { var app=document.getElementById('app'); if(!app) return; app.dataset.phase=gameState.phase||'start'; app.dataset.lives=String(gameState.lives); }
+${showResultsBody}
+function endGame(reason) {
+  if (gameState.gameEnded) return; gameState.gameEnded = true;
+  gameState.phase = reason === 'victory' ? 'results' : 'gameover';
+  syncDOMState();
+  window.parent.postMessage({ type: 'game_complete', data: { metrics: { score: gameState.score, stars: calcStars(reason), accuracy: 1 } } }, '*');
+}
+function restartGame() { gameState.gameEnded=false; gameState.phase='start'; syncDOMState(); }
+function nextRound() { gameState.currentRound++; }
+window.addEventListener('DOMContentLoaded', async function() {
+  try {
+    ScreenLayout.inject('app', { slots: { transitionScreen: true } });
+    window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound;
+  } catch(e) { window.__initError = e.message; }
+});
+</script></body></html>`;
+  }
+
+  it('GEN-SHOWRESULTS-SYNC: warns when showResults() sets phase but no syncDOMState()', () => {
+    // Simulates keep-track #571 MED-2: showResults sets phase but omits syncDOMState()
+    const html = makeShowResultsHtml(`function showResults() {
+  gameState.phase = 'results';
+  document.getElementById('results-screen').style.display = 'block';
+  document.getElementById('final-score').textContent = gameState.score;
+}`);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SHOWRESULTS-SYNC'),
+      `Expected GEN-SHOWRESULTS-SYNC warning when showResults() sets phase without syncDOMState() but got: ${output}`,
+    );
+  });
+
+  it('GEN-SHOWRESULTS-SYNC: does NOT warn when showResults() sets phase AND calls syncDOMState()', () => {
+    // Correct pattern: phase set then syncDOMState() called
+    const html = makeShowResultsHtml(`function showResults() {
+  gameState.phase = 'results';
+  syncDOMState();
+  document.getElementById('results-screen').style.display = 'block';
+  document.getElementById('final-score').textContent = gameState.score;
+}`);
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-SHOWRESULTS-SYNC'),
+      `Unexpected GEN-SHOWRESULTS-SYNC warning for correct showResults() pattern: ${output}`,
+    );
+  });
+
+  it('GEN-SHOWRESULTS-SYNC: does NOT warn when no showResults function exists', () => {
+    // No showResults() at all — check should be silent
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-SHOWRESULTS-SYNC'),
+      `Unexpected GEN-SHOWRESULTS-SYNC warning for HTML with no showResults() function: ${output}`,
+    );
+  });
+});
+
+// ─── GEN-SYNCDOMSTATE-ALLATTRS tests ────────────────────────────────────────
+// W16: syncDOMState() must write data-round and data-score, not just data-phase.
+// Helper: minimal CDN-style HTML with a custom syncDOMState body for ALLATTRS testing.
+// The HTML includes currentRound in gameState so the check fires.
+function makeSyncDOMStateHtml(syncBody) {
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Test</title><style>body{}</style></head>
+<body><div id="app"></div><div id="gameContent"></div>
+<script>
+window.gameState = { score: 0, lives: 3, totalLives: 3, phase: 'start', gameEnded: false, isActive: true, currentRound: 0, totalRounds: 5, events: [], attempts: [] };
+var gameState = window.gameState;
+${syncBody}
+function endGame(reason) {
+  if (gameState.gameEnded) return; gameState.gameEnded = true;
+  gameState.phase = reason === 'victory' ? 'results' : 'gameover';
+  syncDOMState();
+  window.parent.postMessage({ type: 'game_complete', data: { metrics: { score: gameState.score, stars: 1, accuracy: 1 } } }, '*');
+}
+function restartGame() { gameState.currentRound = 0; gameState.score = 0; gameState.gameEnded = false; gameState.phase = 'start'; syncDOMState(); }
+function nextRound() { gameState.currentRound++; syncDOMState(); }
+window.addEventListener('DOMContentLoaded', async function() {
+  try {
+    ScreenLayout.inject('app', { slots: { transitionScreen: true } });
+    window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound;
+  } catch(e) { window.__initError = e.message; }
+});
+</script></body></html>`;
+}
+
+describe('GEN-SYNCDOMSTATE-ALLATTRS: syncDOMState() must write data-round and data-score', () => {
+  it('GEN-SYNCDOMSTATE-ALLATTRS: warns when syncDOMState sets data-phase only', () => {
+    // Simulates hide-unhide #461 MEDIUM-6: syncDOMState only writes data-phase
+    const html = makeSyncDOMStateHtml(
+      `function syncDOMState() { var app = document.getElementById('app'); if (app) app.setAttribute('data-phase', gameState.phase); }`
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SYNCDOMSTATE-ALLATTRS'),
+      `Expected GEN-SYNCDOMSTATE-ALLATTRS warning when syncDOMState sets only data-phase but got: ${output}`,
+    );
+  });
+
+  it('GEN-SYNCDOMSTATE-ALLATTRS: does NOT warn when syncDOMState sets phase + round + score', () => {
+    // Correct pattern: all four attributes written
+    const html = makeSyncDOMStateHtml(
+      `function syncDOMState() { var app = document.getElementById('app'); if (!app) return; app.dataset.phase = gameState.phase || 'start'; app.dataset.round = String(gameState.currentRound || 0); app.dataset.score = String(gameState.score || 0); if (gameState.totalLives > 0) { app.dataset.lives = String(gameState.lives); } }`
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-SYNCDOMSTATE-ALLATTRS'),
+      `Unexpected GEN-SYNCDOMSTATE-ALLATTRS warning for correct syncDOMState pattern: ${output}`,
+    );
+  });
+
+  it('GEN-SYNCDOMSTATE-ALLATTRS: does NOT warn when no syncDOMState function exists', () => {
+    // No syncDOMState() at all — W16 check should be silent
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-SYNCDOMSTATE-ALLATTRS'),
+      `Unexpected GEN-SYNCDOMSTATE-ALLATTRS warning for HTML with no syncDOMState() function: ${output}`,
+    );
+  });
+
+  it('GEN-ISACTIVE-GUARD: warns when endGame() guard uses !gameState.isActive', () => {
+    // endGame() uses isActive as a guard — results screen never shown on perfect playthrough
+    const html = VALID_HTML.replace(
+      'function endGame() {',
+      'function endGame() {\n    if (!gameState.isActive && gameState.lives > 0) return;',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('WARNING') && output.includes('GEN-ISACTIVE-GUARD'),
+      `Expected GEN-ISACTIVE-GUARD warning but got: ${output}`,
+    );
+  });
+
+  it('GEN-ISACTIVE-GUARD: does NOT warn when endGame() guard uses gameState.gameEnded', () => {
+    // Correct pattern: only gameEnded used as re-entry guard
+    const html = VALID_HTML.replace(
+      'function endGame() {',
+      'function endGame() {\n    if (gameState.gameEnded) return;\n    gameState.gameEnded = true;',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-ISACTIVE-GUARD'),
+      `Unexpected GEN-ISACTIVE-GUARD warning for correct gameEnded pattern: ${output}`,
+    );
+  });
+});
+
+// ─── GEN-MOBILE-STACK: flex-direction:row on game container / MCQ options ────
+
+describe('GEN-MOBILE-STACK: flex-direction:row detection', () => {
+  // Helper: inject extra CSS into VALID_HTML's <style> block (before </style>)
+  // and optionally inject extra HTML into the #answers div.
+  function withCss(extraCss, extraHtml = '') {
+    let html = VALID_HTML.replace('</style>', `  ${extraCss}\n</style>`);
+    if (extraHtml) {
+      html = html.replace('<div id="answers"></div>', `<div id="answers"></div>\n  ${extraHtml}`);
+    }
+    return html;
+  }
+
+  it('GEN-MOBILE-STACK WARNING: warns when game-container uses flex-direction:row', () => {
+    // stats-identify-class #573 P0-1: three-column layout squeezes 375px viewport
+    const html = withCss('#game-container { display: flex; flex-direction: row; gap: 8px; }');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-MOBILE-STACK'),
+      `Expected GEN-MOBILE-STACK warning for game-container flex-direction:row but got: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK WARNING: warns when options-grid uses flex-direction:row', () => {
+    // MCQ options grid in row direction — each option becomes a narrow column
+    const html = withCss('.options-grid { display: flex; flex-direction: row; flex-wrap: wrap; }');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-MOBILE-STACK'),
+      `Expected GEN-MOBILE-STACK warning for options-grid flex-direction:row but got: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK ERROR: errors when .options-container uses flex-direction:row AND MCQ options present', () => {
+    // MCQ option container with row direction — confirmed P0: buttons 22px tall
+    const html = withCss(
+      '.options-container { display: flex; flex-direction: row; }',
+      `<div class="options-container">
+        <button class="option-btn" data-testid="option-0">A</button>
+        <button class="option-btn" data-testid="option-1">B</button>
+      </div>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected exit 1 (error) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-MOBILE-STACK'),
+      `Expected GEN-MOBILE-STACK error for .options-container flex-direction:row but got: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK: does NOT warn when game-container uses flex-direction:column', () => {
+    // Correct pattern: column stacking
+    const html = withCss('#game-container { display: flex; flex-direction: column; gap: 16px; }');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK warning for correct flex-direction:column: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK: does NOT warn for known-valid row patterns (.timer, .score)', () => {
+    // Timer + score bar in row direction is intentional and valid
+    const html = withCss(
+      '.timer { display: flex; flex-direction: row; align-items: center; }\n  .score { display: flex; flex-direction: row; gap: 4px; }',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK warning for valid .timer/.score flex-direction:row: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK: does NOT warn when HTML has no game-layout or MCQ selectors', () => {
+    // VALID_HTML has no game-container or options-grid CSS rules with flex-direction:row
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK warning for VALID_HTML: ${output}`,
+    );
+  });
+
+  // ─── GEN-DOM-CACHE tests ────────────────────────────────────────────────────
+  it('GEN-DOM-CACHE: warns when loadQuestion() calls document.getElementById() in its body', () => {
+    // Anti-pattern: getElementById called inside per-round function body
+    const html = VALID_HTML.replace(
+      'function showQuestion()',
+      `function loadQuestion(index) {
+        const questionEl = document.getElementById('question-text');
+        const optionsGrid = document.getElementById('options-grid');
+        questionEl.textContent = 'Question ' + index;
+        optionsGrid.innerHTML = '';
+      }
+      function showQuestion()`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-DOM-CACHE'),
+      `Expected GEN-DOM-CACHE warning when getElementById is inside loadQuestion() body but got: ${output}`,
+    );
+  });
+
+  it('GEN-DOM-CACHE: does NOT warn when loadQuestion() does not call getElementById()', () => {
+    // Correct pattern: uses cached module-scope references (no getElementById inside any per-round function)
+    // Replace showQuestion's getElementById call with a cached ref, and add loadQuestion without getElementById
+    const html = VALID_HTML
+      .replace(
+        "document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';",
+        "questionTextEl.textContent = a + ' x ' + b + ' = ?';",
+      )
+      .replace(
+        'function showQuestion()',
+        `const questionEl = { textContent: '' };
+      const questionTextEl = document.getElementById('questionText');
+      function loadQuestion(index) {
+        questionEl.textContent = 'Question ' + index;
+      }
+      function showQuestion()`,
+      );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-DOM-CACHE'),
+      `Unexpected GEN-DOM-CACHE warning when loadQuestion() uses cached refs: ${output}`,
+    );
+  });
+
+  it('GEN-DOM-CACHE: warns when getElementById called inside renderRound()', () => {
+    const html = VALID_HTML.replace(
+      'function showQuestion()',
+      `function renderRound(round) {
+        const el = document.getElementById('question');
+        el.textContent = round.q;
+      }
+      function showQuestion()`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-DOM-CACHE'),
+      `Expected GEN-DOM-CACHE warning when getElementById is inside renderRound() but got: ${output}`,
+    );
+  });
+
+  it('GEN-DOM-CACHE: does not warn when getElementById called at DOMContentLoaded level (not inside per-round fn)', () => {
+    // Correct pattern: getElementById at init scope, not inside a per-round function body.
+    // Also replace showQuestion's getElementById to avoid false-positive from VALID_HTML baseline.
+    const html = VALID_HTML
+      .replace(
+        "document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';",
+        "questionTextEl.textContent = a + ' x ' + b + ' = ?';",
+      )
+      .replace(
+        'function showQuestion()',
+        `const questionEl = document.getElementById('question');
+      const questionTextEl = document.getElementById('questionText');
+      function renderRound(round) {
+        questionEl.textContent = round.q;
+      }
+      function showQuestion()`,
+      );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-DOM-CACHE'),
+      `Unexpected GEN-DOM-CACHE warning when getElementById is at init scope: ${output}`,
+    );
+  });
+
+  it('GEN-DOM-CACHE: warns when getElementById called inside async loadQuestion()', () => {
+    const html = VALID_HTML.replace(
+      'function showQuestion()',
+      `async function loadQuestion(idx) {
+        const feedback = document.getElementById('feedback-msg');
+        feedback.innerHTML = '';
+      }
+      function showQuestion()`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-DOM-CACHE'),
+      `Expected GEN-DOM-CACHE warning when getElementById is inside async loadQuestion() but got: ${output}`,
+    );
+  });
+
+  it('GEN-DOM-CACHE: warns when loadQuestion() has an if block before getElementById (previously false negative)', () => {
+    // The old [^{}]* pattern stopped at the opening brace of the if-block,
+    // missing the getElementById call inside it — this was a silent false negative.
+    const html = VALID_HTML.replace(
+      'function showQuestion()',
+      `function loadQuestion(index) {
+        if (index === 0) {
+          const el = document.getElementById('question-text');
+          el.textContent = 'First question';
+        }
+      }
+      function showQuestion()`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-DOM-CACHE'),
+      `Expected GEN-DOM-CACHE warning when getElementById is inside if-block in loadQuestion() but got: ${output}`,
+    );
+  });
+
+  it('GEN-DOM-CACHE: warns when renderRound() has a for loop before getElementById (previously false negative)', () => {
+    // The old [^{}]* pattern stopped at the opening brace of the for-loop,
+    // missing the getElementById call inside it — this was a silent false negative.
+    const html = VALID_HTML.replace(
+      'function showQuestion()',
+      `function renderRound(round) {
+        for (let i = 0; i < round.options.length; i++) {
+          const btn = document.getElementById('option-' + i);
+          btn.textContent = round.options[i];
+        }
+      }
+      function showQuestion()`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-DOM-CACHE'),
+      `Expected GEN-DOM-CACHE warning when getElementById is inside for-loop in renderRound() but got: ${output}`,
+    );
+  });
+});
+
+describe('GEN-TIMER-GETTIME: banned CDN timer methods', () => {
+  it('errors on timer.getTime() call', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); const elapsed = timer.getTime() / 1000;',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-TIMER-GETTIME'),
+      `Expected GEN-TIMER-GETTIME error on timer.getTime() but got: ${output}`,
+    );
+  });
+
+  it('errors on timer.getCurrentTime() call', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); const t = timer.getCurrentTime();',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-TIMER-GETTIME'),
+      `Expected GEN-TIMER-GETTIME error on timer.getCurrentTime() but got: ${output}`,
+    );
+  });
+
+  it('does not error on valid timer methods (start/stop/destroy)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); timer.stop(); timer.destroy();',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-TIMER-GETTIME'),
+      `Unexpected GEN-TIMER-GETTIME error on valid timer.stop()/destroy() but got: ${output}`,
     );
   });
 });

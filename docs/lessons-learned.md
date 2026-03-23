@@ -26,6 +26,15 @@ The LLM generates the banned `#mathai-transition-slot button` selector predictab
 **Lesson L-GF-003: `answer(page, true)` is MCQ-only — step-panel games need DOM-derived selectors** | Source: real-world-problem #563-#565, find-triangle-side #547, GF10 commit 870c6d5
 `answer(page, selector)` targets MCQ option buttons by CSS class. Step-based games (step1-panel, step2-panel, faded-panel, practice-panel) have panel interaction elements with IDs/classes derived from the spec — they cannot be navigated with the generic `answer()` helper. Test gen must use DOM-snapshot-derived selectors for step interactions.
 
+**Lesson L-GF-004: GEN-PM-DUAL-PATH CORRECT example was missing `gameState.phase` assignment — LLMs copied it and produced `syncDOMState()` calls that wrote `'playing'` to data-phase** | Source: Gen Quality slot GEN-PHASE-SEQUENCE analysis 2026-03-23
+The GEN-PM-DUAL-PATH CORRECT code block in `buildGenerationPrompt()` showed `endGame(reason) { gameState.gameEnded=true; syncDOMState(); postMessage... }` — no `gameState.phase` assignment before `syncDOMState()`. LLMs learning from this example generated functions where `syncDOMState()` ran with `gameState.phase` still equal to `'playing'`, writing `data-phase='playing'` to `#app` even at game-over. The 500ms harness poll propagated this wrong value. Fix: (1) Added `gameState.phase = reason === 'victory' ? 'results' : 'gameover'` before `syncDOMState()` in the CORRECT example. (2) Added `GEN-PHASE-SEQUENCE` rule explicitly documenting the ordering requirement with WRONG/CORRECT examples. (3) Added T1 warning `[GEN-PHASE-SEQUENCE]` in validate-static.js to detect endGame bodies where syncDOMState is called without phase assignment, or phase is assigned after syncDOMState. (4) Added 4 test cases. This is the root cause of game-flow 18% pass rate (analytics 2026-03-23).
+
+**Lesson L-GF-005: GEN-112 T1 check false-positive — `Math.max(0, lives)` triggers "3-arg progressBar.update()" error** | Source: stats-mean-direct build #575 diagnosis 2026-03-23
+The GEN-112 regex `/progressBar\.update\(\s*\S[^)]*,\s*\S[^)]*,\s*\S[^)]*\)/` matches `progressBar.update(currentRound, Math.max(0, lives))` as a 3-arg call because the comma inside `Math.max(0, ...)` fools the character-class regex. The W14 rule (LP-PROGRESSBAR-CLAMP) mandates `Math.max(0, lives)` clamping — so correct code fails T1. Fix: replace the regex with a paren-depth-aware arg counter (see rca.md Fix 1). Until fixed, every game that correctly clamps lives will fail T1 at build time.
+
+**Lesson L-SPEC-001: stats-mean-direct spec Section 7 uses `progressBar.setRound()` and `progressBar.setLives()` — both are hallucinated methods** | Source: stats-mean-direct build #575 diagnosis 2026-03-23
+The spec was written with `progressBar.setRound(roundNumber)` and `progressBar.setLives(3)`. These methods do not exist on `ProgressBarComponent` (rule 5f10). The actual API is `progressBar.update(currentRound, livesRemaining)`. The LLM in build #575 correctly used `update()` despite the spec — but future LLMs following the spec literally would fail T1. Fix: update spec Section 7 to use `progressBar.update(roundNumber, gameState.lives)`.
+
 **Lesson L-TE-001: failure_patterns rows with `pattern='unknown'` are noise, not signal** | Source: TE-UNKNOWN-001 analysis 2026-03-23
 Pre-GEN-ANALYTICS-001 builds stored `recordFailurePattern(gameId, 'unknown', 'unknown')` when `categorizeFailure()` returned 'unknown'. The pattern field stored the literal string 'unknown' — no diagnostic content. These rows skew category counts and failure-pattern injection into fix prompts. Fix: mark `resolved=1` where `pattern='unknown'` (11 rows cleaned up). New rows are prevented by GEN-ANALYTICS-001's expanded categorizeFailure() branches.
 
@@ -2656,3 +2665,15 @@ Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug
 
 **Rule:** Any new LLM HTML write path added to `pipeline-fix-loop.js` must call `ctx.fixCdnDomainsInFile` and `ctx.fixCdnPathsInFile` (with guards) immediately after `fs.writeFileSync`, before `injectHarnessToFile`. Rollback/snapshot-restore paths are safe (they restore from already-CDN-fixed snapshots). Add functions to `ctx` in `pipeline.js` at the `runFixLoop` call site.
 
+
+## Lesson 206 — timer.getTime() is a hallucinated CDN method — blocks game_complete postMessage (2026-03-23)
+
+**Source:** associations #578 — contract 0/2 all 3 iterations | **Fix:** commit c68ef5a (GEN-TIMER-GETTIME T1 ERROR)
+
+**Problem:** LLM generated `const totalTime = timer ? timer.getTime() / 1000 : (Date.now() - gameState.startTime) / 1000` in endGame(). `timer.getTime()` is not a method on CDN TimerComponent — throws `TypeError: timer.getTime is not a function`. The null-guard (`timer ? ... : ...`) does NOT protect against this because `timer` IS a valid non-null object (a TimerComponent instance); the method just doesn't exist. The TypeError fires BEFORE `window.parent.postMessage`, so game_complete is never sent to the parent app. The build was approved (7/9 tests passing) but the game never signals completion in production.
+
+**Valid CDN timer methods:** `timer.start()`, `timer.stop()`, `timer.pause()`, `timer.resume()`, `timer.reset()`, `timer.destroy()`.
+
+**Pattern for elapsed time:** `(Date.now() - gameState.startTime) / 1000` — use startTime tracked in gameState.
+
+**Rule:** T1 ERROR [GEN-TIMER-GETTIME] now bans timer.getTime(), timer.getCurrentTime(), timer.getElapsed() etc. in all generated HTML. Any build using these hallucinated methods fails static validation before tests run.

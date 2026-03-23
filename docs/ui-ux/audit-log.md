@@ -18,11 +18,51 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** crazy-maze #481 audit complete (2026-03-23). 0 P0 + 2 HIGH + 3 MEDIUM + 2 LOW. No re-queue required. Key findings: GEN-INTERACTIVE-DIV-ROLE (maze cells are DIV not button, no role/tabindex/aria-label — 2nd instance after keep-track), GEN-GAMEID missing (8th+ instance), ARIA-001 (20th+ instance), GEN-UX-001 results-screen static (22nd+ instance), data-lives stale after handleReset (test gap — harness patchGameFunctions doesn't include handleReset). Next target: next game without ui-ux.md.
-**Last completed:** keep-track #503 — 2026-03-23 — 2 P0 + 3 HIGH + 3 MEDIUM + 2 LOW; full browser playthrough (Playwright MCP 375×812px); P0-A: `transitionScreen.show()` called with two args (string + config) — all screens blank, game never starts (NEW critical gen rule GEN-TS-ONEARG — confirmed 2nd instance after which-ratio #561 victory screen); P0-B: gameContent stays display:none since TransitionScreen hide() never fires (consequence of P0-A); HIGH: ARIA-001 no aria-live (25th+ instance); interactive cup divs missing role=button/tabindex/aria-label (NEW GEN-INTERACTIVE-DIV-ROLE); results-screen position:static (21st+ GEN-UX-001); MEDIUM: restartGame() incomplete state reset; accuracy 0% in results; timer hardcoded #000FFF color; LOW: FeedbackManager subtitle CDN warning; timer 0:00 (conditional on P0-A); PASS: CDN packages 0 404s, gameState.gameId='game_keep_track', window.endGame/nextRound/restartGame exposed, syncDOMState targets #app (not body), data-phase/round/lives/score all set, progress bar updates, cup data-testid option-0..2, game_complete postMessage correct structure; RE-QUEUE REQUIRED.
-**Last completed:** keep-track #503 — 2026-03-23 — 2 P0 + 3 HIGH + 3 MEDIUM + 2 LOW; full browser playthrough (Playwright MCP 375×812px); P0-A: `transitionScreen.show()` called with two args (string + config) — all screens blank, game never starts (NEW critical gen rule GEN-TS-ONEARG — confirmed 2nd instance after which-ratio #561 victory screen); P0-B: gameContent stays display:none since TransitionScreen hide() never fires (consequence of P0-A); HIGH: ARIA-001 no aria-live (25th+ instance); interactive cup divs missing role=button/tabindex/aria-label (NEW GEN-INTERACTIVE-DIV-ROLE); results-screen position:static (21st+ GEN-UX-001); MEDIUM: restartGame() incomplete state reset; accuracy 0% in results; timer hardcoded #000FFF color; LOW: FeedbackManager subtitle CDN warning; timer 0:00 (conditional on P0-A); PASS: CDN packages 0 404s, gameState.gameId='game_keep_track', window.endGame/nextRound/restartGame exposed, syncDOMState targets #app (not body), data-phase/round/lives/score all set, progress bar updates, cup data-testid option-0..2, game_complete postMessage correct structure; RE-QUEUE REQUIRED.
-**stats-which-measure postMessage:** VERIFIED 2026-03-23 — has events/duration/attempts all present. Cross-consistency fix applied to 4 other stats specs (stats-identify-class, stats-mean-direct, stats-median, stats-mode) — all were missing `events: gameState.events`; added to both impl call and Section 8 doc block.
+**Current task:** Next approved game without full browser playthrough — addition-mcq (pending build), or next stats game build.
+**Last completed:** stats-mean-direct #580 — 2026-03-23 — 0 P0 + 0 HIGH + 3 MEDIUM + 2 LOW — APPROVED. All 9 rounds functional, results screen position:fixed PASS, Play Again state reset PASS. M-001: window.nextRound harness timing (test gap). M-002: results missing rounds-completed metric (gen rule). M-003: aria-atomic absent on feedback (gen rule).
 **Waiting on:** —
+
+### Batch 20 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | stats-mean-direct | #580 | **full browser playthrough** 2026-03-23 — 0 P0 + 0 HIGH + 3 MEDIUM + 2 LOW + 1 CDN | APPROVED — no re-queue required. 9/9 rounds complete, results fixed, Play Again PASS. M-001 test gap (nextRound harness timing), M-002 gen rule (results rounds-completed), M-003 gen rule (aria-atomic). |
+
+### Batch 19 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | associations | #578 | **full browser playthrough** 2026-03-23 — 1 P0 + 3 MEDIUM + 2 LOW | RE-QUEUE REQUIRED — timer.getTime is not a function in endGame() blocks results screen. Play Again crash FIXED. gameState.gameId FIXED. results-screen testid FIXED. |
+
+### Batch 18 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | visual-memory | #528 | **full browser playthrough** 2026-03-23 — 1 P0 + 2 HIGH + 4 MEDIUM + 3 LOW + 1 CDN | RE-QUEUE REQUIRED — endGame guard blocks results screen on perfect playthrough (gameState.isActive=false guard misfires) |
+
+### Batch 17 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | associations | #513 | **full browser playthrough** 2026-03-23 — 1 P0 + 4 MEDIUM + 2 LOW | RE-QUEUE REQUIRED — white screen on Play Again (TypeError in transition-screen/index.js:297) |
+
+### Batch 16 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | hide-unhide | #461 | **full browser playthrough** 2026-03-23 — 0 P0 + 6 MEDIUM + 2 LOW + 1 CDN | done — no re-queue required; 5/5 rounds + Play Again PASS |
+
+### Batch 15 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | keep-track | #571 | **full browser playthrough** 2026-03-23 — 0 P0 + 2 HIGH + 3 MEDIUM + 2 LOW | done — no re-queue required; GEN-TS-ONEARG confirmed fixed |
+
+### Batch 14 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | true-or-false | #474 | **full browser playthrough** 2026-03-23 — 0 P0 + 0 HIGH + 2 MEDIUM + 2 LOW + 1 CDN | done — no re-queue required |
 
 ### Batch 13 — Completed 2026-03-23
 
