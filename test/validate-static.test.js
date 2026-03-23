@@ -2630,3 +2630,113 @@ describe('GEN-WAITFOR-MATCH B/C/D: new X() used but typeof X absent from waitFor
     );
   });
 });
+
+describe('GEN-RESULTS-FIXED: #results-screen must have position:fixed (GEN-UX-001)', () => {
+  it('does not warn when #results-screen has position:fixed in CSS', () => {
+    // Correct pattern: results screen has position:fixed as GEN-UX-001 requires
+    const html = VALID_HTML.replace(
+      '</style>',
+      `#results-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; background: white; display: none; }
+</style>`,
+    ).replace(
+      '</div>\n<script>',
+      `</div>
+  <div id="results-screen"></div>
+<script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-RESULTS-FIXED'),
+      `Unexpected GEN-RESULTS-FIXED warning for correct position:fixed usage: ${output}`,
+    );
+  });
+
+  it('warns when #results-screen element exists but has position:static (no position:fixed)', () => {
+    // Bad pattern: results screen exists but lacks position:fixed → renders off-screen
+    const html = VALID_HTML.replace(
+      '</style>',
+      `#results-screen { position: static; top: 0; left: 0; width: 100%; height: 100%; background: white; display: none; }
+</style>`,
+    ).replace(
+      '</div>\n<script>',
+      `</div>
+  <div id="results-screen"></div>
+<script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-RESULTS-FIXED'),
+      `Expected GEN-RESULTS-FIXED warning when position:static used but got: ${output}`,
+    );
+  });
+
+  it('does not warn when no #results-screen element exists (CDN TransitionScreen games)', () => {
+    // Games using CDN TransitionScreen have no custom #results-screen — no warning expected
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-RESULTS-FIXED'),
+      `Unexpected GEN-RESULTS-FIXED warning when no results-screen element present: ${output}`,
+    );
+  });
+});
+
+describe('GEN-TRANSITION-API-CALL: transitionScreen.show() string-mode API check (5h2)', () => {
+  it('emits ERROR when transitionScreen.show() is called with single-quote string first arg', () => {
+    // String-mode call: transitionScreen.show('victory', ...) — no string API in CDN
+    const html = VALID_HTML.replace(
+      '</script>',
+      `let transitionScreen = { show: async function(opts) {}, hide: async function() {} };
+  async function endGameTransition() {
+    await transitionScreen.show('victory', { score: 10 });
+    await transitionScreen.hide();
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected failure (ERROR) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('GEN-TRANSITION-API'),
+      `Expected GEN-TRANSITION-API ERROR but got: ${output}`,
+    );
+  });
+
+  it('emits ERROR when transitionScreen.show() is called with double-quote string first arg', () => {
+    // String-mode call with double quotes: transitionScreen.show("gameover", ...)
+    const html = VALID_HTML.replace(
+      '</script>',
+      `let transitionScreen = { show: async function(opts) {}, hide: async function() {} };
+  async function endGameTransition() {
+    await transitionScreen.show("gameover", { score: 0 });
+    await transitionScreen.hide();
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected failure (ERROR) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('GEN-TRANSITION-API'),
+      `Expected GEN-TRANSITION-API ERROR for double-quote string mode but got: ${output}`,
+    );
+  });
+
+  it('does not emit GEN-TRANSITION-API error when transitionScreen.show() uses object API', () => {
+    // Correct object API: transitionScreen.show({ buttons, title, subtitle, icons })
+    const html = VALID_HTML.replace(
+      '</script>',
+      `let transitionScreen = { show: async function(opts) {}, hide: async function() {} };
+  async function endGameTransition() {
+    await transitionScreen.show({ icons: ['🎉'], title: 'Well Done!', subtitle: 'You scored 10 points.', buttons: [{ text: 'Play Again', type: 'primary', action: restartGame }] });
+    await transitionScreen.hide();
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-TRANSITION-API'),
+      `Unexpected GEN-TRANSITION-API error for object-mode transitionScreen.show(): ${output}`,
+    );
+  });
+});
