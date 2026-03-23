@@ -3681,3 +3681,41 @@ describe('GEN-MOBILE-STACK: flex-direction:row detection', () => {
     );
   });
 });
+
+describe('GEN-TIMER-GETTIME: banned CDN timer methods', () => {
+  it('errors on timer.getTime() call', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); const elapsed = timer.getTime() / 1000;',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-TIMER-GETTIME'),
+      `Expected GEN-TIMER-GETTIME error on timer.getTime() but got: ${output}`,
+    );
+  });
+
+  it('errors on timer.getCurrentTime() call', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); const t = timer.getCurrentTime();',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-TIMER-GETTIME'),
+      `Expected GEN-TIMER-GETTIME error on timer.getCurrentTime() but got: ${output}`,
+    );
+  });
+
+  it('does not error on valid timer methods (start/stop/destroy)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); timer.stop(); timer.destroy();',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-TIMER-GETTIME'),
+      `Unexpected GEN-TIMER-GETTIME error on valid timer.stop()/destroy() but got: ${output}`,
+    );
+  });
+});
