@@ -4,7 +4,7 @@
 
 | Game | Session | Bloom | Status | Build # | Iter | Build Time | UI/UX | Next Action |
 |------|---------|-------|--------|---------|------|------------|-------|-------------|
-| [stats-identify-class](stats-identify-class/index.md) | Stats 1/4 | L1 Remember | 📝 Spec ready | — | — | — | ✅ 6 findings | Human review before queuing |
+| [stats-identify-class](stats-identify-class/index.md) | Stats 1/4 | L1 Remember | 📝 Spec ready | — | — | — | ✅ 6 findings | Spec fixes applied (FIX-1 through FIX-5, commit 6f4bf51) — human approval needed to queue |
 | [stats-mean-direct](stats-mean-direct/index.md) | Stats 2/4 | L2-L3 Apply | 📝 Spec ready | — | — | — | ✅ 2 findings | Human review before queuing |
 | [stats-median](stats-median/index.md) | Stats 3/4 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
 | [stats-mode](stats-mode/index.md) | Stats 4/4 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
