@@ -295,7 +295,7 @@ async function handleFixJob(job) {
     try {
       const patterns = db.getFailurePatterns(gameId).filter(p => !p.resolved);
       for (const pattern of patterns) {
-        db.resolveFailurePattern(pattern.id);
+        db.resolveFailurePattern(gameId, pattern.pattern);
       }
       if (patterns.length > 0) {
         logger.info(`[worker] handleFixJob: resolved ${patterns.length} failure pattern(s) for ${gameId}`);
