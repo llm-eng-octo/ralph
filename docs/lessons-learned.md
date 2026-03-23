@@ -2610,3 +2610,41 @@ Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug
 
 **Rule:** Never use setTimeout to destroy ProgressBarComponent (or any CDN component). In endGame(), call .update() to show "Game Over" state — never .destroy() or null-assignment. restartGame() can safely call .update() to reset. (GEN-PROGRESSBAR-DESTROY)
 
+## Lesson 201 — resolveFailurePattern() called with wrong args in handleFixJob (2026-03-23)
+
+**Source:** Code Review CR-066 of worker.js | **Fix:** commit 3f29d2d
+
+**Problem:** CR-055 added `resolveFailurePattern()` call to the handleFixJob APPROVED path, but passed `pattern.id` (a numeric row ID) as the first arg. The function signature is `(gameId, pattern)` — two strings matched by `WHERE game_id = ? AND pattern = ?`. The SQL `WHERE game_id = <number> AND pattern = undefined` matched nothing. Fix-loop approved builds never resolved failure patterns.
+
+**Root cause:** The APPROVED path in handleJob (line 1286) correctly calls `db.resolveFailurePattern(gameId, fp.pattern)`. The handleFixJob path was copy-pasted with an incorrect arg shape.
+
+**Rule:** When adding resolveFailurePattern() calls, always pass `(gameId, pattern.pattern)` not `(pattern.id)`. The resolve key is `(game_id, pattern)` — a text match — not a row ID.
+
+## Lesson 202 — waitForPackages typeof check must match loaded scripts (GEN-WAITFOR-MATCH) (2026-03-23)
+
+**Source:** T1 static validation GEN-WAITFOR-MATCH — 4 checks added | **Fix:** commit ab0c3fe
+
+**Problem:** If the generated HTML checks `typeof FeedbackManager === 'undefined'` in waitForPackages() but `feedback-manager/index.js` is NOT in `<head>`, waitForPackages() waits 180 seconds before throwing — ALL tests fail. Similarly, if `new TimerComponent()` is used but `typeof TimerComponent` is absent from the while-loop condition, the game crashes with ReferenceError at instantiation.
+
+**Root cause:** The gen prompt rule "include typeof X for every CDN component you instantiate" existed but had no T1 backstop. The LLM occasionally added FeedbackManager check without the script, or forgot to add TimerComponent.
+
+**Rule:** T1 GEN-WAITFOR-MATCH enforces cross-validation: Check A (ERROR) — `typeof FeedbackManager` in waitForPackages without feedback-manager script in `<head>`; Checks B/C/D (WARNING) — `new X()` used without matching `typeof X` guard in waitForPackages. Any CHECK A violation guarantees 180s timeout → 0% on all categories.
+
+## Lesson 203 — syncDOMState() must write data-lives for lives games (GEN-DATA-LIVES-SYNC) (2026-03-23)
+
+**Source:** UI/UX audit addition-mcq-lives F7 | **Fix:** commit 0cbb269
+
+**Problem:** Games with `totalLives > 0` that only track `gameState.lives` in JS — but never write `data-lives` to the DOM — cause `getLives()` in the test harness to return `undefined`. `getLives()` reads `parseInt(app.getAttribute('data-lives'), 10)`. If `data-lives` is never set, all mechanics assertions on life decrements fail silently.
+
+**Root cause:** `syncDOMState()` only set `data-phase`, `data-round`, `data-score`. `data-lives` was absent — games tracked lives in JS state only.
+
+**Rule:** `syncDOMState()` must include `if (gameState.totalLives > 0) { app.dataset.lives = String(gameState.lives); }`. Non-lives games (totalLives=0) skip this — test gen GEN-DATA-LIVES-GUARD already skips getLives() assertions for those games. T1 check W15 warns if this is absent.
+
+## Lesson 204 — Spec validation errors missing writeReport() left no diagnostic artifact (2026-03-23)
+
+**Source:** Code Review CR-067 of lib/pipeline.js | **Fix:** commit 91e430d
+
+**Problem:** When `validateSpec()` found errors in Step 0, the pipeline threw `new Error(...)`. The worker.js catch block called `db.failBuild()` — DB was correct — but `ralph-report.json` was never written. No artifact for diagnosis, unlike spec-not-found and spec-too-small paths which both call `writeReport()` before returning.
+
+**Rule:** All early-exit paths in pipeline.js must: (1) push errors to `report.errors`, (2) call `writeReport()`, (3) return `report` (not throw). The default `report.status = 'FAILED'` is picked up correctly by worker.js without needing an exception.
+
