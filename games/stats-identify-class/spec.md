@@ -680,6 +680,38 @@ function advanceRound() {
   else:           transitionScreen.show('game_over')
 ```
 
+### 6.9 restartGame()
+
+Called by `TransitionScreenComponent` when the player clicks the restart button on the game-over screen (`onRestart: restartGame`). Also exposed as `window.restartGame` for tests.
+
+```javascript
+function restartGame() {
+  // 1. Reset all gameState fields to their initial values
+  gameState.currentRound = 0;
+  gameState.lives = 3;                   // matches totalLives in ProgressBarComponent
+  gameState.score = 0;
+  gameState.totalFirstAttemptCorrect = 0;
+  gameState.gameEnded = false;
+  gameState.isActive = false;
+  gameState.isProcessing = false;
+  gameState.attemptsThisRound = 0;
+  gameState.wrongFirstAttempt = 0;
+  gameState.events = [];
+  gameState.attempts = [];
+  gameState.startTime = null;
+
+  // 2. Set phase back to start and sync DOM
+  gameState.phase = 'start_screen';
+  syncDOMState();                        // GEN-PHASE-001 MANDATORY
+
+  // 3. Hide the game-over transition screen and begin fresh
+  transitionScreen.hide();
+  startGame();
+}
+```
+
+**Why this matters:** Without a complete reset, a second playthrough inherits stale `lives`, `score`, and `totalFirstAttemptCorrect` from the previous run, producing wrong star ratings and allowing the game to immediately trigger `endGame(false)` if `gameState.lives` was 0.
+
 ---
 
 ## 7. CDN Implementation Patterns (MANDATORY)
