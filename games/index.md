@@ -14,6 +14,7 @@
 | [soh-cah-toa-worked-example](soh-cah-toa-worked-example/index.md) | Trig 3/5 | L2 Understand | ✅ Approved | #544 | 1 | ~28 min | ⚠️ P0+5 findings | GEN-UX-001 confirmed (results not fixed), UI-SC-007 retracted |
 | [find-triangle-side](find-triangle-side/index.md) | Trig 4/5 | L3 Apply | ✅ Approved | #549 | 1 | ~28 min | ⚠️ 1 P0 + 11 findings (browser playthrough 2026-03-23) | Re-queue: restartGame() not reset (P0); Enter key missing; local asset path |
 | [real-world-problem](real-world-problem/index.md) | Trig 5/5 | L4 Analyze | ✅ Approved | #564 | 2 | ~32 min | ⚠️ 12 findings (browser 2026-03-23) | syncDOMState on #app not body (HIGH test gap); Play Again 41px; SignalCollector sealed on restart; SVG clip confirmed |
+| [identify-pairs-list](identify-pairs-list/index.md) | Standalone | TBD | ✅ Approved | #515 | — | — | ⚠️ 8 findings (browser 2026-03-23) | 0 P0s; MEDIUM: results static (GEN-UX-001), aria-live absent (ARIA-001), no CDN ProgressBar (test gap), data-lives not set (test gap); no re-queue |
 | [associations](associations/index.md) | Standalone | TBD | ✅ Approved | #472 | 2 | ~29 min | ⚠️ 1 P0 + 6 findings (browser 2026-03-23) | Re-queue recommended: restartGame() state not reset (P0); timer.getTime error; waitForPackages 10s |
 | [count-and-tap](count-and-tap/index.md) | Standalone | L1 Remember | ✅ Approved | #551 | 2 | ~30 min | ⚠️ 10 findings (browser 2026-03-23) | syncDOMState on #app not body (HIGH test gap); ProgressBar off-by-one on final round (MEDIUM); no re-queue (flow complete) |
 | [quadratic-formula-worked-example](quadratic-formula-worked-example/index.md) | Standalone | L2 Understand | ✅ Approved | #546 | 2 | ~38 min | ⚠️ P0+5 findings | Re-queue: GEN-UX-001+restartGame() reset |
@@ -72,6 +73,7 @@
 
 | Game | Bloom | Status | Notes |
 |------|-------|--------|-------|
+| [identify-pairs-list](identify-pairs-list/index.md) | TBD | ✅ Approved #515 | Browser audit 2026-03-23: 0 P0s + 8 findings (4a, 2c, 2d); MEDIUM: results static, aria-live absent, no CDN ProgressBar (custom points counter, test gap), data-lives not set (test gap); no re-queue |
 | [associations](associations/index.md) | TBD | ✅ Approved | Unlimited-lives accuracy; emoji/name pairs; browser audit 2026-03-23: 1 P0 + 6 findings; re-queue recommended |
 | [count-and-tap](count-and-tap/index.md) | L1 Remember | ✅ Approved | Subitizing / dot counting with timer; browser audit 2026-03-23: 10 findings (0 P0) |
 | [quadratic-formula-worked-example](quadratic-formula-worked-example/index.md) | L2 Understand | ✅ Approved | Worked-example-mcq; algebra |
