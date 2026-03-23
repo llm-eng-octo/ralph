@@ -513,7 +513,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-070 DONE (deployed b87189a). CR-062 DONE — Bearer token auth added to /mcp endpoint (verifyMcpAuth middleware, MCP_SECRET env var, startup warning, 2 integration tests; 1102/1102 tests pass). Next: CR-063 [MED] — rate limiting on /api/build. |
+| Current task | CR-063 DONE (commit 3900bd2, deployed 2026-03-23) — in-process rate limiter added to POST /api/build and POST /api/fix (max 5/60s per IP, env-configurable). Scoped per createApp() for test isolation. 3 new integration tests; 1120/1120 pass. Next: CR-064 [MED] — /api/fix missing queue.add() catch block. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
@@ -619,8 +619,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CONCEPT_GRAPH extended with templateSpecId/curriculumStandard/estimatedMinutes (session-planner.js, 2026-03-23). parseGoal() LLM call fully implemented. Next: implement researchCurriculum() + wire planSession() entry point. |
-| Status | Session Planner v1 Step 1 complete. All 77 session-planner tests pass. Next: implement researchCurriculum() using Knowledge Graph MCP + Exa. |
+| Current task | researchCurriculum() DONE (commit TBD, 2026-03-23). Next: wire planSession() end-to-end and test with real objective text. |
+| Status | Session Planner v1 Steps 1+2 complete. 92 session-planner tests pass (77 existing + 15 new researchCurriculum tests). planSessionFromObjective() now calls researchCurriculum() automatically. |
 | Waiting on | nothing — unblocked |
 | Blocked by | nothing |
 
