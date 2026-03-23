@@ -22,7 +22,7 @@
 | [addition-mcq-blitz](addition-mcq-blitz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [addition-mcq-lives](addition-mcq-lives/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [word-pairs](word-pairs/index.md) | Standalone | TBD | ✅ Approved | #529 | — | — | ⚠️ 1 P0 + 6 findings (browser 2026-03-23) | No re-queue; P0: CSS strip causes buttons 21.5px; HIGH: stale data-round/data-score after restart; results-screen position:static (GEN-RESULTS-FIXED now deployed); 2 MEDIUM (SignalCollector, waitForPackages 120s) |
-| [right-triangle-area](right-triangle-area/index.md) | Standalone | TBD | ✅ Approved | #543 | — | — | ⚠️ Audit in progress (browser 2026-03-23) | Browser playthrough running — findings pending |
+| [right-triangle-area](right-triangle-area/index.md) | Standalone | TBD | ✅ Approved | #543 | — | — | ⚠️ 1 P0 + 8 findings (browser 2026-03-23) | P0: restartGame() crashes — progressBar.destroy() setTimeout + null-trap; HIGH: canvas overflow (GEN-CANVAS-001 first live confirmation); buttons 21.5px; results screen static |
 | [adjustment-strategy](adjustment-strategy/index.md) | Standalone | TBD | ✅ Approved | #385 | 0 | ~30 min | ⚠️ 7 findings (5a, 2d) | No P0s; adj-btn 36px; no Enter key; gameState.gameId absent; window.nextRound missing; CDN timeout+await gen rule gaps confirmed |
 | [math-cross-grid](math-cross-grid/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [math-mcq-quiz](math-mcq-quiz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
