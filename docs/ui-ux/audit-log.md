@@ -18,9 +18,17 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** Batch 3 complete — next batch TBD
-**Last completed:** real-world-problem #564 — 2026-03-23 — 0 P0s + 12 findings (4 new from browser: syncDOMState on #app not body HIGH test gap, Play Again 41px, SignalCollector sealed on restart, SVG clip confirmed); all static findings confirmed; no re-queue required (flow complete, re-queue only after shipped gen rules applied)
+**Current task:** Batch 4 — associations #472 (next up)
+**Last completed:** count-and-tap #551 — 2026-03-23 — 0 P0s + 10 findings (6a, 1b, 1 retracted, 2d); full browser playthrough; UI-CAT-006 RETRACTED (CDN TransitionScreen used correctly); NEW HIGH: syncDOMState on #app not body (2nd confirmed instance); NEW MEDIUM: ProgressBar off-by-one on final round; restartGame() state reset PASS; flow fully functional end-to-end; no re-queue required
 **Waiting on:** none
+
+### Batch 4 — In Progress 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | count-and-tap | #551 | **full browser playthrough** 2026-03-23 — 0 P0s + 10 findings (1 retracted) | done |
+| 2 | associations | #472 | pending | next |
+| 3 | quadratic-formula-worked-example | #546 | already done Batch 2 | skip |
 
 ### Batch 2 — Completed 2026-03-23
 
@@ -48,6 +56,7 @@ addition-mcq
 
 | Date | Game | Build | Issues Found | Actions Taken |
 |------|------|-------|-------------|---------------|
+| 2026-03-23 | count-and-tap | #551 | **10 findings (6a, 1b, 1 retracted, 2d) — FULL BROWSER PLAYTHROUGH** | 0 P0s. CONFIRMED: CSS stripped (UI-CAT-001), buttons 21.5px height (UI-CAT-002), no aria-live (UI-CAT-003), isActive guard anti-pattern (UI-CAT-004). RETRACTED: UI-CAT-006 (CDN TransitionScreen used correctly — no custom #results-screen needed). NEW HIGH: syncDOMState targets #app not body (2nd confirmed instance after real-world-problem — data-phase/lives/round set on #app, body has null); NEW MEDIUM: ProgressBar off-by-one — renderRound(4) shows "4/5" at victory (endGame() never calls final progressBar.update(5, lives)); NEW LOW: wrong-answer CSS feedback invisible due to CSS strip. restartGame() state reset PASS (lives:3, round:0, score:0). All 5 rounds functional. Victory + out-of-lives + Try Again all functional. |
 | 2026-03-23 | stats-mode | spec-only | 3 issues (0 P0, 3 low) | No P0 blockers; all 12 critical gen rules PASS; GEN-WINDOW-EXPOSE (PASS); GEN-GAMEID (PASS); GEN-PHASE-001 (PASS); ARIA-001 (PASS); GEN-MOBILE-RESULTS (PASS); GEN-TOUCH-TARGET 52px (PASS); GEN-UX-003 slotId (PASS); FeedbackManager.init() absent (PASS); game_complete both paths (PASS); timer.destroy()+recreate (PASS); progressBar.setRound() (PASS); dual display mode toggle (PASS); F1: Sentry three-script absent (11th warehouse-gap, low); F2: window.gameState double-assign ambiguity (3rd instance of same low-risk pattern); F3: SignalCollector not in spec (GEN-UX-005 shipped, gen prompt handles it). Ready for first build. |
 | 2026-03-23 | stats-median | spec-only | 3 issues (1a-low, 0b, 0c, 2d-low) | No P0 blockers; FeedbackManager.init() absent (PASS); gameState.gameId first field (PASS); syncDOMState() full 4-phase machine (PASS); window.endGame/restartGame/loadQuestion assigned (PASS); ARIA aria-live="polite" + role="status" on answer-feedback (PASS); ProgressBar slotId 'mathai-progress-slot' (PASS); game_complete on both paths (PASS); results-screen position:fixed z-index:100 (PASS); option-btn min-height:52px (PASS); timer destroy+recreate in restartGame() (PASS); F1: SignalCollector not instantiated (low — GEN-UX-005 already shipped, gen prompt handles it); F2: Sentry three-script absent (10th instance, warehouse gap, low); F3: window.gameState double-assignment ambiguity (same as stats-mean-direct, low risk). Pre-build checklist: all PASS. |
 | 2026-03-23 | stats-mean-direct | spec-only | 2 issues (0a, 0b, 0c, 2d-low) | No P0 blockers; FeedbackManager.init() absent (PASS); gameState.gameId first field (PASS); syncDOMState() full 4-phase machine (PASS); window.endGame/restartGame/loadQuestion assigned (PASS); ARIA live region correct (PASS); ProgressBar slotId correct (PASS); game_complete on both paths (PASS); results-screen position:fixed z-index:100 (PASS); option-btn min-height:52px (PASS); timer destroy+recreate in restartGame() (PASS); F1: window.gameState double-assignment (module scope + DOMContentLoaded end — contradicts Anti-Pattern #2, spec clarification needed, low risk); F2: Sentry v10 three-script absent (9th instance, warehouse gap, low priority) |

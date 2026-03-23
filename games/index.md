@@ -14,7 +14,7 @@
 | [find-triangle-side](find-triangle-side/index.md) | Trig 4/5 | L3 Apply | ✅ Approved | #549 | 1 | ~28 min | ⚠️ 1 P0 + 11 findings (browser playthrough 2026-03-23) | Re-queue: restartGame() not reset (P0); Enter key missing; local asset path |
 | [real-world-problem](real-world-problem/index.md) | Trig 5/5 | L4 Analyze | ✅ Approved | #564 | 2 | ~32 min | ⚠️ 12 findings (browser 2026-03-23) | syncDOMState on #app not body (HIGH test gap); Play Again 41px; SignalCollector sealed on restart; SVG clip confirmed |
 | [associations](associations/index.md) | Standalone | TBD | ✅ Approved | #472 | 2 | ~29 min | ✅ 5 findings | — |
-| [count-and-tap](count-and-tap/index.md) | Standalone | L1 Remember | ✅ Approved | #551 | 2 | ~30 min | ⚠️ 7 findings | — |
+| [count-and-tap](count-and-tap/index.md) | Standalone | L1 Remember | ✅ Approved | #551 | 2 | ~30 min | ⚠️ 10 findings (browser 2026-03-23) | syncDOMState on #app not body (HIGH test gap); ProgressBar off-by-one on final round (MEDIUM); no re-queue (flow complete) |
 | [quadratic-formula-worked-example](quadratic-formula-worked-example/index.md) | Standalone | L2 Understand | ✅ Approved | #546 | 2 | ~38 min | ⚠️ P0+5 findings | Re-queue: GEN-UX-001+restartGame() reset |
 | [addition-mcq](addition-mcq/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [addition-mcq-blitz](addition-mcq-blitz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
@@ -24,7 +24,7 @@
 | [math-mcq-quiz](math-mcq-quiz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [mcq-addition-blitz](mcq-addition-blitz/index.md) | Standalone | TBD | TBD | — | — | — | ⚠️ 9 issues | Audited 2026-03-23 (6a 2b 1d) |
 
-*Updated: 2026-03-23 — adjustment-strategy RCA written: approved #385 (8.8% rate, CDN timeout+await gen rule failures); soh-cah-toa-worked-example browser playthrough complete: P0 results screen not position:fixed confirmed; UI-SC-007 (hide/show TypeError) retracted — hide() takes selector strings (correct). Statistics Session 2 all 4 specs written; real-world-problem #564 APPROVED; name-the-sides re-approved #562; which-ratio APPROVED #561. which-ratio #561 browser audit: 3 P0s found (BROWSER-P0-001 string-mode transitionScreen, BROWSER-P0-002 SVG icons, BROWSER-NEW-001 totalLives=0); gen rules GEN-TRANSITION-API/GEN-TRANSITION-ICONS/GEN-PROGRESSBAR-LIVES (rules 45/46/47) shipped commit c0d5391.*
+*Updated: 2026-03-23 — count-and-tap #551 full browser playthrough: 10 findings (1 retracted), 0 P0s, no re-queue; syncDOMState on #app not body (2nd instance, HIGH test gap); ProgressBar off-by-one on final round (MEDIUM). adjustment-strategy RCA written: approved #385 (8.8% rate, CDN timeout+await gen rule failures); soh-cah-toa-worked-example browser playthrough complete: P0 results screen not position:fixed confirmed; UI-SC-007 (hide/show TypeError) retracted — hide() takes selector strings (correct). Statistics Session 2 all 4 specs written; real-world-problem #564 APPROVED; name-the-sides re-approved #562; which-ratio APPROVED #561. which-ratio #561 browser audit: 3 P0s found (BROWSER-P0-001 string-mode transitionScreen, BROWSER-P0-002 SVG icons, BROWSER-NEW-001 totalLives=0); gen rules GEN-TRANSITION-API/GEN-TRANSITION-ICONS/GEN-PROGRESSBAR-LIVES (rules 45/46/47) shipped commit c0d5391.*
 
 ---
 
@@ -64,7 +64,7 @@
 | Game | Bloom | Status | Notes |
 |------|-------|--------|-------|
 | [associations](associations/index.md) | TBD | ✅ Approved | Unlimited-lives accuracy; emoji/name pairs |
-| [count-and-tap](count-and-tap/index.md) | L1 Remember | ✅ Approved | Subitizing / dot counting with timer |
+| [count-and-tap](count-and-tap/index.md) | L1 Remember | ✅ Approved | Subitizing / dot counting with timer; browser audit 2026-03-23: 10 findings (0 P0) |
 | [quadratic-formula-worked-example](quadratic-formula-worked-example/index.md) | L2 Understand | ✅ Approved | Worked-example-mcq; algebra |
 | [addition-mcq](addition-mcq/index.md) | TBD | TBD | Check DB for build history |
 | [addition-mcq-blitz](addition-mcq-blitz/index.md) | TBD | TBD | Check DB for build history |
