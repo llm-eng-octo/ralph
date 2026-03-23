@@ -18,9 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** soh-cah-toa-worked-example #544 — browser playthrough (was static-analysis-only in batch 2)
-**Last completed:** quadratic-formula-worked-example #546 — 2026-03-23 — P0 + 5 findings (browser-specific P0 not visible in static)
-**Next target:** soh-cah-toa-worked-example #544
+**Current task:** find-triangle-side #549 — browser playthrough (next in Batch 3)
+**Last completed:** which-ratio #561 — 2026-03-23 — 2 new P0s (victory screen blank + SVG icon text) + 1 new medium (ProgressBar RangeError) + 7 confirmed from static analysis; re-queue required
 **Waiting on:** none
 
 ### Batch 2 — Completed 2026-03-23
@@ -28,12 +27,20 @@ Track visual and interaction quality audits of generated games. Each entry recor
 | Priority | Game | Build ID | ui-ux.md state | Status |
 |----------|------|----------|----------------|--------|
 | 1 | quadratic-formula-worked-example | #546 | **full browser playthrough** 2026-03-23 | done |
-| 2 | soh-cah-toa-worked-example | #544 | audited (static analysis) 2026-03-23 | done |
+| 2 | soh-cah-toa-worked-example | #544 | **full browser playthrough** 2026-03-23 (upgraded from static) | done |
 | 3 | right-triangle-area | #543 | audited (static analysis) 2026-03-23 | done — games/ dir created |
 | 4 | word-pairs | #529 | audited (static analysis) 2026-03-23 | done |
 
+### Batch 3 — In Progress 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | which-ratio | #561 | **full browser playthrough** 2026-03-23 — 2 P0s + 8 issues | done — re-queue required |
+| 2 | find-triangle-side | #549 | static analysis done (⚠️ 10 findings) | pending |
+| 3 | real-world-problem | #564 | static analysis done (✅ 8 findings) | pending |
+
 **Stub inventory (ui-ux.md exists but unpopulated — pending future batches):**
-addition-mcq (next active target)
+addition-mcq
 
 ---
 
@@ -58,6 +65,7 @@ addition-mcq (next active target)
 | 2026-03-23 | real-world-problem | #564 | 8 issues (6a, 2b/d) | 44px 7th instance; results-fixed 7th instance; ProgressBar slotId 4th instance; SignalCollector no-args 2nd; alert() new rule; Enter-key new rule; 2 education/test handoffs |
 | 2026-03-23 | name-the-sides | #557 | 10 issues (5a, 3b, 2 low) | 5 gen prompt rules proposed; 3 spec additions documented; rebuild needed |
 | 2026-03-23 | which-ratio | #560 | 8 issues (4a, 2b, 2c) | 4 gen prompt rules proposed; 2 spec additions documented; 2 CDN constraints noted |
+| 2026-03-23 | which-ratio | #561 | **10 issues (5a, 2b, 1c, 2 NEW P0) — FULL BROWSER PLAYTHROUGH** | P0-A: `transitionScreen.show('victory',...)` not supported by CDN — victory screen blank, no Play Again. P0-B: SVG markup in `icons[]` HTML-escaped, start screen shows raw code. NEW medium: `totalLives:0` → ProgressBar RangeError ×5. Confirmed: we-btn 40.5px (<44px FAIL), aria-live absent, correct-feedback 1200ms. Re-queue required after gen prompt rule fixes. |
 | 2026-03-23 | which-ratio | #561 | 7 issues (4a, 2b, 1c) | CSS stripping resolved; 4 gen prompt rules confirmed pending in ROADMAP.md; 2 spec additions proposed; 1 CDN constraint unchanged |
 | 2026-03-23 | count-and-tap | #551 | 7 issues (4a, 1b, 2 low) | CSS strip CRITICAL confirmed; ARIA-001 extension proposed; 44px gap confirmed 3rd instance; dead-code guard new rule proposed; dot-warning spec addition; all handoffs routed |
 | 2026-03-23 | find-triangle-side | #549 | 10 issues (6a, 2b, 2 low) | Results static CRITICAL confirmed 2nd instance; 4 new gen rules added to ROADMAP (slot ID, local assets, SignalCollector args, results fixed); ARIA-001 coverage verified; all handoffs routed |
