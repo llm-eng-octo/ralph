@@ -516,7 +516,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-e92a6c5 DONE — GEN-WORKED-EXAMPLE-TEARDOWN + GEN-ISPROCESSING-RESET gen rules reviewed. 2 MEDs (false-negative coverage gaps for class-based and property-based disable patterns), 1 MED (GEN-ISPROCESSING-RESET/GEN-109 contradiction not addressed in prompt), 2 LOWs (missing WRONG/RIGHT examples in buildGenerationPrompt long-form rule; no test for `btn.disabled=true` bypass). No HIGH issues. |
+| Current task | CR-2797ca4 DONE — MED-1/2/3 fixes verified. All 3 regex fixes correct; 1282 tests pass. 1 residual MEDIUM: hasGotItHandler added `handleClose`/`hidePanel`/`onDismiss` are generic names — false-positive risk if non-worked-example modal code matches. 1 LOW: warning message text still says "no removeAttribute('disabled') found" — does not mention btn.disabled=false or classList.remove('disabled') alternatives; misleads fix loop. 1 LOW: hasWorkedExample trailing `worked-example` alt is redundant (covered by `worked[_-]?example`). No HIGH issues. |
 | Waiting on | none |
 | Blocked by | none |
 
