@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-088-A: global fix loop (Step 3c) has no T1 regression guard — per-batch guard catches position:fixed stripping but global fix loop bypasses it. Adding runStaticValidationLocal() check in global fix loop (lines ~1760–1779 pipeline-fix-loop.js). Next: implement + test + deploy. |
-| Status | 1198/1198 tests pass. GEN-SHOWRESULTS-SYNC DONE (f7a16b1). GEN-PHASE-SEQUENCE DONE (171a5d3). GEN-FIX-POSITION-GUARD DONE (deployed, active after 07:00 restart). GEN-ROUND-INDEX VERIFIED (#573 APPROVED). hide-unhide #461 audit done (0 P0, 6 MEDIUM). |
-| Waiting on | stats-mean-direct #575 (verifying GEN-FIX-POSITION-GUARD stops T1 regressions) |
+| Current task | Identify next highest-priority unresolved pattern from analytics: scoring (6 unresolved) — verify GF-EXACT is in place (CONFIRMED — already at prompts.js:2668), rendering (5) — check rendering patterns for root cause. |
+| Status | 1206/1206 tests pass. GEN-ISACTIVE-GUARD DONE (1a4a803, deployed). CR-079 GF-EXACT DONE (already present). GEN-SYNCDOMSTATE-ALLATTRS DONE. CT-NEW-1 DONE. CR-088-A DONE. GEN-SHOWRESULTS-SYNC DONE. All files deployed to server. |
+| Waiting on | #577 result (associations old HTML — fresh re-queue after complete); stats-mean-direct diagnosis |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
@@ -516,8 +516,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-088 DONE (ac077cf) — pipeline-fix-loop.js reviewed. MEDIUM: global fix loop (Step 3c lines ~1760-1779) has NO T1 regression guard (only per-batch loop is protected). LOW: null bestHtmlSnapshot rollback is safe via continue guard. Routed CR-088-A to Gen Quality. Next: review validate-static.js GEN-SHOWRESULTS-SYNC implementation for edge cases (arrow functions, class methods). |
-| Waiting on | none |
+| Current task | CR-089 COMPLETE — see log. Next: CR-090 sweep of lib/pipeline.js for CDN domain fix call sites. |
+| Waiting on | nothing |
 | Blocked by | none |
 
 **Log:**
@@ -541,6 +541,7 @@
 | 2026-03-23 | lib/mcp.js | **CR-083 [PASS] — register_spec gameId traversal resistance PASS.** Regex `/^[a-zA-Z0-9-]+$/` rejects: `../etc/passwd` (dot), `foo/bar` (slash), `foo\bar` (backslash), `%2e%2e%2f` (percent), empty string (anchored `+`). All known traversal vectors blocked at validation. | — |
 | 2026-03-23 | lib/mcp.js | **CR-084 [PASS] — register_spec Slack failure non-fatal PASS.** Slack notify wrapped in standalone try/catch (lines 352–358). Slack outage cannot block spec registration. | — |
 | 2026-03-23 | lib/mcp.js | **CR-085 [PASS] — readWarehouseFile path traversal guard PASS.** `path.resolve()` + `startsWith(path.resolve(warehouseDir))` applied before every read (lines 40–42). All resource handlers route through this helper. | — |
+| 2026-03-23 | lib/validate-static.js + test/validate-static.test.js | **CR-089 [ALL-PASS / 3 WARNs] — GEN-SHOWRESULTS-SYNC edge case review.** Reviewed all function-definition forms against the regex at line 1812–1813. **PASS:** (1) `function showResults() {}` — matched correctly. (2) `async function showResults() {}` — matched (regex finds `function showResults` as substring, `async` prefix before it is not part of the pattern so it is correctly skipped). (3) `const showResults = () => {}` (arrow, no params) — matched. (4) `const showResults = (x) => {}` (arrow with params) — matched. (5) `window.showResults = function() {}` — matched. (6) Nested callback: `syncDOMState()` inside `setTimeout(function(){...})` inside showResults — correctly treated as present (no false positive). (7) No `showResults` function at all — correctly silent. (8) Tests cover all 3 existing cases (warn, no-warn, no-function). **WARN-1: `const showResults = async () => {}` — FALSE NEGATIVE.** The regex expects `\([^)]*\)\s*=>` immediately after `showResults\s*=\s*`, so the `async` keyword between `=` and `()` breaks the match. Result: async arrow form is silently skipped — GEN-SHOWRESULTS-SYNC never fires. Risk assessment: LOW. The prompts.js GEN-SHOWRESULTS-SYNC rule and all 8+ WRONG/RIGHT examples exclusively use `function showResults()` syntax. LLMs follow the examples; async arrow showResults has not appeared in any approved build. No code change needed. **WARN-2: delegated-sync false positive.** If showResults() calls a helper function (e.g. `doSync()`) that in turn calls `syncDOMState()`, the check warns (no `syncDOMState` in the literal body). This IS a valid false positive — the phase IS synced indirectly. Risk: LOW. Prompts mandate direct `syncDOMState()` inside showResults(); no approved build uses delegated sync. Acceptable as design intent aligns with the warning. **WARN-3: un-indented inner `}` causes premature body termination.** The lazy `{0,1500}?` + lookahead `\n\}` terminates at the FIRST column-0 `}`. If an inner if-block has its closing `}` at column 0 (no indent), and `syncDOMState()` comes after it, the body capture cuts short and the check false-positives. Risk: THEORETICAL ONLY. All LLM-generated code uses 2-space indent; inner braces are always at 2+ spaces indent, so `\n}` (newline+zero-indent-brace) is only the function's own closing `}`. No real game has column-0 inner braces. No code change needed. **Rule/check alignment PASS:** `prompts.js` GEN-SHOWRESULTS-SYNC entry (line 359) describes `function showResults()` and `showResults = function()` patterns — precisely the patterns the T1 check detects. Rule language and T1 check are in sync. **No tests to add** — existing 3 tests cover all realistic cases; async arrow and un-indented-brace edge cases are theoretical and not worth testing against imaginary LLM output. | — |
 | 2026-03-23 | lib/prompts.js | **CR-078 [PASS] — GEN-PHASE-ALL PASS:** Rule 43 is clearly scoped ("ALL game types: MCQ, drag-and-drop, card-matching, card-flip, puzzle, canvas, shell/cup, multi-step, text-input, worked-example — any interactive game type without exception"). WRONG examples cover both drag-and-drop and card-matching. RIGHT pattern is minimal and correct. Appears in all 3 locations (numbered list rule 43, CDN_CONSTRAINTS_BLOCK inline, buildCliGenPrompt inline). Pass. | — |
 | 2026-03-23 | lib/pipeline-fix-loop.js + lib/prompts.js | **CR-079 [HIGH] — GF-EXACT gap: game-flow category generates exact-value toBe() assertions for score/lives/round with no rule or fix-loop mechanism to detect or correct them.** Three distinct failures confirmed: (1) `buildTestGenCategoryPrompt` game-flow section (GF1–GF-NEW-3, lines 2282–2416) has no GF-EXACT rule. R4 bans `toHaveText()` with hardcoded content but does NOT cover `expect.poll(() => getScore()).toBe(100)` — exact numeric value assertions. M5 (mechanics only, line 2138) says "use toBeGreaterThan(0) not toBe(exact_value)" but this rule is gated behind `category === 'mechanics'` — game-flow tests receive no equivalent guidance. (2) `buildTriagePrompt` KNOWN TEST BUGS list (lines 2638–2644) has no entry for "Expected N, Received M" numeric mismatch — triage LLM defaults to `fix_html` and burns 3 fix iterations trying to fix scoring logic that isn't actually broken. (3) `LESSON_PATTERNS` in pipeline-fix-loop.js (lines 301–392) has no pattern matching `Expected.*\d+.*Received.*\d+` — getMatchingLessons() returns empty for score/lives assertion failures, so the fix prompt gets no anti-exact-value hint. Combined effect: the LLM generates `expect.poll(() => getScore(page)).toBe(100)` in game-flow tests → game uses different scoring → triage says fix_html → 3 fix iterations change game logic → score now equals 100 but round/lives flow is broken → net regression. Root cause is the rules gap in game-flow category, not a fix-loop code bug. | Gen Quality: add GF-EXACT rule to buildTestGenCategoryPrompt game-flow section; add skip_test trigger for numeric mismatch to buildTriagePrompt; add LESSON_PATTERN entry. |
 | 2026-03-23 | worker.js | **CR-056 [HIGH] CONFIRMED ALREADY FIXED** — GCP upload after `db.completeBuild()` in both `handleJob` (line 1192) and `handleFixJob` (line 272) is wrapped in `try { } catch (gcpErr) { logger.warn(...) }`. Comments reference CR-056. APPROVED builds cannot flip to FAILED on GCP credential expiry. No action needed. | — |
@@ -610,8 +611,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Worker restarted (07:00). All fixes active: GEN-FIX-POSITION-GUARD + GEN-SHOWRESULTS-SYNC + GEN-TE-001 + GEN-ROUND-INDEX. stats-mean-direct #575 queued. Next verify: #575 outcome confirms GEN-FIX-POSITION-GUARD prevents T1 regressions in fix loop. |
-| Waiting on | stats-mean-direct #575 result |
+| Current task | #578 associations fresh generation running — first build with GEN-ISACTIVE-GUARD + GEN-SYNCDOMSTATE-ALLATTRS + CT-NEW-1 + GEN-SHOWRESULTS-SYNC all active. Warehouse HTML deleted, worker restarted. Verifying P0 restartGame() crash is fixed. |
+| Waiting on | #578 result |
 | Blocked by | none |
 
 **Verification log:**
@@ -646,9 +647,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | stats-identify-class #573 + stats-mean-direct #574 both running (Session 2 Game 1 + 2). Monitoring both builds. Next game to queue: stats-mode (Session 2 Game 4) after #574 result known. |
-| Status | All 5 stats specs written (stats-identify-class, stats-which-measure, stats-mode, stats-mean-direct, stats-median). Session 2 candidate doc written. Interaction Pattern Library done. stats-identify-class #573 + stats-mean-direct #574 both actively building. |
-| Waiting on | #573 + #574 outcomes |
+| Current task | Diagnosing stats-mean-direct #575 failure — agent running. Will re-queue after diagnosis + spec/rule fix confirmed. stats-identify-class #573 UI/UX browser playthrough agent running (build approved, spec-only audit needs replacing). |
+| Status | stats-identify-class #573 APPROVED (iter=0). stats-mean-direct #575 FAILED (2020s, iter=2) — JS startup error, options not rendering. Models reverted to Gemini (Claude OAuth expired). |
+| Waiting on | stats-mean-direct diagnosis agent; stats-identify-class UI/UX audit agent |
 | Blocked by | nothing |
 
 | Task | Status | Notes |
@@ -669,6 +670,10 @@
 ---
 
 ## Analytics — Last Run
+
+**ANALYTICS UPDATE (2026-03-23 session-6 — #577 associations running):** 523 total builds, 96 approved. Never-approved: stats-mean-direct (diagnosis agent running), addition-mcq (spec issues). Top unresolved failure patterns: **scoring 6** ← HIGHEST (CR-079 GF-EXACT directly targets this), **rendering 5**, messaging 3, timing 2. 34 distinct game_ids approved at iter=0. Routing: Gen Quality → scoring/rendering (CR-079 in flight); Test Engineering → timing (CDN stall); Education → stats-mean-direct re-queue after diagnosis; UI/UX → stats-identify-class #573 browser playthrough.
+
+---
 
 **ANALYTICS UPDATE (2026-03-23 session-5 — builds #573/#574 running):** Total 549 completed builds. First-attempt rate 8.2% (45/549). Failure patterns: rendering 86% resolve (5 unresolved), messaging 56% (4 unresolved), scoring 75% (4 unresolved), timing 86% (1). Top 5 unresolved: all contract.spec.js — postMessage payload undefined (matching-doubles), "Okay!" timeout (count-and-tap ×2), #mathai-transition-slot button missing (associations ×2). Never-approved: stats-identify-class (building #573), stats-mean-direct (building #574), addition-mcq (rejected #572, spec needs sync). Routing: Gen Quality → rendering #mathai-transition-slot + messaging postMessage; Test Engineering → scoring low-score path diagnosis; UI/UX → associations (19 builds, 2 patterns); Education → addition-mcq spec sync.
 ---

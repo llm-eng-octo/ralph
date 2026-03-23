@@ -18,10 +18,28 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** hide-unhide #461 (next game without ui-ux.md). keep-track #571 complete: 0 P0 + 2 HIGH + 3 MEDIUM + 2 LOW + 2 CDN. GEN-TS-ONEARG CONFIRMED FIXED. Key findings: GEN-INTERACTIVE-DIV-ROLE cups still DIVs (no role/tabindex/aria-label); ARIA-001 no aria-live (26th+ instance); results-screen missing data-testid="results-screen"; data-phase not updated to "results" in showResults() (syncDOMState() not called); btn-restart 43px (1px under 44px min). No re-queue required.
-**Last completed:** keep-track #571 — 2026-03-23 — 0 P0 + 2 HIGH + 3 MEDIUM + 2 LOW; full browser playthrough (Playwright MCP 375×812px); GEN-TS-ONEARG CONFIRMED FIXED — TransitionScreen.show() uses single-object arg, start screen renders immediately; HIGH: GEN-INTERACTIVE-DIV-ROLE cups still DIVs (no role/tabindex/aria-label), ARIA-001 no aria-live (26th+); MEDIUM: results-screen missing data-testid="results-screen", data-phase not updated to "results" after endGame (showResults() missing syncDOMState()), btn-restart 43px height; LOW: FeedbackManager subtitle CDN warning, loading.json 404s; PASS: CDN packages 0 errors, gameId='game_keep_track', window.endGame/restartGame/nextRound exposed, syncDOMState targets #app, data-phase/lives/round/score updating, progress bar, option-0..2 testids, btn-restart testid, results-screen position:fixed, game_complete postMessage correct, timer color fixed, 0 console errors; NO RE-QUEUE REQUIRED.
+**Current task:** stats-identify-class #573 — full browser playthrough (spec-only audit needs replacing now that build is APPROVED). Agent running 2026-03-23.
+**Last completed:** visual-memory #528 — 2026-03-23 — 1 P0 + 2 HIGH + 4 MEDIUM + 3 LOW + 1 CDN; full browser playthrough (Playwright MCP 375×812px); all 5 rounds played through; P0: endGame guard `(!isActive && lives>0)` blocks results screen on all-correct path (game frozen, gameEnded=false, 0 postMessages); HIGH: grid cells missing role/tabindex/aria-label (GEN-INTERACTIVE-DIV-ROLE), no aria-live regions (ARIA-001); MEDIUM: results-screen missing data-testid, position:static not fixed, syncDOMState only writes data-phase, transition buttons missing data-testid; LOW: waitForPackages 10s timeout, gameId not set, progress bar lags 1 round; RE-QUEUE REQUIRED.
 **stats-which-measure postMessage:** VERIFIED 2026-03-23 — has events/duration/attempts all present. Cross-consistency fix applied to 4 other stats specs (stats-identify-class, stats-mean-direct, stats-median, stats-mode) — all were missing `events: gameState.events`; added to both impl call and Section 8 doc block.
 **Waiting on:** —
+
+### Batch 18 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | visual-memory | #528 | **full browser playthrough** 2026-03-23 — 1 P0 + 2 HIGH + 4 MEDIUM + 3 LOW + 1 CDN | RE-QUEUE REQUIRED — endGame guard blocks results screen on perfect playthrough (gameState.isActive=false guard misfires) |
+
+### Batch 17 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | associations | #513 | **full browser playthrough** 2026-03-23 — 1 P0 + 4 MEDIUM + 2 LOW | RE-QUEUE REQUIRED — white screen on Play Again (TypeError in transition-screen/index.js:297) |
+
+### Batch 16 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | hide-unhide | #461 | **full browser playthrough** 2026-03-23 — 0 P0 + 6 MEDIUM + 2 LOW + 1 CDN | done — no re-queue required; 5/5 rounds + Play Again PASS |
 
 ### Batch 15 — Completed 2026-03-23
 

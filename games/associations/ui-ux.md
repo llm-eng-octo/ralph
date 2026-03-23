@@ -1,152 +1,155 @@
 # associations — UI/UX Audit
 
-**Build audited:** #472
+**Build audited:** #513 (latest approved)
 **Audit date:** 2026-03-23
 **Auditor:** UI/UX Slot (full browser playthrough)
-**HTML URL:** https://storage.googleapis.com/mathai-temp-assets/games/associations/builds/472/index.html
-**Previous audit:** #513 static HTML analysis (2026-03-23) — 5 findings (4a, 0b, 0c, 1d)
+**HTML URL:** https://storage.googleapis.com/mathai-temp-assets/games/associations/builds/513/index.html
+**Previous audit:** #472 full browser playthrough (2026-03-23) — 1 P0 (state not reset on restart) + 4 MEDIUM + 2 LOW
 
 ---
 
 ## Summary
 
-1 P0 (restartGame() state not reset), 0 HIGH, 4 MEDIUM, 2 LOW findings confirmed via full browser playthrough. All 3 rounds completable end-to-end. Restart shows start screen but game state is NOT reset (P0). Timer error fires throughout gameplay. Total: **7 findings — 5(a), 0(b), 0(c), 2(d)**.
+**1 P0 (white screen on restart — TypeError in transitionScreen.show()), 0 HIGH, 4 MEDIUM, 2 LOW.**
 
-**Issue count:** 7 total — 5a gen rule, 0b spec, 0c CDN constraint, 2d test gap
+Build #513 completes all 3 rounds end-to-end without issue. However clicking "Play Again" crashes with `Cannot set properties of null (setting 'innerHTML')` and leaves the page completely blank — the game is not restartable. This is a regression from #472, which at least showed the start screen on restart (though state was not reset).
+
+Total: **7 findings — 5(a), 0(b), 0(c), 2(d)**
 
 ---
 
-## Checklist Results (Browser Playthrough)
+## Checklist Results (Browser Playthrough — 375×812px Playwright MCP)
 
 | Check | Result | Notes |
 |-------|--------|-------|
-| CDN packages load | PASS | All packages load, ScreenLayout injected correctly |
-| `waitForPackages()` timeout | FAIL — UI-ASC-007 | 10000ms (10s) — should be 120000ms per GEN-CDN-TIMEOUT |
-| Start screen renders | PASS | TransitionScreen shows with object API: icons, title, subtitle, button |
-| `data-phase` on `body` | FAIL — UI-ASC-001 | `body` has no `data-phase`. Only `#app` has `data-phase`. Confirmed LP-4 pattern. |
-| `data-phase` on `#app` | PASS | Set correctly at all phase transitions (start, learn, recall, transition, results) |
-| `syncDOMState()` sets `data-lives` | FAIL — UI-ASC-001 | syncDOMState() only sets `data-phase` on `#app`, nothing else |
-| `transitionScreen.show()` API | PASS | Object API used throughout — `{icons, title, subtitle, buttons}` |
-| All 3 rounds reachable | PASS | Round 1 → Round 2 → Round 3 all functional |
-| Learn phase (emoji + name display) | PASS | Pair 1 of N shown correctly with timer counting up |
-| Recall phase (MCQ buttons) | PASS | 4 choice buttons, emoji shown, "Who is this?" prompt |
-| Wrong answer visual feedback | PARTIAL | Border color change visible on `.wrong` class, but no text feedback, no aria-live |
-| Progress bar updates | PASS | "0/3" → "1/3" → "2/3" → "3/3" correctly at each round completion |
-| Results screen reaches | PASS | "Game Complete!" with score, accuracy, time, Play Again |
-| Results screen `position:fixed` | FAIL — UI-ASC-004 | `position: static`, `top: 64px` — does NOT cover viewport |
-| Play Again button | PASS | 47.5px height — passes 44px minimum |
-| `choice-btn` height | PASS | 51px measured — passes 44px via padding (14px top+bottom) |
-| `restartGame()` resets state | FAIL — P0 UI-ASC-P0-001 | `currentRound=3`, `score=5` retained after Play Again. NOT reset. |
-| `restartGame()` shows start screen | PASS | TransitionScreen start screen shown correctly via object API |
-| `aria-live` region present | FAIL — UI-ASC-003 | No `aria-live` in inline script or DOM. Zero text feedback on answers. |
-| `gameState.gameId` field | FAIL — UI-ASC-005 | `gameState` has no `gameId` field; templateId always resolves to null |
-| ProgressBar `slotId` key | FAIL — UI-ASC-002 | `new ProgressBarComponent({ totalRounds: 3, totalLives: 0 })` — no slotId |
-| `progressBar.update()` 2nd arg | PASS | `progressBar.update(currentRound, 0)` — second arg is 0 (lives); correct for unlimited-lives |
-| Console errors (non-audio) | FAIL — UI-ASC-006 | `timer.getTime is not a function` fires on every answer click (~20+ times per game) |
-| Sentry SDK v10.23.0 | PASS | v10.23.0 three-script pattern present |
-| SignalCollector constructor args | PASS | sessionId, studentId, templateId all passed |
-| FeedbackManager.init() absent | PASS | Not called anywhere |
-| alert()/confirm()/prompt() absent | PASS | None present |
-| window.endGame assigned | PASS | `window.endGame = endGame;` present |
+| CDN packages load | PASS | All 9 packages load; ScreenLayout injected; 0 CDN load errors |
+| Zero network 404s | PASS | All audio and asset requests return 200 |
+| `window.gameState.gameId` set | FAIL — UI-ASC-005 | `gameState` has no `gameId` field; always `undefined` |
+| `window.endGame` exposed | PASS | Assigned at bottom of script |
+| `window.restartGame` exposed | PASS | Assigned at bottom of script |
+| `window.nextRound` exposed | PASS | Assigned at bottom of script |
+| `window.syncDOMState` exposed | PASS | Present; correctly targets `#app` (not `body`) |
+| `syncDOMState()` targets `#app` | PASS | Sets `#app[data-phase]` — no LP-4 violation |
+| `data-phase` transitions | PASS | `start` → `learn` → `recall` → `transition` → `results` all correct |
+| `data-round` updates | PASS | Increments 0→1→2→3 at round transitions |
+| `data-score` updates | PASS | Increments correctly throughout |
+| `data-testid="option-N"` on choice buttons | PASS | `option-0` through `option-3` present during recall |
+| `data-testid="btn-restart"` | PASS | Present on Play Again button |
+| `data-testid="results-screen"` | FAIL — UI-ASC-004 | No `data-testid="results-screen"` on results wrapper; uses class `.game-block` only |
+| `data-testid="stars-display"` | PASS | Present and populated with star text |
+| `data-testid="score-display"` | PASS | Present and shows `12/12` |
+| `aria-live` region present | FAIL — UI-ASC-003 | Zero `aria-live` regions anywhere in DOM |
+| Results screen `position:fixed` | FAIL — UI-ASC-002 | `position: static` on results wrapper (GEN-UX-001 violation) |
+| Touch targets ≥44px (choice buttons) | PASS | 145×51px — passes minimum |
+| Touch targets ≥44px (btn-restart) | BORDERLINE | 143×43px — 1px below 44px minimum |
+| All 3 rounds completable | PASS | Round 1 (3 pairs), Round 2 (4 pairs), Round 3 (5 pairs) all completed |
+| Results screen reachable | PASS | "Game Complete!" with 3-star rating, score 12/12, 100% accuracy |
+| Restart / Play Again | FAIL — P0 UI-ASC-P0-001 | TypeError crash → white screen on restart |
+| Console errors (non-audio) | FAIL — UI-ASC-006 | `timer.getTime is not a function` fires 20+ times throughout gameplay |
 
 ---
 
-## Findings
+## Issues
 
-### [P0] UI-ASC-P0-001 — restartGame() does not reset gameState (same pattern as find-triangle-side)
+### [P0] UI-ASC-P0-001 — White screen crash on Play Again (regression from #472)
 
-- **Observed:** After completing all 3 rounds and clicking "Play Again", the start screen is shown via TransitionScreen (correct). However `window.gameState.currentRound = 3` and `window.gameState.score = 5` are retained. The `data-round` attribute on `#app` still shows `"3"`. The DOM `data-round` never changes from the final round value.
-- **Code evidence:** `restartGame()` hides the results screen, re-initializes SignalCollector, then calls `transitionScreen.show(...)` to show the start screen. It contains no `gameState.currentRound = 0`, `gameState.score = 0`, or `gameState.correctCount = 0` assignments.
-- **Impact:** If the player starts a second game, `currentRound` starts at 3, which immediately triggers `endGame()` after the first answer (since `currentRound >= totalRounds` evaluates true). Game is broken on replay.
-- **Classification:** (a) gen prompt rule — restartGame() must reset all mutable gameState fields
-- **Action:** This is the **3rd confirmed instance** of this pattern (find-triangle-side #549 was 2nd). A gen rule already exists in ROADMAP. Verify GEN-RESTART-RESET is in the prompt and covers all mutable fields: `currentRound`, `score`, `correctCount`, `attempts`, `events`, `startTime`, `gameEnded`, `isActive`, `isProcessing`.
-
----
-
-### [MEDIUM] UI-ASC-001 — syncDOMState() only sets data-phase on #app, not body; no data-lives/data-round
-
-- **Observed:** `document.body.getAttribute('data-phase')` returns `null` at all phases. `#app` correctly has `data-phase` set. `syncDOMState()` implementation: `app.setAttribute('data-phase', window.gameState.phase)` — one line only, no `data-lives`, `data-round`, or `data-score`.
-- **Classification:** (a) gen prompt rule + (d) test gap — confirmed LP-4 pattern (2nd after count-and-tap, real-world-problem)
-- **Action:** Any Playwright test asserting `body[data-phase]` will always fail. Test Engineering must target `#app[data-phase]` not `body[data-phase]`. No new gen rule needed (already in ROADMAP from count-and-tap audit). Route to Test Engineering: update test selectors for associations-specific tests.
+- **Observed:** Clicking "Play Again" on the results screen triggers an uncaught `TypeError: Cannot set properties of null (setting 'innerHTML')` in `transition-screen/index.js:297`. Page goes completely white. `#app` shows `data-phase="start_screen"` in DOM but content div has `display: none`. Game is entirely broken after first play.
+- **Code evidence:** `restartGame()` calls `await transitionScreen.show(...)`. By the time `endGame()` runs, the CDN destroys ProgressBar and VisibilityTracker (`[ProgressBar] Destroyed`, `VisibilityTracker: Destroyed` in console). The transition slot element appears to be null at that point, so `transitionScreen.show()` crashes setting innerHTML.
+- **Regression vs #472:** Build #472 had restartGame() show the start screen but not reset state. Build #513 now crashes entirely on the `transitionScreen.show()` call.
+- **Impact:** First play completes, but Play Again is fully broken — the game cannot be replayed. P0.
+- **Classification:** (a) gen prompt rule — restartGame() must re-initialize destroyed CDN components before calling transitionScreen.show(), or avoid calling transitionScreen for restart (go directly to the start screen)
+- **Action:** REQUIRES RE-QUEUE. Re-queue build for associations to fix restartGame().
 
 ---
 
-### [MEDIUM] UI-ASC-002 — ProgressBarComponent missing slotId key
+### [MEDIUM] UI-ASC-002 — Results screen position:static; no data-testid="results-screen"
 
-- **Observed:** `new ProgressBarComponent({ totalRounds: 3, totalLives: 0 })` — no `slotId: 'mathai-progress-slot'` key.
+- **Observed:** The results wrapper div has class `game-block` and `position: static`. No `data-testid="results-screen"` attribute. Results card is not a fixed overlay — it scrolls with content.
 - **Classification:** (a) gen prompt rule
-- **Action:** No new rule needed — GEN-UX-003 already addresses this. This is the **8th confirmed instance**. Increment instance count. Next build should fix if GEN-UX-003 is active.
+- **Action:** GEN-UX-001 requires `position: fixed; top: 0; left: 0; width: 100%; height: 100%`. This is the 11th confirmed instance. Also missing `data-testid="results-screen"` — any test targeting this testid will fail with element not found.
 
 ---
 
-### [MEDIUM] UI-ASC-003 — No aria-live region; wrong/correct feedback is CSS-only
+### [MEDIUM] UI-ASC-003 — No aria-live region; answer feedback is CSS-only
 
-- **Observed:** No `aria-live` element in the DOM or inline scripts. When a choice button is clicked, only CSS classes (`.correct`, `.wrong`) are applied — no text is announced. Wrong answer shows a blue border highlight only. Correct answer shows a green border only. Screen reader users get zero feedback.
+- **Observed:** Zero `aria-live` elements in DOM at any phase. When a choice button is clicked, only CSS classes (`.correct`/`.wrong`) change — no text announcement. Screen reader users get no feedback.
 - **Classification:** (a) gen prompt rule
-- **Action:** No new rule needed — ARIA-001 already shipped. This is the **13th confirmed instance**. The game specifically needs a `<div id="feedback-msg" aria-live="polite" role="status"></div>` element populated with "Correct!" or "That was [name]!" on each answer.
+- **Action:** ARIA-001 already shipped. This is the 14th confirmed instance. Route to Gen Quality to verify rule coverage.
 
 ---
 
-### [MEDIUM] UI-ASC-004 — Results screen not position:fixed overlay
+### [MEDIUM] UI-ASC-005 — gameState.gameId not set; templateId always null
 
-- **Observed:** `#results-screen` has `position: static`, `top: 64px` from viewport top. `display: flex` is set by `style.display = 'flex'` in JavaScript (not CSS data-phase rule). The results card is visible but does NOT cover the full viewport — scroll required on small screens.
+- **Observed:** `window.gameState` has no `gameId` key. Both `SignalCollector` instantiations use `templateId: window.gameState.gameId || null` — always `null`. Confirmed: `window.gameState.gameId === undefined` at runtime.
 - **Classification:** (a) gen prompt rule
-- **Action:** No new rule needed — GEN-UX-001 already ships. This is the **10th confirmed instance** in live builds.
+- **Action:** GEN-GAMEID already shipped. This is the 5th confirmed live-build instance. Route to Gen Quality.
 
 ---
 
-### [LOW] UI-ASC-005 — gameState.gameId absent; templateId always null
+### [MEDIUM] UI-ASC-006 — btn-restart height is 43px (1px below 44px minimum)
 
-- **Observed:** `window.gameState` has no `gameId` field. Both SignalCollector instantiations use `templateId: window.gameState.gameId || null` which always resolves to `null`. Confirmed at runtime: `gameState.gameId` is `undefined`.
+- **Observed:** `data-testid="btn-restart"` (Play Again button) measures 143×43px at 375px viewport width. One pixel below the WCAG 44px touch target minimum.
 - **Classification:** (a) gen prompt rule
-- **Action:** No new rule needed — GEN-GAMEID already shipped. This is the **4th confirmed instance** in a live build (build #472). Analytics data for this game is entirely unattributable.
+- **Action:** Gen rule should ensure `min-height: 48px` on `.game-btn.btn-primary`. Minor but measurable violation.
 
 ---
 
-### [LOW] UI-ASC-006 — timer.getTime is not a function — repeating error throughout gameplay
+### [LOW] UI-ASC-007 — timer.getTime is not a function (repeating error)
 
-- **Observed:** `{"error":"Signal Error","details":"timer.getTime is not a function"}` fires on every answer click and at regular intervals — ~20+ times in a single game session. The error is caught and logged but does not crash the game. The `timer` object exposed to the CDN's audio kit apparently lacks a `getTime()` method.
+- **Observed:** `{"error":"Signal Error","details":"timer.getTime is not a function"}` fires 20+ times during gameplay — once per answer click and at intervals. Caught and logged; does not crash the game but pollutes console and masks real errors.
 - **Classification:** (d) test gap — should be caught by a Playwright assertion checking for non-audio console errors
-- **Action:** Route to Test Engineering: add a Playwright assertion that no console errors besides `[FeedbackManager]` audio 404s appear after each answer click. This recurring error is masking real issues.
+- **Action:** Route to Test Engineering: add assertion that no non-audio console errors appear after each answer click in the standard test template.
 
 ---
 
-### [LOW] UI-ASC-007 — waitForPackages timeout is 10000ms (10s), not 120000ms
+### [LOW] UI-ASC-008 — FeedbackManager subtitle component missing warning
 
-- **Observed:** `const timeout = 10000;` in the `waitForPackages()` loop. If CDN packages take more than 10s to load (network congestion, cold start), the game throws "Packages failed to load" and shows a blank screen.
-- **Classification:** (a) gen prompt rule
-- **Action:** GEN-CDN-TIMEOUT rule requires 120000ms. This is the **Nth confirmed instance** of the 10s timeout. Verify the rule is shipping correctly.
+- **Observed:** `[WARNING] [FeedbackManager] Subtitle component not found` on every audio play event (11+ warnings per game session). FeedbackManager is initialised without a subtitle component reference.
+- **Classification:** (c) CDN constraint — FeedbackManager requires SubtitleComponent to be registered before audio playback
+- **Action:** Document only. CDN requires SubtitleComponent instantiation before FeedbackManager plays audio. Gen prompt should include `new SubtitleComponent(...)` call. Verify whether GEN-FEEDBACK-SUBTITLE rule exists.
 
 ---
 
-## Positive Observations
+## Passing Checks
 
-- CDN packages all load successfully (all 9 components present)
-- TransitionScreen used with object API throughout — no string mode (PASS)
-- All 3 rounds functional and completable end-to-end
-- Progress bar text updates correctly: 0/3 → 1/3 → 2/3 → 3/3
-- Round transition screen uses TransitionScreen CDN (not custom HTML) — correct
-- FeedbackManager audio plays on every answer, guarded correctly (no crash on 404)
+- CDN packages (9 components) all load — 0 CDN errors
+- Zero network 404s — all audio and asset requests return 200
+- All 3 rounds (3-pair, 4-pair, 5-pair) complete correctly end-to-end
+- Progress bar updates correctly: 0/3 → 1/3 → 2/3 → 3/3
+- TransitionScreen used with correct object API `{icons, title, subtitle, buttons}` throughout
+- `data-phase` transitions correctly: `start` → `learn` → `recall` → `transition` → `results`
+- `syncDOMState()` correctly targets `#app` (not `body`)
+- Choice buttons use `data-testid="option-0"` through `option-3`
+- `data-testid="btn-restart"`, `stars-display`, `score-display` all present on results screen
+- FeedbackManager audio (correct/incorrect/amazing feedback) plays on every answer
 - Timer pause/resume on audio playback working correctly
-- Play Again button 47.5px — passes 44px minimum
-- choice-btn 51px rendered height — passes 44px (via 14px top+bottom padding)
+- `window.endGame`, `window.restartGame`, `window.nextRound` all exposed correctly
 - Sentry SDK v10.23.0 three-script pattern present
-- SignalCollector constructor args all passed (sessionId, studentId, templateId)
-- FeedbackManager.init() correctly absent
-- No alert()/confirm()/prompt() calls
-- window.endGame properly assigned
+- No `alert()`, `confirm()`, or `prompt()` calls
+- `FeedbackManager.init()` correctly absent
 
 ---
 
-## Routing
+## Flow Observations
+
+- Start screen: TransitionScreen with brain emoji, "Associations" title, "Remember the faces!" subtitle, "Let's go!" button. Clean layout.
+- Learn phase: Face emoji + name + "Pair N of M" counter. Timer counts up. Pairs auto-advance after `exposureDuration` ms (3000/2500/2000ms decreasing across rounds — good difficulty progression).
+- Recall phase: Face emoji shown, "Who is this?", 4 MCQ choice buttons (2×2 grid). Timer continues counting. Includes 1 distractor per round. Answer advances immediately on click.
+- Transition screen: Between rounds, TransitionScreen CDN shows "Round N" heading + "Start Round" button. Clean.
+- Results screen: "Game Complete!" with star rating, score/time/correct/total/accuracy grid, "Play Again" button. The stats table is clear and informative. However white-screen crash on Play Again.
+
+---
+
+## Routing Summary
 
 | Finding | Severity | Slot | Action |
 |---------|----------|------|--------|
-| UI-ASC-P0-001 — restartGame() no state reset | P0 | Gen Quality | 3rd confirmed instance — verify GEN-RESTART-RESET rule covers all mutable fields; consider re-queue |
-| UI-ASC-001 — syncDOMState only #app not body | MEDIUM | Test Engineering | Update test selectors from `body[data-phase]` to `#app[data-phase]` for associations tests |
-| UI-ASC-002 — ProgressBar missing slotId | MEDIUM | Gen Quality | 8th instance — GEN-UX-003 already ships; confirm in next build |
-| UI-ASC-003 — No aria-live feedback | MEDIUM | Gen Quality | 13th ARIA-001 instance — rule shipped; confirm in next build |
-| UI-ASC-004 — Results screen position:static | MEDIUM | Gen Quality | 10th GEN-UX-001 instance — rule shipped; confirm in next build |
-| UI-ASC-005 — gameState.gameId absent | LOW | Gen Quality | 4th confirmed live-build instance — GEN-GAMEID shipped; confirm coverage |
-| UI-ASC-006 — timer.getTime repeating error | LOW | Test Engineering | Add Playwright assertion: no non-audio console errors after answer click |
-| UI-ASC-007 — waitForPackages 10s timeout | LOW | Gen Quality | GEN-CDN-TIMEOUT rule requires 120s; verify rule is active and shipping |
+| UI-ASC-P0-001 — White screen crash on restart | P0 | Gen Quality + Build Queue | Re-queue associations; restartGame() must not call transitionScreen.show() after CDN teardown |
+| UI-ASC-002 — results-screen position:static; no testid | MEDIUM | Gen Quality | 11th GEN-UX-001 instance; also missing data-testid="results-screen" |
+| UI-ASC-003 — No aria-live | MEDIUM | Gen Quality | 14th ARIA-001 instance |
+| UI-ASC-005 — gameState.gameId absent | MEDIUM | Gen Quality | 5th instance; GEN-GAMEID shipped |
+| UI-ASC-006 — btn-restart 43px (1px below min) | MEDIUM | Gen Quality | Add min-height: 48px rule for .game-btn.btn-primary |
+| UI-ASC-007 — timer.getTime repeating error | LOW | Test Engineering | Add console error assertion to test template |
+| UI-ASC-008 — FeedbackManager subtitle warning | LOW | Gen Quality | Verify GEN-FEEDBACK-SUBTITLE rule exists; CDN constraint |
+
+**Verdict:** P0 — re-queue required. Game completes successfully but is not restartable (white screen crash). All other findings are non-blocking known issues with active gen rules.
