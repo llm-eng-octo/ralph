@@ -212,13 +212,14 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-016 + CR-017 RESOLVED — GEN-TIMER-ONLY and GEN-HIDE-SHOW corrected in both CDN_CONSTRAINTS_BLOCK and buildGenerationPrompt(). 997/997 tests pass. Deployed 2026-03-23. |
-| Status | 997/997 tests pass. CR-016 DONE (GEN-TIMER-ONLY WRONG example fixed). CR-017 DONE (GEN-HIDE-SHOW soh-cah-toa #544 citation retracted). |
+| Current task | which-ratio #561 browser P0s → 3 rules shipped (GEN-TRANSITION-API rule 45, GEN-TRANSITION-ICONS rule 46, GEN-PROGRESSBAR-LIVES rule 47). commit c0d5391. 1012/1012 tests pass. Deployed 2026-03-23. |
+| Status | DONE — all 3 rules in CDN_CONSTRAINTS_BLOCK + buildGenerationPrompt() rules 45/46/47 + buildCliGenPrompt() compact rules. which-ratio may be re-queued to verify P0 fixes. |
 | Waiting on | none |
 | Blocked by | none |
 
 | Task | Status | Hypothesis | Expected Impact |
 |------|--------|-----------|-----------------|
+| **which-ratio #561 P0s → GEN-TRANSITION-API + GEN-TRANSITION-ICONS + GEN-PROGRESSBAR-LIVES** | **DONE — 2026-03-23 (commit c0d5391)** | Browser audit which-ratio #561 found 3 P0 patterns: (1) string-mode transitionScreen.show() → blank screen (BROWSER-P0-001), (2) SVG in icons array → raw markup text covers screen (BROWSER-P0-002), (3) totalLives=0 in ProgressBar → RangeError every round (BROWSER-NEW-001). Rules 45/46/47 added to buildGenerationPrompt(); compact rules added to CDN_CONSTRAINTS_BLOCK and buildCliGenPrompt(). 1012/1012 tests pass. Deployed. which-ratio may be re-queued to verify fixes. | High: all 3 are P0 — blank screen or crash on every round; affect any no-lives MCQ game using TransitionScreen |
 | **CR-016: Fix GEN-TIMER-ONLY WRONG example** | **DONE — 2026-03-23** | WRONG example showed timer.start() AFTER renderRound() — not the race condition. Fixed to timer.start() BEFORE renderRound() in both CDN_CONSTRAINTS_BLOCK and rule 44. RIGHT updated to show currentQuestion set before timer.start(). 997 tests pass. Deployed. | Medium: LLM previously saw a non-buggy WRONG pattern — risk of ignoring the rule |
 | **CR-017: Retract GEN-HIDE-SHOW soh-cah-toa #544 citation** | **DONE — 2026-03-23** | soh-cah-toa #544 hide() uses querySelector(selector) (not element-expected) — no TypeError occurred. Rule is valid ONLY for element-expected helpers (el.style.display / el.classList.add). Updated WHY clause and source in both CDN_CONSTRAINTS_BLOCK and rule 41. 997 tests pass. Deployed. | High: factually wrong evidence undermines trust in the rule |
 | **GEN-CR-001: Tighten GEN-120 — default aria-live to polite** | **DONE — 2026-03-23** | Code Review 2026-03-23: GEN-120 now mandates `aria-live="polite"` as the only default. `assertive` demoted to parenthetical sub-note. Commit d64f2f2. 827 tests pass. Deployed. | n/a |
