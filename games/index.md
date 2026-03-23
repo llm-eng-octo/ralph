@@ -4,10 +4,11 @@
 
 | Game | Session | Bloom | Status | Build # | Iter | Build Time | UI/UX | Next Action |
 |------|---------|-------|--------|---------|------|------------|-------|-------------|
-| [stats-identify-class](stats-identify-class/index.md) | Stats 1/4 | L1 Remember | 📝 Spec ready | — | — | — | ✅ 6 findings | Spec fixes applied (FIX-1 through FIX-5, commit 6f4bf51) — human approval needed to queue |
-| [stats-mean-direct](stats-mean-direct/index.md) | Stats 2/4 | L2-L3 Apply | 📝 Spec ready | — | — | — | ✅ 2 findings | Human review before queuing |
-| [stats-median](stats-median/index.md) | Stats 3/4 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
-| [stats-mode](stats-mode/index.md) | Stats 4/4 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
+| [stats-identify-class](stats-identify-class/index.md) | Stats 1/5 | L1 Remember | 📝 Spec ready | — | — | — | ✅ 6 findings | Spec fixes applied (FIX-1 through FIX-5, commit 6f4bf51) — human approval needed to queue |
+| [stats-mean-direct](stats-mean-direct/index.md) | Stats 2/5 | L2-L3 Apply | 📝 Spec ready | — | — | — | ✅ 2 findings | Human review before queuing |
+| [stats-median](stats-median/index.md) | Stats 3/5 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
+| [stats-mode](stats-mode/index.md) | Stats 4/5 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
+| [stats-which-measure](stats-which-measure/index.md) | Stats 5/5 | L4 Analyze | 📝 Spec ready | — | — | — | ❌ Pending | Human review before queuing (queue last — L4 cap) |
 | [name-the-sides](name-the-sides/index.md) | Trig 1/5 | L2 Understand | ✅ Approved | #562 | 3 | ~35 min | ✅ 10 findings | — |
 | [which-ratio](which-ratio/index.md) | Trig 2/5 | L2 Understand | ✅ Approved | #561 | 3 | ~28 min | ⚠️ 3 P0s + 8 issues | Gen rules 45/46/47 shipped (c0d5391). Re-queue to verify P0 fixes (GEN-TRANSITION-API, GEN-TRANSITION-ICONS, GEN-PROGRESSBAR-LIVES) |
 | [soh-cah-toa-worked-example](soh-cah-toa-worked-example/index.md) | Trig 3/5 | L2 Understand | ✅ Approved | #544 | 1 | ~28 min | ⚠️ P0+5 findings | GEN-UX-001 confirmed (results not fixed), UI-SC-007 retracted |
@@ -31,10 +32,10 @@
 
 ## Sessions
 
-### Statistics (4 games, Bloom L1→L3) — 📝 Specs written (2026-03-23)
+### Statistics (5 games, Bloom L1→L4) — 📝 Specs written (2026-03-23)
 
-*Session goal: learner progresses from identifying measures of central tendency (L1) through computing mean (L2-L3) → median (L3) → mode for grouped data (L3).*
-*All 4 specs written with research citations. Awaiting human review before first builds.*
+*Session goal: learner progresses from identifying measures of central tendency (L1) through computing mean (L2-L3) → median (L3) → mode for grouped data (L3) → choosing the appropriate measure by analyzing data context (L4).*
+*All 5 specs written with research citations. Awaiting human review before first builds.*
 
 | # | Game | Bloom | Status | Notes |
 |---|------|-------|--------|-------|
@@ -42,6 +43,7 @@
 | 2 | [stats-mean-direct](stats-mean-direct/index.md) | L2-L3 Apply | 📝 Spec ready | Compute mean of small dataset; 4 misconception distractors; timer 45s |
 | 3 | [stats-median](stats-median/index.md) | L3 Apply | 📝 Spec ready | Find median (odd/even n, sort-first); M-no-sort primary distractor |
 | 4 | [stats-mode](stats-mode/index.md) | L3 Apply | 📝 Spec ready | Ungrouped single/bimodal + grouped NCERT formula; dual display mode |
+| 5 | [stats-which-measure](stats-which-measure/index.md) | L4 Analyze | 📝 Spec ready | MCQ + worked example on wrong; choose Mean/Median/Mode from data description; 4 misconception tags |
 
 ---
 
