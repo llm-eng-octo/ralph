@@ -2458,3 +2458,21 @@ This is the first complete Bloom L2→L4 learning session produced by the Ralph 
 - Global fix loop for holistic correction
 
 **Next:** Session Planner can now produce Session 2 (Statistics) using the same pipeline — 5 specs written, Session Planner architecture validated.
+
+## Lesson 189 — PAGEERROR listener in sharedBoilerplate catches silent JS errors (2026-03-23)
+
+**Source:** TE slot 2026-03-23, commit 1b783f1 | **Build:** multiple (progressBar.update(-9) pattern)
+
+**Problem:** `progressBar.update(-9)` fires `RangeError: Invalid count value` every round but tests still pass — the error is logged to console but not caught by any assertion. A game can be "approved" while generating a JS error on every round.
+
+**Fix:** Added `page.on('pageerror')` listener to sharedBoilerplate in `lib/pipeline-test-gen.js`. Errors accumulate in `pageErrors[]`. `test.afterEach()` throws if array is non-empty: `"Page JS errors during test: ..."`. Now any unhandled JS error during a test causes an immediate test failure.
+
+**Impact:** Eliminates silent-pass games with runtime errors. progressBar.update() wrong-args (GEN-112) now produces visible test failures rather than invisible console noise. Every future game must have zero JS errors during gameplay.
+
+## Lesson 190 — Gen rules confirmed already-shipped via grep (2026-03-23)
+
+**Source:** Gen Quality slot 2026-03-23 | **Batch:** 8221ae2
+
+**Finding:** Several "pending" ROADMAP entries (GEN-GAMEID, GEN-INPUT-001/Enter-key, GEN-UX-002-EXT/.choice-btn/.option-btn, GEN-WINDOW-EXPOSE) were already shipped in prior commits but not marked done in ROADMAP. Before implementing a gen rule, grep CDN_CONSTRAINTS_BLOCK and buildGenerationPrompt() for the key concept. Running the grep takes 10 seconds; re-implementing a shipped rule wastes agent budget.
+
+**Process:** Always check prompts.js before adding a new rule. Check for: the rule concept (e.g., "Enter" for keyboard input, "gameId" for gameState field, "choice-btn" for touch target), not just the exact rule name (names evolve between commits).
