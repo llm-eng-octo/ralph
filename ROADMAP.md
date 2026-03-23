@@ -211,8 +211,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-024: Expand GEN-CSS-TOKENS ban list — add `--color-green`, `--color-success`; add catch-all prose. Both CDN_CONSTRAINTS_BLOCK + rule 40. Source: Code Review 8221ae2. |
-| Status | 989/989 tests pass. PART-028 logic already fixed (6eea578); whitespace test added (6af64e9). GEN-CSS-TOKENS + GEN-HIDE-SHOW + CR-023 DONE (8221ae2, deployed). New backlog from code review: CR-024 MED, CR-025/026 LOW. |
+| Current task | GEN-RESTART-RESET + GEN-PHASE-ALL + GEN-TIMER-ONLY: (1) restartGame() must reset ALL gameState fields (SHIP NOW — quadratic-formula P1); (2) data-phase/syncDOMState for ALL game types not just MCQ; (3) timer.start() only in renderRound() never setupGame(). |
+| Status | 989/989 tests pass. CR-024 DONE (dbdc11c — 4 new banned tokens + catch-all prose). CR-026 DONE (same commit — classList alternative note). CR-025 T1 validator in progress (agent running). |
 | Waiting on | none |
 | Blocked by | none |
 
