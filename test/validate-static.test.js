@@ -1955,4 +1955,153 @@ describe('GEN-UX-005: SignalCollector must not be called with no args', () => {
       `Unexpected GEN-UX-005 error when SignalCollector has args: ${output}`,
     );
   });
+
+  // ─── GEN-LOCAL-ASSETS tests ─────────────────────────────────────────────────
+  it('GEN-LOCAL-ASSETS: fires ERROR for src="assets/icon.svg"', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<img src="assets/icon.svg">\';',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-LOCAL-ASSETS'),
+      `Expected GEN-LOCAL-ASSETS error but got: ${output}`,
+    );
+  });
+
+  it('GEN-LOCAL-ASSETS: does NOT fire for CDN src URL', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<img src="https://storage.googleapis.com/mathai-temp-assets/icon.svg">\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-LOCAL-ASSETS'),
+      `Unexpected GEN-LOCAL-ASSETS error for CDN URL: ${output}`,
+    );
+  });
+
+  it('GEN-LOCAL-ASSETS: fires ERROR for icons: ["assets/icon.png"] pattern', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); const cfg = { icons: ['assets/icon.png'] };",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-LOCAL-ASSETS'),
+      `Expected GEN-LOCAL-ASSETS error but got: ${output}`,
+    );
+  });
+
+  it('GEN-LOCAL-ASSETS: does NOT fire for icons: ["🎯"] emoji pattern', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); const cfg = { icons: ['🎯'] };",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-LOCAL-ASSETS'),
+      `Unexpected GEN-LOCAL-ASSETS error for emoji icons: ${output}`,
+    );
+  });
+
+  it('GEN-LOCAL-ASSETS: fires ERROR for CSS url("images/bg.png") pattern', () => {
+    const html = VALID_HTML.replace(
+      '* { margin: 0; padding: 0; box-sizing: border-box; }',
+      '* { margin: 0; padding: 0; box-sizing: border-box; } body { background: url("images/bg.png"); }',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-LOCAL-ASSETS'),
+      `Expected GEN-LOCAL-ASSETS error but got: ${output}`,
+    );
+  });
+
+  it('GEN-LOCAL-ASSETS: does NOT fire for data: URI', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<img src="data:image/png;base64,abc123">\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-LOCAL-ASSETS'),
+      `Unexpected GEN-LOCAL-ASSETS error for data: URI: ${output}`,
+    );
+  });
+
+  // ─── GEN-SVG-CONTRAST tests ─────────────────────────────────────────────────
+  it('GEN-SVG-CONTRAST: fires WARNING for stroke="#64748b" (lowercase)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><circle stroke="#64748b" r="10"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SVG-CONTRAST'),
+      `Expected GEN-SVG-CONTRAST warning but got: ${output}`,
+    );
+  });
+
+  it('GEN-SVG-CONTRAST: fires WARNING for stroke="#64748B" (uppercase — case-insensitive)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><circle stroke="#64748B" r="10"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SVG-CONTRAST'),
+      `Expected GEN-SVG-CONTRAST warning for uppercase hex but got: ${output}`,
+    );
+  });
+
+  it('GEN-SVG-CONTRAST: does NOT fire for stroke="#374151" (passing contrast)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><circle stroke="#374151" r="10"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-SVG-CONTRAST'),
+      `Unexpected GEN-SVG-CONTRAST warning for #374151: ${output}`,
+    );
+  });
+
+  it('GEN-SVG-CONTRAST: fires WARNING for fill="#9ca3af" (gray-400)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><rect fill="#9ca3af" width="20" height="20"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SVG-CONTRAST'),
+      `Expected GEN-SVG-CONTRAST warning for fill #9ca3af but got: ${output}`,
+    );
+  });
+
+  it('GEN-SVG-CONTRAST: fires WARNING for fill="#94a3b8" (slate-400)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><path fill="#94a3b8" d="M0 0h10v10z"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SVG-CONTRAST'),
+      `Expected GEN-SVG-CONTRAST warning for fill #94a3b8 but got: ${output}`,
+    );
+  });
+
+  it('GEN-SVG-CONTRAST: does NOT fire for fill="#1f2937" (gray-800, high contrast)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); document.getElementById("gameArea").innerHTML += \'<svg><path fill="#1f2937" d="M0 0h10v10z"/></svg>\';',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-SVG-CONTRAST'),
+      `Unexpected GEN-SVG-CONTRAST warning for #1f2937: ${output}`,
+    );
+  });
 });
