@@ -785,3 +785,44 @@ describe('runStaticValidationLocal — T1 re-validation for targeted fix loop', 
     );
   });
 });
+
+// ─── Global fix loop T1 regression guard tests (CR-088-A) ────────────────────
+// Verifies the guard pattern: capture baseline T1 checks before the loop,
+// diff after each fix, and discard the fix when new T1 errors are introduced.
+// Source: Code Review CR-088 — global fix loop had no T1 guard (per-batch had one).
+describe('global fix loop T1 regression guard pattern (CR-088-A)', () => {
+  it('detects new T1 errors introduced by a global fix (CSS-stripped output) — guard fires', () => {
+    // Simulate: baseline HTML is valid (no T1 errors), global fix returns CSS-stripped HTML.
+    // The guard must identify the new checks and treat them as a regression.
+    const globalOriginalT1Checks = runStaticValidationLocal(VALID_HTML).checks; // []
+    const globalT1After = runStaticValidationLocal(CSS_STRIPPED_HTML);
+
+    assert.equal(globalOriginalT1Checks.length, 0, 'Baseline valid HTML should have no T1 errors');
+    assert.equal(globalT1After.passed, false, 'CSS-stripped HTML must fail T1');
+
+    const newGlobalT1Checks = globalT1After.checks.filter((c) => !globalOriginalT1Checks.includes(c));
+    assert.ok(newGlobalT1Checks.length > 0, 'Guard must detect new T1 errors after CSS stripping — fix should be discarded');
+  });
+
+  it('does not fire guard when global fix keeps T1 checks unchanged (valid → valid)', () => {
+    // Simulate: baseline is valid, global fix also returns valid HTML.
+    // No new T1 errors → guard must not fire → fix is safe to write to disk.
+    const globalOriginalT1Checks = runStaticValidationLocal(VALID_HTML).checks; // []
+    const globalT1After = runStaticValidationLocal(VALID_HTML); // fix also valid
+
+    const newGlobalT1Checks = globalT1After.checks.filter((c) => !globalOriginalT1Checks.includes(c));
+    assert.equal(newGlobalT1Checks.length, 0, 'No new T1 errors: guard must not fire — fix should be applied');
+  });
+
+  it('does not fire guard when baseline already had T1 errors and fix does not add more', () => {
+    // Simulate: baseline HTML already had T1 errors (e.g., pre-existing CSS stripping).
+    // The global fix does NOT introduce additional errors — guard must not fire.
+    const globalOriginalT1Checks = runStaticValidationLocal(CSS_STRIPPED_HTML).checks; // has errors
+    const globalT1After = runStaticValidationLocal(CSS_STRIPPED_HTML); // same errors, no new ones
+
+    assert.ok(globalOriginalT1Checks.length > 0, 'Baseline CSS-stripped HTML must have T1 errors');
+
+    const newGlobalT1Checks = globalT1After.checks.filter((c) => !globalOriginalT1Checks.includes(c));
+    assert.equal(newGlobalT1Checks.length, 0, 'No new errors beyond baseline: guard must not fire');
+  });
+});
