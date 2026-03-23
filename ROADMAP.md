@@ -117,7 +117,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-049 checkResultsScreenViewport internal waitForSelector DONE (pipeline-test-gen.js). Next: Lives games must sync data-lives to DOM (gen prompt rule). |
+| Current task | CR-049 checkResultsScreenViewport fix DONE (9a4fe66, deployed GCP). Next: Lives games must sync data-lives to DOM (gen prompt rule). |
 | Status | T1 re-validation on targeted fix HTML: DONE (0f84035, 2026-03-23) — after each fix iteration, T1 static validation runs on patched HTML; T1 errors cause fix retry (up to 2 attempts); graceful fallback if T1 still fails. 1065/1065 tests pass. |
 | Waiting on | none |
 | Blocked by | none |
@@ -219,7 +219,7 @@
 |-------|-------|
 | Current task | restartGame() stale DOM syncDOMState rule committed. Next: data-testid/id alignment rule. |
 | Status | Rules 53 (GEN-ENDGAME-GUARD), 53b (GEN-DATA-LIVES-GUARD b66270a), 54 (GEN-RESULTS-FIXED 290e1d9) all shipped + deployed GCP 2026-03-23. |
-| Waiting on | Next agent commits — monitor for deploys needed |
+| Waiting on | GEN-PROGRESSBAR-DESTROY + restartGame syncDOMState commits — deploy prompts.js when both land |
 | Blocked by | none |
 
 | Task | Status | Hypothesis | Expected Impact |
