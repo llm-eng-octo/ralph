@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** Batch 7 DONE: right-triangle-area #543 full playthrough. Next: rapid-challenge #526 (pending DB confirmation)
-**Last completed:** right-triangle-area #543 — 2026-03-23 — 1 P0 + 3 HIGH + 3 MEDIUM + 2 LOW; full browser playthrough (Playwright MCP, 375×812px); P0: Play Again crashes (null progressBar.update() in restartGame() — TypeError, game stuck on results screen); HIGH: canvas overflows 145px (500px canvas, no GEN-CANVAS-001), all buttons 21.5px (CSS stripped), window.nextRound not exposed (test harness MISSING error); MEDIUM: progressBar "[object Object]/5" (update() API object vs positional mismatch), no aria-live on feedback, results screen position:static; waitForPackages 180s PASS; results screen reachable; re-queue recommended after restartGame null-guard fix
+**Current task:** Batch 7 DONE: right-triangle-area #543. Batch 8 DONE: rapid-challenge #526. Next: sequence-builder #525
+**Last completed:** rapid-challenge #526 — 2026-03-23 — 2 P0 + 3 HIGH + 3 MEDIUM + 2 LOW; full browser playthrough (Playwright MCP, 375×812px); P0-A: results screen position:static (GEN-UX-001, 11th instance); P0-B: CSS entirely stripped (6th instance) — .visually-hidden fully visible, all buttons 21.5px, results card unstyled; HIGH: progressBar 10s deferred destroy races with restartGame() new instance (new pattern UI-RC-005); window.nextRound not exposed (test harness MISSING error); buttons 21.5px (CSS strip root cause); MEDIUM: waitForPackages 120s error message says "10s" (stale); no aria-live (ARIA-001, 14th instance); FeedbackManager subtitle/sticker warnings per round; Play Again PASS (state reset correct); all 9 rounds reachable; level transitions PASS; no re-queue required (systemic CSS issue, not game-specific)
 **Waiting on:** —
 
 ### Batch 4 — Completed 2026-03-23
