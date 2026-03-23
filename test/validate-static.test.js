@@ -2316,3 +2316,92 @@ describe('W13 GEN-RESTART-RESET: restartGame() must reset required gameState fie
     assert.ok(output.includes('lives'), `Expected 'lives' in warning: ${output}`);
   });
 });
+
+// ─── W14: LP-PROGRESSBAR-CLAMP ───────────────────────────────────────────────
+describe('W14: LP-PROGRESSBAR-CLAMP — progressBar.update() lives must be clamped', () => {
+  const PB_BASE = VALID_HTML.replace(
+    'initGame();',
+    `initGame();
+  const progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });
+  function loadRound() {`,
+  );
+
+  it('warns when progressBar.update() passes gameState.lives directly without Math.max clamp', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  const progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });
+  function loadRound() {
+    progressBar.update(gameState.currentRound, gameState.lives);
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('W14') || output.includes('LP-PROGRESSBAR-CLAMP'),
+      `Expected W14/LP-PROGRESSBAR-CLAMP warning when gameState.lives passed directly. Output: ${output}`,
+    );
+    assert.ok(
+      output.includes('Math.max'),
+      `Expected Math.max fix hint in warning. Output: ${output}`,
+    );
+  });
+
+  it('does NOT warn when progressBar.update() uses Math.max(0, gameState.lives)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  const progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });
+  function loadRound() {
+    const displayLives = Math.max(0, gameState.lives);
+    progressBar.update(gameState.currentRound, displayLives);
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('LP-PROGRESSBAR-CLAMP'),
+      `Expected NO LP-PROGRESSBAR-CLAMP warning when Math.max(0, gameState.lives) is used. Output: ${output}`,
+    );
+  });
+
+  it('does NOT warn when progressBar.update() uses Math.max(0, lives) via local variable', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  const progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 3 });
+  function loadRound() {
+    const lives = Math.max(0, gameState.lives);
+    progressBar.update(gameState.currentRound, lives);
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('LP-PROGRESSBAR-CLAMP'),
+      `Expected NO LP-PROGRESSBAR-CLAMP warning when clampedLives=Math.max pattern used. Output: ${output}`,
+    );
+  });
+
+  it('does NOT warn when progressBar is not used in the HTML', () => {
+    // VALID_HTML has no progressBar reference
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('LP-PROGRESSBAR-CLAMP'),
+      `Expected NO LP-PROGRESSBAR-CLAMP warning when progressBar not used. Output: ${output}`,
+    );
+  });
+
+  it('does NOT warn when progressBar.update() passes literal 0 for lives (no-lives game)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  const progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 5, totalLives: 5 });
+  function loadRound() {
+    progressBar.update(gameState.currentRound, 0);
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('LP-PROGRESSBAR-CLAMP'),
+      `Expected NO LP-PROGRESSBAR-CLAMP warning when literal 0 passed (no-lives game). Output: ${output}`,
+    );
+  });
+});

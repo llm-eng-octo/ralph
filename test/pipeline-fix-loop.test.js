@@ -22,6 +22,7 @@ const {
   verifyE8MergeIntegrity,
   shouldSuppressGlobalFix,
   detectCdnTimingStall,
+  runStaticValidationLocal,
 } = require('../lib/pipeline-fix-loop');
 
 // ─── Sample HTML fixtures ────────────────────────────────────────────────────
@@ -655,5 +656,132 @@ describe('detectCdnTimingStall', () => {
 
   it('returns false for undefined failures input', () => {
     assert.equal(detectCdnTimingStall(undefined, [CDN_STALL_FAILURE_A, CDN_STALL_FAILURE_B]), false);
+  });
+});
+
+// ─── runStaticValidationLocal tests ──────────────────────────────────────────
+// These tests exercise the T1 re-validation helper used by the targeted fix loop
+// to catch CSS stripping and other static regressions before Playwright runs.
+// (Root cause: name-the-sides #557 and which-ratio #560 CSS stripping)
+
+// Minimal valid HTML that satisfies all required T1 checks.
+// Must include: DOCTYPE, #gameContent, initGame, endGame, handleAnswer,
+// type:'game_complete' postMessage, data-testid on interactive elements,
+// max-width/480px, star scoring thresholds, window.loadRound exposure.
+const VALID_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Test Game</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: sans-serif; background: #f0f0f0; }
+    #gameContent { max-width: 480px; margin: 0 auto; padding: 16px; }
+    .option-btn { min-height: 44px; padding: 12px; font-size: 16px; cursor: pointer; }
+    .feedback { color: #333; margin-top: 8px; }
+  </style>
+</head>
+<body>
+<div id="gameContent" style="display:none;">
+  <button class="option-btn" data-testid="answer-btn" id="answerBtn">Answer</button>
+  <div class="feedback" aria-live="polite"></div>
+</div>
+<script>
+  var gameState = { lives: 3, score: 0, round: 0, totalRounds: 5 };
+  var stars = 0;
+
+  function initGame() {
+    window.gameState = gameState;
+    window.endGame = endGame;
+    window.nextRound = nextRound;
+    document.getElementById('gameContent').style.display = 'block';
+    nextRound();
+  }
+
+  function endGame() {
+    var score = gameState.score;
+    var ratio = score / gameState.totalRounds;
+    stars = ratio >= 0.8 ? 3 : ratio >= 0.5 ? 2 : 1;
+    window.parent.postMessage({ type: 'game_complete', stars: stars, score: score }, '*');
+  }
+
+  function nextRound() {
+    gameState.round++;
+  }
+
+  function handleAnswer(val) {
+    if (val === 'correct') {
+      gameState.score++;
+    } else {
+      gameState.lives--;
+    }
+    if (gameState.round >= gameState.totalRounds || gameState.lives <= 0) {
+      endGame();
+    } else {
+      nextRound();
+    }
+  }
+
+  window.loadRound = function(n) { gameState.round = n - 1; nextRound(); };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initGame();
+  });
+</script>
+</body>
+</html>`;
+
+// HTML with CSS-stripped style block (all content replaced with a comment).
+// Mirrors the exact CSS stripping pattern that caused name-the-sides #557 and
+// which-ratio #560 — targeted fix LLM replaced <style>...</style> with a placeholder.
+// T1 check PART-028-CSS-STRIPPED must catch this before Playwright runs.
+const CSS_STRIPPED_HTML = VALID_HTML.replace(
+  /<style>[\s\S]*?<\/style>/,
+  '<style>/* CSS preserved */</style>',
+);
+
+describe('runStaticValidationLocal — T1 re-validation for targeted fix loop', () => {
+  it('returns { passed: true, checks: [] } for valid HTML (T1 clean → proceed to Playwright)', () => {
+    const result = runStaticValidationLocal(VALID_HTML);
+    assert.equal(result.passed, true);
+    assert.deepEqual(result.checks, []);
+  });
+
+  it('returns { passed: false } for CSS-stripped HTML (catches PART-028-CSS-STRIPPED → retry)', () => {
+    const result = runStaticValidationLocal(CSS_STRIPPED_HTML);
+    assert.equal(result.passed, false);
+    // Should extract PART-028-CSS-STRIPPED check ID from the error output
+    assert.ok(
+      result.checks.some((c) => c.toLowerCase().includes('part-028')),
+      `Expected PART-028 check in: ${JSON.stringify(result.checks)}`,
+    );
+  });
+
+  it('returns non-empty checks array when T1 errors fire (check IDs extracted from output)', () => {
+    const result = runStaticValidationLocal(CSS_STRIPPED_HTML);
+    assert.equal(result.passed, false);
+    assert.ok(result.checks.length > 0, 'Expected at least one check ID in the checks array');
+  });
+
+  it('handles empty string input gracefully (passed: false, no crash)', () => {
+    // Empty HTML will fail multiple T1 checks — just verify no exception is thrown
+    let threw = false;
+    let result;
+    try {
+      result = runStaticValidationLocal('');
+    } catch {
+      threw = true;
+    }
+    assert.equal(threw, false, 'runStaticValidationLocal must not throw on empty input');
+    // Empty HTML has no DOCTYPE, no <html>, etc — T1 must fire errors
+    assert.equal(result.passed, false);
+  });
+
+  it('does not flag PART-028 for HTML with genuine CSS content (no stripping)', () => {
+    // VALID_HTML already has real CSS content — just confirm PART-028 does not fire
+    const result = runStaticValidationLocal(VALID_HTML);
+    assert.ok(
+      !result.checks.some((c) => c.toLowerCase().includes('part-028')),
+      `Unexpected PART-028 check for valid CSS: ${JSON.stringify(result.checks)}`,
+    );
   });
 });
