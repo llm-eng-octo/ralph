@@ -3290,4 +3290,73 @@ window.addEventListener('DOMContentLoaded', async function() {
       `Unexpected GEN-PHASE-SEQUENCE warning for endGame without syncDOMState: ${output}`,
     );
   });
+
+  // ─── GEN-SHOWRESULTS-SYNC tests ────────────────────────────────────────────
+  // Helper: minimal CDN-style HTML with a custom showResults body for GEN-SHOWRESULTS-SYNC testing
+  function makeShowResultsHtml(showResultsBody) {
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Test</title><style>body{}</style></head>
+<body><div id="app"></div><div id="gameContent"></div><div id="results-screen" style="display:none"></div>
+<script>
+window.gameState = { score: 0, lives: 3, totalLives: 3, phase: 'playing', gameEnded: false, isActive: true, currentRound: 0, totalRounds: 3, events: [], attempts: [] };
+var gameState = window.gameState;
+function calcStars(outcome) { if(outcome==='game_over') return 0; var pct=gameState.score/gameState.totalRounds; return pct>=0.8?3:pct>=0.5?2:1; }
+function syncDOMState() { var app=document.getElementById('app'); if(!app) return; app.dataset.phase=gameState.phase||'start'; app.dataset.lives=String(gameState.lives); }
+${showResultsBody}
+function endGame(reason) {
+  if (gameState.gameEnded) return; gameState.gameEnded = true;
+  gameState.phase = reason === 'victory' ? 'results' : 'gameover';
+  syncDOMState();
+  window.parent.postMessage({ type: 'game_complete', data: { metrics: { score: gameState.score, stars: calcStars(reason), accuracy: 1 } } }, '*');
+}
+function restartGame() { gameState.gameEnded=false; gameState.phase='start'; syncDOMState(); }
+function nextRound() { gameState.currentRound++; }
+window.addEventListener('DOMContentLoaded', async function() {
+  try {
+    ScreenLayout.inject('app', { slots: { transitionScreen: true } });
+    window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound;
+  } catch(e) { window.__initError = e.message; }
+});
+</script></body></html>`;
+  }
+
+  it('GEN-SHOWRESULTS-SYNC: warns when showResults() sets phase but no syncDOMState()', () => {
+    // Simulates keep-track #571 MED-2: showResults sets phase but omits syncDOMState()
+    const html = makeShowResultsHtml(`function showResults() {
+  gameState.phase = 'results';
+  document.getElementById('results-screen').style.display = 'block';
+  document.getElementById('final-score').textContent = gameState.score;
+}`);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SHOWRESULTS-SYNC'),
+      `Expected GEN-SHOWRESULTS-SYNC warning when showResults() sets phase without syncDOMState() but got: ${output}`,
+    );
+  });
+
+  it('GEN-SHOWRESULTS-SYNC: does NOT warn when showResults() sets phase AND calls syncDOMState()', () => {
+    // Correct pattern: phase set then syncDOMState() called
+    const html = makeShowResultsHtml(`function showResults() {
+  gameState.phase = 'results';
+  syncDOMState();
+  document.getElementById('results-screen').style.display = 'block';
+  document.getElementById('final-score').textContent = gameState.score;
+}`);
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-SHOWRESULTS-SYNC'),
+      `Unexpected GEN-SHOWRESULTS-SYNC warning for correct showResults() pattern: ${output}`,
+    );
+  });
+
+  it('GEN-SHOWRESULTS-SYNC: does NOT warn when no showResults function exists', () => {
+    // No showResults() at all — check should be silent
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-SHOWRESULTS-SYNC'),
+      `Unexpected GEN-SHOWRESULTS-SYNC warning for HTML with no showResults() function: ${output}`,
+    );
+  });
 });
