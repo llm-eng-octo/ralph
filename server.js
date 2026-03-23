@@ -729,7 +729,19 @@ function createApp(deps = {}) {
     }
   }
 
-  app.post('/mcp', async (req, res) => {
+  // ─── MCP Bearer token authentication middleware ─────────────────────────
+  function verifyMcpAuth(req, res, next) {
+    const mcpSecret = process.env.MCP_SECRET;
+    if (mcpSecret) {
+      const authHeader = req.headers['authorization'];
+      if (!authHeader || authHeader !== `Bearer ${mcpSecret}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+    return next();
+  }
+
+  app.post('/mcp', verifyMcpAuth, async (req, res) => {
     const mcpServer = getMcpServer();
     if (!mcpServer) {
       return res.status(501).json({ error: 'MCP not available — install @modelcontextprotocol/sdk' });
@@ -763,7 +775,7 @@ function createApp(deps = {}) {
     }
   });
 
-  app.get('/mcp', async (req, res) => {
+  app.get('/mcp', verifyMcpAuth, async (req, res) => {
     const sessionId = req.headers['mcp-session-id'];
     const transport = sessionId ? mcpSessions.get(sessionId) : null;
     if (!transport) {
@@ -779,7 +791,7 @@ function createApp(deps = {}) {
     }
   });
 
-  app.delete('/mcp', async (req, res) => {
+  app.delete('/mcp', verifyMcpAuth, async (req, res) => {
     const sessionId = req.headers['mcp-session-id'];
     const transport = sessionId ? mcpSessions.get(sessionId) : null;
     if (transport) {
@@ -850,6 +862,11 @@ if (require.main === module) {
   if (!GITHUB_WEBHOOK_SECRET && process.env.NODE_ENV === 'production') {
     console.error('[FATAL] GITHUB_WEBHOOK_SECRET must be set in production. Refusing to start.');
     process.exit(1);
+  }
+
+  // Warn if MCP_SECRET is not set (endpoint will be unauthenticated)
+  if (!process.env.MCP_SECRET) {
+    console.warn('[ralph-server] WARNING: MCP_SECRET not set — /mcp endpoint is unauthenticated');
   }
 
   const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });

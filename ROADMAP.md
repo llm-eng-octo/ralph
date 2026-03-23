@@ -117,8 +117,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | canvas max-width assertion DONE (commit 5b87994, 2026-03-23). Next: CR-025 [LOW] — add GEN-CSS-TOKENS T1 check in validate-static.js for banned --mathai-green/--color-red/--color-orange tokens. |
-| Status | checkCanvasResponsive() injected into shared Playwright boilerplate for canvas games (hasCanvas detection from htmlContent/domSnapshot). Conditional test.afterEach fires after every test on canvas-based games only. 7 unit tests added. 1096/1096 tests pass. Deployed to GCP. |
+| Current task | CR-025 DONE (dd13d73, 2026-03-23) — CSS token T1 check + GEN-TESTID-STEP (rule 57) + GEN-WINDOW-NEXTROUNDEXPOSED (rule 58). Next: mechanics root cause — mechanics=35.2% lowest batch (analytics). Diagnose via failed build mechanics.spec.js patterns (contract.spec.js separate issue). |
+| Status | 1100 tests pass. GEN-TESTID-STEP: multi-step games must use namespaced data-testids. GEN-WINDOW-NEXTROUNDEXPOSED: window.nextRound must always be exposed. CR-025: T1 WARNING fires on --feedback-color/--answer-color/--status-green. All deployed to GCP. |
 | Waiting on | none |
 | Blocked by | none |
 
@@ -219,7 +219,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-014 + GEN-TRANSITION-ICONS + GEN-PHASE-ALL DONE (72a189c, 2026-03-23). Next: CR-060 [HIGH] gameId unsanitized in POST /api/build — add regex allowlist before db.createBuild(). |
+| Current task | CR-014 + GEN-TRANSITION-ICONS + GEN-PHASE-ALL DONE (72a189c, 2026-03-23). CR-060 already fixed (f13ddd8). Next: mechanics batch root cause trace — mechanics=35.2% is lowest per analytics (all-builds view). Review mechanics.spec.js test-gen pattern + recent failed mechanics batches to identify most common failure class. |
 | Status | 72a189c deployed GCP 2026-03-23. 1100 tests pass. GEN-RESTART-RESET updated (custom fields); GEN-TRANSITION-ICONS updated (local file paths banned); GEN-PHASE-ALL updated (card-matching added, "no exceptions" framing). All 3 rules updated in all occurrences. |
 | Waiting on | none |
 | Blocked by | none |
@@ -513,7 +513,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-070 DONE (deployed b87189a). Next: lib/pipeline-targeted-fix.js — check if fixCdnDomainsInFile called after HTML writes. |
+| Current task | CR-070 DONE (deployed b87189a). CR-062 DONE — Bearer token auth added to /mcp endpoint (verifyMcpAuth middleware, MCP_SECRET env var, startup warning, 2 integration tests; 1102/1102 tests pass). Next: CR-063 [MED] — rate limiting on /api/build. |
 | Waiting on | unblocked |
 | Blocked by | none |
 

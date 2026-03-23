@@ -618,3 +618,41 @@ describe('Server integration: build deduplication', () => {
     assert.equal(mockQueue.jobs.length, beforeLen);
   });
 });
+
+// ─── CR-062: MCP endpoint Bearer token authentication ───────────────────────
+describe('Server integration: MCP endpoint authentication (CR-062)', () => {
+  const MCP_SECRET = 'test-mcp-secret-cr062';
+  let server;
+
+  before((_, done) => {
+    process.env.MCP_SECRET = MCP_SECRET;
+    const app = createApp({ queue: createMockQueue(), connection: createMockConnection() });
+    server = app.listen(0, done);
+  });
+
+  after((_, done) => {
+    delete process.env.MCP_SECRET;
+    server.close(done);
+  });
+
+  it('POST /mcp with correct Bearer token passes auth check (returns non-401)', async () => {
+    // The MCP SDK may not be installed in test env, so we expect 501 (not available)
+    // rather than 401. What matters is that auth passes and the request proceeds.
+    const res = await request(server, 'POST', '/mcp', {}, {
+      'authorization': `Bearer ${MCP_SECRET}`,
+    });
+    assert.notEqual(res.status, 401, 'Should not return 401 with correct Bearer token');
+  });
+
+  it('POST /mcp with missing/wrong token returns 401', async () => {
+    const resMissing = await request(server, 'POST', '/mcp', {});
+    assert.equal(resMissing.status, 401);
+    assert.equal(resMissing.body.error, 'Unauthorized');
+
+    const resWrong = await request(server, 'POST', '/mcp', {}, {
+      'authorization': 'Bearer wrong-secret',
+    });
+    assert.equal(resWrong.status, 401);
+    assert.equal(resWrong.body.error, 'Unauthorized');
+  });
+});
