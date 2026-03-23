@@ -9,6 +9,9 @@ data/*.db-shm
 data/*.db-wal
 data/games/
 *.log
+*.png
+*.jpg
+*.jpeg
 .ralph-claude-output-*
 dist/
 tmp/
