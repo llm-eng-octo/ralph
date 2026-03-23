@@ -31,6 +31,10 @@ function assertResultsViewportCoverage(coverageCheck) {
     // Results element not found — skip (game may not have a dedicated results element)
     return { skipped: true };
   }
+  if (coverageCheck.skipped) {
+    // Element exists but is not visible yet (display:none or zero-size) — skip assertion
+    return { skipped: true };
+  }
   const passes = coverageCheck.position === 'fixed' || coverageCheck.coversViewport;
   return {
     skipped: false,
@@ -141,6 +145,39 @@ describe('TE-RES-001: results-screen viewport coverage — assertion logic', () 
     const result = assertResultsViewportCoverage({ found: false });
     assert.equal(result.skipped, true);
     assert.equal(result.passes, undefined, 'no pass/fail when skipped');
+  });
+
+  // CR-019: SKIP cases — element exists but not yet visible (display:none or zero-size)
+  it('skips when element exists but display:none (results screen hidden before game ends)', () => {
+    // page.evaluate() returns skipped:true when getComputedStyle(el).display === 'none'
+    // This prevents false-positive assertion failure before the game reaches results phase
+    const result = assertResultsViewportCoverage({ found: true, skipped: true, reason: 'element not visible yet' });
+    assert.equal(result.skipped, true);
+    assert.equal(result.passes, undefined, 'no pass/fail when element is display:none');
+  });
+
+  it('skips when element exists but has zero height AND zero width (not yet rendered)', () => {
+    // page.evaluate() returns skipped:true when rect.height === 0 && rect.width === 0
+    // Covers elements that exist in DOM but have not yet been shown (e.g. opacity:0 with no layout)
+    const result = assertResultsViewportCoverage({ found: true, skipped: true, reason: 'element not visible yet' });
+    assert.equal(result.skipped, true);
+    assert.equal(result.passes, undefined, 'no pass/fail when element is zero-size');
+  });
+
+  // CR-019: FAIL case preserved — visible element with position:static still fails
+  it('still fails when element is visible (display:block) but position:static off-viewport', () => {
+    // When element IS visible (not skipped), existing assertion logic must still fire
+    const result = assertResultsViewportCoverage({
+      found: true,
+      position: 'static',
+      zIndex: 'auto',
+      rectTop: 145,
+      rectHeight: 300,
+      coversViewport: false,
+    });
+    assert.equal(result.skipped, false);
+    assert.equal(result.passes, false, 'visible position:static element still triggers failure');
+    assert.ok(result.message.includes('position=static'), 'message includes position');
   });
 });
 
