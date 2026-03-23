@@ -216,4 +216,20 @@ describe('E7: failure categorization (worker helper)', () => {
   it('returns unknown for uncategorized', () => {
     assert.equal(categorizeFailure('xqz no matching pattern here'), 'unknown');
   });
+
+  it('CT8: classifies expect.poll TypeError as state (not unknown)', () => {
+    // CT8 violation: expect.poll() returns Expect object, not callback value
+    // accessing .type on undefined throws this exact error
+    assert.equal(
+      categorizeFailure("Cannot read properties of undefined (reading 'type')"),
+      'state',
+    );
+  });
+
+  it('CT8: classifies full Playwright TypeError stack as state', () => {
+    const fullError =
+      "TypeError: Cannot read properties of undefined (reading 'type')\n" +
+      '    at Object.<anonymous> (/tmp/test.spec.js:42:27)';
+    assert.equal(categorizeFailure(fullError), 'state');
+  });
 });
