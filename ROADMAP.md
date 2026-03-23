@@ -217,7 +217,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | restartGame() stale DOM syncDOMState rule committed. Next: data-testid/id alignment rule. |
+| Current task | GEN-PROGRESSBAR-DESTROY rule committed — ban setTimeout destroy of ProgressBarComponent (right-triangle-area P0). Next: data-testid/id alignment rule. |
 | Status | Rules 53 (GEN-ENDGAME-GUARD), 53b (GEN-DATA-LIVES-GUARD b66270a), 54 (GEN-RESULTS-FIXED 290e1d9) all shipped + deployed GCP 2026-03-23. |
 | Waiting on | GEN-PROGRESSBAR-DESTROY + restartGame syncDOMState commits — deploy prompts.js when both land |
 | Blocked by | none |
