@@ -18,10 +18,10 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** stats-mean-direct — 2026-03-23 — PENDING (spec just written 044f903). Audit when spec stabilizes (after F2 fix committed).
-**Last completed:** stats-identify-class — 2026-03-23 — 6 findings. F1 (GAME_COMPLETE type) FIXED in 044f903. F2 (restartGame pseudocode) fix in progress.
-**Next target:** stats-mean-direct (spec just written, all gen rules pre-applied — should be low-finding audit)
-**Waiting on:** stats-identify-class F2 fix commit; then stats-mean-direct spec audit
+**Current task:** stats-median — next game in Statistics Session 2 — no spec yet (Education slot to write)
+**Last completed:** stats-mean-direct — 2026-03-23 — 2 findings (0 P0, 1d low, 1 low). Cleanest spec audited to date — all major gen rules pre-applied.
+**Next target:** stats-median (Session 2 Game 3) or next queued game
+**Waiting on:** stats-median spec from Education slot
 
 ### Batch 2 — Completed 2026-03-23 (static analysis)
 
@@ -41,6 +41,7 @@ addition-mcq (next active target)
 
 | Date | Game | Build | Issues Found | Actions Taken |
 |------|------|-------|-------------|---------------|
+| 2026-03-23 | stats-mean-direct | spec-only | 2 issues (0a, 0b, 0c, 2d-low) | No P0 blockers; FeedbackManager.init() absent (PASS); gameState.gameId first field (PASS); syncDOMState() full 4-phase machine (PASS); window.endGame/restartGame/loadQuestion assigned (PASS); ARIA live region correct (PASS); ProgressBar slotId correct (PASS); game_complete on both paths (PASS); results-screen position:fixed z-index:100 (PASS); option-btn min-height:52px (PASS); timer destroy+recreate in restartGame() (PASS); F1: window.gameState double-assignment (module scope + DOMContentLoaded end — contradicts Anti-Pattern #2, spec clarification needed, low risk); F2: Sentry v10 three-script absent (9th instance, warehouse gap, low priority) |
 | 2026-03-23 | stats-identify-class | spec-only | 6 issues (0a-HIGH, 2b, 3a-low/med, 1d) | No P0; FeedbackManager.init() absent (PASS); window.endGame assigned (PASS); data-phase/syncDOMState full (PASS); gameState.gameId first field (PASS); ProgressBar slotId correct (PASS); ARIA live region correct (PASS); CRITICAL: postMessage type casing conflict Section 13 GAME_COMPLETE vs Section 6.8 game_complete (spec-b fix before build); restartGame() body missing (spec-b addition); SignalCollector not instantiated (7th — GEN-UX-005 shipped, add to spec); got-it-btn/skip-btn min-height absent (12th — GEN-UX-002 shipped); Sentry v10 three-script absent (8th — warehouse template gap); ScreenLayout wait/auto-mount ambiguity (new — test gap) |
 |------|------|-------|-------------|---------------|
 | 2026-03-23 | addition-mcq | spec-only | 10 issues (7a, 2b, 0c, 1d) | No P0 flow bugs; FeedbackManager.init() absent (PASS); no alert() (PASS); window.endGame unassigned (7th — GEN-WINDOW-EXPOSE shipped); data-phase/syncDOMState absent (6th MCQ spec — ROADMAP); ARIA-001 absent (16th instance — shipped); gameState.gameId absent (7th — GEN-GAMEID shipped); ProgressBar slotId absent (10th — GEN-UX-003 shipped); SignalCollector no args (6th — GEN-UX-005 shipped); results-screen not position:fixed (7th — GEN-UX-001 shipped); game_complete type wrong (spec says game_end — new type-name mismatch finding, spec addition); restartGame() timer not recreated after endGame() destroys it (4th timer game — spec addition); .option-btn min-height absent (11th — GEN-UX-002 shipped, verify .option-btn selector) |
