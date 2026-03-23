@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Identify next highest-priority unresolved pattern from analytics: scoring (6 unresolved) — verify GF-EXACT is in place (CONFIRMED — already at prompts.js:2668), rendering (5) — check rendering patterns for root cause. |
-| Status | 1206/1206 tests pass. GEN-ISACTIVE-GUARD DONE (1a4a803, deployed). CR-079 GF-EXACT DONE (already present). GEN-SYNCDOMSTATE-ALLATTRS DONE. CT-NEW-1 DONE. CR-088-A DONE. GEN-SHOWRESULTS-SYNC DONE. All files deployed to server. |
-| Waiting on | #577 result (associations old HTML — fresh re-queue after complete); stats-mean-direct diagnosis |
+| Current task | stats-identify-class P0: three-column flex layout on 375px viewport (22px buttons). Source: UI/UX audit #573. Add gen rule: MCQ option buttons must be flex-direction:column with width:100% in mobile viewport. Route to Gen Quality. |
+| Status | 1209/1209 tests pass. GEN-112 FALSE POSITIVE FIXED (8f1e41a) — paren-depth-aware arg counter for Math.max() clamping. stats-mean-direct spec fixed. #578 associations fresh gen running with all new rules. Failure patterns cleaned: 16 → 4 unresolved. |
+| Waiting on | #578 result; stats-mean-direct re-queue after #578 completes + worker restart |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
@@ -516,13 +516,14 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-089 COMPLETE — see log. Next: CR-090 sweep of lib/pipeline.js for CDN domain fix call sites. |
-| Waiting on | nothing |
+| Current task | idle — CR-090 complete. Next: pick lowest-reviewed lib/ file from recent commits. |
+| Waiting on | — |
 | Blocked by | none |
 
 **Log:**
 | Date | Files reviewed | Finding | Routed to |
 |------|---------------|---------|-----------|
+| 2026-03-23 | lib/pipeline-fix-loop.js + lib/pipeline.js | **CR-090 [PASS — already fixed] — fixCdnDomainsInFile/fixCdnPathsInFile call coverage in fix-loop LLM write paths.** CR-070 identified two LLM HTML write paths in pipeline-fix-loop.js lacking CDN domain/path normalization: (1) warehouse-regen path (line 897) and (2) per-iteration fix write (line 1443). Both paths now call `if (ctx.fixCdnDomainsInFile) await ctx.fixCdnDomainsInFile(htmlFile)` + `ctx.fixCdnPathsInFile(htmlFile)` before `injectHarnessToFile()` (lines 898–899 and 1459–1460). `ctx` is constructed in pipeline.js lines 1232–1233 with both functions passed directly. Both functions are synchronous — `await` on them resolves immediately, no concern. Minor note: calls omit the optional `logger` arg so CDN-fix warnings route to `console.warn` instead of the structured pipeline logger. Low severity — no action needed (both functions have `logger` as optional with `console.warn` default). No code change required. | — |
 | 2026-03-23 | lib/validate-static.js | **CR-086 [FIXED] — GEN-ROUND-INDEX false positive on `loadRound =` pattern.** `loadRound\s*=[\s\S]{0,200}nextRound\s*\(` uses `[\s\S]` which crosses closing braces — fires on correct code where `window.loadRound = function(n){...};` is followed by an unrelated `nextRound()` call in a subsequent `addEventListener`. Fixed to `[^}]{0,200}` so the window cannot cross a `}`. Also documents: (a) GEN-PM-DUAL-PATH false negative — nested if/try-catch inside the victory block before `postMessage` breaks the `[^}]*` match; (b) GEN-PM-DUAL-PATH does NOT catch `if (gameState.gameWon)` style guards (only string `'victory'`); (c) GEN-TESTID-RESTART misses `retry-btn`, `button-restart`, `restartButton` variants. 9 unit tests added (3 per rule: bug fires → passes, multiline/variant bug fires → passes, correct HTML → no warn). 1184/1184 tests pass. Commit: fix(code-review): CR-086. | — |
 | 2026-03-23 | lib/categorize-failure.js | **CR-058 [FIXED] — categorizeFailure() missed multi-line Playwright numeric diff format.** The existing branch `/expected:\s*\d.*received:\s*\d/i` requires both values on one line. Playwright emits them on separate lines: `Expected: 2\nReceived: 1`. These fell through to `'unknown'`. Fix: added second branch `/expected:\s*[\d"'][\s\S]*?received:\s*[\d"']/i` using `[\s\S]*?` to span newlines. 2 unit tests added (branch 15b). Commit eea041e. Deployed to GCP (SCP only — build #567 running). 1167/1167 tests pass. | — |
 | 2026-03-23 | lib/prompts.js | **CR-072 [WARN] — GEN-TESTID-STEP (rule 57) + GEN-WINDOW-NEXTROUNDEXPOSED (rule 58) absent from buildGenerationPrompt numbered list:** Both rules are present in CDN_CONSTRAINTS_BLOCK (lines 313–314, inline one-liner form) and in buildCliGenPrompt (lines 1510, 1514 inline form). However, neither appears in the long numbered list (rules 1–58) inside `buildGenerationPrompt`'s ADDITIONAL GENERATION RULES section. Every other rule from GEN-RESTART-RESET, GEN-PHASE-ALL, GEN-TRANSITION-ICONS, GEN-MCQ-PHASE etc. appears in all three locations as a numbered entry. Rules 57 and 58 land in only 2/3 locations. Risk: LOW — CDN_CONSTRAINTS_BLOCK is included verbatim in buildGenerationPrompt via `${CDN_CONSTRAINTS_BLOCK}`, so the LLM does see both rules. But the numbered list is where reviewers check rule presence systematically. Recommendation: add rules 57 and 58 as numbered list entries. | Gen Quality backlog |
@@ -647,9 +648,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Diagnosing stats-mean-direct #575 failure — agent running. Will re-queue after diagnosis + spec/rule fix confirmed. stats-identify-class #573 UI/UX browser playthrough agent running (build approved, spec-only audit needs replacing). |
-| Status | stats-identify-class #573 APPROVED (iter=0). stats-mean-direct #575 FAILED (2020s, iter=2) — JS startup error, options not rendering. Models reverted to Gemini (Claude OAuth expired). |
-| Waiting on | stats-mean-direct diagnosis agent; stats-identify-class UI/UX audit agent |
+| Current task | Queue stats-mean-direct fresh build after #578/#579 complete + worker restart. Queue stats-identify-class after GEN-MOBILE-STACK deploys. |
+| Status | stats-identify-class #573 APPROVED — P0 flex-direction:row layout (22px buttons), GEN-MOBILE-STACK agent running. stats-mean-direct: T1 GEN-112 false positive fixed (8f1e41a) + spec ProgressBar API fixed (5338de0) — ready to re-queue. Audit of stats-identify-class complete: 1 P0 + 3 HIGH + 4 MEDIUM. |
+| Waiting on | #578/#579 completion; GEN-MOBILE-STACK agent |
 | Blocked by | nothing |
 
 | Task | Status | Notes |

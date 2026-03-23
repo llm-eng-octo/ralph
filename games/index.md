@@ -4,8 +4,8 @@
 
 | Game | Session | Bloom | Status | Build # | Iter | Build Time | UI/UX | Next Action |
 |------|---------|-------|--------|---------|------|------------|-------|-------------|
-| [stats-identify-class](stats-identify-class/index.md) | Stats 1/5 | L1 Remember | 📝 Spec ready | — | — | — | ✅ 6 findings | Spec fixes applied (FIX-1 through FIX-5, commit 6f4bf51) — human approval needed to queue |
-| [stats-mean-direct](stats-mean-direct/index.md) | Stats 2/5 | L2-L3 Apply | 📝 Spec ready | — | — | — | ✅ 2 findings | Human review before queuing |
+| [stats-identify-class](stats-identify-class/index.md) | Stats 1/5 | L1 Remember | ✅ Approved | #573 | 0 | ~25min | ⚠️ 1 P0 + 9 findings (browser 2026-03-23) | RE-QUEUE: P0 flex-direction:row layout (22px buttons). GEN-MOBILE-STACK rule in progress. Queue after rule deployed. |
+| [stats-mean-direct](stats-mean-direct/index.md) | Stats 2/5 | L2-L3 Apply | 📝 Spec fixed | #575 failed | — | — | ✅ 2 findings | RE-QUEUE: T1 GEN-112 false positive fixed (8f1e41a), spec ProgressBar API fixed (5338de0). Queue after #578/#579 complete. |
 | [stats-median](stats-median/index.md) | Stats 3/5 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
 | [stats-mode](stats-mode/index.md) | Stats 4/5 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
 | [stats-which-measure](stats-which-measure/index.md) | Stats 5/5 | L4 Analyze | 📝 Spec ready | — | — | — | ❌ Pending | Human review before queuing |
