@@ -8,7 +8,7 @@
 | [stats-mean-direct](stats-mean-direct/index.md) | Stats 2/5 | L2-L3 Apply | 📝 Spec ready | — | — | — | ✅ 2 findings | Human review before queuing |
 | [stats-median](stats-median/index.md) | Stats 3/5 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
 | [stats-mode](stats-mode/index.md) | Stats 4/5 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
-| [stats-which-measure](stats-which-measure/index.md) | Stats 5/5 | L4 Analyze | 📝 Spec ready | — | — | — | ❌ Pending | Human review before queuing (queue last — L4 cap) |
+| [stats-which-measure](stats-which-measure/index.md) | Stats 5/5 | L4 Analyze | 📝 Spec ready | — | — | — | ❌ Pending | Human review before queuing |
 | [name-the-sides](name-the-sides/index.md) | Trig 1/5 | L2 Understand | ✅ Approved | #562 | 3 | ~35 min | ✅ 10 findings | — |
 | [which-ratio](which-ratio/index.md) | Trig 2/5 | L2 Understand | ✅ Approved | #561 | 3 | ~28 min | ⚠️ 3 P0s + 8 issues | Gen rules 45/46/47 shipped (c0d5391). Re-queue to verify P0 fixes (GEN-TRANSITION-API, GEN-TRANSITION-ICONS, GEN-PROGRESSBAR-LIVES) |
 | [soh-cah-toa-worked-example](soh-cah-toa-worked-example/index.md) | Trig 3/5 | L2 Understand | ✅ Approved | #544 | 1 | ~28 min | ⚠️ P0+5 findings | GEN-UX-001 confirmed (results not fixed), UI-SC-007 retracted |
@@ -43,7 +43,7 @@
 | 2 | [stats-mean-direct](stats-mean-direct/index.md) | L2-L3 Apply | 📝 Spec ready | Compute mean of small dataset; 4 misconception distractors; timer 45s |
 | 3 | [stats-median](stats-median/index.md) | L3 Apply | 📝 Spec ready | Find median (odd/even n, sort-first); M-no-sort primary distractor |
 | 4 | [stats-mode](stats-mode/index.md) | L3 Apply | 📝 Spec ready | Ungrouped single/bimodal + grouped NCERT formula; dual display mode |
-| 5 | [stats-which-measure](stats-which-measure/index.md) | L4 Analyze | 📝 Spec ready | MCQ + worked example on wrong; choose Mean/Median/Mode from data description; 4 misconception tags |
+| 5 | [stats-which-measure](stats-which-measure/index.md) | L4 Analyze | 📝 Spec ready | MCQ: 3 options each with justification; 6 rounds, 60s timer; salary/shoe/scores/house/colours/rainfall scenarios; 4 misconception tags |
 
 ---
 
