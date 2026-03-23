@@ -2216,3 +2216,103 @@ describe('GEN-PROGRESSBAR-LIVES: totalLives zero, negative, and double-zero (CR-
     );
   });
 });
+
+describe('W13 GEN-RESTART-RESET: restartGame() must reset required gameState fields (CR-032)', () => {
+  // Base HTML that has a valid restartGame() with full state reset — should NOT trigger warning
+  const FULL_RESET_HTML = VALID_HTML.replace(
+    'initGame();',
+    `initGame();
+  function restartGame() {
+    gameState.currentRound = 0;
+    gameState.lives = gameState.totalLives;
+    gameState.score = 0;
+    gameState.events = [];
+    gameState.attempts = [];
+    gameState.gameEnded = false;
+    gameState.phase = 'start';
+    showStartScreen();
+  }
+  function showStartScreen() {}`,
+  );
+
+  it('does NOT warn when restartGame() resets all required fields', () => {
+    const { output } = runValidator(FULL_RESET_HTML);
+    assert.ok(
+      !output.includes('GEN-RESTART-RESET'),
+      `Unexpected GEN-RESTART-RESET warning for complete reset. Output: ${output}`,
+    );
+  });
+
+  it('does NOT warn when restartGame() is not defined (game has no restart)', () => {
+    // VALID_HTML has no restartGame() — should pass cleanly
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-RESTART-RESET'),
+      `Unexpected GEN-RESTART-RESET warning when restartGame is absent. Output: ${output}`,
+    );
+  });
+
+  it('warns when restartGame() only resets gameEnded (missing currentRound, score, lives, events, attempts)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  function restartGame() {
+    gameState.gameEnded = false;
+    gameState.phase = 'start';
+    showStartScreen();
+  }
+  function showStartScreen() {}`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-RESTART-RESET'),
+      `Expected GEN-RESTART-RESET warning for incomplete reset. Output: ${output}`,
+    );
+    // Confirm the missing fields are listed
+    assert.ok(output.includes('currentRound'), `Expected 'currentRound' in warning: ${output}`);
+    assert.ok(output.includes('score'), `Expected 'score' in warning: ${output}`);
+    assert.ok(output.includes('lives'), `Expected 'lives' in warning: ${output}`);
+  });
+
+  it('warns when restartGame() resets lives/currentRound but not events or attempts', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  function restartGame() {
+    gameState.currentRound = 0;
+    gameState.lives = gameState.totalLives;
+    gameState.score = 0;
+    gameState.gameEnded = false;
+    showStartScreen();
+  }
+  function showStartScreen() {}`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-RESTART-RESET'),
+      `Expected GEN-RESTART-RESET warning when events/attempts missing. Output: ${output}`,
+    );
+    assert.ok(output.includes('events'), `Expected 'events' in warning: ${output}`);
+    assert.ok(output.includes('attempts'), `Expected 'attempts' in warning: ${output}`);
+  });
+
+  it('warns when restartGame() only resets score but not lives, currentRound, events, attempts', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+  function restartGame() {
+    gameState.score = 0;
+    gameState.gameEnded = false;
+    showStartScreen();
+  }
+  function showStartScreen() {}`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-RESTART-RESET'),
+      `Expected GEN-RESTART-RESET warning for partial reset (score only). Output: ${output}`,
+    );
+    assert.ok(output.includes('currentRound'), `Expected 'currentRound' in warning: ${output}`);
+    assert.ok(output.includes('lives'), `Expected 'lives' in warning: ${output}`);
+  });
+});
