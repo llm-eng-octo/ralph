@@ -510,7 +510,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | DONE — worker.js reviewed (2026-03-23). 5 findings: CR-055 MED (handleFixJob APPROVED path never calls resolveFailurePattern — failure patterns accumulate forever for targeted-fix-approved games), CR-056 MED (GCP upload failure silently ignored — build DB shows no GCP URL but build is not marked failed; preview link is dead), CR-057 LOW (extractLearnings has no dedup guard — repeated builds for same game accumulate identical learning rows), CR-058 LOW (categorizeFailure still returns "unknown" for short-form Playwright numeric diff e.g. "Expected: 2, Received: 1"), CR-059 LOW (auto-retry creates new Queue instance per trigger but never calls buildQueue.close() on the error/skip path). |
+| Current task | DONE — worker.js reviewed (2026-03-23) + CR-055/CR-056 fixes deployed. CR-055: handleFixJob resolveFailurePattern on APPROVED path. CR-056: GCP upload try/catch to prevent approved→failed flip. Next: lib/server.js review. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
