@@ -211,13 +211,15 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-RESTART-RESET + GEN-PHASE-ALL + GEN-TIMER-ONLY: (1) restartGame() must reset ALL gameState fields (SHIP NOW — quadratic-formula P1); (2) data-phase/syncDOMState for ALL game types not just MCQ; (3) timer.start() only in renderRound() never setupGame(). |
-| Status | 989/989 tests pass. CR-024 DONE (dbdc11c — 4 new banned tokens + catch-all prose). CR-026 DONE (same commit — classList alternative note). CR-025 T1 validator in progress (agent running). |
+| Current task | CR-016 + CR-017 RESOLVED — GEN-TIMER-ONLY and GEN-HIDE-SHOW corrected in both CDN_CONSTRAINTS_BLOCK and buildGenerationPrompt(). 997/997 tests pass. Deployed 2026-03-23. |
+| Status | 997/997 tests pass. CR-016 DONE (GEN-TIMER-ONLY WRONG example fixed). CR-017 DONE (GEN-HIDE-SHOW soh-cah-toa #544 citation retracted). |
 | Waiting on | none |
 | Blocked by | none |
 
 | Task | Status | Hypothesis | Expected Impact |
 |------|--------|-----------|-----------------|
+| **CR-016: Fix GEN-TIMER-ONLY WRONG example** | **DONE — 2026-03-23** | WRONG example showed timer.start() AFTER renderRound() — not the race condition. Fixed to timer.start() BEFORE renderRound() in both CDN_CONSTRAINTS_BLOCK and rule 44. RIGHT updated to show currentQuestion set before timer.start(). 997 tests pass. Deployed. | Medium: LLM previously saw a non-buggy WRONG pattern — risk of ignoring the rule |
+| **CR-017: Retract GEN-HIDE-SHOW soh-cah-toa #544 citation** | **DONE — 2026-03-23** | soh-cah-toa #544 hide() uses querySelector(selector) (not element-expected) — no TypeError occurred. Rule is valid ONLY for element-expected helpers (el.style.display / el.classList.add). Updated WHY clause and source in both CDN_CONSTRAINTS_BLOCK and rule 41. 997 tests pass. Deployed. | High: factually wrong evidence undermines trust in the rule |
 | **GEN-CR-001: Tighten GEN-120 — default aria-live to polite** | **DONE — 2026-03-23** | Code Review 2026-03-23: GEN-120 now mandates `aria-live="polite"` as the only default. `assertive` demoted to parenthetical sub-note. Commit d64f2f2. 827 tests pass. Deployed. | n/a |
 | **GEN-CR-002: Narrow `expect\(` branch in categorizeFailure()** | **DONE — 2026-03-23 (commit d60ccc9)** | Code Review 2026-03-23 (334b4c3): Narrowed to `expect\(received\)` only (Playwright's own assertion diff format). `categorizeFailure('Expected round counter to increment')` → `interaction` (not rendering) — false-positive eliminated. Verified in worker.test.js line 600–607. Note: short-form Playwright diff (`Expected: N, Received: N`) still falls to unknown (CR-009 in code review log — separate backlog item). | Low |
 | **GEN-CR-003: Define "error alert" precisely in GEN-120 assertive sub-note** | **DONE — 2026-03-23 (commit d60ccc9)** | Code Review 2026-03-23 (d64f2f2): Sub-note now reads "assertive is ONLY correct for a div with `role='alert'` AND id or class containing 'error' — NEVER use assertive for correct/incorrect answer feedback." Both CDN_CONSTRAINTS_BLOCK (~L122) and buildGenerationPrompt rule 30 (~L553) updated in sync. Note: AND is more restrictive than WCAG (OR would be correct) — CR-008 in code review log tracks this as a follow-up. | Low |
@@ -501,7 +503,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | DONE — 2fce92d reviewed (2026-03-23). GEN-HIDE-SHOW rule 41 evidence audit complete. Next: pick next lib/ commit for review. |
+| Current task | DONE — CR-016 + CR-017 RESOLVED (2026-03-23). GEN-TIMER-ONLY WRONG example fixed (timer before renderRound); GEN-HIDE-SHOW soh-cah-toa #544 citation retracted, WHY updated to element-expected helpers only. Both CDN_CONSTRAINTS_BLOCK and numbered rules updated. 997/997 tests pass. Deployed. Next: pick next lib/ commit for review. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
@@ -557,6 +559,7 @@
 | FIX-001 (CSS preservation in fix loop) | #562 | VERIFIED (rule deployed) / PENDING (build still has stripped CSS) | `CDN_CONSTRAINTS_BLOCK` in `prompts.js` includes FIX-001 rule injected into all fix prompts. Build #562 was approved before or during FIX-001 deploy — stripped CSS persists. PART-028 now catches this pattern; rule + T1 together will block it in future builds. | 2026-03-23 |
 | ARIA-001 gen rule (aria-live on feedback divs) | #562 | NOT VERIFIED | No `aria-live` found on any feedback div in build #562 HTML. ARIA-001 WARNING fires for `#feedback-panel`. Rule not yet reflected in an approved build. Verify against next name-the-sides or any new approved build. | 2026-03-23 |
 | ARIA-001 T1 check (fixture) | fixture | VERIFIED | Fixture test confirmed: HTML WITH `aria-live="polite"` on `#feedback-msg` → 0 ARIA-001 warnings. HTML WITHOUT → 1 ARIA-001 warning. T1 check fires correctly. | 2026-03-23 |
+| CR-025 T1 validator (banned CSS token detection) | #564 + #562 | VERIFIED — no false positives | Build #564 (real-world-problem): WARNING fires for `--color-success` — TRUE POSITIVE (defined in `:root`, build approved before CR-025 deployed). Build #562 (name-the-sides): no GEN-CSS-TOKENS warning — clean. True-positive fixture (`var(--mathai-green)`) correctly caught. Validator exits cleanly on both files. | 2026-03-23 |
 | GEN-119/120/121 | — | PENDING — no post-deploy build yet | — | 2026-03-23 |
 | ARIA-001 expanded (c826ec1) — feedback divs without aria-live | #556 (name-the-sides, failed) | VERIFIED | validate-static.js fires `WARNING [ARIA-001]: 2 dynamic feedback div(s) found without aria-live attribute` for `#feedback-panel` and `#feedback-buttons`. Check W5 logic correct. ARIA-002 did NOT fire (no assertive elements in HTML — appropriate). | 2026-03-23 |
 | MCQ data-phase rule (afb885e) — GEN-MCQ-PHASE + GEN-MCQ-TIMER | prompts.js confirmed | VERIFIED (rule text only) | `GEN-MCQ-PHASE` rule at lines 214–222 + 556–575. `GEN-MCQ-TIMER` rule at line 223. Both ship correct phase-set → syncDOMState() immediately → renderRound() pattern and timer.start()-in-renderRound() mandate. Prospective verification — pre-rule build #556 has 2/4 phase assignments missing syncDOMState() (W4 check fires). Rule will suppress this in future MCQ builds. | 2026-03-23 |
