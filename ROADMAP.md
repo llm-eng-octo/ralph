@@ -217,7 +217,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-UX-002 extended (1848223, deployed GCP). Next: data-testid/id alignment rule or restartGame() stale DOM attrs sync rule. |
+| Current task | restartGame() stale DOM syncDOMState rule committed. Next: data-testid/id alignment rule. |
 | Status | Rules 53 (GEN-ENDGAME-GUARD), 53b (GEN-DATA-LIVES-GUARD b66270a), 54 (GEN-RESULTS-FIXED 290e1d9) all shipped + deployed GCP 2026-03-23. |
 | Waiting on | Next agent commits — monitor for deploys needed |
 | Blocked by | none |
@@ -510,7 +510,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | DONE — lib/pipeline-test-gen.js reviewed (2026-03-23, commits 887e76d/7d7c2be/b66270a/34d7fa8). 6 findings: CR-049 MED (checkResultsScreenViewport no waitForSelector — relies on caller convention not enforcement), CR-050 LOW (checkTransitionScreenContent race — auto-dismiss before evaluate returns found:false, silent skip), CR-051 LOW (M18+M17 overlap — two guard styles for same scenario risks LLM confusion), CR-052 MED (LP-2 banned-selector .first().click() NOT substituted — asymmetry with .first().toBeVisible() which IS handled), CR-053 LOW (testCases JSON parse errors silently swallowed — empty testCases produces 0-test build), CR-054 LOW (lintGeneratedTests multiline short-circuit guard works but all rules still run line-by-line — no correctness impact). |
+| Current task | DONE — worker.js reviewed (2026-03-23). 5 findings: CR-055 MED (handleFixJob APPROVED path never calls resolveFailurePattern — failure patterns accumulate forever for targeted-fix-approved games), CR-056 MED (GCP upload failure silently ignored — build DB shows no GCP URL but build is not marked failed; preview link is dead), CR-057 LOW (extractLearnings has no dedup guard — repeated builds for same game accumulate identical learning rows), CR-058 LOW (categorizeFailure still returns "unknown" for short-form Playwright numeric diff e.g. "Expected: 2, Received: 1"), CR-059 LOW (auto-retry creates new Queue instance per trigger but never calls buildQueue.close() on the error/skip path). |
 | Waiting on | unblocked |
 | Blocked by | none |
 
