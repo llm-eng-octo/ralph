@@ -3994,4 +3994,16 @@ describe('GEN-CORRECT-ANSWER-EXPOSURE: round string correct-answer field must be
       `Unexpected GEN-CORRECT-ANSWER-EXPOSURE warning when gameState.answer is set (text-input carve-out): ${output}`,
     );
   });
+
+  it('warns for MCQ game with round.correctOption + gameState.answer set (no gameState.correctAnswer)', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; gameState.answer = userInput; syncDOMState(); }\nfunction renderOptions() { options.forEach(o => { if (o === round.correctOption) o.selected = true; }); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for MCQ game with round.correctOption + gameState.answer but no gameState.correctAnswer, got: ${output}`,
+    );
+  });
 });
