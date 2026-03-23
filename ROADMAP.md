@@ -117,8 +117,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | LP-4 committed — GEN-SYNC-TARGET: T1 check + gen rule for syncDOMState() targeting #app instead of body. Next: LP-3 (stale step-panel fix-loop prompt). |
-| Status | 1050/1050 tests pass. 51 gen rules active. LP-4 shipped — GEN-SYNC-TARGET T1 check + gen rule blocks syncDOMState writing to #app; LP-2 shipped. LP=49% and contract=49% confirmed lowest categories — primary targets for next gen rule improvement cycle. |
+| Current task | LP-3 shipped — strengthen fix-loop step-panel hint. Next: LP-5 LP=49%/contract=49% root cause trace — which categories are failing and why. |
+| Status | 1050/1050 tests pass. 51 gen rules active. LP-3 shipped — fix-loop prompt now detects step/panel in failing test name and injects GEN-STEP-001 DOM hide hint. LP-4 retracted (false alarm — waitForPhase already reads #app). LP=49% and contract=49% confirmed lowest categories — primary targets for next gen rule improvement cycle. |
 | Waiting on | LP/contract root cause trace to complete before writing new gen rules |
 | Blocked by | none |
 
@@ -148,7 +148,8 @@
 | **Add assertion: results screen covers full viewport** | **pending** | lib/prompts.js test gen | Source: UI/UX audits — 6 confirmed instances of results screen not being position:fixed (quadratic-formula, soh-cah-toa, right-triangle-area, word-pairs, name-the-sides, find-triangle-side). Add Playwright assertion: at data-phase='results', results-screen must have offsetTop=0 and height >= window.innerHeight, OR position:fixed. |
 | **Add assertion: canvas max-width on 480px viewport** | **pending** | lib/prompts.js test gen | Source: UI/UX audit right-triangle-area #543 (UI-RTA-002). Canvas hardcoded at 500px causes overflow on 375-480px screens. Add Playwright viewport resize to 480px + assert canvas.offsetWidth <= 480. |
 | **GEN-TRANSITION-API-001: transitionScreen.show() MUST use object API — NEVER string mode** | **pending (TE handoff 2026-03-23)** | lib/prompts.js gen prompt | Source: which-ratio P0 — blank end screen caused by `transitionScreen.show('victory', ...)` (string mode). CDN only supports object API: `transitionScreen.show({buttons, title, subtitle, icons})`. Add explicit gen rule: BANNED — `transitionScreen.show('victory')`, `transitionScreen.show('gameover')`, any string first arg. REQUIRED — always use object form. Add T1 static check to catch string-mode calls before test gen. |
-| **LP-4: GEN-SYNC-TARGET — syncDOMState() should target #app not body** | **RETRACTED — false alarm (2026-03-23)** | lib/pipeline-test-gen.js line 323, lib/prompts.js ~line 1996 | Investigation confirmed: `waitForPhase()` reads `#app[data-phase]` (line 323: `page.locator('#app').toHaveAttribute('data-phase', phase)`). Gen prompt examples also show `page.locator('#app').toHaveAttribute('data-phase', ...)`. Games write to `#app[data-phase]`; tests read from `#app[data-phase]` — CONSISTENT. No rule change needed. |
+| **LP-3: Fix-loop step-panel prompt reinforcement** | **DONE (LP-3, 2026-03-23)** | lib/prompts.js | Fix-loop prompt now detects step/panel in failing test name and injects GEN-STEP-001 DOM hide hint |
+| **LP-4: GEN-SYNC-TARGET — syncDOMState() should target #app not body** | **RETRACTED — false alarm (2026-03-23, reverted in 93290bf)** | lib/pipeline-test-gen.js line 323, lib/prompts.js ~line 1996 | Investigation confirmed: `waitForPhase()` reads `#app[data-phase]` (line 323: `page.locator('#app').toHaveAttribute('data-phase', phase)`). Gen prompt examples also show `page.locator('#app').toHaveAttribute('data-phase', ...)`. Games write to `#app[data-phase]`; tests read from `#app[data-phase]` — CONSISTENT. No rule change needed. LP-4 GEN-SYNC-TARGET retracted — waitForPhase reads #app not body; rule would cause 100% failures; reverted in 93290bf. |
 | Smoke-regen: recurring "missing #gameContent" after regen (disappearing-numbers, associations, kakuro) | **done (2026-03-21, commit 2666e36)** | lib/pipeline.js, lib/prompts.js | Root cause: LLM omitted `slots` wrapper in ScreenLayout.inject() call — options passed directly are silently ignored, #gameContent never created. Fix: CDN_CONSTRAINTS_BLOCK updated with exact CORRECT/WRONG example; smoke-regen prompt now includes correct call snippet; gen prompt Rule 2 uses exact call. See Lesson 69. |
 | `data-testid` attributes in gen prompt | done | lib/pipeline.js | Rule 15: LLM adds data-testid to all interactive/observable elements; test gen uses them as primary selectors |
 | Force-regenerate missing test categories | done | lib/pipeline.js | Per-category check: only missing/empty categories regenerate; existing valid specs kept |
@@ -509,7 +510,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | DONE — 52d2666 (CR-030 GEN-SIGNAL-RESET re-instantiation) + 2e84455 (CT-2/CR-027/028 NO_LIVES_ASSERT + viewport skip) reviewed (2026-03-23). Both PASS. CR-033 [LOW] buildCliGenPrompt GEN-SIGNAL-RESET entry omits constructor args (references rule 50 only — LLM must cross-reference). CR-034 [LOW] isNonLivesGame condition has redundant unlimitedLives===true guard (hasLives===false already covers it — harmless). No HIGH findings. Next: pick next lib/ commit. |
+| Current task | DONE — 78fa0ec (associations UI/UX audit) + 93290bf (LP-4/GEN-SYNC-TARGET retraction) reviewed (2026-03-23). 78fa0ec PASS with 1 MEDIUM finding. 93290bf PASS. 1050/1050 tests confirmed. Next: pick next lib/ commit. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
