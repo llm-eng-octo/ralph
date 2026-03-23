@@ -818,8 +818,10 @@ function createApp(deps = {}) {
       }
 
       // Thread caller identity from optional header into tool handlers
+      // Validate to Slack user ID format only (U + 6-11 alphanumeric chars) — prevents header injection
       const { requestContext } = require('./lib/mcp');
-      const slackUserId = req.headers['x-ralph-notify-user'] || null;
+      const rawUserId = req.headers['x-ralph-notify-user'] || '';
+      const slackUserId = /^U[A-Z0-9]{6,11}$/.test(rawUserId) ? rawUserId : null;
       await requestContext.run({ slackUserId }, () => transport.handleRequest(req, res, req.body));
 
       if (transport.sessionId && !mcpSessions.has(transport.sessionId)) {
