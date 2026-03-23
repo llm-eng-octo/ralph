@@ -2569,3 +2569,15 @@ Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug
 **Root cause:** Static validator in a fix iteration strips the style block, judging it irrelevant to the JS-only fix being applied. This is a recurring pattern — see also Lesson 156 (CSS stripped in fix loop).
 
 **Rule:** Fix-loop prompt must explicitly state: "Never remove or comment out `<style>` blocks. Preserve all CSS exactly as-is unless the fix specifically targets a CSS rule."
+
+## Lesson 197 — endGame() guard using !isActive blocks results screen on perfect playthrough (2026-03-23)
+
+**Source:** visual-memory #528 browser audit | **Build:** #528
+
+**Problem:** `endGame()` had guard `if (gameState.gameEnded || !gameState.isActive) return;`. On a perfect playthrough, the correct-answer handler sets `gameState.isActive = false` before the `setTimeout(() => nextRound())` fires. When `nextRound()` calls `endGame()`, the guard trips (`isActive=false`) and endGame() returns without showing the results screen. `gameEnded` stays `false`. Game is permanently stuck.
+
+**Cascade P0:** The `nextRound()` logic then shows a "Continue" transition screen for the "next round" that doesn't exist. The Continue button calls `setupRound()` which accesses `rounds[5]` (undefined) → `TypeError: Cannot read properties of undefined (reading 'gridSize')`.
+
+**Root cause:** `isActive` is a "currently processing answer" flag, not an "endGame allowed" flag. Using it as an endGame guard conflates two different state concepts.
+
+**Rule:** `endGame()` guard must use ONLY `gameEnded`: `if (gameState.gameEnded) return;`. Never use `!isActive` as an endGame guard. Use a separate `isProcessing` flag for answer double-click protection. (GEN-ENDGAME-GUARD, Rule 53)
