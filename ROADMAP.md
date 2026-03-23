@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Investigating `unknown` category (33.0%, 466 tests) — root cause analysis in progress. M16 .option-btn SHIPPED (a8524a0, 986 tests). |
-| Status | Analytics: unknown 33% > game-flow 62.6% > level-progression 66.8% > mechanics 67.9% > contract 69% > edge-cases 69.6%. First-attempt: 47.9%. |
-| Waiting on | unknown category root cause agent |
+| Current task | M16 .option-btn SHIPPED (a8524a0, 986 tests). Investigating `unknown` failure_patterns (28 prod patterns, uncategorized). Real prod analytics: rendering 30 > unknown 28 > scoring 16 > messaging 9. NOTE: prior "category pass rates" were from local test DB artifact, not prod. |
+| Status | 986/986 tests pass. First-attempt rate: 47.9% (45/94 approved). |
+| Waiting on | unknown category root cause agent result |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
@@ -210,8 +210,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Investigating game-flow 62.6% pass rate (analytics priority #1 real category). Target: trace lowest-passing game-flow tests to HTML bugs vs test-gen bugs. Analytics: unknown 33% (466 tests) → Test Engineering for categorization fix. |
-| Status | All shipped: GEN-STEP-001 (c7a59c2), CR-013/008/009/012 (188bbaa), CR-015 (3154415). GEN-CR-004 confirmed already done (ae3c2ad). Next: game-flow root cause analysis. |
+| Current task | Rendering failures: 30 unresolved patterns (prod DB #1 category). Top patterns: #mathai-transition-slot button toBeVisible, gameState init, responsive layout 480px. Also: messaging 9 patterns (game_complete type wrong). NOTE: game-flow % was from LOCAL test DB — not prod. Real data: rendering > unknown > scoring > messaging. |
+| Status | All shipped: GEN-STEP-001 (c7a59c2), CR-013/008/009/012 (188bbaa), CR-015 (3154415), M16 .option-btn (a8524a0). GEN-CR-004 confirmed already done (ae3c2ad). |
 | Waiting on | none |
 | Blocked by | none |
 
