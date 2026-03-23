@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-PHASE-SEQUENCE DONE (171a5d3) — game-flow 18% root cause: GEN-PM-DUAL-PATH CORRECT example was calling syncDOMState() before gameState.phase assignment. Fixed example + added GEN-PHASE-SEQUENCE gen rule + T1 WARNING (2 patterns: no phase in endGame, phase after syncDOMState). 1195 tests pass. Deployed. Next: monitor keep-track #571 + stats-identify-class re-queue. |
-| Status | 1195/1195 tests pass. GEN-PHASE-SEQUENCE DONE (171a5d3). GEN-PM-DUAL-PATH DONE (60fd1b3). MSG-001 DONE (c4a9f44). GEN-ROUND-INDEX DONE. GEN-TESTID-RESTART DONE. CR-087 DONE (bfe9783). CR-086 DONE (b549f38). GEN-PHASE-INIT + GEN-BTN-START DONE. Stats corrections DONE (3a723ac). |
-| Waiting on | keep-track #571 completion — if approved, queue stats-mean-direct. If rejected, diagnose + queue stats-identify-class. |
+| Current task | CR-088-A: global fix loop (Step 3c) has no T1 regression guard — per-batch guard catches position:fixed stripping but global fix loop bypasses it. Adding runStaticValidationLocal() check in global fix loop (lines ~1760–1779 pipeline-fix-loop.js). Next: implement + test + deploy. |
+| Status | 1198/1198 tests pass. GEN-SHOWRESULTS-SYNC DONE (f7a16b1). GEN-PHASE-SEQUENCE DONE (171a5d3). GEN-FIX-POSITION-GUARD DONE (deployed, active after 07:00 restart). GEN-ROUND-INDEX VERIFIED (#573 APPROVED). hide-unhide #461 audit done (0 P0, 6 MEDIUM). |
+| Waiting on | stats-mean-direct #575 (verifying GEN-FIX-POSITION-GUARD stops T1 regressions) |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
@@ -516,8 +516,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-087 DONE (bfe9783) — gameFeatures ReferenceError when existingTests=true (pipeline-test-gen.js). GEN-PHASE-SEQUENCE DONE (171a5d3) — GEN-PM-DUAL-PATH CORRECT example was calling syncDOMState() before phase assignment; root cause of game-flow 18%. 1195/1195 tests pass. Next: review lib/pipeline.js T1 regression handling — keep-track #571 fix-mechanics-1 introduced GEN-RESULTS-FIXED T1 error (results screen lost position:fixed when fixing button touch target). |
-| Waiting on | keep-track #571 result |
+| Current task | CR-088 DONE (ac077cf) — pipeline-fix-loop.js reviewed. MEDIUM: global fix loop (Step 3c lines ~1760-1779) has NO T1 regression guard (only per-batch loop is protected). LOW: null bestHtmlSnapshot rollback is safe via continue guard. Routed CR-088-A to Gen Quality. Next: review validate-static.js GEN-SHOWRESULTS-SYNC implementation for edge cases (arrow functions, class methods). |
+| Waiting on | none |
 | Blocked by | none |
 
 **Log:**
@@ -610,8 +610,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-TS-ONEARG VERIFIED — keep-track #571 APPROVED. GEN-ROUND-INDEX deployed (escalated to ERROR). GEN-PHASE-SEQUENCE deployed (T1 WARNING). CR-087 deployed. Verifying GEN-ROUND-INDEX via stats-identify-class #573 (running). |
-| Waiting on | stats-identify-class #573 result |
+| Current task | Worker restarted (07:00). All fixes active: GEN-FIX-POSITION-GUARD + GEN-SHOWRESULTS-SYNC + GEN-TE-001 + GEN-ROUND-INDEX. stats-mean-direct #575 queued. Next verify: #575 outcome confirms GEN-FIX-POSITION-GUARD prevents T1 regressions in fix loop. |
+| Waiting on | stats-mean-direct #575 result |
 | Blocked by | none |
 
 **Verification log:**
@@ -646,9 +646,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Stats spec corrections DONE (3a723ac) — outlier fix (stats-which-measure), timer 45s→90s (stats-mode), mean calculation (stats-identify-class). Session 2 candidate analysis DONE — Recommendation: Statistics NCERT Ch 14 (grouped data). stats-mean-direct (Session 2 Game 2) ready to queue after keep-track #571 completes. |
-| Status | All 5 stats specs written (stats-identify-class, stats-which-measure, stats-mode, stats-mean-direct, stats-median). Session 2 candidate doc written. Interaction Pattern Library done. |
-| Waiting on | keep-track #571 approval — then queue stats-mean-direct |
+| Current task | stats-identify-class #573 + stats-mean-direct #574 both running (Session 2 Game 1 + 2). Monitoring both builds. Next game to queue: stats-mode (Session 2 Game 4) after #574 result known. |
+| Status | All 5 stats specs written (stats-identify-class, stats-which-measure, stats-mode, stats-mean-direct, stats-median). Session 2 candidate doc written. Interaction Pattern Library done. stats-identify-class #573 + stats-mean-direct #574 both actively building. |
+| Waiting on | #573 + #574 outcomes |
 | Blocked by | nothing |
 
 | Task | Status | Notes |
@@ -670,7 +670,7 @@
 
 ## Analytics — Last Run
 
-**ANALYTICS UPDATE (2026-03-23 session-4 — builds #568/#569 running):** messaging 56% weakest (4 unresolved, all contract.spec postMessage payload undefined); scoring 75%; rendering 84%; rest 100%. Last 10: 5/10 approved, 2 running. 4/5 pre-running approved (strong recency). 0 never-approved games. Priority: Gen Quality → postMessage payload rule (CT-NEW-1/2/3/4 expected to close transition-slot + wrong-phase patterns).
+**ANALYTICS UPDATE (2026-03-23 session-5 — builds #573/#574 running):** Total 549 completed builds. First-attempt rate 8.2% (45/549). Failure patterns: rendering 86% resolve (5 unresolved), messaging 56% (4 unresolved), scoring 75% (4 unresolved), timing 86% (1). Top 5 unresolved: all contract.spec.js — postMessage payload undefined (matching-doubles), "Okay!" timeout (count-and-tap ×2), #mathai-transition-slot button missing (associations ×2). Never-approved: stats-identify-class (building #573), stats-mean-direct (building #574), addition-mcq (rejected #572, spec needs sync). Routing: Gen Quality → rendering #mathai-transition-slot + messaging postMessage; Test Engineering → scoring low-score path diagnosis; UI/UX → associations (19 builds, 2 patterns); Education → addition-mcq spec sync.
 ---
 
 **ANALYTICS UPDATE (2026-03-23 session-3 — failure_patterns resolve rates):**
