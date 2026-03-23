@@ -513,7 +513,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-072 WARN (2026-03-23) — GEN-TESTID-STEP missing from buildGenerationPrompt numbered rules list (present in CDN_CONSTRAINTS_BLOCK inline + buildCliGenPrompt inline, but absent from the 57-item numbered list in buildGenerationPrompt's ADDITIONAL GENERATION RULES section). Same gap for GEN-WINDOW-NEXTROUNDEXPOSED (rule 58). Both rules reach the LLM via CDN_CONSTRAINTS_BLOCK but are structurally inconsistent with every other rule in the numbered list. CR-073 WARN — GEN-TESTID-STEP scope ambiguity: rule says "steps that coexist in the DOM simultaneously" but never explicitly exempts sequential-visibility games where step panels are shown/hidden one at a time (not concurrent). LLM may over-apply the namespacing rule to non-concurrent steps. No fix needed if game uses GEN-STEP-001 correctly, but the rule lacks a clear boundary. Fix: add "steps that are concurrently visible (not hidden/shown) in the DOM". Next: route CR-073 to Gen Quality for tightening. |
+| Current task | CR-072: GEN-GRID-TESTID + GEN-RESTART-PHASE rules added from light-up UI/UX audit. Next: review game-flow test gen section for exact-value-assertion patterns (test count 8/30 batches). |
 | Waiting on | unblocked |
 | Blocked by | none |
 
