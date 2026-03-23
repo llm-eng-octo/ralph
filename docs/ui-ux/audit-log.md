@@ -18,10 +18,10 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** reciprocal-ratios — 2026-03-23 — BLOCKED: no spec exists. Game directory, spec.md, and games/index.md entry all absent. Referenced only in docs/education/session-planner-v1.md line 257 as a future template. No audit possible until spec is written.
-**Last completed:** addition-mcq — 2026-03-23
+**Current task:** stats-identify-class — 2026-03-23 — COMPLETE. 6 findings (0a-HIGH, 1b-HIGH, 1b-LOW, 1a-MEDIUM, 1a-LOW×2, 1d-LOW). No P0. ui-ux.md written.
+**Last completed:** stats-identify-class — 2026-03-23
+**Next target:** reciprocal-ratios — BLOCKED: no spec exists. Referenced only in docs/education/session-planner-v1.md. No audit possible until spec is written.
 **Waiting on:** reciprocal-ratios spec creation (Education slot)
-**Blocked by:** spec does not exist
 
 ### Batch 2 — Completed 2026-03-23 (static analysis)
 
@@ -40,6 +40,8 @@ addition-mcq (next active target)
 ## Completed Audits
 
 | Date | Game | Build | Issues Found | Actions Taken |
+|------|------|-------|-------------|---------------|
+| 2026-03-23 | stats-identify-class | spec-only | 6 issues (0a-HIGH, 2b, 3a-low/med, 1d) | No P0; FeedbackManager.init() absent (PASS); window.endGame assigned (PASS); data-phase/syncDOMState full (PASS); gameState.gameId first field (PASS); ProgressBar slotId correct (PASS); ARIA live region correct (PASS); CRITICAL: postMessage type casing conflict Section 13 GAME_COMPLETE vs Section 6.8 game_complete (spec-b fix before build); restartGame() body missing (spec-b addition); SignalCollector not instantiated (7th — GEN-UX-005 shipped, add to spec); got-it-btn/skip-btn min-height absent (12th — GEN-UX-002 shipped); Sentry v10 three-script absent (8th — warehouse template gap); ScreenLayout wait/auto-mount ambiguity (new — test gap) |
 |------|------|-------|-------------|---------------|
 | 2026-03-23 | addition-mcq | spec-only | 10 issues (7a, 2b, 0c, 1d) | No P0 flow bugs; FeedbackManager.init() absent (PASS); no alert() (PASS); window.endGame unassigned (7th — GEN-WINDOW-EXPOSE shipped); data-phase/syncDOMState absent (6th MCQ spec — ROADMAP); ARIA-001 absent (16th instance — shipped); gameState.gameId absent (7th — GEN-GAMEID shipped); ProgressBar slotId absent (10th — GEN-UX-003 shipped); SignalCollector no args (6th — GEN-UX-005 shipped); results-screen not position:fixed (7th — GEN-UX-001 shipped); game_complete type wrong (spec says game_end — new type-name mismatch finding, spec addition); restartGame() timer not recreated after endGame() destroys it (4th timer game — spec addition); .option-btn min-height absent (11th — GEN-UX-002 shipped, verify .option-btn selector) |
 | 2026-03-23 | mcq-addition-blitz | spec-only | 9 issues (6a, 2b, 0c, 1d) | No P0 flow bugs; FeedbackManager.init() absent (PASS); no alert() (PASS); results via TransitionScreen CDN overlay (PASS); window.endGame unassigned (6th instance — GEN-WINDOW-EXPOSE shipped); data-phase/syncDOMState absent (5th MCQ spec instance — ROADMAP line 237); ARIA-001 absent (15th instance — shipped); gameState.gameId absent (6th instance — GEN-GAMEID shipped); ProgressBar slotId absent (9th instance — GEN-UX-003 shipped); SignalCollector no args (5th instance — GEN-UX-005 shipped); game_complete dual-path not explicit (3rd instance — spec addition needed); restartGame() timer destroy unspecified (3rd timer game instance — spec addition needed); .option-btn min-height absent (10th instance — GEN-UX-002 coverage for .option-btn needs verification) |
