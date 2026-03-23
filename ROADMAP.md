@@ -582,9 +582,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Session 3 plan written (docs/education/session3-plan.md). Recommendation: Arithmetic Progressions (NCERT Class 10 Ch 5), 5 games, Bloom L1→L4. Defers Probability to Session 4. Awaiting human approval of topic before spec writing begins. |
-| Status | Session 2 complete (4 games specced). Session 3 plan compares Probability vs AP across exam weight, misconception addressability, CDN compatibility, and pattern library value. |
-| Waiting on | Human approval of Session 3 topic (AP recommended) before writing ap-identify spec |
+| Current task | Statistics Session 2 interaction patterns documented (docs/education/interaction-patterns.md). 5 patterns added: measure-classification-mcq (L1), 4-option computation MCQ with misconception distractors + 45s timer (L2-L3), sorted-numbers hint field, dual data mode (ungrouped/grouped), timer-gated MCQ rationale. Session Bloom progression L1->L2-L3->L3->L3 documented with NCERT alignment. |
+| Status | Session 2 interaction patterns documented. Session 3 plan written (docs/education/session3-plan.md) — AP recommended. Pattern library now covers trig (L1-L4) + statistics (L1-L3). |
+| Waiting on | (1) Human approval of Session 2 stats specs (stats-identify-class, stats-mean-direct, stats-median, stats-mode) before queuing builds. (2) Human approval of Session 3 topic (AP recommended) before writing ap-identify spec. |
 | Blocked by | none |
 
 | Task | Status | Notes |

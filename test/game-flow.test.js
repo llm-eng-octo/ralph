@@ -225,3 +225,103 @@ describe('TE-RES-001: error message format', () => {
     );
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for the TransitionScreen content assertion (TE-TRANSITION-001)
+//
+// The P0 pattern: transitionScreen.show('victory', ...) called in string mode
+// instead of object API — renders a blank white .mathai-transition-screen--active
+// with no title, no score, and no Play Again button.
+// (observed: which-ratio #561 UI/UX audit — blank victory screen, Play Again unreachable)
+//
+// The actual checkTransitionScreenContent() helper is injected into the shared
+// Playwright boilerplate in lib/pipeline-test-gen.js and runs inside every
+// generated game-flow spec file.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Replicate the assertion logic from checkTransitionScreenContent() ────────
+//
+// Mirrors the page.evaluate() return shape and the assertion condition exactly
+// as defined in the boilerplate in lib/pipeline-test-gen.js.
+// Any change to one must be reflected in the other.
+
+function assertTransitionScreenContent(contentCheck) {
+  if (!contentCheck.found) {
+    // Transition screen not active — skip
+    return { skipped: true };
+  }
+  const passes = contentCheck.buttonCount > 0;
+  return {
+    skipped: false,
+    passes,
+    message: passes
+      ? null
+      : `Victory/results TransitionScreen must have at least 1 visible button. Got: ${JSON.stringify(contentCheck)}. Check transitionScreen.show() — must use object API with buttons array, not string mode.`,
+  };
+}
+
+describe('TE-TRANSITION-001: TransitionScreen content — assertion logic', () => {
+  // PASS case: active transition screen with visible button
+  it('passes when active transition screen has at least 1 visible button', () => {
+    const result = assertTransitionScreenContent({
+      found: true,
+      buttonCount: 1,
+      hasTitle: true,
+      titleText: 'Well done!',
+      firstButtonText: 'Play Again',
+    });
+    assert.equal(result.skipped, false);
+    assert.equal(result.passes, true);
+    assert.equal(result.message, null);
+  });
+
+  it('passes when active transition screen has multiple visible buttons', () => {
+    const result = assertTransitionScreenContent({
+      found: true,
+      buttonCount: 2,
+      hasTitle: true,
+      titleText: 'Victory!',
+      firstButtonText: 'Play Again',
+    });
+    assert.equal(result.passes, true);
+  });
+
+  // FAIL case: the P0 pattern — blank screen, 0 buttons (which-ratio #561)
+  it('fails when active transition screen has 0 visible buttons (blank screen P0)', () => {
+    // Exact pattern observed in which-ratio #561: transitionScreen.show('victory', ...)
+    // called with string mode — screen activates but renders blank
+    const result = assertTransitionScreenContent({
+      found: true,
+      buttonCount: 0,
+      hasTitle: false,
+      titleText: undefined,
+      firstButtonText: undefined,
+    });
+    assert.equal(result.skipped, false);
+    assert.equal(result.passes, false);
+    assert.ok(result.message.includes('at least 1 visible button'), 'message states requirement');
+    assert.ok(result.message.includes('buttonCount'), 'message includes buttonCount in diagnostic JSON');
+    assert.ok(result.message.includes('object API'), 'message mentions correct API usage');
+  });
+
+  it('fails message includes full contentCheck payload for diagnostics', () => {
+    const payload = {
+      found: true,
+      buttonCount: 0,
+      hasTitle: false,
+      titleText: undefined,
+      firstButtonText: undefined,
+    };
+    const result = assertTransitionScreenContent(payload);
+    assert.ok(!result.passes);
+    // The message must embed the JSON payload so the failure is immediately actionable
+    assert.ok(result.message.includes('"buttonCount":0'), 'message embeds buttonCount:0');
+  });
+
+  // SKIP case: transition slot exists but screen not active
+  it('skips when transition screen is not active (found: false)', () => {
+    const result = assertTransitionScreenContent({ found: false });
+    assert.equal(result.skipped, true);
+    assert.equal(result.passes, undefined, 'no pass/fail when skipped');
+  });
+});
