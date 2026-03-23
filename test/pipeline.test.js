@@ -2023,3 +2023,96 @@ describe('buildTestGenCategoryPrompt — M16: .option-btn touch target rule', ()
     );
   });
 });
+
+// ─── LP-NEW rules: level-progression prompt content ───────────────────────────
+// Verifies LP-NEW-1/2/3 rule text appears in buildTestGenCategoryPrompt()
+// for the level-progression category.
+// Evidence: name-the-sides #557–562 (LP-NEW-1), interactive-chat #387 (LP-NEW-2),
+// find-triangle-side #547 + name-the-sides #553 (LP-NEW-3).
+
+const lpBaseOpts = {
+  category: 'level-progression',
+  categoryDescription: 'Level/round structure tests',
+  testCaseCount: 3,
+  testCasesText: '1. Verify round advances\n2. Verify content changes\n3. Verify difficulty scaling',
+  learningsBlock: '',
+  testHintsBlock: '',
+  gameFeaturesBlock: '',
+  htmlContent: '<html><body></body></html>',
+  domSnapshot: '<div id="app" data-phase="playing" data-round="1"></div>',
+  specScenarios: [],
+};
+
+describe('buildTestGenCategoryPrompt — LP-NEW-1: debugGame() RangeError guard', () => {
+  it('includes LP-NEW-1 rule text in level-progression prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(lpBaseOpts);
+    assert.ok(
+      prompt.includes('LP-NEW-1'),
+      'LP-NEW-1 rule must appear in level-progression prompt',
+    );
+    assert.ok(
+      prompt.includes('debugGame') || prompt.includes('RangeError'),
+      'LP-NEW-1 must reference debugGame or RangeError: Invalid count value',
+    );
+    assert.ok(
+      prompt.includes('fallbackContent.rounds'),
+      'LP-NEW-1 must reference fallbackContent.rounds length guard',
+    );
+  });
+
+  it('LP-NEW-1 is NOT emitted for non-level-progression categories', () => {
+    const prompt = buildTestGenCategoryPrompt({ ...lpBaseOpts, category: 'mechanics' });
+    assert.ok(
+      !prompt.includes('LP-NEW-1'),
+      'LP-NEW-1 rule must NOT appear in non-level-progression prompts',
+    );
+  });
+});
+
+describe('buildTestGenCategoryPrompt — LP-NEW-2: start-button selector timeout guard', () => {
+  it('includes LP-NEW-2 rule text in level-progression prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(lpBaseOpts);
+    assert.ok(
+      prompt.includes('LP-NEW-2'),
+      'LP-NEW-2 rule must appear in level-progression prompt',
+    );
+    assert.ok(
+      prompt.includes('startGame(page)'),
+      'LP-NEW-2 must reference startGame(page) as the correct navigation approach',
+    );
+  });
+
+  it('LP-NEW-2 is NOT emitted for game-flow category', () => {
+    const prompt = buildTestGenCategoryPrompt({ ...lpBaseOpts, category: 'game-flow' });
+    assert.ok(
+      !prompt.includes('LP-NEW-2'),
+      'LP-NEW-2 rule must NOT appear in game-flow prompts',
+    );
+  });
+});
+
+describe('buildTestGenCategoryPrompt — LP-NEW-3: not.toBeVisible transition slot guard', () => {
+  it('includes LP-NEW-3 rule text in level-progression prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(lpBaseOpts);
+    assert.ok(
+      prompt.includes('LP-NEW-3'),
+      'LP-NEW-3 rule must appear in level-progression prompt',
+    );
+    assert.ok(
+      prompt.includes('not.toBeVisible') || prompt.includes('not.toBeVisible()'),
+      'LP-NEW-3 must reference the not.toBeVisible() anti-pattern on transition slot',
+    );
+    assert.ok(
+      prompt.includes('getRound(page)') || prompt.includes('getRound'),
+      'LP-NEW-3 must recommend getRound() polling as the correct round-advancement detection',
+    );
+  });
+
+  it('LP-NEW-3 is NOT emitted for contract category', () => {
+    const prompt = buildTestGenCategoryPrompt({ ...lpBaseOpts, category: 'contract' });
+    assert.ok(
+      !prompt.includes('LP-NEW-3'),
+      'LP-NEW-3 rule must NOT appear in contract prompts',
+    );
+  });
+});
