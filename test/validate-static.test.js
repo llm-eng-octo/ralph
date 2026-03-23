@@ -3602,21 +3602,82 @@ describe('GEN-MOBILE-STACK: flex-direction:row detection', () => {
   });
 
   it('GEN-DOM-CACHE: does NOT warn when loadQuestion() does not call getElementById()', () => {
-    // Correct pattern: uses cached module-scope references (no getElementById inside function body)
-    const html = VALID_HTML.replace(
-      'function showQuestion()',
-      `const questionEl = { textContent: '' };
-      const optionsGrid = { innerHTML: '' };
+    // Correct pattern: uses cached module-scope references (no getElementById inside any per-round function)
+    // Replace showQuestion's getElementById call with a cached ref, and add loadQuestion without getElementById
+    const html = VALID_HTML
+      .replace(
+        "document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';",
+        "questionTextEl.textContent = a + ' x ' + b + ' = ?';",
+      )
+      .replace(
+        'function showQuestion()',
+        `const questionEl = { textContent: '' };
+      const questionTextEl = document.getElementById('questionText');
       function loadQuestion(index) {
         questionEl.textContent = 'Question ' + index;
-        optionsGrid.innerHTML = '';
+      }
+      function showQuestion()`,
+      );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-DOM-CACHE'),
+      `Unexpected GEN-DOM-CACHE warning when loadQuestion() uses cached refs: ${output}`,
+    );
+  });
+
+  it('GEN-DOM-CACHE: warns when getElementById called inside renderRound()', () => {
+    const html = VALID_HTML.replace(
+      'function showQuestion()',
+      `function renderRound(round) {
+        const el = document.getElementById('question');
+        el.textContent = round.q;
       }
       function showQuestion()`,
     );
     const { output } = runValidator(html);
     assert.ok(
+      output.includes('GEN-DOM-CACHE'),
+      `Expected GEN-DOM-CACHE warning when getElementById is inside renderRound() but got: ${output}`,
+    );
+  });
+
+  it('GEN-DOM-CACHE: does not warn when getElementById called at DOMContentLoaded level (not inside per-round fn)', () => {
+    // Correct pattern: getElementById at init scope, not inside a per-round function body.
+    // Also replace showQuestion's getElementById to avoid false-positive from VALID_HTML baseline.
+    const html = VALID_HTML
+      .replace(
+        "document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';",
+        "questionTextEl.textContent = a + ' x ' + b + ' = ?';",
+      )
+      .replace(
+        'function showQuestion()',
+        `const questionEl = document.getElementById('question');
+      const questionTextEl = document.getElementById('questionText');
+      function renderRound(round) {
+        questionEl.textContent = round.q;
+      }
+      function showQuestion()`,
+      );
+    const { output } = runValidator(html);
+    assert.ok(
       !output.includes('GEN-DOM-CACHE'),
-      `Unexpected GEN-DOM-CACHE warning when loadQuestion() uses cached refs: ${output}`,
+      `Unexpected GEN-DOM-CACHE warning when getElementById is at init scope: ${output}`,
+    );
+  });
+
+  it('GEN-DOM-CACHE: warns when getElementById called inside async loadQuestion()', () => {
+    const html = VALID_HTML.replace(
+      'function showQuestion()',
+      `async function loadQuestion(idx) {
+        const feedback = document.getElementById('feedback-msg');
+        feedback.innerHTML = '';
+      }
+      function showQuestion()`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-DOM-CACHE'),
+      `Expected GEN-DOM-CACHE warning when getElementById is inside async loadQuestion() but got: ${output}`,
     );
   });
 });
