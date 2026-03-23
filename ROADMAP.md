@@ -117,7 +117,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CT-NEW-1/2/3/4 DONE (commit eea041e) — 4 CT rules + 2 T1 linter rules (CT_WRONG_PHASE, CT_STAR_EXACT). Patterns: closure-capture, phase-target, #results-screen proxy, exact-star-count. Expected: contract 42% → 70-75%. Next: verify on next approved build. |
+| Current task | CT-NEW-1/2/3/4 + GEN-PHASE-MCQ-FULL + GEN-TS-ONEARG + LP-NEW-1/2/3 all DONE (commits eea041e, e03bf6d, a320a31, 11ae0fc). Monitoring builds #568/#569 for CT-NEW verification. Next active task: GEN-TESTID-RESTART (btn-restart convention, UI-ODD-003) + postMessage dual-path gen rule (messaging 56% weakest — analytics session-4). |
 | Status | 1167/1167 tests pass. CT-NEW-1: closure-capture pattern replaces CT4+CT8 (~40% of CT failures). CT-NEW-2: phase-agnostic waitForPhase target (~13% of failures). CT-NEW-3: ban #results-screen as proxy selector. CT-NEW-4: ban exact star count (toBe(N)). CT_WRONG_PHASE T1 linter: catches waitForPhase('gameover'/'recall') in contract files. CT_STAR_EXACT T1 linter: catches .data.metrics.stars).toBe(N). 100-build RCA: 48% pass rate identified 4 distinct root causes. |
 | Waiting on | none |
 | Blocked by | none |

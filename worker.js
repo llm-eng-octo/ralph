@@ -1339,7 +1339,9 @@ const worker = new Worker(
           // DB write itself failed — nothing more we can do; BullMQ will fire worker.on('failed')
         }
         // Update parent message to show failed status
-        if (threadInfo) {
+        // CR-085: threadInfo is declared with `let` inside the try block and is not in scope
+        // in the catch block. Guard with typeof to prevent ReferenceError masking the original error.
+        if (typeof threadInfo !== 'undefined' && threadInfo) {
           try {
             await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId,
               { status: 'FAILED', buildId: _topLevelBuildId, iterations: 0 },
