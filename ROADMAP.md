@@ -669,6 +669,9 @@
 
 ## Analytics — Last Run
 
+**ANALYTICS UPDATE (2026-03-23 session-4 — builds #568/#569 running):** messaging 56% weakest (4 unresolved, all contract.spec postMessage payload undefined); scoring 75%; rendering 84%; rest 100%. Last 10: 5/10 approved, 2 running. 4/5 pre-running approved (strong recency). 0 never-approved games. Priority: Gen Quality → postMessage payload rule (CT-NEW-1/2/3/4 expected to close transition-slot + wrong-phase patterns).
+---
+
 **ANALYTICS UPDATE (2026-03-23 session-3 — failure_patterns resolve rates):**
 
 | Category | Unresolved | Resolve Rate |
