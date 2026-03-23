@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** Batch 7 — DONE: word-pairs #529 full playthrough. Next: right-triangle-area #543
-**Last completed:** word-pairs #529 — 2026-03-23 — 0 P0 flow blockers + 7 browser findings (3 HIGH, 2 MEDIUM, 2 LOW); full browser playthrough (Playwright MCP); 0 console errors; results screen reachable; HIGH: all buttons 21.5px (CSS strip), restartGame() leaves stale data-round/data-score on #app, results-screen missing data-phase="results" + data-testid; MEDIUM: SignalCollector "no problem state" warnings (3×), waitForPackages 120s not 180s; No re-queue required (flow intact)
+**Current task:** Batch 7 DONE: right-triangle-area #543 full playthrough. Next: rapid-challenge #526 (pending DB confirmation)
+**Last completed:** right-triangle-area #543 — 2026-03-23 — 1 P0 + 3 HIGH + 3 MEDIUM + 2 LOW; full browser playthrough (Playwright MCP, 375×812px); P0: Play Again crashes (null progressBar.update() in restartGame() — TypeError, game stuck on results screen); HIGH: canvas overflows 145px (500px canvas, no GEN-CANVAS-001), all buttons 21.5px (CSS stripped), window.nextRound not exposed (test harness MISSING error); MEDIUM: progressBar "[object Object]/5" (update() API object vs positional mismatch), no aria-live on feedback, results screen position:static; waitForPackages 180s PASS; results screen reachable; re-queue recommended after restartGame null-guard fix
 **Waiting on:** —
 
 ### Batch 4 — Completed 2026-03-23
