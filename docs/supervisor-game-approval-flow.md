@@ -19,9 +19,13 @@ The supervisor runs this entirely inside **Claude Desktop**. Once a spec is regi
 
 Claude Desktop must have the Ralph MCP server connected. Add this to `~/Library/Application Support/Claude/claude_desktop_config.json`.
 
-Replace `YOUR_SLACK_USER_ID` with your own Slack user ID (Settings -> Profile -> three-dot menu -> Copy member ID). The header is optional -- omit it if you do not want Slack notifications.
+Two headers are required:
+- **`Authorization: Bearer <token>`** — authenticates you to the Ralph MCP endpoint. The token is shared by the team (stored in `/opt/ralph/.env` as `MCP_SECRET`).
+- **`X-Ralph-Notify-User: <slack-user-id>`** — tells Ralph which Slack user to notify for approvals and build updates. To find your Slack user ID: go to your Slack profile → click the three-dot menu → "Copy member ID".
 
-**Mithilesh:**
+Each team member gets their own config file in `configs/claude-desktop/` in this repo (gitignored). Copy the relevant file to `~/Library/Application Support/Claude/claude_desktop_config.json`.
+
+**Mithilesh (U0242GULG48):**
 ```json
 {
   "mcpServers": {
@@ -31,6 +35,8 @@ Replace `YOUR_SLACK_USER_ID` with your own Slack user ID (Settings -> Profile ->
         "mcp-remote",
         "http://34.93.153.206/mcp",
         "--allow-http",
+        "--header",
+        "Authorization: Bearer a71e5bfbd4f681455ad98d7bf1df7826466db8567b7eb7879b5351c451f35b0a",
         "--header",
         "X-Ralph-Notify-User: U0242GULG48"
       ]
@@ -39,7 +45,7 @@ Replace `YOUR_SLACK_USER_ID` with your own Slack user ID (Settings -> Profile ->
 }
 ```
 
-**Harshvardhan:**
+**Sammit (U06KHJU96Q4):**
 ```json
 {
   "mcpServers": {
@@ -50,12 +56,56 @@ Replace `YOUR_SLACK_USER_ID` with your own Slack user ID (Settings -> Profile ->
         "http://34.93.153.206/mcp",
         "--allow-http",
         "--header",
-        "X-Ralph-Notify-User: YOUR_SLACK_USER_ID"
+        "Authorization: Bearer a71e5bfbd4f681455ad98d7bf1df7826466db8567b7eb7879b5351c451f35b0a",
+        "--header",
+        "X-Ralph-Notify-User: U06KHJU96Q4"
       ]
     }
   }
 }
 ```
+
+**Harshvardhan (UBWLNMXJA):**
+```json
+{
+  "mcpServers": {
+    "ralph": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://34.93.153.206/mcp",
+        "--allow-http",
+        "--header",
+        "Authorization: Bearer a71e5bfbd4f681455ad98d7bf1df7826466db8567b7eb7879b5351c451f35b0a",
+        "--header",
+        "X-Ralph-Notify-User: UBWLNMXJA"
+      ]
+    }
+  }
+}
+```
+
+**Rishabh (U02EVUX8A4Q):**
+```json
+{
+  "mcpServers": {
+    "ralph": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://34.93.153.206/mcp",
+        "--allow-http",
+        "--header",
+        "Authorization: Bearer a71e5bfbd4f681455ad98d7bf1df7826466db8567b7eb7879b5351c451f35b0a",
+        "--header",
+        "X-Ralph-Notify-User: U02EVUX8A4Q"
+      ]
+    }
+  }
+}
+```
+
+> **Slack user ID:** Go to your Slack profile → click the three-dot menu (⋯) → "Copy member ID".
 
 After saving, quit Claude Desktop (Cmd+Q) and reopen it.
 
