@@ -117,7 +117,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Add data-lives guards for non-lives games (P6 backlog item — lib/prompts.js test gen). Source: UI/UX audit word-pairs #529 (UI-WP-005). `data-lives` is hardcoded to 0 for non-lives games — test gen must check `gameState.totalLives === 0` and skip lives assertions for those games. |
+| Current task | checkResultsScreenViewport() rectTop guard DONE (887e76d, deployed GCP). Next: Lives games must sync data-lives to DOM (gen prompt rule). |
 | Status | T1 re-validation on targeted fix HTML: DONE (0f84035, 2026-03-23) — after each fix iteration, T1 static validation runs on patched HTML; T1 errors cause fix retry (up to 2 attempts); graceful fallback if T1 still fails. 1065/1065 tests pass. |
 | Waiting on | none |
 | Blocked by | none |
@@ -219,7 +219,7 @@
 |-------|-------|
 | Current task | GEN-RESULTS-FIXED (rule 54) DONE — committed 290e1d9, deployed GCP 2026-03-23. Next: CR-044 global-fix regression guard dead code (pipeline-fix-loop.js) + CR-045 originalT1Checks null guard bug. |
 | Status | Rules 53 (GEN-ENDGAME-GUARD), 53b (GEN-DATA-LIVES-GUARD b66270a), 54 (GEN-RESULTS-FIXED 290e1d9) all shipped + deployed GCP 2026-03-23. |
-| Waiting on | TE checkResultsScreenViewport tighten (ac3cc9c7dcc889383) — deploy when committed |
+| Waiting on | CR-044/CR-045 fix (aca9076f1b4f4ab7f) — deploy pipeline-fix-loop.js when committed |
 | Blocked by | none |
 
 | Task | Status | Hypothesis | Expected Impact |
