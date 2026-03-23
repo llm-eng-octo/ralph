@@ -993,6 +993,55 @@ describe('progressBar hallucinated methods check (5f10)', () => {
   });
 });
 
+describe('LP-1: progressBar.update() 2nd arg must not be totalRounds (GEN-112)', () => {
+  it('fails when progressBar.update() 2nd arg is bare totalRounds', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(round, totalRounds);');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR [GEN-112]') && output.includes('totalRounds'),
+      `Expected GEN-112 totalRounds error but got: ${output}`,
+    );
+  });
+
+  it('fails when progressBar.update() 2nd arg is gameState.totalRounds', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(gameState.currentRound, gameState.totalRounds);');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR [GEN-112]') && output.includes('totalRounds'),
+      `Expected GEN-112 totalRounds error but got: ${output}`,
+    );
+  });
+
+  it('passes when progressBar.update() 2nd arg is livesRemaining', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(gameState.currentRound, gameState.livesRemaining);');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-112') || !output.includes('totalRounds'),
+      `Unexpected LP-1 error for livesRemaining: ${output}`,
+    );
+  });
+
+  it('passes when progressBar.update() 2nd arg is 0 (no-lives game)', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(gameState.currentRound, 0);');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-112') || !output.includes('totalRounds'),
+      `Unexpected LP-1 error for literal 0: ${output}`,
+    );
+  });
+
+  it('passes when progressBar.update() 2nd arg is gameState.lives', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(gameState.currentRound, gameState.lives);');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-112') || !output.includes('totalRounds'),
+      `Unexpected LP-1 error for gameState.lives: ${output}`,
+    );
+  });
+});
+
 describe('TimerComponent slot not created by ScreenLayout (5f8)', () => {
   const cdnHtmlWithTimer = (slotsConfig) => `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>T</title><style>body{}</style></head>
