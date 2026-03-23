@@ -12,3 +12,5 @@ data/games/
 .ralph-claude-output-*
 dist/
 tmp/
+repo/
+test-results/
