@@ -189,7 +189,7 @@ When the user says register:
 - Never write a spec from memory — always read manifests + selected part files fresh.
 - Never skip sections from template-schema.md — all 15 are required.
 - Never invent CDN script URLs — copy verbatim from warehouse/SPEC.md Section 7.
-- Never call FeedbackManager.init() unless PART-017 is explicitly in the spec.
+- ALWAYS include \`await FeedbackManager.init()\` in DOMContentLoaded after waitForPackages() — it is mandatory for sticker and feedback features.
 - Never register/queue a build until the user explicitly asks for it.
 - Never call register_spec without first completing the SPEC-REVIEW-PROMPT self-review.
 ```

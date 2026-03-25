@@ -498,6 +498,12 @@ const worker = new Worker(
         'generate-tests': 'Step 2 · Generating Tests',
         'tests-generated': 'Step 2 · Tests Ready',
         'test-fix-loop': 'Step 3 · Test → Fix Loop',
+        'visual-review': 'Step 3.5 · Visual UI/UX Review',
+        'visual-fix': 'Step 3.5 · Visual Fix',
+        'visual-review-complete': 'Step 3.5 · Visual Review Done',
+        'feedback-verification': 'Step 3b · Feedback Verification',
+        'feedback-fix': 'Step 3b · Feedback Fix',
+        'feedback-verification-complete': 'Step 3b · Feedback Done',
         review: 'Step 4 · Review',
         'review-complete': 'Step 4 · Review Complete',
       };
@@ -878,6 +884,116 @@ const worker = new Worker(
         const { batch: b = 'unknown', iteration: iter = '?', reason = '' } = detail || {};
         const bodyText = `↩️ *${b} fix ${iter} rolled back* (${reason}) — restoring previous HTML`;
         const blocks = [divider(), mrkdwn(bodyText)];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
+        return;
+      }
+
+      // ── visual-review (Step 3.5 start) ──────────────────────────────────────
+      if (step === 'visual-review') {
+        phaseStarts['visual-review'] = now;
+        const model = detail?.model || 'vision';
+        const bodyText = `🖼️ *Step 3.5 — Visual UI/UX Review* · \`${model}\`\nCapturing screenshots and reviewing with vision LLM`;
+        const blocks = [divider(), mrkdwn(bodyText)];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
+        return;
+      }
+
+      // ── visual-fix (Step 3.5 fix iteration) ────────────────────────────────
+      if (step === 'visual-fix') {
+        const { iteration: iter = '?', issues: issueCount = 0 } = detail || {};
+        const bodyText = `🔧 *Step 3.5 — Visual Fix ${iter}* · ${issueCount} issue(s) to fix`;
+        const blocks = [divider(), mrkdwn(bodyText), nextStep('Re-capturing screenshots')];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
+        return;
+      }
+
+      // ── visual-review-complete (Step 3.5 result) ───────────────────────────
+      if (step === 'visual-review-complete') {
+        const elapsed = phaseStarts['visual-review']
+          ? ` · +${Math.round((now - phaseStarts['visual-review']) / 1000)}s`
+          : '';
+        const {
+          verdict = 'SKIPPED',
+          issueCount = 0,
+          criticalCount = 0,
+          issues = [],
+          iterations: iters = 0,
+          error: errMsg,
+          model: vModel,
+        } = detail || {};
+        const emoji = verdict === 'APPROVED' ? '✅' : verdict === 'SKIPPED' ? '⏭️' : '⚠️';
+        let bodyText = `${emoji} *Step 3.5 — Visual Review: ${verdict}*${elapsed}`;
+        if (vModel) bodyText += `\nModel: \`${vModel}\``;
+        if (iters > 0) bodyText += ` · ${iters} iteration(s)`;
+        if (verdict === 'SKIPPED' && errMsg) {
+          bodyText += `\n\`\`\`\n${errMsg.slice(0, 300)}\n\`\`\``;
+        } else if (issueCount > 0) {
+          const issueLines = issues
+            .slice(0, 5)
+            .map((i) => {
+              const sev = i.severity === 'critical' ? '🔴' : '⚠️';
+              return `${sev} ${(i.description || i.title || '').slice(0, 150)}`;
+            })
+            .join('\n');
+          const moreStr = issues.length > 5 ? `\n…(${issues.length - 5} more)` : '';
+          bodyText += `\n${issueCount} issue(s) found (${criticalCount} critical):\n${issueLines}${moreStr}`;
+        } else if (verdict === 'APPROVED') {
+          bodyText += '\nNo critical UI/UX issues found ✓';
+        }
+        const blocks = [divider(), mrkdwn(bodyText), nextStep('Feedback verification')];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
+        return;
+      }
+
+      // ── feedback-verification (Step 3b start) ──────────────────────────────
+      if (step === 'feedback-verification') {
+        phaseStarts['feedback-verification'] = now;
+        const bodyText = `🔊 *Step 3b — Feedback Verification*\nValidating FeedbackManager audio, subtitles, and stickers`;
+        const blocks = [divider(), mrkdwn(bodyText)];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
+        return;
+      }
+
+      // ── feedback-fix (Step 3b fix iteration) ───────────────────────────────
+      if (step === 'feedback-fix') {
+        const { iteration: iter = '?', failures = [] } = detail || {};
+        const failList = Array.isArray(failures)
+          ? failures.slice(0, 3).map((f) => `• ${String(f).slice(0, 150)}`).join('\n')
+          : '';
+        const more = Array.isArray(failures) && failures.length > 3 ? `\n…(${failures.length - 3} more)` : '';
+        const bodyText = `🔧 *Step 3b — Feedback Fix ${iter}*${failList ? `\n${failList}${more}` : ''}`;
+        const blocks = [divider(), mrkdwn(bodyText), nextStep('Re-running feedback tests')];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
+        return;
+      }
+
+      // ── feedback-verification-complete (Step 3b result) ────────────────────
+      if (step === 'feedback-verification-complete') {
+        const elapsed = phaseStarts['feedback-verification']
+          ? ` · +${Math.round((now - phaseStarts['feedback-verification']) / 1000)}s`
+          : '';
+        const {
+          verdict = 'SKIPPED',
+          staticPassed,
+          testsPassed = 0,
+          testsFailed = 0,
+          iterations: iters = 0,
+          error: errMsg,
+        } = detail || {};
+        const allPass = verdict === 'PASSED' || (testsFailed === 0 && testsPassed > 0);
+        const emoji = allPass ? '✅' : verdict === 'SKIPPED' ? '⏭️' : verdict === 'N/A' ? 'ℹ️' : '⚠️';
+        let bodyText = `${emoji} *Step 3b — Feedback Verification: ${verdict}*${elapsed}`;
+        if (iters > 0) bodyText += ` · ${iters} iteration(s)`;
+        if (staticPassed != null) bodyText += `\nStatic checks: ${staticPassed ? '✅ passed' : '⚠️ issues found'}`;
+        if (testsPassed > 0 || testsFailed > 0) {
+          bodyText += `\nPlaywright tests: ${testsPassed} passed, ${testsFailed} failed`;
+        }
+        if (verdict === 'SKIPPED' && errMsg) {
+          bodyText += `\n\`\`\`\n${errMsg.slice(0, 300)}\n\`\`\``;
+        } else if (verdict === 'N/A') {
+          bodyText += '\nGame does not use FeedbackManager — skipped';
+        }
+        const blocks = [divider(), mrkdwn(bodyText), nextStep('Review')];
         slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
         return;
       }

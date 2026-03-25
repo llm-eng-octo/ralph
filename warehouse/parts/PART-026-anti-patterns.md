@@ -290,6 +290,30 @@ The real CDN script checks `if (window.SignalCollector)` and skips initializatio
 
 **Correct:** Never define inline stubs, polyfills, or fallback classes for CDN packages (FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector, ProgressBarComponent, TransitionScreenComponent, ScreenLayout). These are loaded via `<script>` tags (PART-002) and awaited by `waitForPackages()` (PART-003). If a package isn't available, `waitForPackages()` will timeout after 10s — that's the correct error path.
 
+## Anti-Pattern 21: Self-Recursive window.loadRound
+
+```javascript
+// WRONG — Infinite recursion → "Maximum call stack size exceeded"
+// In sloppy mode, unqualified loadRound() resolves to window.loadRound (the wrapper itself)
+window.loadRound = function(n) {
+  gameState.currentRound = n - 1;
+  loadRound();  // ← calls window.loadRound → calls itself → stack overflow
+};
+```
+
+**Correct:** Call the game's render function directly — never call `loadRound()` from inside `window.loadRound`:
+```javascript
+// RIGHT — calls renderRound (or renderQuestion, displayRound, etc.)
+window.loadRound = function(n) {
+  gameState.currentRound = n - 1;
+  gameState.gameEnded = false;
+  gameState.isProcessing = false;
+  renderRound();  // ← the actual render function, NOT loadRound
+};
+```
+
+Also never call `nextRound()` from `window.loadRound` — `nextRound` increments `currentRound` before rendering, causing a double-increment.
+
 ## Verification
 
 - [ ] All 4 script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` — no relative paths, no `cdn.homeworkapp.ai`, no invented domains
@@ -325,3 +349,4 @@ The real CDN script checks `if (window.SignalCollector)` and skips initializatio
 - [ ] VisibilityTracker `onInactive`/`onResume` fire `trackEvent('game_paused'/'game_resumed')`
 - [ ] CSS variables use `--mathai-*` prefix consistently — not `--game-*` or `--stack-*`
 - [ ] If using ScreenLayout (PART-025), do NOT also write manual HTML from PART-021 (double-nested layout)
+- [ ] `window.parent.postMessage({ type: 'game_ready' }, '*')` sent AFTER `window.addEventListener('message', handlePostMessage)` — parent harness waits for this before sending content
