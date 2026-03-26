@@ -37,7 +37,7 @@ function endGame() {
     gameState.pendingEndProblem = null;
   }
 
-  // Seal SignalCollector — detaches listeners, computes final signals (PART-010)
+  // Seal SignalCollector — performs final flush, stops flush timer, detaches listeners, computes final signals (PART-010)
   const signalPayload = signalCollector ? signalCollector.seal() : { events: [], signals: {}, metadata: {} };
 
   // Show results (PART-019)
