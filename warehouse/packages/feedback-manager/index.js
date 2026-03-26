@@ -229,6 +229,11 @@
 
       try {
         window.SubtitleComponent.show(options);
+        var subtitleText = (options && (options.text || options)) || "";
+        console.log("[FeedbackManager:event] subtitle_shown", JSON.stringify({ text: subtitleText, duration: options.duration || null }));
+        if (typeof FeedbackManager !== "undefined" && FeedbackManager._onSubtitleShown) {
+          try { FeedbackManager._onSubtitleShown({ text: subtitleText, duration: options.duration || null }); } catch (_) {}
+        }
         return true;
       } catch (e) {
         console.error("[FeedbackManager] Error showing subtitle:", e);
@@ -258,6 +263,10 @@
 
       try {
         window.StickerComponent.show(options);
+        console.log("[FeedbackManager:event] sticker_shown", JSON.stringify({ type: options.type || null, sticker: options.sticker || options.name || null }));
+        if (typeof FeedbackManager !== "undefined" && FeedbackManager._onStickerShown) {
+          try { FeedbackManager._onStickerShown({ type: options.type || null, sticker: options.sticker || options.name || null }); } catch (_) {}
+        }
         return true;
       } catch (e) {
         console.error("[FeedbackManager] Error showing sticker:", e);
@@ -983,6 +992,10 @@
     }
 
     try {
+      console.log("[FeedbackManager:event] audio_play", JSON.stringify({ id: id, type: "sound", volume: opts.volume !== undefined ? opts.volume : 1 }));
+      if (typeof FeedbackManager !== "undefined" && FeedbackManager._onAudioPlayed) {
+        try { FeedbackManager._onAudioPlayed({ id: id, type: "sound", volume: opts.volume !== undefined ? opts.volume : 1 }); } catch (_) {}
+      }
       var result = await this.audioKit.playAndWait(id, {
         volume: opts.volume !== undefined ? opts.volume : 1,
         rate: opts.rate,
@@ -1605,6 +1618,10 @@
         this.audioCtx.resume();
       if (s.isPlaying) this.stop(id);
       s.isPlaying = true;
+      console.log("[FeedbackManager:event] audio_play", JSON.stringify({ id: id, type: "stream" }));
+      if (typeof FeedbackManager !== "undefined" && FeedbackManager._onAudioPlayed) {
+        try { FeedbackManager._onAudioPlayed({ id: id, type: "stream" }); } catch (_) {}
+      }
       var originalComplete = callbacks.complete || null;
       var feedbackResult = null;
       if (options.subtitle || options.sticker) {

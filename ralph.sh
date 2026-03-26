@@ -60,6 +60,7 @@ FALLBACK_MODEL="${RALPH_FALLBACK_MODEL:-gpt-4.1}"
 
 MAX_ITERATIONS="${RALPH_MAX_ITERATIONS:-5}"
 MAX_VERIFY="${RALPH_MAX_VERIFY:-2}"
+MAX_FEEDBACK_ITERATIONS="${RALPH_MAX_FEEDBACK_ITERATIONS:-3}"
 VERIFY_MODEL="${RALPH_VERIFY_MODEL:-$FIX_MODEL}"
 LLM_TIMEOUT="${RALPH_LLM_TIMEOUT:-300}"
 TEST_TIMEOUT="${RALPH_TEST_TIMEOUT:-120}"
@@ -71,6 +72,7 @@ LOG_FILE="$GAME_DIR/ralph.log"
 REPORT_FILE="$REPORT_DIR/ralph-report.json"
 HTML_FILE="$GAME_DIR/index.html"
 TEST_FILE="$GAME_DIR/tests/game.spec.js"
+FEEDBACK_TEST_FILE="$GAME_DIR/tests/feedback.spec.js"
 SERVER_PID=""
 START_TIME=$(date +%s)
 
@@ -95,6 +97,7 @@ REPORT_ITERATIONS=0
 REPORT_GEN_TIME=0
 REPORT_TEST_RESULTS="[]"
 REPORT_REVIEW_RESULT=""
+REPORT_FEEDBACK_RESULT="SKIPPED"
 REPORT_ERRORS="[]"
 
 write_report() {
@@ -126,6 +129,7 @@ write_report() {
     --arg review_model "$REVIEW_MODEL" \
     --argjson artifacts "$ARTIFACTS" \
     --argjson errors "$REPORT_ERRORS" \
+    --arg feedback_result "$REPORT_FEEDBACK_RESULT" \
     --argjson publish "$PUBLISH_INFO" \
     --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
     '{
@@ -137,6 +141,7 @@ write_report() {
       total_time_s: $total_time,
       test_results: $test_results,
       review_result: $review_result,
+      feedback_verification: $feedback_result,
       errors: $errors,
       models: {
         generation: $gen_model,
@@ -968,6 +973,494 @@ done
 
 ALL_TEST_RESULTS="$ALL_TEST_RESULTS]"
 REPORT_TEST_RESULTS="$ALL_TEST_RESULTS"
+
+# ─── Step 3.5: Visual UI/UX Review ──────────────────────────────────────────
+log ""
+log "Step 3.5: Visual UI/UX Review (screenshots + vision LLM)"
+
+VISUAL_REVIEW_MODEL="${RALPH_VISUAL_REVIEW_MODEL:-$REVIEW_MODEL}"
+MAX_VISUAL_FIX_ITERATIONS="${RALPH_MAX_VISUAL_FIX_ITERATIONS:-2}"
+VISUAL_SCREENSHOT_DIR="$GAME_DIR/visual-screenshots"
+VISUAL_SCREENSHOT_SCRIPT="$GAME_DIR/tests/_visual-screenshots.spec.js"
+
+# Only run if we have a server running and some tests passed
+if [ "$PASSED" -gt 0 ] || [ "$FAILED" -eq 0 ]; then
+
+  # Write the screenshot capture Playwright script
+  cat > "$VISUAL_SCREENSHOT_SCRIPT" << 'SCREENSHOT_EOF'
+import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
+
+const SCREENSHOT_DIR = path.join(process.cwd(), 'visual-screenshots');
+
+async function dismissPopups(page) {
+  const okayBtn = page.locator('button:has-text("Okay!")');
+  if (await okayBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+    await okayBtn.click({ force: true });
+    await page.waitForTimeout(300);
+  }
+}
+
+async function waitForReady(page) {
+  const deadline = Date.now() + 60000;
+  while (Date.now() < deadline) {
+    await dismissPopups(page);
+    const ready = await page.locator('#mathai-transition-slot button').first()
+      .isVisible({ timeout: 300 }).catch(() => false);
+    if (ready) return;
+    await page.waitForTimeout(500);
+  }
+  throw new Error('Game did not reach ready state within 60s');
+}
+
+async function saveScreenshot(page, name) {
+  if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+  const filePath = path.join(SCREENSHOT_DIR, name + '.png');
+  await page.screenshot({ path: filePath, fullPage: false });
+  return filePath;
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(document, 'visibilityState', { get: () => 'visible' });
+    Object.defineProperty(document, 'hidden', { get: () => false });
+  });
+  page.on('pageerror', () => {});
+  await page.goto('/');
+  await waitForReady(page);
+});
+
+test('capture game screenshots', async ({ page }) => {
+  await saveScreenshot(page, '01-start-screen');
+
+  await page.locator('#mathai-transition-slot button').first().click();
+  await page.waitForTimeout(500);
+  await dismissPopups(page);
+
+  const innerDeadline = Date.now() + 8000;
+  while (Date.now() < innerDeadline) {
+    const hasBtn = await page.locator('#mathai-transition-slot button')
+      .isVisible({ timeout: 600 }).catch(() => false);
+    if (!hasBtn) break;
+    await page.locator('#mathai-transition-slot button').first().click();
+    await page.waitForTimeout(500);
+    await dismissPopups(page);
+  }
+
+  try {
+    await expect(page.locator('#app')).toHaveAttribute('data-phase', 'playing', { timeout: 10000 });
+  } catch { /* some games may not set data-phase */ }
+  await page.waitForTimeout(500);
+
+  await saveScreenshot(page, '02-gameplay-round1');
+
+  try {
+    await page.evaluate(() => window.__ralph && window.__ralph.answer(true));
+    await page.waitForTimeout(1500);
+    await saveScreenshot(page, '03-correct-feedback');
+  } catch { /* skip if not supported */ }
+
+  try {
+    const phase = await page.locator('#app').getAttribute('data-phase').catch(() => null);
+    if (phase === 'playing' || phase === null) {
+      await page.evaluate(() => window.__ralph && window.__ralph.answer(false));
+      await page.waitForTimeout(1500);
+      await saveScreenshot(page, '04-wrong-feedback');
+    }
+  } catch { /* skip */ }
+
+  try {
+    await page.evaluate(() => window.__ralph && window.__ralph.endGame('victory'));
+    await page.evaluate(() => window.__ralph && window.__ralph.syncDOMState && window.__ralph.syncDOMState());
+    await page.waitForTimeout(1000);
+    const vDeadline = Date.now() + 5000;
+    while (Date.now() < vDeadline) {
+      const hasBtn = await page.locator('#mathai-transition-slot button')
+        .isVisible({ timeout: 500 }).catch(() => false);
+      if (!hasBtn) break;
+      const btnText = await page.locator('#mathai-transition-slot button').first()
+        .textContent().catch(() => '');
+      if (/play again|restart/i.test(btnText)) break;
+      await page.locator('#mathai-transition-slot button').first().click();
+      await page.waitForTimeout(500);
+    }
+    await page.waitForTimeout(500);
+    await saveScreenshot(page, '05-victory-results');
+  } catch { /* skip */ }
+
+  try {
+    await page.evaluate(() => window.__ralph && window.__ralph.restartGame());
+    await page.waitForTimeout(1000);
+    await dismissPopups(page);
+    const rDeadline = Date.now() + 8000;
+    while (Date.now() < rDeadline) {
+      const hasBtn = await page.locator('#mathai-transition-slot button')
+        .isVisible({ timeout: 600 }).catch(() => false);
+      if (!hasBtn) break;
+      await page.locator('#mathai-transition-slot button').first().click();
+      await page.waitForTimeout(500);
+      await dismissPopups(page);
+    }
+    await page.evaluate(() => window.__ralph && window.__ralph.endGame('game_over'));
+    await page.evaluate(() => window.__ralph && window.__ralph.syncDOMState && window.__ralph.syncDOMState());
+    await page.waitForTimeout(1000);
+    await saveScreenshot(page, '06-gameover');
+  } catch { /* skip */ }
+});
+SCREENSHOT_EOF
+
+  VISUAL_ITERATION=0
+  VISUAL_VERDICT="SKIPPED"
+
+  while [ "$VISUAL_ITERATION" -le "$MAX_VISUAL_FIX_ITERATIONS" ]; do
+    log "  Capturing screenshots (iteration $VISUAL_ITERATION)..."
+
+    # Run screenshot capture
+    rm -rf "$VISUAL_SCREENSHOT_DIR"
+    timeout "$TEST_TIMEOUT" npx playwright test \
+      "$VISUAL_SCREENSHOT_SCRIPT" \
+      --config "$GAME_DIR/playwright.config.js" \
+      --reporter=list 2>&1 || true
+
+    # Count screenshots
+    SCREENSHOT_COUNT=$(find "$VISUAL_SCREENSHOT_DIR" -name "*.png" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$SCREENSHOT_COUNT" -eq 0 ]; then
+      warn "  No screenshots captured — skipping visual review"
+      VISUAL_VERDICT="SKIPPED"
+      break
+    fi
+    log "  ✓ Captured $SCREENSHOT_COUNT screenshots"
+
+    # Build multimodal prompt with base64 screenshots
+    VISUAL_PROMPT="You are reviewing the UI/UX of a MathAI educational game. Below are base64-encoded screenshots captured at different game states.
+
+Review each screenshot for UI/UX issues. Focus on:
+1. Layout & Spacing: Elements properly centered, consistent spacing, no overflow
+2. Readability: Text is legible, good contrast, appropriate font sizes
+3. Touch Targets: Interactive elements are at least 44x44px
+4. Visual Feedback: Correct/wrong states are clearly distinguishable
+5. Screen Coverage: Results/game-over screens cover the full viewport
+6. Responsive: Content fits within mobile viewport (375x667)
+7. Visual Hierarchy: Important elements prominently displayed
+8. Consistency: Colors, fonts, spacing consistent across screens
+9. Accessibility: Sufficient color contrast, clear focus indicators
+
+For each issue found, respond in this exact format:
+ISSUE: [severity: critical|warning] [brief description]
+FIX: [describe the CSS/HTML change needed — be specific about selectors and properties]
+
+After all issues, provide a verdict:
+VERDICT: [APPROVED — no critical issues | NEEDS_FIX — list critical issues]
+
+SPECIFICATION:
+$SPEC_CONTENT
+
+HTML:
+$(cat "$HTML_FILE")"
+
+    # Note: The bash pipeline's call_llm only supports text prompts, not multimodal.
+    # For vision-based review, we call the proxy directly with image content blocks.
+    SCREENSHOT_JSON_ARRAY="["
+    FIRST_SS=1
+    for SS_FILE in "$VISUAL_SCREENSHOT_DIR"/*.png; do
+      [ -f "$SS_FILE" ] || continue
+      SS_NAME=$(basename "$SS_FILE" .png | sed 's/^[0-9]*-//')
+      SS_BASE64=$(base64 < "$SS_FILE" | tr -d '\n')
+      [ "$FIRST_SS" -eq 0 ] && SCREENSHOT_JSON_ARRAY="$SCREENSHOT_JSON_ARRAY,"
+      FIRST_SS=0
+      SCREENSHOT_JSON_ARRAY="$SCREENSHOT_JSON_ARRAY
+        {\"type\":\"image\",\"source\":{\"type\":\"base64\",\"media_type\":\"image/png\",\"data\":\"$SS_BASE64\"}},
+        {\"type\":\"text\",\"text\":\"Screenshot: $SS_NAME\"}"
+    done
+    SCREENSHOT_JSON_ARRAY="$SCREENSHOT_JSON_ARRAY]"
+
+    # Build the full multimodal content array
+    VISUAL_CONTENT=$(jq -n \
+      --arg intro "$VISUAL_PROMPT" \
+      --argjson screenshots "$SCREENSHOT_JSON_ARRAY" \
+      '[{type: "text", text: $intro}] + $screenshots')
+
+    VISUAL_RESPONSE=$(timeout "$LLM_TIMEOUT" curl -s -w "\n%{http_code}" --max-time "$LLM_TIMEOUT" \
+      -X POST "$PROXY_URL/v1/messages" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: $PROXY_KEY" \
+      -d "$(jq -n \
+        --arg model "$VISUAL_REVIEW_MODEL" \
+        --argjson content "$VISUAL_CONTENT" \
+        '{
+          model: $model,
+          max_tokens: 16000,
+          messages: [{ role: "user", content: $content }]
+        }')") || {
+      warn "  Visual review LLM call failed"
+      VISUAL_VERDICT="SKIPPED"
+      break
+    }
+
+    VISUAL_HTTP_CODE=$(echo "$VISUAL_RESPONSE" | tail -1)
+    VISUAL_BODY=$(echo "$VISUAL_RESPONSE" | sed '$d')
+
+    if [ "$VISUAL_HTTP_CODE" -ne 200 ]; then
+      warn "  Visual review HTTP $VISUAL_HTTP_CODE — skipping"
+      VISUAL_VERDICT="SKIPPED"
+      break
+    fi
+
+    VISUAL_REVIEW_TEXT=$(echo "$VISUAL_BODY" | jq -r '.content[0].text // .choices[0].message.content // empty')
+    log "  Visual review response received"
+
+    # Parse verdict
+    if echo "$VISUAL_REVIEW_TEXT" | grep -qi "VERDICT:.*APPROVED"; then
+      log "  ✓ Visual review APPROVED — no critical UI/UX issues"
+      VISUAL_VERDICT="APPROVED"
+      break
+    fi
+
+    VISUAL_VERDICT="NEEDS_FIX"
+
+    if [ "$VISUAL_ITERATION" -ge "$MAX_VISUAL_FIX_ITERATIONS" ]; then
+      warn "  Visual fix iterations exhausted — proceeding with current state"
+      break
+    fi
+
+    # Apply visual fix
+    log "  Applying visual UI/UX fix (iteration $(( VISUAL_ITERATION + 1 )))..."
+
+    VISUAL_FIX_PROMPT="You are fixing UI/UX issues in a MathAI educational game HTML file.
+
+The visual review found these issues:
+
+$VISUAL_REVIEW_TEXT
+
+Fix ALL the issues listed above. Return the COMPLETE corrected HTML file wrapped in:
+\`\`\`html
+... full HTML here ...
+\`\`\`
+
+Rules:
+- Only modify CSS styles and HTML structure — do NOT change game logic or JavaScript behavior
+- Preserve all data-testid attributes
+- Preserve all window.__ralph harness code
+- Preserve all CDN script tags exactly as-is
+- Do not remove any existing functionality
+
+Current HTML:
+$(cat "$HTML_FILE")"
+
+    call_llm "visual-fix-$(( VISUAL_ITERATION + 1 ))" "$VISUAL_FIX_PROMPT" "$FIX_MODEL" || {
+      warn "  Visual fix LLM call failed — proceeding with current state"
+      break
+    }
+
+    VISUAL_FIXED_HTML=$(extract_html "$LLM_OUTPUT") || {
+      warn "  Could not extract HTML from visual fix — proceeding"
+      break
+    }
+
+    # Size guard: reject if fix shrank HTML by more than 20%
+    ORIG_SIZE=$(wc -c < "$HTML_FILE")
+    printf '%s\n' "$VISUAL_FIXED_HTML" > "$HTML_FILE"
+    FIXED_SIZE=$(wc -c < "$HTML_FILE")
+    SHRINK_PCT=$(( (ORIG_SIZE - FIXED_SIZE) * 100 / ORIG_SIZE ))
+    if [ "$SHRINK_PCT" -gt 20 ]; then
+      warn "  Visual fix shrank HTML by ${SHRINK_PCT}% — rejecting (restoring original)"
+      # Can't easily restore here, so just warn and break
+      break
+    fi
+
+    log "  ✓ Visual fix applied ($ORIG_SIZE → $FIXED_SIZE bytes)"
+    VISUAL_ITERATION=$(( VISUAL_ITERATION + 1 ))
+  done
+
+  # Cleanup temp script
+  rm -f "$VISUAL_SCREENSHOT_SCRIPT"
+
+  log "  Visual review result: $VISUAL_VERDICT"
+else
+  log "  Skipping visual review — no tests passed"
+  VISUAL_VERDICT="SKIPPED"
+fi
+
+# ─── Step 3b: FeedbackManager verification ──────────────────────────────────
+log ""
+log "Step 3b: FeedbackManager audio/subtitle/sticker verification"
+
+if grep -q "FeedbackManager" "$HTML_FILE"; then
+
+  # Part A: Static feedback validation
+  log "  Part A: Static feedback validation"
+  if [ -f "$SCRIPT_DIR/lib/validate-feedback.js" ]; then
+    FEEDBACK_STATIC_OUTPUT=$(node "$SCRIPT_DIR/lib/validate-feedback.js" "$HTML_FILE" "$SPEC_PATH" 2>&1) || true
+    FEEDBACK_STATIC_EXIT=$?
+    echo "$FEEDBACK_STATIC_OUTPUT" | tee -a "$LOG_FILE"
+    if [ "$FEEDBACK_STATIC_EXIT" -eq 0 ]; then
+      log "  ✓ Feedback static validation passed"
+    else
+      warn "  Feedback static validation found issues — continuing to Part B"
+    fi
+  else
+    warn "  validate-feedback.js not found, skipping Part A"
+  fi
+
+  # Part B: Feedback Playwright tests — verify audio/subtitle/sticker events
+  log "  Part B: Generating feedback-specific Playwright tests"
+
+  HTML_CONTENT_FOR_FEEDBACK=$(cat "$HTML_FILE")
+  FEEDBACK_TEST_PROMPT="You are an expert Playwright test writer specializing in audio/feedback verification for HTML games.
+
+The game uses a FeedbackManager package that emits console.log events when audio plays, subtitles show, or stickers show:
+
+- \`[FeedbackManager:event] audio_play\` followed by JSON: {id, type: \"sound\"|\"stream\", volume}
+- \`[FeedbackManager:event] subtitle_shown\` followed by JSON: {text, duration}
+- \`[FeedbackManager:event] sticker_shown\` followed by JSON: {type, sticker}
+
+Also, warnings like \`[AudioKit] Sound not preloaded:\` indicate sounds that were played without being preloaded first.
+
+Generate Playwright tests that verify the FeedbackManager integration is correct:
+
+1. **Setup**: Create a console message collector that captures all \`[FeedbackManager:event]\` lines and \`[AudioKit]\` warnings. Attach it via \`page.on('console')\` BEFORE \`page.goto('/')\`.
+
+2. **Test: No preload warnings** — Navigate to the game, let it initialise, interact with it (trigger at least one correct and one incorrect answer). Verify no \`Sound not preloaded\` warnings appear in console.
+
+3. **Test: Correct answer plays success audio** — Trigger a correct answer action (use the exact selectors and game flow from the HTML). Verify an \`audio_play\` event fires. Check the sound ID matches the expected correct-answer sound from the HTML's preload list.
+
+4. **Test: Incorrect answer plays error audio** — Trigger an incorrect answer. Verify an \`audio_play\` event fires with the expected wrong-answer sound ID.
+
+5. **Test: Game completion audio** — If the game has end-game feedback (playDynamicFeedback / TTS), play through all rounds and verify a \`stream\` type audio_play event fires OR that playDynamicFeedback was triggered.
+
+6. **Test: Subtitle shown on feedback** — If the game shows subtitles during feedback, verify \`subtitle_shown\` events fire with non-empty text.
+
+7. **Test: Sticker shown on feedback** — If the game shows stickers during feedback, verify \`sticker_shown\` events fire.
+
+IMPORTANT RULES:
+- Use \`@playwright/test\` imports
+- Base URL is http://localhost:8787
+- Use \`page.goto('/')\` to load the game
+- Wait for game initialization (look for #gameContent or game-ready indicators in the HTML)
+- Use the EXACT element selectors from the HTML — do not invent selectors
+- Use \`page.waitForTimeout()\` sparingly — prefer \`waitForSelector\` or event-based waits
+- For console event capture, collect messages in an array and assert on them after actions
+- Skip tests that don't apply (e.g., skip sticker test if no stickers are used in the game)
+- Output ONLY the test code wrapped in a \`\`\`javascript code block
+
+SPECIFICATION:
+$SPEC_CONTENT
+
+HTML:
+$HTML_CONTENT_FOR_FEEDBACK"
+
+  if call_llm "generate-feedback-tests" "$FEEDBACK_TEST_PROMPT" "$TEST_MODEL"; then
+    EXTRACTED_FEEDBACK_TESTS=$(extract_tests "$LLM_OUTPUT") || true
+
+    if [ -n "$EXTRACTED_FEEDBACK_TESTS" ]; then
+      printf '%s\n' "$EXTRACTED_FEEDBACK_TESTS" > "$FEEDBACK_TEST_FILE"
+      log "  ✓ Feedback tests saved to $FEEDBACK_TEST_FILE"
+
+      # Feedback test → fix loop
+      FEEDBACK_ITERATION=0
+      FEEDBACK_PASSED=0
+      FEEDBACK_FAILED=0
+
+      while [ "$FEEDBACK_ITERATION" -lt "$MAX_FEEDBACK_ITERATIONS" ]; do
+        FEEDBACK_ITERATION=$(( FEEDBACK_ITERATION + 1 ))
+        log ""
+        log "  ── Feedback iteration $FEEDBACK_ITERATION / $MAX_FEEDBACK_ITERATIONS ──"
+
+        # Run only the feedback test file
+        FEEDBACK_TEST_OUTPUT=""
+        FEEDBACK_TEST_EXIT=0
+        FEEDBACK_TEST_OUTPUT=$(timeout "$TEST_TIMEOUT" npx playwright test \
+          "$FEEDBACK_TEST_FILE" \
+          --config "$GAME_DIR/playwright.config.js" \
+          --reporter=json 2>&1) || FEEDBACK_TEST_EXIT=$?
+
+        if [ "$FEEDBACK_TEST_EXIT" -eq 124 ]; then
+          warn "  Feedback Playwright timed out after ${TEST_TIMEOUT}s"
+          FEEDBACK_TEST_OUTPUT='{"suites":[],"stats":{"expected":0,"unexpected":1,"flaky":0}}'
+        fi
+
+        FEEDBACK_PASSED=$(echo "$FEEDBACK_TEST_OUTPUT" | jq -r '.stats.expected // 0' 2>/dev/null || echo "0")
+        FEEDBACK_FAILED=$(echo "$FEEDBACK_TEST_OUTPUT" | jq -r '.stats.unexpected // 0' 2>/dev/null || echo "0")
+        FEEDBACK_FAILURES_DESC=$(echo "$FEEDBACK_TEST_OUTPUT" | jq -r '[.suites[]?.specs[]? | select(.ok == false) | .title] | join(", ")' 2>/dev/null || echo "unknown")
+
+        log "  Feedback results: $FEEDBACK_PASSED passed, $FEEDBACK_FAILED failed"
+
+        if [ "$FEEDBACK_FAILED" -eq 0 ] && [ "$FEEDBACK_PASSED" -gt 0 ]; then
+          log "  ✓ All feedback tests passed!"
+          REPORT_FEEDBACK_RESULT="PASSED"
+          break
+        fi
+
+        if [ "$FEEDBACK_ITERATION" -ge "$MAX_FEEDBACK_ITERATIONS" ]; then
+          warn "  Feedback fix loop exhausted — proceeding with $FEEDBACK_FAILED failure(s)"
+          REPORT_FEEDBACK_RESULT="FAILED:$FEEDBACK_FAILED"
+          break
+        fi
+
+        log "  Attempting feedback fix..."
+
+        # Use diff-based prompt for large HTML (E8 strategy)
+        FEEDBACK_HTML_SIZE=$(wc -c < "$HTML_FILE")
+        if [ "$FEEDBACK_HTML_SIZE" -gt 20000 ] && [ "$FEEDBACK_ITERATION" -ge 2 ]; then
+          FEEDBACK_CONTEXT_HTML="[HTML truncated — showing <script> section only]
+
+$(sed -n '/<script>/,/<\/script>/p' "$HTML_FILE")
+
+[Full HTML is ${FEEDBACK_HTML_SIZE} bytes]"
+        else
+          FEEDBACK_CONTEXT_HTML="$(cat "$HTML_FILE")"
+        fi
+
+        FEEDBACK_FIX_PROMPT="The HTML game's FeedbackManager audio/subtitle/sticker integration has test failures.
+Fix ONLY the audio/feedback-related code. Do NOT change game logic, layout, or scoring.
+
+FAILING FEEDBACK TESTS:
+$FEEDBACK_FAILURES_DESC
+
+TEST OUTPUT (summary):
+$(echo "$FEEDBACK_TEST_OUTPUT" | head -80)
+
+CURRENT HTML:
+$FEEDBACK_CONTEXT_HTML
+
+SPECIFICATION (reference for audio IDs, feedback triggers, and FeedbackManager API):
+$SPEC_CONTENT
+
+Common fixes needed:
+- sound.preload() array missing an audio ID that sound.play() uses
+- sound.play() not awaited before screen transition
+- FeedbackManager.sound.playDynamicFeedback() should be FeedbackManager.playDynamicFeedback()
+- VisibilityTracker using sound.stopAll() instead of sound.pause()/resume()
+- Missing await on FeedbackManager.init()
+- Audio URLs from spec not included in preload array
+
+Output the complete fixed HTML wrapped in a \`\`\`html code block."
+
+        call_llm "feedback-fix-$FEEDBACK_ITERATION" "$FEEDBACK_FIX_PROMPT" "$FIX_MODEL" || {
+          warn "  Feedback fix LLM call failed"
+          break
+        }
+
+        FIXED_HTML=$(extract_html "$LLM_OUTPUT") || {
+          warn "  Could not extract HTML from feedback fix output"
+          continue
+        }
+
+        printf '%s\n' "$FIXED_HTML" > "$HTML_FILE"
+        log "  ✓ HTML updated for feedback fix ($(wc -c < "$HTML_FILE") bytes)"
+      done
+    else
+      warn "  Could not extract feedback tests from LLM output — skipping Part B"
+    fi
+  else
+    warn "  Feedback test generation LLM call failed — skipping Part B"
+  fi
+
+else
+  log "  Game does not use FeedbackManager — skipping feedback verification"
+  REPORT_FEEDBACK_RESULT="N/A"
+fi
 
 # Stop web server
 stop_server

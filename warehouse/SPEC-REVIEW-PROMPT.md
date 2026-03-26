@@ -165,6 +165,46 @@ For both 7a and 7b: if the spec references standard asset IDs (e.g., "use the st
 
 ---
 
+### Step 8 — Audio Sequence Audit
+
+Extract every audio moment from the spec and present them in a single table for the user to approve. For each moment, determine whether the game **awaits** the audio (blocks further interaction until sound finishes) or **fires and forgets** (does not wait — may be overlapped or cut short by the next sound).
+
+**How to decide await vs. fire-and-forget:**
+- `await FeedbackManager.sound.play(...)` → **Awaited.** The `sound.play` promise resolves when the audio buffer finishes playing. The game pauses at this line until the sound completes.
+- `await FeedbackManager.playDynamicFeedback(...)` → **Awaited (cache hit) / Fire-and-forget (cache miss).** On cache hit the function awaits `sound.play` internally. On cache miss (streaming TTS), `_stream.play()` returns immediately and the function resolves before audio finishes. Mark these as **"Awaited*"** with a footnote explaining the streaming caveat.
+- `FeedbackManager.sound.play(...)` without `await` → **Fire-and-forget.** The sound plays in the background; execution continues immediately.
+- Two consecutive `await sound.play(...)` then `await playDynamicFeedback(...)` → The first sound plays to completion, *then* the second starts. Note this as **sequential** — the user hears them back-to-back, not overlapping.
+
+**Present this exact table format:**
+
+```
+| # | Moment | Trigger | Audio Type | Content / Sound ID | Await? | Notes |
+|---|--------|---------|------------|-------------------|--------|-------|
+| 1 | Correct answer | handleRightClick (correct path) | Static | `correct_tap` | ✅ Awaited | Blocks until sound ends |
+| 2 | Correct encouragement | handleRightClick (after correct_tap) | Dynamic TTS | "Great job!" (random phrase) | ✅ Awaited* | Sequential after #1; streaming may resolve early |
+| 3 | Wrong answer | handleRightClick (wrong path) | Static | `wrong_tap` | ✅ Awaited | Blocks until sound ends |
+| … | … | … | … | … | … | … |
+```
+
+**Column definitions:**
+- **Moment**: Human-readable name for when this sound plays
+- **Trigger**: Which function and code path triggers it
+- **Audio Type**: `Static` (preloaded sound), `Dynamic TTS` (playDynamicFeedback), or `Stream`
+- **Content / Sound ID**: The sound ID (e.g., `correct_tap`) or the TTS text content
+- **Await?**: `✅ Awaited`, `✅ Awaited*` (dynamic — streaming caveat), or `❌ Fire-and-forget`
+- **Notes**: Sequencing info (e.g., "Sequential after #1"), sticker/subtitle shown alongside, interaction blocking behavior, or any concerns
+
+**After the table, flag any issues:**
+
+1. **Overlapping audio risk**: Two sounds that could play simultaneously (both fire-and-forget, or one fire-and-forget followed immediately by another). This causes garbled audio.
+2. **Unnecessary blocking**: An `await` on audio that doesn't need to gate gameplay (e.g., awaiting a victory sound when the game is already over — harmless, but note it).
+3. **Missing await where needed**: Audio that should block interaction (e.g., "wrong answer" feedback should finish before the user can tap again) but is not awaited.
+4. **Sequential await stacking**: Multiple consecutive awaits that make the user wait too long (e.g., await sound.play + await playDynamicFeedback = user waits for both before they can act). Flag if total wait exceeds ~3 seconds.
+
+**Present the table and wait for user approval before continuing.** If the user requests changes to the await/fire-and-forget behavior, note those as findings.
+
+---
+
 ### Summary
 
 End with this exact summary table. List each finding as a one-line reference. Do not omit any finding.

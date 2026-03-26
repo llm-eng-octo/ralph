@@ -4,6 +4,22 @@
 
 ---
 
+## Code — Ready Signal (sent after initialization)
+
+Every game MUST notify the parent frame that it is ready to receive content. This is sent **once**, after the game has finished initializing (packages loaded, DOM ready, listener registered).
+
+```javascript
+// Inside DOMContentLoaded, AFTER registering the message listener:
+window.addEventListener('message', handlePostMessage);
+
+// Signal to parent harness that game is ready to receive content
+window.parent.postMessage({ type: 'game_ready' }, '*');
+```
+
+**Why this is required:** The parent harness (iframe host) waits for `game_ready` before sending `game_init` with content. Without this signal, the harness never sends content and the game falls back to hardcoded test data.
+
+**Timing:** `game_ready` must fire AFTER `window.addEventListener('message', handlePostMessage)` so the game is already listening when `game_init` arrives in response.
+
 ## Code — Receiver
 
 ```javascript
@@ -44,6 +60,7 @@ window.parent.postMessage({
 
 ## Placement
 
+- `game_ready` postMessage: Inside DOMContentLoaded, after `window.addEventListener('message', handlePostMessage)` — fires once
 - `handlePostMessage`: Global scope function (RULE-001)
 - Listener registered in PART-004: `window.addEventListener('message', handlePostMessage)`
 - Sender called inside `endGame()` (PART-011)
@@ -64,11 +81,14 @@ function setupGame() {
 
 ## Contracts
 
-- Incoming message: `contracts/postmessage-in.schema.json`
-- Outgoing message: `contracts/postmessage-out.schema.json`
+- Ready signal: `{ type: 'game_ready' }` (game → parent)
+- Incoming message: `contracts/postmessage-in.schema.json` (parent → game)
+- Outgoing message: `contracts/postmessage-out.schema.json` (game → parent)
 
 ## Verification
 
+- [ ] `game_ready` postMessage sent after initialization — `window.parent.postMessage({ type: 'game_ready' }, '*')`
+- [ ] `game_ready` fires AFTER `window.addEventListener('message', handlePostMessage)` (listener must be registered first)
 - [ ] `handlePostMessage` function exists in global scope
 - [ ] Checks `event.data?.type === 'game_init'`
 - [ ] Extracts content and stores in `gameState.content`
