@@ -928,15 +928,37 @@ const worker = new Worker(
         if (verdict === 'SKIPPED' && errMsg) {
           bodyText += `\n\`\`\`\n${errMsg.slice(0, 300)}\n\`\`\``;
         } else if (issueCount > 0) {
-          const issueLines = issues
-            .slice(0, 5)
-            .map((i) => {
-              const sev = i.severity === 'critical' ? '🔴' : '⚠️';
-              return `${sev} ${(i.description || i.title || '').slice(0, 150)}`;
-            })
-            .join('\n');
-          const moreStr = issues.length > 5 ? `\n…(${issues.length - 5} more)` : '';
-          bodyText += `\n${issueCount} issue(s) found (${criticalCount} critical):\n${issueLines}${moreStr}`;
+          const warningCount = issueCount - criticalCount;
+          bodyText += `\n📊 *${issueCount} issue(s):* ${criticalCount} critical, ${warningCount} warning`;
+
+          // Show critical issues first (all of them), then warnings (up to remaining slots)
+          const criticalIssues = issues.filter((i) => i.severity === 'critical');
+          const warningIssues = issues.filter((i) => i.severity !== 'critical');
+          const maxDisplay = 8;
+          const displayCritical = criticalIssues.slice(0, maxDisplay);
+          const remainingSlots = Math.max(0, maxDisplay - displayCritical.length);
+          const displayWarnings = warningIssues.slice(0, remainingSlots);
+
+          if (displayCritical.length > 0) {
+            bodyText += '\n\n🔴 *Critical:*';
+            for (const i of displayCritical) {
+              const desc = (i.description || i.title || '').slice(0, 200);
+              bodyText += `\n• ${desc}`;
+              if (i.fix) bodyText += `\n  _Fix: ${i.fix.slice(0, 150)}_`;
+            }
+            if (criticalIssues.length > maxDisplay) {
+              bodyText += `\n  …(${criticalIssues.length - maxDisplay} more critical)`;
+            }
+          }
+          if (displayWarnings.length > 0) {
+            bodyText += '\n\n⚠️ *Warnings:*';
+            for (const i of displayWarnings) {
+              bodyText += `\n• ${(i.description || i.title || '').slice(0, 200)}`;
+            }
+            if (warningIssues.length > remainingSlots) {
+              bodyText += `\n  …(${warningIssues.length - remainingSlots} more warnings)`;
+            }
+          }
         } else if (verdict === 'APPROVED') {
           bodyText += '\nNo critical UI/UX issues found ✓';
         }
