@@ -16,6 +16,7 @@
     "publish:spec": "node scripts/publish-spec.js"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.87",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@playwright/test": "^1.48.0",
     "better-sqlite3": "^11.0.0",
