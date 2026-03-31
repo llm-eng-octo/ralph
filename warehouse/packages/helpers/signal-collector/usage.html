@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SignalCollector - Usage Demo</title>
+  <title>SignalCollector v3 - Usage Demo</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 20px; background: #f5f5f5; }
-    h1 { margin-bottom: 10px; }
+    h1 { margin-bottom: 4px; }
     .subtitle { color: #666; margin-bottom: 20px; }
     .game-play-area {
       background: white; border: 2px solid #ddd; border-radius: 12px; padding: 24px;
@@ -26,7 +26,7 @@
     .input-area input {
       padding: 10px; font-size: 18px; border: 2px solid #ddd; border-radius: 8px; width: 200px;
     }
-    .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+    .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
     button {
       padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;
       font-size: 14px; font-weight: 600;
@@ -39,13 +39,7 @@
       font-family: 'Menlo', 'Monaco', monospace; font-size: 12px;
       max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
     }
-    .log-label { font-weight: bold; margin-bottom: 8px; color: #999; }
-    .signal-summary {
-      background: white; border-radius: 8px; padding: 16px; margin-bottom: 20px;
-      border: 1px solid #ddd;
-    }
-    .signal-summary h3 { margin-bottom: 8px; }
-    .metric { display: inline-block; margin: 4px 8px; padding: 4px 12px; background: #f0f0f0; border-radius: 16px; font-size: 13px; }
+    .log-label { font-weight: bold; margin-bottom: 8px; color: #999; font-size: 13px; }
     .draggable {
       width: 60px; height: 60px; background: #ff9800; border-radius: 8px;
       display: inline-flex; align-items: center; justify-content: center;
@@ -57,20 +51,29 @@
       color: #aaa; margin-left: 12px;
     }
     .drag-area { display: flex; align-items: center; margin-bottom: 16px; }
+    .status { font-size: 13px; color: #888; margin-bottom: 8px; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px;
+      font-weight: 600; background: #e8f4fd; color: #1a73e8; margin-right: 6px;
+    }
   </style>
 </head>
 <body>
 
-  <h1>SignalCollector Demo</h1>
-  <p class="subtitle">Interact with the game area below. All events are captured and displayed in the log panel.</p>
+  <h1>SignalCollector v3 Demo</h1>
+  <p class="subtitle">Interact with the game area below. Events are captured, flushed in batches, and logged.</p>
 
   <div class="controls">
-    <button class="btn-primary" onclick="startNewProblem()">Start Problem</button>
-    <button class="btn-primary" onclick="endCurrentProblem(true)">Submit Correct</button>
-    <button class="btn-danger" onclick="endCurrentProblem(false)">Submit Wrong</button>
+    <button class="btn-primary" onclick="startFlushing()">Start Flushing</button>
+    <button class="btn-secondary" onclick="stopFlushing()">Stop Flushing</button>
+    <button class="btn-danger" onclick="sealCollector()">Seal (Game End)</button>
     <button class="btn-secondary" onclick="showDebug()">Debug</button>
-    <button class="btn-secondary" onclick="showSignals()">Show Signals</button>
     <button class="btn-secondary" onclick="clearLog()">Clear Log</button>
+  </div>
+
+  <div id="statusBar" class="status">
+    Status: <span class="badge" id="statusBadge">initialized</span>
+    Events buffered: <span id="eventCount">0</span>
   </div>
 
   <div class="game-play-area" data-signal-id="game-area">
@@ -96,67 +99,76 @@
     </div>
   </div>
 
-  <div class="signal-summary" id="signalSummary" style="display:none">
-    <h3>Last Problem Signals</h3>
-    <div id="signalMetrics"></div>
-  </div>
-
   <div class="log-label">Event Log</div>
   <div class="log-panel" id="logPanel">Waiting for interactions...\n</div>
 
   <script src="./index.js"></script>
   <script>
     var collector;
-    var problemCounter = 0;
     var logPanel = document.getElementById('logPanel');
+    var eventCountEl = document.getElementById('eventCount');
+    var statusBadge = document.getElementById('statusBadge');
 
-    // Override console.log to capture SignalCollector output
+    // Intercept SignalCollector console output
     var origLog = console.log;
-    console.log = function() {
-      origLog.apply(console, arguments);
-      var msg = Array.from(arguments).map(function(a) {
-        return typeof a === 'string' ? a : JSON.stringify(a, null, 2);
-      }).join(' ');
-      if (msg.indexOf('[SignalCollector]') !== -1) {
-        logPanel.textContent += msg + '\n';
-        logPanel.scrollTop = logPanel.scrollHeight;
-      }
-    };
+    var origWarn = console.warn;
+    var origError = console.error;
+    function patchConsole(fn, level) {
+      return function() {
+        fn.apply(console, arguments);
+        var msg = Array.from(arguments).map(function(a) {
+          return typeof a === 'string' ? a : JSON.stringify(a, null, 2);
+        }).join(' ');
+        if (msg.indexOf('[SignalCollector]') !== -1) {
+          logPanel.textContent += '[' + level + '] ' + msg + '\n';
+          logPanel.scrollTop = logPanel.scrollHeight;
+        }
+      };
+    }
+    console.log = patchConsole(origLog, 'LOG');
+    console.warn = patchConsole(origWarn, 'WARN');
+    console.error = patchConsole(origError, 'ERROR');
 
-    // Initialize
+    // Initialize — flushUrl points to a local mock that will 404 (expected in demo)
+    // Replace with your actual cloud function URL in production
     collector = new SignalCollector({
       containerSelector: '.game-play-area',
       sessionId: 'demo_session_' + Date.now(),
       studentId: 'demo_student',
-      templateId: 'demo_template'
+      gameId: 'demo_game',
+      playId: 'demo_play_' + Date.now(),
+      flushUrl: 'https://asia-south1-mathai-449208.cloudfunctions.net/write-to-gcs'  // Replace with real URL to see successful flushes
     });
 
-    function startNewProblem() {
-      problemCounter++;
-      var id = 'problem_' + problemCounter;
-      collector.startProblem(id, {
-        text: '38 + 25',
-        correct_answer: 63,
-        difficulty: 0.35
-      });
-      log('Started problem: ' + id);
+    // Poll event count display
+    setInterval(function() {
+      eventCountEl.textContent = collector._events.length;
+    }, 500);
+
+    function startFlushing() {
+      collector.startFlushing();
+      statusBadge.textContent = 'flushing';
+      log('Started flush interval (every 5s)');
     }
 
-    function endCurrentProblem(correct) {
-      var id = 'problem_' + problemCounter;
-      var signals = collector.endProblem(id, {
-        correct: correct,
-        answer: correct ? 63 : 67
-      });
-      if (signals) {
-        displaySignals(signals);
-        log('Problem ended: ' + id + ' (correct: ' + correct + ')');
-      }
+    function stopFlushing() {
+      collector.stopFlushing();
+      statusBadge.textContent = 'paused';
+    }
+
+    function sealCollector() {
+      var result = collector.seal();
+      statusBadge.textContent = 'sealed';
+      log('Sealed: ' + JSON.stringify(result, null, 2));
     }
 
     function selectOption(el) {
       document.querySelectorAll('.option').forEach(function(o) { o.classList.remove('selected'); });
       el.classList.add('selected');
+      collector.recordViewEvent('visual_update', {
+        screen: 'gameplay',
+        content_snapshot: { type: 'option_selected', option: el.dataset.signalId, value: el.textContent }
+      });
     }
 
     function handleDrop(e) {
@@ -170,27 +182,6 @@
       collector.debug();
     }
 
-    function showSignals() {
-      var all = collector.getAllProblemSignals();
-      log('All problem signals:\n' + JSON.stringify(all, null, 2));
-    }
-
-    function displaySignals(signals) {
-      var el = document.getElementById('signalSummary');
-      var metrics = document.getElementById('signalMetrics');
-      el.style.display = 'block';
-      metrics.innerHTML =
-        '<span class="metric">First interaction: ' + signals.time_to_first_interaction_ms + 'ms</span>' +
-        '<span class="metric">Total time: ' + signals.total_response_time_ms + 'ms</span>' +
-        '<span class="metric">Interactions: ' + signals.total_interactions + '</span>' +
-        '<span class="metric">Hesitations: ' + signals.hesitation_points.length + '</span>' +
-        '<span class="metric">Velocity: ' + signals.interaction_velocity + '/s</span>' +
-        '<span class="metric">Frustration clicks: ' + signals.frustration_indicators.rapid_repeated_clicks + '</span>' +
-        '<span class="metric">Consistent pace: ' + signals.flow_indicators.consistent_pace + '</span>' +
-        '<span class="metric">Self-corrections: ' + signals.self_corrections + '</span>' +
-        '<span class="metric">Position: #' + signals.problem_position_in_session + '</span>';
-    }
-
     function log(msg) {
       logPanel.textContent += '> ' + msg + '\n';
       logPanel.scrollTop = logPanel.scrollHeight;
@@ -200,8 +191,11 @@
       logPanel.textContent = '';
     }
 
-    // Auto-start first problem
-    startNewProblem();
+    // Record initial screen
+    collector.recordViewEvent('screen_transition', {
+      screen: 'gameplay',
+      metadata: { transition_from: 'ready' }
+    });
   </script>
 </body>
 </html>
