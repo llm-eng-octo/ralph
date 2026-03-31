@@ -1,18 +1,22 @@
 /**
- * SignalCollector - Raw signal capture layer for MathAI games
+ * SignalCollector v3.0.0 - Raw signal capture layer for MathAI games
  *
- * Captures every atomic user interaction (clicks, taps, drags, keystrokes)
- * and computes problem-level signals (process, engagement, context).
+ * Captures every atomic user interaction (clicks, taps, drags, keystrokes, touch)
+ * and flushes them reliably to GCS via a cloud function.
+ *
+ * Designed for iframe deployment: seal() is synchronous-first (sendBeacon),
+ * pagehide handles iframe destruction safety net.
  *
  * Usage:
  * const collector = new SignalCollector({
  *   containerSelector: '.game-play-area',
  *   sessionId: 'ses_123',
- *   studentId: 'stu_456'
+ *   studentId: 'stu_456',
+ *   flushUrl: 'https://your-cloud-function/flush'
  * });
- * collector.startProblem('q1', { text: '5 + 3' });
+ * collector.startFlushing();
  * // ... user interacts ...
- * const signals = collector.endProblem('q1', { correct: true, answer: '8' });
+ * const result = collector.seal();
  */
 
 (function (window) {
@@ -56,7 +60,6 @@
   function captureTargetContext(element) {
     if (!element || element === document || element === window) return null;
 
-    // Capture visible text content (trimmed, capped at 100 chars)
     var textContent = null;
     if (element.textContent) {
       var trimmed = element.textContent.trim();
@@ -65,7 +68,6 @@
       }
     }
 
-    // Capture data-* attributes (exclude signalId, already in event_target)
     var dataAttrs = null;
     if (element.dataset) {
       var keys = Object.keys(element.dataset);
@@ -88,13 +90,19 @@
   // Utility: Get device context (computed once)
   // ============================================================
   function getDeviceContext() {
-    var isTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+    var touchPoints = navigator.maxTouchPoints || 0;
+    var isTouch = "ontouchstart" in window || touchPoints > 0;
+    var isMobile = isTouch && window.innerWidth <= 1024;
+    var platform = (navigator.userAgentData && navigator.userAgentData.platform) || "unknown";
     return {
-      device_type: isTouch ? "tablet" : "desktop",
+      device_type: isMobile ? "mobile" : (isTouch ? "tablet" : "desktop"),
+      is_mobile: isMobile,
       screen_size: window.innerWidth + "x" + window.innerHeight,
       input_method: isTouch ? "touch" : "mouse",
       orientation: window.innerWidth > window.innerHeight ? "landscape" : "portrait",
-      pixel_ratio: window.devicePixelRatio || 1
+      pixel_ratio: window.devicePixelRatio || 1,
+      touch_points: touchPoints,
+      platform: platform
     };
   }
 
@@ -104,67 +112,251 @@
 
   /**
    * @param {Object} options
-   * @param {string} options.containerSelector - CSS selector for event delegation (default: '.game-play-area')
-   * @param {number} options.maxBufferSize - Max input events in ring buffer (default: 5000)
-   * @param {number} options.throttleMs - (deprecated, ignored) Throttle interval is hardcoded to 500ms.
+   * @param {string} options.containerSelector - CSS selector for event delegation (default: 'body')
    * @param {string} options.sessionId - Session identifier
    * @param {string} options.studentId - Student identifier
-   * @param {string} options.templateId - Game template identifier
-   * @param {number} options.hesitationThresholdMs - Pause duration to count as hesitation (default: 3000)
-   * @param {number} options.frustrationClickMs - Window for detecting rapid repeated clicks (default: 1000)
-   * @param {number} options.frustrationClickCount - Clicks in window to flag frustration (default: 3)
-   * @param {number} options.flushIntervalMs - (deprecated, ignored) Flush interval is hardcoded to 5000ms.
+   * @param {string} options.flushUrl - Cloud function URL to POST event batches to
+   * @param {string} options.playId - Unique play session identifier (used for GCS deduplication)
+   * @param {string} options.gameId - Game identifier
+   * @param {string} options.contentSetId - Content set identifier
    */
   function SignalCollector(options) {
     options = options || {};
 
     this.containerSelector = options.containerSelector || "body";
-    this.maxBufferSize = options.maxBufferSize || 5000;
     this.throttleMs = 500;
     this.sessionId = options.sessionId || null;
     this.studentId = options.studentId || null;
-    this.templateId = options.templateId || null;
-    this.hesitationThresholdMs = options.hesitationThresholdMs || 3000;
-    this.frustrationClickMs = options.frustrationClickMs || 1000;
-    this.frustrationClickCount = options.frustrationClickCount || 3;
     this.flushIntervalMs = 5000;
     this.flushUrl = options.flushUrl || null;
     this.playId = options.playId || null;
-    this.gameId = options.gameId || null;
+    this.gameId = options.gameId || options.templateId || null;
     this.contentSetId = options.contentSetId || null;
 
     // State
     this._sessionStartMs = Date.now();
-    this._inputEvents = [];
-    this._eventsTruncated = false;
-    this._lastFlushedIndex = 0;
+    this._events = [];             // flat array — spliced after confirmed upload
     this._batchNumber = 0;
-    this._flushTimer = null;
-    this._currentProblemId = null;
-    this._problemStates = {}; // problemId -> { startMs, firstInteractionMs, reviewingStartMs, state, events[], outcome, scratchWork, scaffoldInteractions }
-    this._completedProblems = {}; // problemId -> computed signals
-    this._problemCount = 0;
-    this._errorsSinceLastCorrect = 0;
-    this._problemsSinceLastScaffold = 0;
-    this._recentAccuracy = []; // last 5 problem outcomes for flow_indicators
+    this._flushTimer = null;       // single setInterval handle
+    this._flushInProgress = false; // prevents re-entrant concurrent flushes
     this._lastPointerMoveMs = 0;
+    this._lastTouchMoveMs = 0;
     this._paused = false;
     this._sealed = false;
-    this._sealedPayload = null;
-    this._currentView = null; // Updated by recordViewEvent, attached to input events as view_context
+    this._currentView = null;
     this._deviceContext = getDeviceContext();
     this._boundHandlers = {};
     this._container = null;
 
-    // Attach listeners
+    // Sentry state
+    this._sentryReady = false;
+    this._sentryQueue = [];
+    this._emergencyCapReported = false;
+
+    // Register unload safety handlers before attaching container listeners
+    this._registerUnloadHandlers();
+
+    // Attach container listeners
     this._attachListeners();
 
-    console.log("[SignalCollector] Initialized", {
+    // Bootstrap Sentry (async if SDK needs to be loaded)
+    this._initSentry();
+
+    console.log("[SignalCollector] Initialized v3.0.0", {
       container: this.containerSelector,
-      maxBuffer: this.maxBufferSize,
       sessionId: this.sessionId
     });
   }
+
+  // ============================================================
+  // Sentry Integration
+  // ============================================================
+
+  var SENTRY_CDN = "https://browser.sentry-cdn.com/10.23.0/bundle.min.js";
+  var SENTRY_DSN_FALLBACK = "https://c1b3e2cdf3a24bfba22373d9dbb871d7@o503779.ingest.us.sentry.io/4505480900771840";
+
+  SignalCollector.prototype._initSentry = function () {
+    var self = this;
+
+    // Case 1: Sentry already loaded and initialized
+    if (typeof Sentry !== "undefined" && typeof Sentry.isInitialized === "function" && Sentry.isInitialized()) {
+      this._onSentryReady();
+      return;
+    }
+
+    // Case 2: Sentry loaded but not initialized
+    if (typeof Sentry !== "undefined" && typeof Sentry.init === "function") {
+      this._initSentrySDK();
+      this._onSentryReady();
+      return;
+    }
+
+    // Case 3: Sentry not loaded — inject script dynamically
+    var script = document.createElement("script");
+    script.src = SENTRY_CDN;
+    script.crossOrigin = "anonymous";
+    script.onload = function () {
+      if (typeof Sentry !== "undefined") {
+        self._initSentrySDK();
+        self._onSentryReady();
+      }
+    };
+    script.onerror = function () {
+      console.warn("[SignalCollector] Failed to load Sentry SDK from CDN");
+    };
+    (document.head || document.documentElement).appendChild(script);
+  };
+
+  SignalCollector.prototype._initSentrySDK = function () {
+    var cfg = typeof SentryConfig !== "undefined" ? SentryConfig : {};
+    var dsn = cfg.dsn || SENTRY_DSN_FALLBACK;
+
+    try {
+      Sentry.init({
+        dsn: dsn,
+        sampleRate: cfg.sampleRate || 1.0,
+        tracesSampleRate: cfg.tracesSampleRate || 0.1,
+        environment: cfg.environment || "production",
+        beforeSend: function (event) {
+          if (typeof SentryConfig !== "undefined" && !SentryConfig.enabled) return null;
+          return event;
+        }
+      });
+    } catch (e) {
+      console.warn("[SignalCollector] Sentry init failed:", e);
+    }
+  };
+
+  SignalCollector.prototype._onSentryReady = function () {
+    this._sentryReady = true;
+
+    // Set scope tags
+    try {
+      Sentry.setTag("signal_collector_version", "3.0.0");
+      if (this.gameId) Sentry.setTag("game_id", this.gameId);
+      if (this.playId) Sentry.setTag("play_id", this.playId);
+    } catch (e) { /* ignore */ }
+
+    // Flush queued errors
+    for (var i = 0; i < this._sentryQueue.length; i++) {
+      var q = this._sentryQueue[i];
+      this._captureError(q.err, q.context);
+    }
+    this._sentryQueue = [];
+  };
+
+  SignalCollector.prototype._captureError = function (err, context) {
+    if (!this._sentryReady) {
+      this._sentryQueue.push({ err: err, context: context || {} });
+      return;
+    }
+    try {
+      Sentry.captureException(err, {
+        tags: { signal_collector: "3.0.0", game_id: this.gameId || "unknown", play_id: this.playId || "unknown" },
+        extra: {
+          session_id: this.sessionId,
+          student_id: this.studentId,
+          events_buffered: this._events.length,
+          batch_number: this._batchNumber,
+          context: context || {}
+        }
+      });
+    } catch (e) { /* ignore */ }
+  };
+
+  SignalCollector.prototype._captureMessage = function (message, level, context) {
+    if (!this._sentryReady) return;
+    try {
+      Sentry.captureMessage(message, {
+        level: level || "warning",
+        tags: { signal_collector: "3.0.0", game_id: this.gameId || "unknown", play_id: this.playId || "unknown" },
+        extra: {
+          session_id: this.sessionId,
+          student_id: this.studentId,
+          events_buffered: this._events.length,
+          context: context || {}
+        }
+      });
+    } catch (e) { /* ignore */ }
+  };
+
+  SignalCollector.prototype._addBreadcrumb = function (message, data) {
+    if (!this._sentryReady) return;
+    try {
+      Sentry.addBreadcrumb({ category: "signal-collector", message: message, data: data || {}, level: "info" });
+    } catch (e) { /* ignore */ }
+  };
+
+  // ============================================================
+  // Unload Safety Handlers (registered in constructor)
+  // ============================================================
+
+  SignalCollector.prototype._registerUnloadHandlers = function () {
+    var self = this;
+
+    // pagehide: primary safety net — fires when iframe is removed from DOM,
+    // tab closed, or navigate away. Works on iOS Safari + Android Chrome.
+    this._addListener(window, "pagehide", function () {
+      self._sendBeaconAll();
+    });
+
+    // beforeunload: desktop fallback (unreliable on mobile)
+    this._addListener(window, "beforeunload", function () {
+      self._sendBeaconAll();
+    });
+
+    // visibilitychange: page backgrounded but not destroyed — network still alive,
+    // trigger a fetch-based flush. Does NOT fire on iframe DOM removal (pagehide handles that).
+    this._addListener(document, "visibilitychange", function () {
+      if (document.hidden && !self._sealed) {
+        self._flush();
+      }
+    });
+  };
+
+  /**
+   * Split all unflushed events into 50-event chunks and sendBeacon each chunk.
+   * Called synchronously from pagehide/beforeunload — must be fast and synchronous.
+   * sendBeacon survives iframe destruction; fetch does not.
+   */
+  SignalCollector.prototype._sendBeaconAll = function () {
+    if (!this.flushUrl || this._events.length === 0) return;
+
+    var CHUNK = 50;
+    var i = 0;
+    while (i < this._events.length) {
+      var chunk = this._events.slice(i, i + CHUNK);
+      i += CHUNK;
+      this._batchNumber++;
+
+      var payload = this._buildPayload(chunk);
+      var body = JSON.stringify(payload);
+
+      var sent = false;
+      try {
+        sent = navigator.sendBeacon(this.flushUrl, new Blob([body], { type: "application/json" }));
+      } catch (e) {
+        sent = false;
+      }
+
+      if (!sent) {
+        // sendBeacon rejected (quota exceeded, browser policy) — fall back to postMessage
+        this._captureMessage("[SignalCollector] sendBeacon rejected", "warning", {
+          chunk_events: chunk.length,
+          total_events: this._events.length
+        });
+        try {
+          window.parent.postMessage({
+            type: "signal_collector_fallback",
+            payload: payload
+          }, "*");
+        } catch (e2) {
+          // postMessage also failed — data may be lost
+          this._captureError(e2, { reason: "sendBeacon and postMessage both failed", chunk_events: chunk.length });
+        }
+      }
+    }
+  };
 
   // ============================================================
   // Event Listener Management
@@ -183,14 +375,17 @@
     if (!this._container) {
       console.warn("[SignalCollector] No container found, using document.body");
       this._container = document.body;
+      this._captureMessage("[SignalCollector] No container found", "warning", { selectors: selectors });
     }
 
-    // Pointer events (covers mouse + touch)
+    // Pointer events (covers mouse + stylus)
     var pointerEvents = ["pointerdown", "pointerup"];
     for (var j = 0; j < pointerEvents.length; j++) {
-      this._addListener(this._container, pointerEvents[j], function (e) {
-        self._handlePointerEvent(e);
-      }, { passive: true });
+      (function (evtType) {
+        self._addListener(self._container, evtType, function (e) {
+          self._handlePointerEvent(e);
+        }, { passive: true });
+      })(pointerEvents[j]);
     }
 
     // Throttled pointermove
@@ -199,6 +394,25 @@
       if (now - self._lastPointerMoveMs >= self.throttleMs) {
         self._lastPointerMoveMs = now;
         self._handlePointerEvent(e);
+      }
+    }, { passive: true });
+
+    // Touch events — raw multi-touch data (complements pointer events)
+    var touchEvents = ["touchstart", "touchend", "touchcancel"];
+    for (var t = 0; t < touchEvents.length; t++) {
+      (function (evtType) {
+        self._addListener(self._container, evtType, function (e) {
+          self._handleTouchEvent(e);
+        }, { passive: true });
+      })(touchEvents[t]);
+    }
+
+    // Throttled touchmove
+    this._addListener(this._container, "touchmove", function (e) {
+      var now = Date.now();
+      if (now - self._lastTouchMoveMs >= self.throttleMs) {
+        self._lastTouchMoveMs = now;
+        self._handleTouchEvent(e);
       }
     }, { passive: true });
 
@@ -276,6 +490,19 @@
     });
   };
 
+  SignalCollector.prototype._handleTouchEvent = function (e) {
+    var changedTouches = [];
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      changedTouches.push({ x: t.clientX, y: t.clientY, id: t.identifier });
+    }
+    this._recordEvent(e.type, e.target, {
+      touches_count: e.touches.length,
+      changed_touches: changedTouches,
+      target_touches_count: e.targetTouches.length
+    });
+  };
+
   SignalCollector.prototype._handleKeyboardEvent = function (e) {
     var isInput = e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA");
     this._recordEvent(e.type, e.target, {
@@ -302,652 +529,54 @@
   SignalCollector.prototype._recordEvent = function (eventType, targetEl, eventData) {
     if (this._paused || this._sealed) return;
 
-    var now = Date.now();
-    var problemId = this._currentProblemId;
-    var problemElapsed = 0;
-    var stateLabel = "idle";
-    var problemStateObj = null;
-
-    if (problemId && this._problemStates[problemId]) {
-      var ps = this._problemStates[problemId];
-      problemElapsed = now - ps.startMs;
-      stateLabel = ps.state;
-
-      // Transition from reading to working on first interaction
-      if (ps.state === "reading" && eventType !== "focus" && eventType !== "blur") {
-        ps.firstInteractionMs = now;
-        ps.state = "working";
-        stateLabel = "working";
+    // Emergency cap: prevent OOM during prolonged network failure
+    if (this._events.length >= 10000) {
+      this._events.splice(0, 1); // drop oldest
+      console.warn("[SignalCollector] Emergency cap hit — dropping oldest event");
+      if (!this._emergencyCapReported) {
+        this._emergencyCapReported = true;
+        this._captureMessage("[SignalCollector] Emergency cap hit — 10,000 events buffered, dropping oldest", "warning");
       }
-
-      // Build problem_state object matching architecture spec
-      // current_answer: try target element value, or stored answer
-      var currentAnswer = null;
-      if (targetEl && targetEl.value != null && targetEl.value !== "") {
-        currentAnswer = targetEl.value;
-      } else if (ps.currentAnswer != null) {
-        currentAnswer = ps.currentAnswer;
-      }
-
-      problemStateObj = {
-        state: stateLabel,
-        problem_text: ps.problemData.text || ps.problemData.question_text || null,
-        current_answer: currentAnswer,
-        scaffolds_visible: ps.problemData.scaffolds_visible || [],
-        difficulty_params: ps.problemData.difficulty_params || ps.problemData.difficulty || null
-      };
     }
 
+    var now = Date.now();
     var event = {
       event_id: uuid(),
       student_id: this.studentId,
       session_id: this.sessionId,
-      problem_id: problemId,
-      template_id: this.templateId,
+      template_id: this.gameId,
       timestamp_ms: now,
       session_elapsed_ms: now - this._sessionStartMs,
-      problem_elapsed_ms: problemElapsed,
       event_type: eventType,
       event_target: identifyTarget(targetEl),
       target_context: captureTargetContext(targetEl),
       event_data: eventData,
-      problem_state: problemStateObj || { state: stateLabel },
       view_context: this._currentView,
       device_context: this._deviceContext
     };
 
-    // Add to ring buffer
-    if (this._inputEvents.length >= this.maxBufferSize) {
-      this._inputEvents.shift();
-      this._eventsTruncated = true;
-      // Adjust flush index since we removed the oldest event
-      if (this._lastFlushedIndex > 0) {
-        this._lastFlushedIndex--;
-      }
-    }
-    this._inputEvents.push(event);
-
+    this._events.push(event);
   };
 
   // ============================================================
-  // Problem Lifecycle
+  // Backward Compatibility Stubs (no-ops — legacy callers safe)
   // ============================================================
 
-  /**
-   * Start tracking a new problem/question/round
-   * @param {string} problemId - Unique identifier for the problem
-   * @param {Object} problemData - Problem metadata (text, correct_answer, etc.)
-   */
-  SignalCollector.prototype.startProblem = function (problemId, problemData) {
-    if (this._sealed) { console.warn("[SignalCollector] Sealed — cannot startProblem"); return; }
-    this._currentProblemId = problemId;
-    this._problemCount++;
-
-    this._problemStates[problemId] = {
-      startMs: Date.now(),
-      firstInteractionMs: null,
-      reviewingStartMs: null,
-      state: "reading",
-      problemData: problemData || {},
-      currentAnswer: null,
-      previousAnswer: null, // for self-correction tracking
-      answerHistory: [],
-      position: this._problemCount,
-      scratchWork: {
-        entries: [],
-        entry_timestamps_ms: [],
-        erasures: [],
-        spatial_layout: []
-      },
-      scaffoldInteractions: {
-        available: (problemData && problemData.available_scaffolds) || [],
-        used: [],
-        time_of_use: [],
-        help_requested: false
-      }
-    };
-
-    console.log("[SignalCollector] Problem started:", problemId);
-  };
-
-  /**
-   * Update the current answer for the active problem
-   * Useful for multi-input games (e.g., Kakuro grid) where answer is not a single input value
-   * @param {any} answer - Current answer state
-   */
-  SignalCollector.prototype.updateCurrentAnswer = function (answer) {
-    if (this._sealed) return;
-    var problemId = this._currentProblemId;
-    if (problemId && this._problemStates[problemId]) {
-      var ps = this._problemStates[problemId];
-      ps.previousAnswer = ps.currentAnswer;
-      ps.currentAnswer = answer;
-      // Track answer changes for self-correction detection
-      var answerStr = typeof answer === "object" ? JSON.stringify(answer) : String(answer);
-      if (ps.answerHistory.length === 0 || ps.answerHistory[ps.answerHistory.length - 1] !== answerStr) {
-        ps.answerHistory.push(answerStr);
-      }
-    }
-  };
-
-  /**
-   * Transition problem state to "reviewing" phase
-   * Call this when the student has entered an answer but hasn't submitted yet
-   * @param {string} [problemId] - Problem ID (defaults to current problem)
-   */
-  SignalCollector.prototype.markReviewing = function (problemId) {
-    if (this._sealed) return;
-    problemId = problemId || this._currentProblemId;
-    if (problemId && this._problemStates[problemId]) {
-      var ps = this._problemStates[problemId];
-      if (ps.state === "working") {
-        ps.state = "reviewing";
-        ps.reviewingStartMs = Date.now();
-      }
-    }
-  };
-
-  /**
-   * Record scratch work entry (e.g., intermediate calculation, drawn number)
-   * @param {string} value - The scratch work value
-   * @param {Object} [position] - Optional { x, y } screen position
-   */
-  SignalCollector.prototype.recordScratchWork = function (value, position) {
-    if (this._sealed) return;
-    var problemId = this._currentProblemId;
-    if (problemId && this._problemStates[problemId]) {
-      var sw = this._problemStates[problemId].scratchWork;
-      sw.entries.push(value);
-      sw.entry_timestamps_ms.push(Date.now() - this._problemStates[problemId].startMs);
-      if (position) {
-        sw.spatial_layout.push({ value: value, position: position });
-      }
-    }
-  };
-
-  /**
-   * Record scratch work erasure
-   * @param {string} value - The erased value
-   */
-  SignalCollector.prototype.recordScratchErasure = function (value) {
-    if (this._sealed) return;
-    var problemId = this._currentProblemId;
-    if (problemId && this._problemStates[problemId]) {
-      this._problemStates[problemId].scratchWork.erasures.push(value);
-    }
-  };
-
-  /**
-   * Record scaffold/tool usage (e.g., number line, hint, step decomposition)
-   * @param {string} scaffoldType - Type of scaffold used
-   */
-  SignalCollector.prototype.recordScaffoldUse = function (scaffoldType) {
-    if (this._sealed) return;
-    var problemId = this._currentProblemId;
-    if (problemId && this._problemStates[problemId]) {
-      var si = this._problemStates[problemId].scaffoldInteractions;
-      si.used.push(scaffoldType);
-      si.time_of_use.push(Date.now() - this._problemStates[problemId].startMs);
-      this._problemsSinceLastScaffold = 0;
-      this._recordEvent("custom:scaffold_used", document.body, { scaffold_type: scaffoldType });
-    }
-  };
-
-  /**
-   * Record that help was requested
-   */
-  SignalCollector.prototype.requestHelp = function () {
-    if (this._sealed) return;
-    var problemId = this._currentProblemId;
-    if (problemId && this._problemStates[problemId]) {
-      this._problemStates[problemId].scaffoldInteractions.help_requested = true;
-      this._recordEvent("custom:help_requested", document.body, {});
-    }
-  };
-
-  /**
-   * End tracking for a problem and compute signals
-   * @param {string} problemId - The problem to end
-   * @param {Object} outcome - { correct: boolean, answer: any, ... }
-   * @returns {Object} Computed Tier 2-4 signals
-   */
-  SignalCollector.prototype.endProblem = function (problemId, outcome) {
-    if (this._sealed) { console.warn("[SignalCollector] Sealed — cannot endProblem"); return null; }
-    var ps = this._problemStates[problemId];
-    if (!ps) {
-      console.warn("[SignalCollector] No problem state for:", problemId);
-      return null;
-    }
-
-    ps.state = "submitted";
-    ps.endMs = Date.now();
-    ps.outcome = outcome || {};
-    this._currentProblemId = null;
-
-    // Track error streak
-    if (outcome && outcome.correct === false) {
-      this._errorsSinceLastCorrect++;
-    } else if (outcome && outcome.correct === true) {
-      this._errorsSinceLastCorrect = 0;
-    }
-
-    // Track scaffold distance
-    this._problemsSinceLastScaffold++;
-
-    // Track recent accuracy for flow_indicators (last 5)
-    if (outcome && typeof outcome.correct === "boolean") {
-      this._recentAccuracy.push(outcome.correct ? 1 : 0);
-      if (this._recentAccuracy.length > 5) this._recentAccuracy.shift();
-    }
-
-    // Compute signals
-    var signals = this._computeProblemSignals(problemId);
-    this._completedProblems[problemId] = signals;
-
-    console.log("[SignalCollector] Problem ended:", problemId, signals);
-    return signals;
-  };
-
-  // ============================================================
-  // Signal Computation (Tier 2-4)
-  // ============================================================
-
-  SignalCollector.prototype._computeProblemSignals = function (problemId) {
-    var ps = this._problemStates[problemId];
-    if (!ps) return null;
-
-    var events = this._inputEvents.filter(function (e) { return e.problem_id === problemId; });
-    var endMs = ps.endMs || Date.now();
-    var totalTime = endMs - ps.startMs;
-
-    // ---- Tier 2: Process ----
-
-    var timeToFirstInteraction = ps.firstInteractionMs
-      ? ps.firstInteractionMs - ps.startMs
-      : totalTime;
-
-    // Phase times: reading → working → reviewing
-    var readingMs = ps.firstInteractionMs ? ps.firstInteractionMs - ps.startMs : totalTime;
-    var reviewingMs = 0;
-    var workingMs = 0;
-    if (ps.firstInteractionMs) {
-      if (ps.reviewingStartMs) {
-        workingMs = ps.reviewingStartMs - ps.firstInteractionMs;
-        reviewingMs = endMs - ps.reviewingStartMs;
-      } else {
-        workingMs = endMs - ps.firstInteractionMs;
-      }
-    }
-
-    // Build interaction sequence matching spec: { action, value, time_ms }
-    var interactionSequence = [];
-    for (var i = 0; i < events.length; i++) {
-      var e = events[i];
-      if (e.event_type === "focus" || e.event_type === "blur" || e.event_type === "pointermove") continue;
-
-      var action = this._classifyAction(e);
-      var value = this._extractActionValue(e);
-      var entry = {
-        action: action,
-        time_ms: e.timestamp_ms - ps.startMs
-      };
-      if (value !== null) entry.value = value;
-      interactionSequence.push(entry);
-    }
-
-    // Self-corrections: detect answer changes (before/after pairs)
-    var selfCorrections = [];
-    for (var sc = 0; sc < ps.answerHistory.length - 1; sc++) {
-      selfCorrections.push({
-        before: ps.answerHistory[sc],
-        after: ps.answerHistory[sc + 1],
-        change_index: sc + 1
-      });
-    }
-
-    // ---- Tier 3: Engagement ----
-
-    // Hesitation points: gaps > threshold with phase and after_action context
-    var hesitationPoints = [];
-    var meaningfulEvents = interactionSequence;
-    for (var h = 1; h < meaningfulEvents.length; h++) {
-      var gap = meaningfulEvents[h].time_ms - meaningfulEvents[h - 1].time_ms;
-      if (gap > this.hesitationThresholdMs) {
-        // Determine phase at time of hesitation
-        var hesitationTimeMs = meaningfulEvents[h - 1].time_ms;
-        var phase = "working";
-        if (hesitationTimeMs < readingMs) phase = "reading";
-        else if (ps.reviewingStartMs && (ps.startMs + hesitationTimeMs) >= ps.reviewingStartMs) phase = "reviewing";
-
-        hesitationPoints.push({
-          phase: phase,
-          duration_ms: gap,
-          after_action: meaningfulEvents[h - 1].action + (meaningfulEvents[h - 1].value ? ":" + meaningfulEvents[h - 1].value : "")
-        });
-      }
-    }
-
-    // Interaction velocity: { mean_time_between_actions_ms, variance_ms, trend }
-    var interactionVelocity = this._computeInteractionVelocity(meaningfulEvents);
-
-    // Frustration indicators
-    var rapidRepeatedClicks = this._detectRapidClicks(events);
-    var deleteCycles = this._detectDeleteCycles(events);
-    var longPauses = hesitationPoints.length;
-
-    // response_time_relative_to_baseline: ratio of this problem's total time to session average
-    var avgResponseTime = this._getAverageResponseTime();
-    var responseTimeRelative = avgResponseTime > 0 ? Math.round((totalTime / avgResponseTime) * 100) / 100 : null;
-
-    // ---- Tier 4: Context ----
-
-    var now = new Date();
-    var timeOfDay = now.getHours().toString().padStart(2, "0") + ":" +
-                    now.getMinutes().toString().padStart(2, "0");
-    var daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-    var outcome = ps.outcome || {};
-    var problemData = ps.problemData || {};
-
-    return {
-      // Identity
-      problem_event_id: uuid(),
-      student_id: this.studentId,
-      session_id: this.sessionId,
-      problem_id: problemId,
-
-      // The Problem
-      problem_definition: {
-        text: problemData.text || problemData.question_text || null,
-        correct_answer: problemData.correct_answer != null ? problemData.correct_answer : null,
-        concept_target: problemData.concept_target || null,
-        difficulty_params: problemData.difficulty_params || problemData.difficulty || null,
-        misconception_targets: problemData.misconception_targets || [],
-        representation: problemData.representation || null
-      },
-
-      // Tier 1: Response
-      response: {
-        final_answer: outcome.answer != null ? outcome.answer : null,
-        is_correct: outcome.correct != null ? outcome.correct : null,
-        answer_history: ps.answerHistory.slice(),
-        answer_change_count: Math.max(0, ps.answerHistory.length - 1),
-        submitted_or_timed_out: outcome.timed_out ? "timed_out" : "submitted"
-      },
-
-      // Tier 2: Process
-      process: {
-        time_to_first_interaction_ms: Math.round(timeToFirstInteraction),
-        total_response_time_ms: Math.round(totalTime),
-        time_at_each_phase: {
-          reading: Math.round(readingMs),
-          working: Math.round(workingMs),
-          reviewing: Math.round(reviewingMs)
-        },
-        scratch_work: {
-          entries: ps.scratchWork.entries.slice(),
-          entry_timestamps_ms: ps.scratchWork.entry_timestamps_ms.slice(),
-          erasures: ps.scratchWork.erasures.slice(),
-          spatial_layout: ps.scratchWork.spatial_layout.slice()
-        },
-        scaffold_interactions: {
-          available: ps.scaffoldInteractions.available.slice(),
-          used: ps.scaffoldInteractions.used.slice(),
-          time_of_use: ps.scaffoldInteractions.time_of_use.slice(),
-          help_requested: ps.scaffoldInteractions.help_requested
-        },
-        interaction_sequence: interactionSequence,
-        self_corrections: selfCorrections
-      },
-
-      // Tier 3: Engagement
-      engagement: {
-        hesitation_points: hesitationPoints,
-        interaction_velocity: interactionVelocity,
-        frustration_indicators: {
-          rapid_repeated_clicks: rapidRepeatedClicks,
-          delete_cycles: deleteCycles,
-          long_pauses: longPauses
-        },
-        flow_indicators: {
-          response_time_relative_to_baseline: responseTimeRelative,
-          accuracy_trend_last_5: this._recentAccuracy.slice(),
-          voluntary_continuation: null
-        }
-      },
-
-      // Tier 4: Context
-      context: {
-        problem_position_in_session: ps.position,
-        problems_since_last_error: this._errorsSinceLastCorrect === 0 ? ps.position : this._errorsSinceLastCorrect,
-        problems_since_last_scaffold: this._problemsSinceLastScaffold,
-        current_difficulty_level: problemData.difficulty_params || problemData.difficulty || null,
-        session_time_elapsed_ms: Date.now() - this._sessionStartMs,
-        time_of_day: timeOfDay,
-        day_of_week: daysOfWeek[now.getDay()]
-      }
-    };
-  };
-
-  // ============================================================
-  // Action Classification Helpers
-  // ============================================================
-
-  /**
-   * Classify a raw event into a semantic action matching the spec format
-   * e.g., "write_scratch", "type_answer", "submit", "click", "drag_start"
-   */
-  SignalCollector.prototype._classifyAction = function (event) {
-    var type = event.event_type;
-    var data = event.event_data || {};
-
-    // Custom events pass through
-    if (type.indexOf("custom:") === 0) return type.replace("custom:", "");
-
-    // Keyboard events
-    if (type === "keydown") {
-      if (data.is_delete) return "delete";
-      if (data.key === "Enter") return "submit";
-      if (data.is_input_field) return "type_answer";
-      return "keypress";
-    }
-    if (type === "keyup") return "key_release";
-
-    // Input/change events
-    if (type === "input" || type === "change") return "type_answer";
-
-    // Pointer events
-    if (type === "pointerdown") return "click";
-    if (type === "pointerup") return "click_release";
-
-    // Drag events
-    if (type === "dragstart") return "drag_start";
-    if (type === "dragend") return "drag_end";
-    if (type === "drop") return "drop";
-
-    return type;
-  };
-
-  /**
-   * Extract meaningful value from an event for the interaction_sequence
-   */
-  SignalCollector.prototype._extractActionValue = function (event) {
-    var data = event.event_data || {};
-
-    // Key events: the key pressed
-    if (data.key && !data.is_modifier) return data.key;
-
-    // Input events: the current value
-    if (data.value !== undefined && data.value !== "") return data.value;
-
-    // Pointer events on identifiable targets: the target
-    if (event.event_target && event.event_target !== "document") return event.event_target;
-
-    return null;
-  };
-
-  /**
-   * Compute interaction velocity matching spec: { mean_time_between_actions_ms, variance_ms, trend }
-   */
-  SignalCollector.prototype._computeInteractionVelocity = function (interactions) {
-    if (interactions.length < 2) {
-      return { mean_time_between_actions_ms: 0, variance_ms: 0, trend: "stable" };
-    }
-
-    var intervals = [];
-    for (var i = 1; i < interactions.length; i++) {
-      intervals.push(interactions[i].time_ms - interactions[i - 1].time_ms);
-    }
-
-    // Mean
-    var sum = 0;
-    for (var j = 0; j < intervals.length; j++) sum += intervals[j];
-    var mean = sum / intervals.length;
-
-    // Variance
-    var varianceSum = 0;
-    for (var k = 0; k < intervals.length; k++) {
-      varianceSum += Math.pow(intervals[k] - mean, 2);
-    }
-    var variance = varianceSum / intervals.length;
-
-    // Trend: compare first half mean to second half mean
-    var trend = "stable";
-    if (intervals.length >= 4) {
-      var mid = Math.floor(intervals.length / 2);
-      var firstHalfSum = 0, secondHalfSum = 0;
-      for (var f = 0; f < mid; f++) firstHalfSum += intervals[f];
-      for (var s = mid; s < intervals.length; s++) secondHalfSum += intervals[s];
-      var firstHalfMean = firstHalfSum / mid;
-      var secondHalfMean = secondHalfSum / (intervals.length - mid);
-
-      // >20% change threshold for trend detection
-      var ratio = secondHalfMean / firstHalfMean;
-      if (ratio < 0.8) trend = "accelerating";
-      else if (ratio > 1.2) trend = "decelerating";
-
-      // High coefficient of variation = erratic
-      var cv = Math.sqrt(variance) / mean;
-      if (cv > 1.0) trend = "erratic";
-    }
-
-    return {
-      mean_time_between_actions_ms: Math.round(mean),
-      variance_ms: Math.round(variance),
-      trend: trend
-    };
-  };
-
-  /**
-   * Get average response time across completed problems (for baseline comparison)
-   */
-  SignalCollector.prototype._getAverageResponseTime = function () {
-    var keys = Object.keys(this._completedProblems);
-    if (keys.length === 0) return 0;
-    var total = 0;
-    for (var i = 0; i < keys.length; i++) {
-      total += this._completedProblems[keys[i]].total_response_time_ms || 0;
-    }
-    return total / keys.length;
-  };
-
-  // ============================================================
-  // Frustration / Flow Detection Helpers
-  // ============================================================
-
-  /**
-   * Detect rapid repeated clicks on the same target within a short window
-   */
-  SignalCollector.prototype._detectRapidClicks = function (events) {
-    var count = 0;
-    var clickEvents = [];
-
-    for (var i = 0; i < events.length; i++) {
-      if (events[i].event_type === "pointerdown") {
-        clickEvents.push(events[i]);
-      }
-    }
-
-    for (var j = 0; j < clickEvents.length; j++) {
-      var windowEnd = clickEvents[j].timestamp_ms + this.frustrationClickMs;
-      var clicksInWindow = 0;
-
-      for (var k = j; k < clickEvents.length; k++) {
-        if (clickEvents[k].timestamp_ms <= windowEnd &&
-            clickEvents[k].event_target === clickEvents[j].event_target) {
-          clicksInWindow++;
-        } else if (clickEvents[k].timestamp_ms > windowEnd) {
-          break;
-        }
-      }
-
-      if (clicksInWindow >= this.frustrationClickCount) {
-        count++;
-        j += clicksInWindow - 1; // skip past this cluster
-      }
-    }
-
-    return count;
-  };
-
-  /**
-   * Detect delete cycles: 3+ consecutive delete keystrokes
-   */
-  SignalCollector.prototype._detectDeleteCycles = function (events) {
-    var count = 0;
-    var consecutive = 0;
-
-    for (var i = 0; i < events.length; i++) {
-      if (events[i].event_data && events[i].event_data.is_delete) {
-        consecutive++;
-        if (consecutive >= 3) {
-          count++;
-          consecutive = 0;
-        }
-      } else {
-        consecutive = 0;
-      }
-    }
-
-    return count;
-  };
-
-  /**
-   * Detect consistent pacing: coefficient of variation of inter-event intervals < 0.5
-   */
-  SignalCollector.prototype._detectConsistentPace = function (events) {
-    if (events.length < 4) return false;
-
-    var intervals = [];
-    for (var i = 1; i < events.length; i++) {
-      intervals.push(events[i].timestamp_ms - events[i - 1].timestamp_ms);
-    }
-
-    var mean = 0;
-    for (var j = 0; j < intervals.length; j++) mean += intervals[j];
-    mean /= intervals.length;
-
-    if (mean === 0) return false;
-
-    var variance = 0;
-    for (var k = 0; k < intervals.length; k++) {
-      variance += Math.pow(intervals[k] - mean, 2);
-    }
-    variance /= intervals.length;
-
-    var cv = Math.sqrt(variance) / mean;
-    return cv < 0.5;
-  };
+  SignalCollector.prototype.startProblem = function () {};
+  SignalCollector.prototype.endProblem = function () { return null; };
+  SignalCollector.prototype.updateCurrentAnswer = function () {};
+  SignalCollector.prototype.markReviewing = function () {};
+  SignalCollector.prototype.recordScratchWork = function () {};
+  SignalCollector.prototype.recordScratchErasure = function () {};
+  SignalCollector.prototype.recordScaffoldUse = function () {};
+  SignalCollector.prototype.requestHelp = function () {};
+  SignalCollector.prototype.getProblemSignals = function () { return null; };
+  SignalCollector.prototype.getAllProblemSignals = function () { return {}; };
 
   // ============================================================
   // Custom Events
   // ============================================================
 
-  /**
-   * Record a game-specific custom event
-   * @param {string} type - Event type (e.g., 'hint_requested', 'scaffold_opened')
-   * @param {Object} data - Event-specific data
-   */
   SignalCollector.prototype.recordCustomEvent = function (type, data) {
     if (this._sealed) return;
     this._recordEvent("custom:" + type, document.body, data || {});
@@ -960,16 +589,11 @@
   /**
    * Record a visual state change event.
    * Call this every time the UI changes what the student sees:
-   * screen transitions, content renders, feedback display, cell selections,
-   * timer-driven content changes, overlay show/hide, etc.
+   * screen transitions, content renders, feedback display, etc.
    *
    * @param {string} viewType - Category: 'screen_transition' | 'content_render' |
    *   'feedback_display' | 'component_state' | 'overlay_toggle' | 'visual_update'
    * @param {Object} viewData - View-specific data
-   * @param {string} [viewData.screen] - Current visible screen (e.g., 'ready', 'gameplay', 'results')
-   * @param {Object} [viewData.content_snapshot] - What content is currently displayed
-   * @param {Object} [viewData.components] - State of UI components (timer, progress, etc.)
-   * @param {Object} [viewData.metadata] - Additional context (e.g., { trigger: 'timer_reshuffle' })
    */
   SignalCollector.prototype.recordViewEvent = function (viewType, viewData) {
     if (this._sealed) { console.warn("[SignalCollector] Sealed — cannot recordViewEvent"); return; }
@@ -983,10 +607,6 @@
     this._recordEvent("view:" + viewType, document.body, viewData);
   };
 
-  /**
-   * Get the current view state (last recorded via recordViewEvent)
-   * @returns {Object|null} Current view state or null if never set
-   */
   SignalCollector.prototype.getCurrentView = function () {
     return this._currentView ? Object.assign({}, this._currentView) : null;
   };
@@ -995,51 +615,21 @@
   // Data Access
   // ============================================================
 
-  /**
-   * Get all raw input events in the buffer
-   * @returns {Array} Copy of the input events buffer
-   */
   SignalCollector.prototype.getInputEvents = function () {
-    return this._inputEvents.slice();
+    return this._events.slice();
   };
 
-  /**
-   * Get computed signals for a specific problem
-   * @param {string} problemId
-   * @returns {Object|null} Tier 2-4 signals
-   */
-  SignalCollector.prototype.getProblemSignals = function (problemId) {
-    return this._completedProblems[problemId] || null;
-  };
-
-  /**
-   * Get signals for all completed problems
-   * @returns {Object} Map of problemId -> signals
-   */
-  SignalCollector.prototype.getAllProblemSignals = function () {
-    var copy = {};
-    var keys = Object.keys(this._completedProblems);
-    for (var i = 0; i < keys.length; i++) {
-      copy[keys[i]] = this._completedProblems[keys[i]];
-    }
-    return copy;
-  };
-
-  /**
-   * Get signal collection metadata
-   * @returns {Object} Metadata about the collection session
-   */
   SignalCollector.prototype.getMetadata = function () {
     return {
-      collector_version: "2.1.0",
+      collector_version: "3.0.0",
       session_id: this.sessionId,
       student_id: this.studentId,
-      template_id: this.templateId,
+      play_id: this.playId,
+      game_id: this.gameId,
+      content_set_id: this.contentSetId,
       session_start_ms: this._sessionStartMs,
-      total_events_captured: this._inputEvents.length,
-      events_truncated: this._eventsTruncated,
-      buffer_max_size: this.maxBufferSize,
-      problems_tracked: Object.keys(this._completedProblems).length,
+      total_events_captured: this._events.length,
+      batch_number: this._batchNumber,
       device_context: this._deviceContext
     };
   };
@@ -1048,13 +638,9 @@
   // Batch Flushing
   // ============================================================
 
-  /**
-   * Start periodic flushing of new events to the parent window via postMessage.
-   * Each flush sends only events accumulated since the last flush.
-   */
   SignalCollector.prototype.startFlushing = function () {
-    if (this._sealed || this._flushTimer) return;
-    if (!this.flushIntervalMs || this.flushIntervalMs <= 0) return;
+    if (this._flushTimer) return; // single interval guarantee
+    if (this._sealed) return;
     if (!this.flushUrl) {
       console.warn("[SignalCollector] No flushUrl configured, flushing disabled");
       return;
@@ -1065,12 +651,10 @@
       self._flush();
     }, this.flushIntervalMs);
 
+    this._addBreadcrumb("flush_started", { interval_ms: this.flushIntervalMs });
     console.log("[SignalCollector] Flushing started — interval " + this.flushIntervalMs + "ms");
   };
 
-  /**
-   * Stop periodic flushing.
-   */
   SignalCollector.prototype.stopFlushing = function () {
     if (this._flushTimer) {
       clearInterval(this._flushTimer);
@@ -1080,29 +664,10 @@
   };
 
   /**
-   * Flush new events since last flush to parent via postMessage.
-   * @returns {boolean} true if events were flushed
+   * Build a batch payload from an array of events.
    */
-  SignalCollector.prototype._flush = function () {
-    var newEvents = this._inputEvents.slice(this._lastFlushedIndex);
-    if (newEvents.length === 0) return false;
-    if (!this.flushUrl) return false;
-
+  SignalCollector.prototype._buildPayload = function (events) {
     this._batchNumber++;
-    this._lastFlushedIndex = this._inputEvents.length;
-
-    var batchData = {
-      batch_number: this._batchNumber,
-      session_id: this.sessionId,
-      student_id: this.studentId,
-      game_id: this.gameId,
-      content_set_id: this.contentSetId,
-      play_id: this.playId,
-      events: newEvents,
-      event_count: newEvents.length,
-      flushed_at: Date.now()
-    };
-
     var gcsPath = "signal-events/" +
       (this.studentId || "unknown") + "/" +
       (this.sessionId || "unknown") + "/" +
@@ -1111,26 +676,87 @@
       (this.playId || "unknown") + "/" +
       "batch-" + this._batchNumber + ".json";
 
-    var url = this.flushUrl;
-    try {
+    return {
+      path: gcsPath,
+      data: {
+        batch_number: this._batchNumber,
+        session_id: this.sessionId,
+        student_id: this.studentId,
+        game_id: this.gameId,
+        content_set_id: this.contentSetId,
+        play_id: this.playId,
+        events: events,
+        event_count: events.length,
+        flushed_at: Date.now()
+      }
+    };
+  };
+
+  /**
+   * Flush up to 200 events to GCS with retry and splice-on-success.
+   * _flushInProgress prevents re-entrant concurrent calls.
+   * After a successful chunk, calls itself directly to drain remaining backlog.
+   */
+  SignalCollector.prototype._flush = function () {
+    if (this._flushInProgress) return;
+    if (!this.flushUrl) return;
+
+    var CHUNK = 200;
+    var chunk = this._events.slice(0, CHUNK);
+    if (chunk.length === 0) return;
+
+    this._flushInProgress = true;
+    var self = this;
+    var chunkSize = chunk.length;
+    var payload = this._buildPayload(chunk);
+
+    function attempt(retryCount) {
       var controller = new AbortController();
       var timeoutId = setTimeout(function () { controller.abort(); }, 10000);
-      fetch(url, {
+
+      fetch(self.flushUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: gcsPath, data: batchData }),
+        body: JSON.stringify(payload),
         signal: controller.signal
-      }).then(function () {
+      }).then(function (response) {
         clearTimeout(timeoutId);
-      }).catch(function () {
+        if (response.ok) {
+          // Success — remove uploaded events from memory
+          self._events.splice(0, chunkSize);
+          self._flushInProgress = false;
+          self._addBreadcrumb("flush_success", { batch_number: payload.data.batch_number, event_count: chunkSize });
+          console.log("[SignalCollector] Flushed batch #" + payload.data.batch_number + " — " + chunkSize + " events");
+          // Drain remaining backlog without waiting for next interval
+          if (self._events.length > 0) {
+            self._flush();
+          }
+        } else {
+          handleFailure(retryCount, "HTTP " + response.status);
+        }
+      }).catch(function (err) {
         clearTimeout(timeoutId);
+        handleFailure(retryCount, err && err.message ? err.message : "network error");
       });
-    } catch (e) {
-      // fire-and-forget
     }
 
-    console.log("[SignalCollector] Flushed batch #" + this._batchNumber + " — " + newEvents.length + " events to " + gcsPath);
-    return true;
+    function handleFailure(retryCount, reason) {
+      if (retryCount < 3) {
+        var delay = 1000 * Math.pow(2, retryCount);
+        console.warn("[SignalCollector] Flush failed (" + reason + "), retry " + (retryCount + 1) + " in " + delay + "ms");
+        setTimeout(function () { attempt(retryCount + 1); }, delay);
+      } else {
+        console.error("[SignalCollector] Flush failed after 3 retries — will retry on next interval");
+        self._captureError(new Error("Flush failed after 3 retries: " + reason), {
+          batch_number: payload.data.batch_number,
+          chunk_size: chunkSize,
+          events_remaining: self._events.length
+        });
+        self._flushInProgress = false;
+      }
+    }
+
+    attempt(0);
   };
 
   // ============================================================
@@ -1138,39 +764,43 @@
   // ============================================================
 
   /**
-   * Seal the collector — finalize all data, detach listeners, return complete payload.
-   * Idempotent: calling seal() again returns the same cached payload.
-   * After seal, all read methods still work; all write methods warn and no-op.
-   * @returns {Object} { events, signals, metadata }
+   * Seal the collector — synchronous-first dual-track flush.
+   *
+   * 1. Stops interval, sets _sealed = true
+   * 2. Immediately calls sendBeacon in 50-event chunks (survives iframe destruction)
+   * 3. Also attempts fetch with retry in background (bonus path if iframe survives)
+   * 4. Detaches all listeners
+   * 5. Returns synchronously: { event_count, metadata }
+   *
+   * Idempotent: second call is a no-op.
    */
   SignalCollector.prototype.seal = function () {
-    if (this._sealed) return this._sealedPayload;
+    if (this._sealed) return { event_count: this._events.length, metadata: this.getMetadata() };
 
-    // Final flush before sealing
-    this._flush();
     this.stopFlushing();
-
     this._sealed = true;
-    this._removeAllListeners();
 
-    // Compute signals for all completed problems from the flat event log
-    var signals = {};
-    var keys = Object.keys(this._completedProblems);
-    for (var i = 0; i < keys.length; i++) {
-      signals[keys[i]] = this._completedProblems[keys[i]];
+    var eventCount = this._events.length;
+    this._addBreadcrumb("seal", { event_count: eventCount });
+
+    // Synchronous path: sendBeacon chunked (50 events, ~30KB each)
+    // Fires immediately — survives iframe destruction
+    this._sendBeaconAll();
+
+    // Async bonus path: fetch with retry (confirmed delivery if iframe survives)
+    if (this._events.length > 0 && this.flushUrl) {
+      this._sealed = false; // temporarily re-open to allow _flush to run
+      this._flush();
+      this._sealed = true;
     }
 
-    this._sealedPayload = {
-      events: this._inputEvents.slice(),
-      signals: signals,
-      metadata: this.getMetadata()
-    };
+    this._removeAllListeners();
 
-    console.log("[SignalCollector] Sealed — " + this._inputEvents.length + " events, " + keys.length + " problems");
-    return this._sealedPayload;
+    console.log("[SignalCollector] Sealed — " + eventCount + " events");
+    return { event_count: eventCount, metadata: this.getMetadata() };
   };
 
-  /** Pause signal collection (e.g., on tab switch) */
+  /** Pause signal collection */
   SignalCollector.prototype.pause = function () {
     this._paused = true;
     console.log("[SignalCollector] Paused");
@@ -1186,18 +816,13 @@
   // Debug Helpers
   // ============================================================
 
-  /**
-   * Get a debug summary of the current state
-   * @returns {Object} Debug information
-   */
   SignalCollector.prototype.debug = function () {
     var summary = {
       metadata: this.getMetadata(),
-      current_problem: this._currentProblemId,
-      active_problems: Object.keys(this._problemStates),
-      completed_problems: Object.keys(this._completedProblems),
       paused: this._paused,
-      last_5_events: this._inputEvents.slice(-5).map(function (e) {
+      sealed: this._sealed,
+      flush_in_progress: this._flushInProgress,
+      last_5_events: this._events.slice(-5).map(function (e) {
         return {
           type: e.event_type,
           target: e.event_target,
@@ -1214,6 +839,6 @@
   // ============================================================
   window.SignalCollector = SignalCollector;
 
-  console.log("[SignalCollector] Loaded successfully (v2.1.0)");
+  console.log("[SignalCollector] Loaded successfully (v3.0.0)");
 
 })(window);
