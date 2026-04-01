@@ -1103,7 +1103,9 @@ Each round awards up to 3 points:
      if (signalCollector && gameState.signalConfig) {
        if (gameState.signalConfig.flushUrl) signalCollector.flushUrl = gameState.signalConfig.flushUrl;
        if (gameState.signalConfig.playId) signalCollector.playId = gameState.signalConfig.playId;
+       if (gameState.signalConfig.gameId) signalCollector.gameId = gameState.signalConfig.gameId;
        if (gameState.signalConfig.sessionId) signalCollector.sessionId = gameState.signalConfig.sessionId;
+       if (gameState.signalConfig.contentSetId) signalCollector.contentSetId = gameState.signalConfig.contentSetId;
        if (gameState.signalConfig.studentId) signalCollector.studentId = gameState.signalConfig.studentId;
        signalCollector.startFlushing();
      }
@@ -1497,7 +1499,9 @@ Each round awards up to 3 points:
      if (gameState.signalConfig) {
        if (gameState.signalConfig.flushUrl) signalCollector.flushUrl = gameState.signalConfig.flushUrl;
        if (gameState.signalConfig.playId) signalCollector.playId = gameState.signalConfig.playId;
+       if (gameState.signalConfig.gameId) signalCollector.gameId = gameState.signalConfig.gameId;
        if (gameState.signalConfig.sessionId) signalCollector.sessionId = gameState.signalConfig.sessionId;
+       if (gameState.signalConfig.contentSetId) signalCollector.contentSetId = gameState.signalConfig.contentSetId;
        if (gameState.signalConfig.studentId) signalCollector.studentId = gameState.signalConfig.studentId;
        signalCollector.startFlushing();
      }
