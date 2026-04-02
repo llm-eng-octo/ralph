@@ -29,6 +29,12 @@
   }
 
   // ============================================================
+  // Flush thresholds
+  // ============================================================
+  var MIN_FLUSH_SIZE = 100;      // Don't flush fewer than this many events...
+  var MAX_FLUSH_AGE_MS = 30000; // ...unless the oldest event is older than 30s
+
+  // ============================================================
   // Utility: Generate UUID v4
   // ============================================================
   function uuid() {
@@ -128,7 +134,7 @@
     this.sessionId = options.sessionId || null;
     this.studentId = options.studentId || null;
     this.flushIntervalMs = 5000;
-    this.flushUrl = options.flushUrl || null;
+    this.flushUrl = options.flushUrl || "https://asia-south1-mathai-449208.cloudfunctions.net/write-to-gcs";
     this.playId = options.playId || null;
     this.gameId = options.gameId || options.templateId || null;
     this.contentSetId = options.contentSetId || null;
@@ -173,7 +179,7 @@
   // ============================================================
 
   var SENTRY_CDN = "https://browser.sentry-cdn.com/10.23.0/bundle.min.js";
-  var SENTRY_DSN_FALLBACK = "https://c1b3e2cdf3a24bfba22373d9dbb871d7@o503779.ingest.us.sentry.io/4505480900771840";
+  var SENTRY_DSN_FALLBACK = "https://851dc3b10b3839ae377c888956a345aa@o503779.ingest.us.sentry.io/4510363214675968";
 
   SignalCollector.prototype._initSentry = function () {
     var self = this;
@@ -327,8 +333,6 @@
     while (i < this._events.length) {
       var chunk = this._events.slice(i, i + CHUNK);
       i += CHUNK;
-      this._batchNumber++;
-
       var payload = this._buildPayload(chunk);
       var body = JSON.stringify(payload);
 
@@ -697,13 +701,22 @@
    * _flushInProgress prevents re-entrant concurrent calls.
    * After a successful chunk, calls itself directly to drain remaining backlog.
    */
-  SignalCollector.prototype._flush = function () {
+  SignalCollector.prototype._flush = function (force) {
     if (this._flushInProgress) return;
     if (!this.flushUrl) return;
 
     var CHUNK = 200;
     var chunk = this._events.slice(0, CHUNK);
     if (chunk.length === 0) return;
+
+    // Skip flush if below minimum batch size and oldest event is recent
+    // force=true bypasses this (used by seal() for final flush)
+    if (!force && chunk.length < MIN_FLUSH_SIZE) {
+      var oldestAge = Date.now() - this._events[0].timestamp_ms;
+      if (oldestAge < MAX_FLUSH_AGE_MS) {
+        return;
+      }
+    }
 
     this._flushInProgress = true;
     var self = this;
@@ -729,7 +742,7 @@
           console.log("[SignalCollector] Flushed batch #" + payload.data.batch_number + " — " + chunkSize + " events");
           // Drain remaining backlog without waiting for next interval
           if (self._events.length > 0) {
-            self._flush();
+            self._flush(force);
           }
         } else {
           handleFailure(retryCount, "HTTP " + response.status);
@@ -790,7 +803,7 @@
     // Async bonus path: fetch with retry (confirmed delivery if iframe survives)
     if (this._events.length > 0 && this.flushUrl) {
       this._sealed = false; // temporarily re-open to allow _flush to run
-      this._flush();
+      this._flush(true);
       this._sealed = true;
     }
 
