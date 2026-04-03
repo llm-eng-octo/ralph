@@ -76,20 +76,24 @@ Use `parts/manifest.json` → `capability_matrix` to determine which parts this 
 1. Start with `any_game` → gives all MANDATORY parts (18 code-generating parts)
 2. Always load `verification` → PART-026 (anti-patterns checklist)
 3. Always load `post_gen` → PART-034, PART-035 (run after HTML generation)
-4. Check each conditional capability:
+4. **v2 mandatory components** (always included):
+   - PART-023 (ProgressBar v2) — always included
+   - PART-024 (TransitionScreen v2) — always included (welcome + results + audio)
+   - PART-025 (ScreenLayout v2) — always included (sections API)
+5. Check each conditional capability:
    - `has_timer` → adds PART-006
    - `has_stories` → adds PART-016
    - `has_fixed_validation` → adds PART-013
    - `has_function_validation` → adds PART-014
    - `has_llm_validation` → adds PART-015
    - `has_case_conversion` → adds PART-018
-   - `has_progress_bar` → adds PART-023, PART-025
-   - `has_transition_screen` → adds PART-024, PART-025
    - `is_story_only` → adds PART-029
    - `has_api_submission` → adds PART-031
    - `has_analytics` → adds PART-032
    - `has_drag_drop` / `has_grid_interaction` / `has_tag_input` → adds PART-033
    - `has_interaction_manager` → adds PART-038
+
+> ⚠️ **Deprecated capability mappings:** `has_progress_bar` and `has_transition_screen` are no longer conditional — PART-023, PART-024, PART-025 are always included. ScreenLayout v1 `slots` API, standalone `#results-screen` divs, and manual `.page-center` layout HTML are deprecated.
 
 ### Step 4 — Load only the selected parts
 

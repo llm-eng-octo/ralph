@@ -20,7 +20,7 @@ Ralph runs this as a loop (max 5 iterations) after HTML generation, before Playw
 - [ ] `FeedbackManager.init()` is called inside `DOMContentLoaded` or `window.onload`
 - [ ] `FeedbackManager.init()` is awaited before any FeedbackManager usage
 - [ ] No FeedbackManager calls (sound.play, sound.preload, etc.) before `init()` completes
-- [ ] Initialization order: `waitForPackages()` → `FeedbackManager.init()` → SignalCollector → Timer → VisibilityTracker → postMessage listener → `setupGame()`
+- [ ] Initialization order: `waitForPackages()` → `FeedbackManager.init()` → SignalCollector → audio preload → ScreenLayout.inject() → populate slots → Timer → TransitionScreen → VisibilityTracker → progressBar.update(0) → postMessage listener → game_ready → `showWelcomeScreen()`
 
 ## 2. Audio / FeedbackManager
 
@@ -81,8 +81,10 @@ Ralph runs this as a loop (max 5 iterations) after HTML generation, before Playw
 - [ ] Stars calculated: ≥80% → 3, ≥50% → 2, >0% → 1, 0% → 0
 - [ ] `game_complete` postMessage sent with `{ metrics, attempts, events }`
 - [ ] SignalCollector sealed before postMessage: `signalCollector.seal()`
-- [ ] Results screen displayed after game ends
-- [ ] Restart button resets ALL state (score, round, timer, UI) — does NOT reload page
+- [ ] Results shown via `transitionScreen.show({ content: metricsHTML, persist: true })` — NOT a separate `#results-screen` div
+- [ ] Restart button calls `restartGame()` which resets ALL state and recreates components — does NOT reload page
+- [ ] `restartGame()` preserves `content` and `sessionHistory`
+- [ ] `restartGame()` recreates: SignalCollector, Timer, ProgressBar, VisibilityTracker
 
 ## 7. SignalCollector
 
@@ -123,7 +125,28 @@ Ralph runs this as a loop (max 5 iterations) after HTML generation, before Playw
 - [ ] `onComplete` callback receives `{ history, inputs, globalContext, durations }`
 - [ ] `onStoryChange` signature: `(index, direction, storyData)` — NOT `(index)`
 
-## 12. General Code Quality
+## 12. ScreenLayout v2 & Components
+
+- [ ] Body contains only `<div id="app"></div>` — no manual layout HTML
+- [ ] `ScreenLayout.inject()` uses `config.sections` API — NOT deprecated `config.slots`
+- [ ] Sections: `questionText`, `progressBar`, `playArea`, `transitionScreen` all `true`
+- [ ] `header` section present only if game has timer/HUD
+- [ ] ⛔ No `.page-center` / `.game-wrapper` / `.game-stack` manual HTML (deprecated v1)
+- [ ] ⛔ No `#results-screen` div (use TransitionScreen content slot)
+- [ ] `.mathai-layout-playarea` CSS overrides use `!important`
+- [ ] `.mathai-ts-screen.active` has `flex: 1; justify-content: center;`
+- [ ] All game content injected into `#gameContent` via JS after `ScreenLayout.inject()`
+- [ ] `createProgressBar()` helper exists, called at init and restart
+- [ ] `progressBar.update(0, lives)` at init — NOT `update(1, ...)`
+- [ ] `TransitionScreenComponent` instantiated with `autoInject: true`
+- [ ] Welcome screen shown with `transitionScreen.show()` + `vo_game_start` audio
+- [ ] **Every transition screen plays audio** — no silent transitions
+- [ ] Question text (`#mathai-question-slot`) hidden during gameplay, shown on welcome/restart
+- [ ] Level transitions (if multi-level) shown with `vo_level_start_N` audio
+- [ ] Victory/game-over shown via TransitionScreen with persist:true
+- [ ] `voGameStartPlayed` guard prevents duplicate welcome VO on restart
+
+## 13. General Code Quality
 
 - [ ] All async functions wrapped in try/catch
 - [ ] `console.error` uses `JSON.stringify({ error: error.message }, null, 2)` format

@@ -3,267 +3,346 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TransitionScreenComponent - Usage Example</title>
-  
+  <title>TransitionScreenComponent v2 - Usage Examples</title>
+
   <!-- Load CSS Variables -->
   <link rel="stylesheet" href="https://storage.googleapis.com/test-dynamic-assets/packages/styles/mathai-game-styles.css">
-  
-  <!-- Load ScreenLayout -->
+
+  <!-- Load ScreenLayout first (provides slot) -->
   <script src="../screen-layout/index.js"></script>
-  
   <!-- Load TransitionScreen -->
   <script src="./index.js"></script>
-  
+
   <style>
+    body { margin: 0; font-family: 'Inter', sans-serif; background: #f6f6f6; }
     #demo-controls {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      z-index: 10000;
-      max-height: 90vh;
-      overflow-y: auto;
+      position: fixed; top: 10px; right: 10px; background: white;
+      padding: 16px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+      z-index: 10000; max-width: 260px; font-size: 13px;
+      max-height: 90vh; overflow-y: auto;
     }
-    
+    #demo-controls h3 { margin: 0 0 10px; font-size: 15px; }
+    #demo-controls h4 { margin: 12px 0 6px; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
     #demo-controls button {
-      display: block;
-      margin: 5px 0;
-      padding: 8px 16px;
-      cursor: pointer;
-      font-size: 12px;
-      width: 100%;
+      display: block; width: 100%; margin: 4px 0; padding: 8px 12px;
+      cursor: pointer; border: 1px solid #ccc; border-radius: 6px; background: #f9f9f9; font-size: 13px;
     }
-    
-    #demo-controls h3 {
-      margin-top: 0;
-      font-size: 16px;
-    }
+    #demo-controls button:hover { background: #eee; }
+    #demo-controls button.hide-btn { background: #E35757; color: white; border-color: #E35757; margin-top: 8px; }
+    #demo-controls button.hide-btn:hover { background: #c93c3c; }
+    #demo-controls hr { margin: 10px 0; border: none; border-top: 1px solid #e0e0e0; }
+    .play-area { padding: 40px 20px; text-align: center; color: #666; }
+    .play-area h1 { font-size: 22px; color: #333; margin: 0 0 12px; }
+    .play-area p { margin: 4px 0; }
   </style>
 </head>
 <body>
   <div id="app"></div>
-  
+
   <div id="demo-controls">
-    <h3>TransitionScreen Demo</h3>
-    <button onclick="showStart()">1. Start Screen</button>
-    <button onclick="showVictory3()">2. Victory (3 Stars)</button>
-    <button onclick="showVictory2()">3. Game Complete (2 Stars)</button>
-    <button onclick="showVictory1()">4. Game Complete (1 Star)</button>
-    <button onclick="showGameOver()">5. Game Over</button>
-    <button onclick="showStarsClaimed()">6. Stars Claimed</button>
-    <button onclick="showLevelNoButton()">7. Level (No Button)</button>
-    <button onclick="showLevelWithButton()">8. Level (With Button)</button>
-    <button onclick="showTimeTaken()">9. Time Taken</button>
-    <button onclick="testSynchronousShow()">10. Test Synchronous Show (Bug Fix)</button>
+    <h3>TransitionScreen v2 Demo</h3>
+
+    <h4>Primitive Variants</h4>
+    <button onclick="showStartGame()">Start Game (icon + button)</button>
+    <button onclick="showVictory3()">Victory (3 stars + buttons)</button>
+    <button onclick="showVictory1()">Partial Win (1 star + buttons)</button>
+    <button onclick="showGameOver()">Game Over (icon + button)</button>
+    <button onclick="showLevelAuto()">Level Intro (auto-hide 2s)</button>
+    <button onclick="showStarsClaimed()">Stars Claimed (persist)</button>
+
+    <h4>Custom Content</h4>
+    <button onclick="showCustomHTML()">Custom HTML content</button>
+    <button onclick="showCustomDOM()">Custom DOM element</button>
+    <button onclick="showMixed()">Mixed: primitives + custom</button>
+    <button onclick="showProgrammatic()">Programmatic slot injection</button>
+
+    <h4>Style Overrides</h4>
+    <button onclick="showDarkCard()">Dark themed card</button>
+    <button onclick="showCompactCard()">Compact card style</button>
+    <button onclick="showV1Compat()">v1 compat (titleStyles)</button>
+
     <hr>
-    <button onclick="hideScreen()" style="background: #E35757; color: white;">Hide Screen</button>
+    <button class="hide-btn" onclick="hideScreen()">Hide Screen</button>
   </div>
-  
+
   <script>
-    let transitionScreen;
-    
+    var ts = null;
+
     function init() {
-      // Inject layout with transition screen slot
+      // Use v2 ScreenLayout with transition slot
       ScreenLayout.inject('app', {
-        slots: {
+        sections: {
+          header: true,
+          progressBar: true,
+          playArea: true,
           transitionScreen: true
+        },
+        styles: {
+          header: { background: '#1a1a2e', padding: '12px 16px' }
         }
       });
-      
+
+      // Fill header
+      document.getElementById('mathai-header-slot').innerHTML =
+        '<div style="text-align:center;color:#fff;font-size:16px;">⏱ 0:00</div>';
+
+      // Fill progress
+      document.getElementById('mathai-progress-slot').innerHTML =
+        '<div style="display:flex;justify-content:space-between;padding:8px 16px;">' +
+        '<span style="font-weight:700;">Round 1/9</span><span>❤️❤️❤️</span></div>';
+
       // Create transition screen
-      transitionScreen = new TransitionScreenComponent({
-        autoInject: true
-      });
-      
-      // Add content to game area
-      document.getElementById('gameContent').innerHTML = `
-        <div style="text-align: center; padding: 40px;">
-          <h1>Sample Game</h1>
-          <p>Use the controls on the right to test different transition screens</p>
-          <p>The transition screen replaces this content when shown</p>
-        </div>
-      `;
+      ts = new TransitionScreenComponent({ autoInject: true });
+
+      // Fill game content
+      document.getElementById('gameContent').innerHTML =
+        '<div class="play-area">' +
+          '<h1>Sample Game Area</h1>' +
+          '<p>Use the controls on the right to test transition screens.</p>' +
+          '<p>The transition screen replaces this content when shown.</p>' +
+          '<p>Header and progress bar stay visible above.</p>' +
+        '</div>';
     }
-    
-    // Type 1: Start Screen
-    function showStart() {
-      transitionScreen.show({
-        icons: ['🎮'],
-        iconSize: 'large',
-        title: 'Are you ready?',
-        subtitle: 'Get ready to start the game!',
-        buttons: [{
-          text: "I'm ready!",
-          type: 'primary',
-          action: () => console.log('Game starting!')
-        }]
-      });
-    }
-    
-    // Type 2: Victory (3 Stars)
-    function showVictory3() {
-      transitionScreen.show({
-        stars: 3,
-        title: 'Victory! 🎉',
-        subtitle: 'Perfect score - Amazing work!',
-        buttons: [{
-          text: 'Claim Stars',
-          type: 'primary',
-          action: () => showStarsClaimed()
-        }]
-      });
-    }
-    
-    // Type 3: Game Complete (2 Stars)
-    function showVictory2() {
-      transitionScreen.show({
-        stars: 2,
-        title: 'Game Complete! 🎊',
-        subtitle: 'Great job! You earned 2 stars!',
-        buttons: [
-          {
-            text: 'Retry for more stars',
-            type: 'secondary',
-            action: () => console.log('Retrying...')
-          },
-          {
-            text: 'Claim stars',
-            type: 'primary',
-            action: () => showStarsClaimed()
-          }
-        ]
-      });
-    }
-    
-    // Type 4: Game Complete (1 Star)
-    function showVictory1() {
-      transitionScreen.show({
-        stars: 1,
-        title: 'Game Complete! 🎊',
-        subtitle: 'Good effort! You earned 1 star!',
-        buttons: [
-          {
-            text: 'Retry for more stars',
-            type: 'secondary',
-            action: () => console.log('Retrying...')
-          },
-          {
-            text: 'Claim stars',
-            type: 'primary',
-            action: () => showStarsClaimed()
-          }
-        ]
-      });
-    }
-    
-    // Type 5: Game Over
-    function showGameOver() {
-      transitionScreen.show({
-        icons: ['😔'],
-        iconSize: 'large',
-        title: 'Game Over!',
-        subtitle: 'All lives lost!',
-        buttons: [{
-          text: 'Try again!',
-          type: 'primary',
-          action: () => console.log('Restarting...')
-        }]
-      });
-    }
-    
-    // Type 6: Stars Claimed (persists forever)
-    function showStarsClaimed() {
-      transitionScreen.show({
-        icons: ['🎉'],
-        iconSize: 'large',
-        title: 'Yay! Stars claimed!',
-        persist: true  // CRITICAL: Stays forever, no buttons
-      });
-    }
-    
-    // Type 7: Level/Round (No Button)
-    function showLevelNoButton() {
-      transitionScreen.show({
+
+    /* ===== Primitive Variants ===== */
+
+    function showStartGame() {
+      ts.show({
         icons: ['🎯'],
-        iconSize: 'normal',
-        title: 'Level 3!',
-        titleStyles: {
-          color: '#270F63',
-          fontSize: '36px'
-        },
-        duration: 2000  // Auto-hide after 2 seconds
-      });
-    }
-    
-    // Type 8: Level/Round (With Button)
-    function showLevelWithButton() {
-      transitionScreen.show({
-        icons: ['🎮'],
-        iconSize: 'normal',
-        title: 'Round 2!',
-        titleStyles: {
-          color: '#270F63',
-          fontSize: '36px'
-        },
-        buttons: [{
-          text: "I'm ready!",
-          type: 'primary',
-          action: () => console.log('Starting round!')
-        }]
-      });
-    }
-    
-    // Type 9: Time Taken
-    function showTimeTaken() {
-      transitionScreen.show({
-        icons: ['⏱️'],
         iconSize: 'large',
-        title: 'Average time taken:',
-        titleStyles: {
-          fontWeight: '500'
-        },
-        subtitle: '2 minutes 15 seconds',
-        subtitleStyles: {
-          fontWeight: '700'
-        },
-        duration: 3000  // Auto-hide after 3 seconds
+        title: 'Reach the Target Sum',
+        subtitle: 'Tap numbers that add up to the target. Think fast!',
+        buttons: [{
+          text: 'Start Game',
+          type: 'primary',
+          action: function() { console.log('Game starting!'); }
+        }]
       });
     }
 
-    // Type 10: Test Synchronous Show (reproduces the bug scenario)
-    function testSynchronousShow() {
-      transitionScreen.show({
-        title: 'Start',
+    function showVictory3() {
+      ts.show({
+        stars: 3,
+        title: 'Victory!',
+        subtitle: 'Perfect score — Amazing work!',
+        buttons: [{
+          text: 'Claim Stars',
+          type: 'primary',
+          action: function() { showStarsClaimed(); }
+        }]
+      });
+    }
+
+    function showVictory1() {
+      ts.show({
+        stars: 1,
+        title: 'Game Complete!',
+        subtitle: 'Good effort! You earned 1 star.',
+        buttons: [
+          {
+            text: 'Retry',
+            type: 'outline',
+            action: function() { console.log('Retrying...'); }
+          },
+          {
+            text: 'Claim Stars',
+            type: 'primary',
+            action: function() { showStarsClaimed(); }
+          }
+        ]
+      });
+    }
+
+    function showGameOver() {
+      ts.show({
+        icons: ['😔'],
+        iconSize: 'large',
+        title: 'Game Over!',
+        subtitle: 'All lives lost. Better luck next time!',
+        buttons: [{
+          text: 'Try Again',
+          type: 'primary',
+          action: function() { console.log('Restarting...'); }
+        }]
+      });
+    }
+
+    function showLevelAuto() {
+      ts.show({
+        icons: ['🎮'],
+        title: 'Level 3',
+        duration: 2000
+      });
+    }
+
+    function showStarsClaimed() {
+      ts.show({
+        icons: ['🎉'],
+        iconSize: 'large',
+        title: 'Yay! Stars claimed!',
+        persist: true
+      });
+    }
+
+    /* ===== Custom Content ===== */
+
+    function showCustomHTML() {
+      ts.show({
+        title: 'Round Summary',
+        content: '<div style="background:#f0f7ff;border-radius:12px;padding:20px;margin:0 auto;max-width:300px;">' +
+          '<div style="display:flex;justify-content:space-between;margin-bottom:8px;">' +
+            '<span style="color:#666;">Correct</span><span style="font-weight:700;color:#219653;">7/9</span></div>' +
+          '<div style="display:flex;justify-content:space-between;margin-bottom:8px;">' +
+            '<span style="color:#666;">Time</span><span style="font-weight:700;">2m 15s</span></div>' +
+          '<div style="display:flex;justify-content:space-between;">' +
+            '<span style="color:#666;">Score</span><span style="font-weight:700;color:#2563eb;">850</span></div>' +
+        '</div>',
+        buttons: [{
+          text: 'Continue',
+          type: 'secondary',
+          action: function() { console.log('Continuing...'); }
+        }]
+      });
+    }
+
+    function showCustomDOM() {
+      // Build a custom element programmatically
+      var el = document.createElement('div');
+      el.style.cssText = 'display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin:8px 0;';
+
+      var items = [
+        { emoji: '⚡', label: 'Speed', value: 'Fast' },
+        { emoji: '🎯', label: 'Accuracy', value: '92%' },
+        { emoji: '🔥', label: 'Streak', value: '5' }
+      ];
+
+      for (var i = 0; i < items.length; i++) {
+        var card = document.createElement('div');
+        card.style.cssText = 'background:#f9f9f9;border-radius:12px;padding:16px 20px;min-width:80px;';
+        card.innerHTML = '<div style="font-size:28px;">' + items[i].emoji + '</div>' +
+          '<div style="font-size:11px;color:#999;margin-top:4px;">' + items[i].label + '</div>' +
+          '<div style="font-size:18px;font-weight:700;margin-top:2px;">' + items[i].value + '</div>';
+        el.appendChild(card);
+      }
+
+      ts.show({
+        title: 'Performance',
+        content: el,
+        buttons: [{
+          text: 'Next Round',
+          type: 'primary',
+          action: function() { console.log('Next!'); }
+        }]
+      });
+    }
+
+    function showMixed() {
+      ts.show({
+        stars: 2,
+        title: 'Great Job!',
+        subtitle: 'You completed the challenge.',
+        content: '<div style="background:#fff8e1;border-radius:10px;padding:12px 16px;font-size:14px;">' +
+          '💡 <strong>Tip:</strong> Try selecting numbers faster to earn all 3 stars!</div>',
+        buttons: [
+          {
+            text: 'Retry',
+            type: 'outline',
+            action: function() { console.log('Retry'); }
+          },
+          {
+            text: 'Continue',
+            type: 'primary',
+            action: function() { console.log('Continue'); }
+          }
+        ]
+      });
+    }
+
+    function showProgrammatic() {
+      // Show with just a title, then inject into the custom slot after
+      ts.show({
+        title: 'Loading...',
+        persist: true
+      });
+
+      // Use getCustomSlot() to inject content programmatically
+      setTimeout(function() {
+        var slot = ts.getCustomSlot();
+        if (slot) {
+          slot.innerHTML = '<div style="margin:16px 0;">' +
+            '<div style="width:200px;height:8px;background:#e0e0e0;border-radius:4px;margin:0 auto;overflow:hidden;">' +
+              '<div style="width:100%;height:100%;background:#2563eb;border-radius:4px;animation:slideIn 1s ease forwards;"></div>' +
+            '</div>' +
+            '<style>@keyframes slideIn{from{width:0}to{width:100%}}</style>' +
+            '<p style="color:#666;font-size:14px;margin-top:12px;">Assets loaded! Ready to play.</p>' +
+          '</div>';
+
+          // Update title
+          ts._titleEl.textContent = 'Ready!';
+        }
+      }, 1000);
+    }
+
+    /* ===== Style Overrides ===== */
+
+    function showDarkCard() {
+      ts.show({
+        icons: ['🌙'],
+        iconSize: 'large',
+        title: 'Night Mode',
+        subtitle: 'A fully dark-themed card using style overrides.',
+        buttons: [{
+          text: 'Cool!',
+          type: 'primary',
+          action: function() { console.log('Dark mode!'); },
+          styles: { background: '#7c3aed', borderRadius: '24px' }
+        }],
+        styles: {
+          screen: { background: 'rgba(0,0,0,0.6)' },
+          card: { background: '#1a1a2e', borderRadius: '28px', boxShadow: '0 8px 40px rgba(0,0,0,0.4)' },
+          title: { color: '#ffffff' },
+          subtitle: { color: '#a0a0b0' }
+        }
+      });
+    }
+
+    function showCompactCard() {
+      ts.show({
+        title: 'Round 5',
+        subtitle: 'Get ready!',
         buttons: [{
           text: 'Go',
-          action: () => {
-            console.log('First screen button clicked, showing second screen synchronously...');
-            // Second screen shown immediately (synchronous call)
-            transitionScreen.show({
-              title: 'Level 1',
-              buttons: [{
-                text: 'Start',
-                action: () => {
-                  console.log('SUCCESS: Second screen button action executed!');
-                  alert('SUCCESS: Button click worked after synchronous show() call!');
-                }
-              }]
-            });
-          }
-        }]
+          type: 'secondary',
+          action: function() { console.log('Go!'); },
+          styles: { minWidth: '100px', padding: '10px 24px', fontSize: '14px' }
+        }],
+        styles: {
+          card: { padding: '28px 24px', maxWidth: '320px', borderRadius: '16px' },
+          title: { fontSize: '22px', marginBottom: '8px' },
+          subtitle: { fontSize: '14px', marginBottom: '20px' }
+        }
+      });
+    }
+
+    function showV1Compat() {
+      // v1-style config using titleStyles/subtitleStyles (still works)
+      ts.show({
+        icons: ['⏱️'],
+        iconSize: 'large',
+        title: 'Average time taken:',
+        titleStyles: { fontWeight: '500', fontSize: '24px' },
+        subtitle: '2 minutes 15 seconds',
+        subtitleStyles: { fontWeight: '700', fontSize: '28px', color: '#2563eb' },
+        duration: 3000
       });
     }
 
     function hideScreen() {
-      transitionScreen.hide();
+      ts.hide();
     }
-    
-    window.addEventListener('DOMContentLoaded', init);
+
+    // Auto-run on load
+    window.addEventListener('DOMContentLoaded', function() { init(); });
   </script>
 </body>
 </html>
-
-
