@@ -293,7 +293,8 @@ Every function the game needs, with exact signatures and step-by-step logic.
 **showPreviewScreen()**
 
 - Called from game_init handler after setting gameState.content
-- Calls previewScreen.show({ questionLabel, score, showStar, instruction, audioUrl, previewContent, onComplete: startGameAfterPreview })
+- Calls previewScreen.show({ instruction, audioUrl, previewContent, onComplete: startGameAfterPreview })
+- Note: questionLabel, score, showStar are read automatically from game_init payload
 - Preview data comes from game_init payload → content set → fallbackContent
 
 **startGameAfterPreview(previewData)**

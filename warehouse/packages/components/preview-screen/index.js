@@ -94,6 +94,18 @@
     this._instructionArea = null;
     this._previewContentArea = null;
 
+    // game_init payload data (questionLabel, score, showStar come from here)
+    this._gameInitData = null;
+
+    // Listen for game_init to capture header data
+    var self = this;
+    this._gameInitListener = function (event) {
+      if (event.data && event.data.type === "game_init" && event.data.data) {
+        self._gameInitData = event.data.data;
+      }
+    };
+    window.addEventListener("message", this._gameInitListener);
+
     // Init
     this.injectStyles();
     if (this.config.autoInject) {
@@ -177,27 +189,31 @@
       "  text-align: left;" +
       "}" +
       ".mathai-preview-instruction {" +
-      "  font-weight: 400; font-size: 16px; line-height: 21px;" +
+      "  font-weight: 400; font-size: 16px; line-height: 21px; padding-bottom: 20px;" +
       "  color: #333333;" +
       "  font-family: var(--mathai-font-family, sans-serif);" +
       "}" +
       ".mathai-preview-instruction img { max-width: 100%; height: auto; }" +
       ".mathai-preview-instruction video { width: 100%; }" +
-      ".mathai-preview-content-area { margin-top: 16px; }" +
 
-      /* Skip button */
+      /* Skip button — matches FlowButton from mathai-client */
       ".mathai-preview-skip-wrap {" +
       "  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);" +
       "  width: 100%; max-width: var(--mathai-game-max-width, 480px);" +
-      "  padding: 16px 32px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));" +
+      "  padding: 8px 16px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));" +
       "  text-align: center; z-index: 20; box-sizing: border-box;" +
-      "  background: linear-gradient(transparent, rgba(255,255,255,0.95) 30%);" +
+      "  background: transparent;" +
       "}" +
       ".mathai-preview-skip-btn {" +
-      "  background: none; border: none; cursor: pointer;" +
-      "  font-size: 15px; font-weight: 600; color: #667eea;" +
-      "  padding: 12px 24px;" +
+      "  background: #fff; cursor: pointer;" +
+      "  font-size: 16px; font-weight: 400; color: #270F36;" +
+      "  height: 68px; padding: 20px 53px;" +
+      "  border: 1px solid #ECECEC; border-radius: 8px;" +
+      "  box-shadow: 0px 2px 1px rgba(0, 0, 0, 0.1);" +
       "  font-family: var(--mathai-font-family, sans-serif);" +
+      "}" +
+      ".mathai-preview-skip-btn:active {" +
+      "  border-color: #270F36;" +
       "}";
 
     document.head.appendChild(style);
@@ -307,14 +323,12 @@
 
   /**
    * @param {object} config
-   * @param {string} config.questionLabel
-   * @param {string} config.score
-   * @param {boolean} config.showStar
    * @param {string} config.instruction - HTML string
    * @param {string} config.audioUrl
    * @param {string} config.previewContent - pre-rendered HTML string
    * @param {function} config.onComplete - callback(previewData)
    * @param {function} config.onPreviewInteraction - callback(interactionData)
+   * Note: questionLabel, score, showStar are read from game_init payload automatically
    */
   PreviewScreenComponent.prototype.show = function (config) {
     var self = this;
@@ -335,15 +349,16 @@
       if (this.gameWrapper) this.gameWrapper.style.display = "none";
       this.container.style.display = "block";
 
-      // Populate header
+      // Populate header from game_init payload (not from game code config)
+      var d = this._gameInitData || {};
       var labelEl = document.getElementById("previewQuestionLabel");
-      if (labelEl) labelEl.textContent = config.questionLabel || "Q1";
+      if (labelEl) labelEl.textContent = d.questionLabel || "Q1";
 
       var scoreEl = document.getElementById("previewScore");
-      if (scoreEl) scoreEl.textContent = config.score || "0/3";
+      if (scoreEl) scoreEl.textContent = d.score || "0/3";
 
       var starEl = document.getElementById("previewStar");
-      if (starEl) starEl.style.display = config.showStar !== false ? "inline-block" : "none";
+      if (starEl) starEl.style.display = (d.showStar !== false) ? "inline-block" : "none";
 
       // Reset progress bar
       if (this._progressBar) {
@@ -374,13 +389,59 @@
       this._recordViewEvent("content_render", { instruction: !!config.instruction, previewContent: !!config.previewContent });
 
       // Audio / Timer flow
+      this._instruction = config.instruction || "";
       if (config.audioUrl) {
         this._startWithAudio(config.audioUrl);
       } else {
-        this._startWithTimer();
+        // No audio URL — try to generate one from instruction text at runtime
+        this._tryRuntimeTTS(config.instruction);
       }
     } catch (err) {
       this._captureError(err, { method: "show", config: config });
+    }
+  };
+
+  // ============================================================
+  // Runtime TTS fallback — generate audio from instruction text
+  // ============================================================
+
+  var TTS_API_URL = "https://asia-south1-mathai-449208.cloudfunctions.net/generate-audio";
+
+  PreviewScreenComponent.prototype._tryRuntimeTTS = function (instruction) {
+    var self = this;
+    if (!instruction) {
+      this._startWithTimer();
+      return;
+    }
+
+    // Strip HTML tags to get plain text
+    var text = instruction.replace(/<[^>]*>/g, "").trim();
+    if (!text) {
+      this._startWithTimer();
+      return;
+    }
+
+    // Call TTS API to get audio URL — best effort, fall back to timer on failure
+    try {
+      fetch(TTS_API_URL + "?sendUrl=true&text=" + encodeURIComponent(text))
+        .then(function (res) {
+          if (!res.ok) throw new Error("TTS API returned " + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          if (data.audio_url && self._isActive) {
+            self._hasAudio = true;
+            self._startWithAudio(data.audio_url);
+          } else {
+            self._startWithTimer();
+          }
+        })
+        .catch(function () {
+          // TTS failed — use 5s timer
+          if (self._isActive) self._startWithTimer();
+        });
+    } catch (e) {
+      this._startWithTimer();
     }
   };
 
@@ -417,23 +478,46 @@
 
     this._ensureFeedbackManager(function () {
       if (!FeedbackManager || !FeedbackManager.sound) {
-        // Fallback to timer if FM still unavailable
         self._startWithTimer();
         return;
       }
 
-      try {
-        // Preload audio
-        FeedbackManager.sound.preload([{ id: self._audioId, url: audioUrl }]);
+      // Preload audio (async) AND wait for audio permission in parallel
+      // Both must complete before playing
+      var preloadDone = false;
+      var permissionDone = false;
 
-        // Check audio permission
-        self._waitForAudioPermission(function () {
+      function tryPlay() {
+        if (preloadDone && permissionDone && self._isActive) {
           self._playPreviewAudio();
-        });
+        }
+      }
+
+      // Start preload
+      try {
+        var preloadPromise = FeedbackManager.sound.preload([{ id: self._audioId, url: audioUrl }]);
+        if (preloadPromise && typeof preloadPromise.then === "function") {
+          preloadPromise.then(function () {
+            preloadDone = true;
+            tryPlay();
+          }).catch(function (err) {
+            console.warn("[PreviewScreen] Audio preload failed:", err);
+            self._startWithTimer();
+          });
+        } else {
+          preloadDone = true;
+        }
       } catch (err) {
         self._captureError(err, { method: "_startWithAudio", audioUrl: audioUrl });
         self._startWithTimer();
+        return;
       }
+
+      // Start permission check
+      self._waitForAudioPermission(function () {
+        permissionDone = true;
+        tryPlay();
+      });
     });
   };
 
@@ -497,6 +581,12 @@
       if (!isPopupVisible()) {
         clearInterval(pollId);
         self._audioUnlockDone = true;
+        // Force FeedbackManager unlock state — popup was dismissed, audio context should be ready
+        // Without this, play() tries await unlock() which can hang
+        if (FeedbackManager.sound) {
+          FeedbackManager.sound.unlocked = true;
+          FeedbackManager.sound.unlockAttempted = true;
+        }
         // Clean up backdrop just in case
         var bd = document.getElementById("popup-backdrop");
         if (bd) { bd.style.display = "none"; bd.style.pointerEvents = "none"; }
@@ -508,38 +598,46 @@
 
   PreviewScreenComponent.prototype._playPreviewAudio = function () {
     var self = this;
-
     try {
-      FeedbackManager.sound.play(this._audioId, {
+      // Get duration BEFORE playing (available after preload)
+      var duration = FeedbackManager.sound.getDuration(self._audioId);
+      if (duration && duration > 0) {
+        self._duration = duration * 1000; // seconds to ms
+      } else {
+        self._duration = DEFAULT_TIMER_DURATION;
+      }
+
+      var playResult = FeedbackManager.sound.play(this._audioId, {
         onplay: function () {
           self._isAudioPlaying = true;
           self._setAvatarState(true);
-          self._recordViewEvent("feedback_display", { audio: "started" });
-
-          // Get duration from Howl
-          var duration = FeedbackManager.sound.duration(self._audioId);
-          if (duration && duration > 0) {
-            self._duration = duration * 1000; // seconds to ms
-          } else {
+          self._beginProgressBar();
+        },
+        onerror: function (err) {
+          console.warn("[PreviewScreen] Audio playback error:", err);
+          self._isAudioPlaying = false;
+          self._setAvatarState(false);
+          if (!self._rafId) {
             self._duration = DEFAULT_TIMER_DURATION;
+            self._beginProgressBar();
           }
-          self._beginProgressBar();
-          self._recordViewEvent("component_state", { progressBar: "started", duration: self._duration, hasAudio: true });
-        },
-        onend: function () {
-          self._isAudioPlaying = false;
-          self._setAvatarState(false);
-          self._recordViewEvent("feedback_display", { audio: "ended" });
-          self._onTimerComplete();
-        },
-        onerror: function () {
-          console.warn("[PreviewScreen] Audio playback error, falling back to timer");
-          self._isAudioPlaying = false;
-          self._setAvatarState(false);
-          self._duration = DEFAULT_TIMER_DURATION;
-          self._beginProgressBar();
         }
       });
+
+      // Handle play() promise resolution
+      if (playResult && typeof playResult.then === "function") {
+        playResult.then(function (res) {
+          self._isAudioPlaying = false;
+          self._setAvatarState(false);
+        }).catch(function (err) {
+          console.warn("[PreviewScreen] play() rejected:", err);
+        });
+      }
+
+      // If onplay didn't fire (audio failed silently), start progress bar as fallback
+      if (!self._rafId) {
+        self._beginProgressBar();
+      }
     } catch (err) {
       this._captureError(err, { method: "_playPreviewAudio" });
       this._duration = DEFAULT_TIMER_DURATION;
@@ -555,7 +653,6 @@
     var self = this;
     this._startTime = performance.now();
     this._elapsed = 0;
-
     function tick(now) {
       if (!self._isActive || self._isPaused) return;
 
@@ -568,11 +665,7 @@
       }
 
       if (elapsed >= self._duration) {
-        // Timer done
-        if (!self._hasAudio) {
-          self._onTimerComplete();
-        }
-        // If has audio, onend callback handles completion
+        self._onTimerComplete();
         return;
       }
 
@@ -744,6 +837,10 @@
   PreviewScreenComponent.prototype.destroy = function () {
     this.hide();
     if (this.container) this.container.innerHTML = "";
+    if (this._gameInitListener) {
+      window.removeEventListener("message", this._gameInitListener);
+      this._gameInitListener = null;
+    }
     console.log("[PreviewScreen] Destroyed");
   };
 

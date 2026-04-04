@@ -37,14 +37,13 @@ const previewScreen = new PreviewScreenComponent({
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `questionLabel` | string | e.g. "Q1" (from game_init payload) |
-| `score` | string | e.g. "0/3" (from game_init payload) |
-| `showStar` | boolean | Show star icon (default: true) |
 | `instruction` | string | HTML string with rich content (bold, images, video) |
 | `audioUrl` | string | URL of preview audio (optional — defaults to 5s timer) |
 | `previewContent` | string | Pre-rendered HTML for preview area (optional) |
 | `onComplete` | function | Callback(previewData) when preview ends |
 | `onPreviewInteraction` | function | Callback(interactionData) on user interaction |
+
+**Note:** `questionLabel`, `score`, and `showStar` are read automatically from the `game_init` postMessage payload — do NOT pass them in `show()` config.
 
 ## Game Flow Integration
 
@@ -52,21 +51,24 @@ In the `game_init` postMessage handler, show the preview screen instead of start
 
 ```javascript
 // In game_init handler:
-const d = event.data.data;
 const content = gameState.content;
 
+// NEVER hardcode instruction — always read from content with fallback
 previewScreen.show({
-  questionLabel: d.questionLabel || 'Q1',
-  score: d.score || '0/3',
-  showStar: d.showStar !== false,
-  instruction: d.previewInstruction || content.previewInstruction || '',
-  audioUrl: d.previewAudio || content.previewAudio || null,
-  previewContent: d.previewContent || content.previewContent || null,
+  instruction: content.previewInstruction || fallbackContent.previewInstruction,
+  audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+  previewContent: content.previewContent || null,
   onComplete: function(previewData) {
     startGameAfterPreview(previewData);
   }
 });
 ```
+
+## Audio URL Sources (3 layers)
+
+1. **Build time (pipeline):** After HTML is approved, the pipeline calls the TTS API and patches `fallbackContent.previewAudio` with a CDN URL. Standalone mode uses this.
+2. **Content set (runtime):** `game_init` payload provides `content.previewAudio` from the content set, which overrides fallbackContent.
+3. **Runtime fallback (component):** If no audio URL is provided at all, the component auto-generates audio from the instruction text by calling the TTS API directly from the browser. If TTS fails, falls back to a 5s silent timer.
 
 ## startGameAfterPreview()
 
@@ -151,6 +153,20 @@ const visibilityTracker = new VisibilityTracker({
   }
 });
 ```
+
+## DOMContentLoaded — No TransitionScreen Before Preview
+
+**CRITICAL:** When PART-039 is used (mandatory for all games), DOMContentLoaded must call `setupGame()` directly at the end of initialization — do NOT show a start TransitionScreen ("I'm ready!", "Let's go!", etc.) before the preview. The preview screen IS the first screen the user sees.
+
+```javascript
+// WRONG — TransitionScreen flashes before preview
+transitionScreen.show({ title: "Let's go!", buttons: [{ text: "Start", action: setupGame }] });
+
+// RIGHT — go directly to setupGame which shows the preview
+setupGame();
+```
+
+The TransitionScreen component is still used for between-round transitions, victory, and game-over screens — just not as the initial start screen.
 
 ## Audio Permission
 
