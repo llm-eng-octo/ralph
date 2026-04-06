@@ -2017,7 +2017,7 @@
                 ? {
                     type: "IMAGE_GIF",
                     image: params.sticker,
-                    alignment: "CENTER",
+                    alignment: "RIGHT",
                   }
                 : null,
             },
@@ -2038,7 +2038,7 @@
       var feedbackOptions = {
         subtitle: params.subtitle || null,
         sticker: params.sticker
-          ? { type: "IMAGE_GIF", image: params.sticker, alignment: "CENTER" }
+          ? { type: "IMAGE_GIF", image: params.sticker, alignment: "RIGHT" }
           : null,
       };
 
@@ -2181,7 +2181,7 @@
               sticker: {
                 type: "IMAGE_GIF",
                 image: params.sticker,
-                alignment: "CENTER",
+                alignment: "RIGHT",
               },
             },
             5
