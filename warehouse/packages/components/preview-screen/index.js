@@ -111,6 +111,15 @@
     };
     window.addEventListener("message", this._gameInitListener);
 
+    // Self-managed visibility handling — safety net in case external code
+    // (e.g. VisibilityTracker) doesn't call pause() on tab switch.
+    this._visibilityListener = function () {
+      if (document.hidden && self._isActive && !self._isPaused) {
+        self.pause();
+      }
+    };
+    document.addEventListener("visibilitychange", this._visibilityListener);
+
     // Init
     this.injectStyles();
     if (this.config.autoInject) {
@@ -532,6 +541,7 @@
     this._ensureFeedbackManager(function () {
       // Even with no audio, wait for audio permission (timer starts only when no popup visible)
       self._waitForAudioPermission(function () {
+        self._isPaused = false; // Clear stale pause state from pre-permission pause/resume
         self._duration = DEFAULT_TIMER_DURATION;
         self._beginProgressBar();
         self._recordViewEvent("component_state", { progressBar: "started", duration: self._duration, hasAudio: false });
@@ -615,6 +625,12 @@
 
   PreviewScreenComponent.prototype._playPreviewAudio = function () {
     var self = this;
+    // Permission was just granted — clear any stale pause state.
+    // This handles the case where pause()/resume() fired while waiting for
+    // the audio permission popup, but resume() was never called (user dismissed
+    // the permission popup directly, not the VisibilityTracker resume popup).
+    this._isPaused = false;
+
     // Increment play generation — prevents stale .then() from resetting avatar
     this._playGeneration++;
     var gen = this._playGeneration;
@@ -677,6 +693,7 @@
     var self = this;
     this._startTime = performance.now();
     this._elapsed = 0;
+    this._totalPausedDuration = 0; // Reset stale pause time from any pre-start pause/resume cycle
     function tick(now) {
       if (!self._isActive || self._isPaused) return;
 
@@ -742,10 +759,15 @@
       this._pausedAt = performance.now();
       this._cancelRaf();
 
-      // Pause audio
+      // Pause audio — only if a voice is still actively playing.
+      // If voice is already null (FM or handleInactive already paused it),
+      // calling pause() again would call stopAll() which destroys the saved
+      // voice state needed for resumeVoice().
       if (this._hasAudio && FeedbackManager && FeedbackManager.sound) {
         try {
-          FeedbackManager.sound.pause(this._audioId);
+          if (FeedbackManager.sound.audioKit.getCurrentlyPlaying()) {
+            FeedbackManager.sound.pause();
+          }
         } catch (e) { /* ignore */ }
         this._isAudioPlaying = false;
       }
@@ -789,6 +811,9 @@
   PreviewScreenComponent.prototype._beginResumedProgressBar = function () {
     var self = this;
 
+    // Guard: if progress bar was never started, nothing to resume
+    if (this._startTime === 0) return;
+
     function tick(now) {
       if (!self._isActive || self._isPaused) return;
 
@@ -801,9 +826,7 @@
       }
 
       if (elapsed >= self._duration) {
-        if (!self._hasAudio) {
-          self._onTimerComplete();
-        }
+        self._onTimerComplete();
         return;
       }
 
@@ -864,6 +887,10 @@
     if (this._gameInitListener) {
       window.removeEventListener("message", this._gameInitListener);
       this._gameInitListener = null;
+    }
+    if (this._visibilityListener) {
+      document.removeEventListener("visibilitychange", this._visibilityListener);
+      this._visibilityListener = null;
     }
     console.log("[PreviewScreen] Destroyed");
   };
