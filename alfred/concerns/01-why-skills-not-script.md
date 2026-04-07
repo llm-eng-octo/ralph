@@ -1,200 +1,205 @@
-# Why Alfred (Skills + Orchestrator) — Honest Comparison vs Pipeline-v2
+# Why Alfred — The Honest Version
 
-## TL;DR
-
-- Pipeline-v2 also uses Claude Agent SDK. Both systems are "Claude with tools." This doc is NOT "scripts vs LLMs."
-- The real difference is **organizational**: pipeline-v2 keeps all generation knowledge in one 4007-line file (`lib/prompts.js`); Alfred keeps it in ~108 small markdown files, one concern per file.
-- Skills do **not** magically prevent contradictions. Small organized files just make contradictions easier to **find and fix** in code review.
-- Alfred is explicitly designed for **iteration across many sessions** — the system-loop (ship → capture → gauge → iterate) is the core model, not a fix loop bolted on.
-- Alfred is not inherently more correct. It is structurally better at three things: findability, iteration, and progressive disclosure.
+> This is a full rewrite in response to three hostile reviews (A, B, C in this folder). The previous version oversold organization as architecture and listed unverified capabilities as differentiators. This version does not.
 
 ---
 
-## What is the SAME between Alfred and pipeline-v2
+## TL;DR (30-second skim)
 
-| Dimension | Both systems |
-|-----------|--------------|
-| LLM | Claude (via `@anthropic-ai/claude-agent-sdk`) — see `pipeline-v2/agent.js` line 28 |
-| Sub-agents | Both spawn agents; pipeline-v2 via SDK session resume, Alfred via the Agent tool |
-| Tools | Read/Write/Edit/Bash/Glob/Grep + Playwright MCP |
-| Knowledge in markdown | Both can have skill-style markdown (pipeline-v2 has `pipeline-v2/GAME_PROMPT.md`) |
-| CDN constraints, contracts, archetypes | Same target platform, same FeedbackManager, same `gameState`/`game_complete` schema |
-| Iteration within a build | Both have a test → fix → re-test loop |
-| Categorized testing | Both use the same 5 categories (game-flow, mechanics, level-progression, edge-cases, contract) |
-| Final review + rejection fix | Both have a final review step with up to N rejection-fix attempts |
-| Visual review with screenshots | Both use Playwright to screenshot game states |
-
-If you compare them on "Does it use Claude SDK? Does it have skills? Does it iterate?" — the answer is **yes** for both. Saying "Alfred has skills" without context is misleading.
+- **What Alfred actually is:** a knowledge reorganization — generation rules moved from one 4007-line JS file (`lib/prompts.js`) into ~47 markdown skill files. It runs on the **same** Claude Agent SDK that pipeline-v2 already uses.
+- **What is unique:** a directory layout, a draft `gauge` skill, and an explicit P0/P1/P2 eval harness. That is the complete list.
+- **What is a refactor:** everything else. Same SDK, same tools, same CDN targets, same 5 test categories, same Playwright, same validators.
+- **What is measured:** nothing. No cost, latency, token, or iteration data comparing the two systems.
+- **Production state:** pipeline-v2 has **54 games** in `games/`. Alfred has **0 deployed**, 2 locally built.
+- **Honest recommendation:** **Do not adopt Alfred as a runtime replacement.** Run Option A below (1-day in-place refactor spike on `prompts.js`) before any further architectural commitment.
 
 ---
 
-## What is ACTUALLY different
+## What Alfred IS NOT
 
-| Dimension | Pipeline-v2 | Alfred | Why it matters |
-|-----------|-------------|--------|----------------|
-| Knowledge file count | 1 main file (`lib/prompts.js`, 4007 lines) + GAME_PROMPT.md | ~108 small markdown files organized by concern | Updating one rule means touching one small file vs scrolling a giant blob |
-| Largest single file | 4007 lines | Skills target ≤300 lines per `SKILL.md` | A small file fits in a human's head; a 4000-line file does not |
-| Knowledge loaded per build | The whole prompt (every builder concatenates large blocks) | Only the relevant skills via progressive disclosure | LLM context stays focused on what the current step needs |
-| Organization principle | Functions that build prompt strings | One folder per skill, one concern per file, references on demand | Findability via filenames + grep |
-| Iteration model | Inner loop only: test → fix → re-test inside one build | Inner loop **plus** outer loop: ship → student data → gauge → update content/spec → rebuild | Iteration is the lifecycle, not a bug-fix mechanism |
-| Lesson capture | Append a paragraph to the 4000-line prompt | Update the relevant skill file (or its `reference/`) | Both are possible; small files are easier to maintain and review |
-| Anthropic alignment | Big system prompt — pattern Anthropic explicitly recommends against for complex agents | Progressive disclosure pattern from Anthropic's Agent Skills guidance | We are following published guidance, not guessing |
+| Claim previously made or implied | Reality |
+|---|---|
+| A new runtime | False. Both systems call `@anthropic-ai/claude-agent-sdk`. Alfred has no runtime of its own — it runs inside Claude Code in the main context. |
+| Magically more correct | False. Skills are markdown. Markdown can contradict itself just as easily as JS template strings. |
+| Measured head-to-head vs pipeline-v2 | False. N=0 comparative builds. |
+| Concurrent / multi-tenant | False. Alfred's orchestration SKILL says "run this step in the main orchestrator context" and "sub-agents cannot access Playwright MCP." Single-tenant by design today. |
+| Currently shipping | False. 0 production games via Alfred vs 54 via pipeline-v2. |
+| Has an outer feedback loop that works | False. The `gauge` skill exists on disk; it has never run on real student data. |
 
-The list above is the honest claim. None of these are "magic." They are organizational properties.
+## What Alfred IS
 
----
+A reorganization of generation knowledge from **one 4007-line JS file** (`lib/prompts.js`) into **47 markdown files** under `alfred/skills/`, plus:
 
-## The contradiction concern (supervisor was right)
+- an explicit but unverified outer-loop design (`gauge` + `iteration` skills),
+- a P0/P1/P2 eval case framework (exists on disk, not run in CI),
+- a `knowledgebase.md` of first-principles.
 
-> "Self-contradictory statements can also be in skills — skill by default don't fix that == its the content in those files."
-
-**Conceded.** Skills are markdown files. A human (or an LLM) can write contradictory markdown files just as easily as contradictory JS strings. The skill format does not enforce correctness.
-
-What the structure actually buys is this:
-
-1. **Smaller files → contradictions are visible in code review.** A 300-line file can be read end-to-end in 5 minutes. A 4007-line file cannot.
-2. **One concern per file → cross-file contradictions are findable by grep.** If two files mention `ProgressBarComponent.destroy`, you can list them in one command.
-3. **Tree structure → ownership and locality.** The "progress bar" rule lives in one place; you don't have to wonder where to look.
-4. **Principle 1 (single source of truth) is enforced by file boundaries**, not by hope. It can still be violated, but the violation is observable.
-
-### Concrete contradiction in `lib/prompts.js` (today, real)
-
-| Line | Says |
-|------|------|
-| 93 | "NEVER call progressBar.destroy() immediately in endGame() — use 10s delay: `setTimeout(() => { progressBar?.destroy(); }, 10000);`" |
-| 1541–1559 | "GEN-PROGRESSBAR-DESTROY: NEVER use setTimeout to destroy ProgressBarComponent... `setTimeout(() => { progressBar.destroy(); progressBar = null; }, 10000); // ← NEVER do this`" |
-| 51 | "A delayed destroy via setTimeout IS compliant. Either immediate or delayed cleanup PASSES." |
-
-Three statements in one file: "always use 10s setTimeout-destroy", "never use setTimeout-destroy", and "either is fine." A generation agent reads all three and picks one. This is not a hypothetical — these lines are in `lib/prompts.js` right now.
-
-### How Alfred's structure would catch this
-
-- The `progressBar` rule would live in one file, e.g. `alfred/skills/game-building/reference/cdn-components.md`, under a `ProgressBarComponent` heading.
-- A grep for `progressBar.destroy` across `alfred/skills/` would return one location, not three.
-- Adding a new rule about cleanup forces an edit to that single file; the diff is reviewable in seconds.
-- It does not prevent a human from writing a self-contradictory rule **inside that file**, but the contradiction would be on adjacent lines, not 1448 lines apart.
-
-Honest framing: **organization makes contradictions findable, not impossible.**
+That is it. Every other claimed advantage is either a restatement of "small files are easier to read than big files" or unverified.
 
 ---
 
-## The iteration concern (front and center)
+## The killer question, answered honestly
 
-> "Are you proposing we won't need iteration to fix game i.e we are not designing for long running agents? and expecting game in one go?"
+> **"If `lib/prompts.js` were split into 47 files tomorrow inside pipeline-v2, what's left of Alfred?"**  — Reviewer A
 
-**No.** Alfred is explicitly designed for iteration across many sessions. The current concern doc downplayed this. Here is the iteration model:
+**Answer:**
 
-### Two loops, not one
+| Remaining after the hypothetical split | Defensible? |
+|---|---|
+| The split itself (organization discipline) | Yes, but then pipeline-v2 already has it in that scenario |
+| The `gauge` skill | Vaporware — never run on real data |
+| The P0/P1/P2 eval framework | Real artifact, not wired into CI |
+| `knowledgebase.md` principles | Real, ~1 day of work to port |
+| Nothing else | — |
 
-| Loop | Where | What it fixes | Time scale |
-|------|-------|---------------|------------|
-| Inner loop (build-time) | `game-testing` skill, `final-review` skill | Bugs found by Playwright tests + visual review during one build | Minutes (within a build) |
-| Outer loop (lifetime) | `gauge` skill + `iteration` skill + Phase 4 of orchestration | Pedagogy/content/spec problems found by real students playing the deployed game | Days/weeks (across many sessions) |
-
-Pipeline-v2 has the **inner loop only**. Alfred has both. The outer loop is what the supervisor asked about.
-
-### The outer loop, concretely
-
-From `alfred/design/system-loop.md`:
-
-```
-Game Creator → Pipeline → Deployed Artifact → Student plays → Data captured
-        ↑                                                            │
-        └─── Gauge (Claude + MCP) ←───────────────────────────────────┘
-```
-
-From `alfred/skills/orchestration/SKILL.md` Phase 4:
-- Step 11 — **Gauge**: query MCP for per-round accuracy, top misconceptions, abandonment, completion rate, learning-vs-guessing signal.
-- Step 12 — **Iterate**: pick the cheapest fix that addresses the finding.
-
-### Three iteration depths (defined in the gauge skill)
-
-| Depth | Trigger | Cost | Example |
-|-------|---------|------|---------|
-| Content swap | Wrong distractors, bad ordering, one round too hard | Minutes (no rebuild) | Replace round 7 question with an easier bridge |
-| Spec tweak | Pedagogy gap, wrong feedback for a misconception, lives system too punitive | Hours (rebuild) | Add misconception-specific feedback to spec, rebuild |
-| Full rebuild | Code bug, wrong archetype, fundamentally unengaging | Hours (new HTML) | Rebuild from corrected spec with new archetype |
-
-The gauge skill explicitly forbids recommending a rebuild when a content swap will do. This is a lifecycle principle, not a build-time check.
-
-### "Long-running agents"
-
-Alfred is designed so the **same game iterates across many sessions over weeks**. The orchestrator stops at gates, the creator returns days later with new student data, gauge runs, and the iteration continues. The pipeline is not "build once and ship" — it is "build, gauge, iterate, repeat."
-
-Pipeline-v2 has no `gauge` step. Iteration after deploy is manual.
+**The honest pitch reduces to:** "add a gauge step we haven't verified + split a big file + port a principles doc + wire up an eval harness." That is a **~2 week task inside pipeline-v2**, not a new runtime.
 
 ---
 
-## Stage-by-stage comparison
+## The architectural property Alfred's previous doc missed
 
-| Stage | Pipeline-v2 | Alfred |
-|-------|-------------|--------|
-| Spec creation | Manual (human writes) | Skill: `spec-creation` |
-| Spec validation | Regex + manual | Skill: `spec-review` (24+ checks) |
-| Plan generation | `buildPreGenerationPrompt` in `lib/prompts.js` | Skill: `game-planning` |
-| Build | `buildGeneratePrompt` | Skill: `game-building` |
-| Static + contract validation | `validate-static.js` + `validate-contract.js` | Same modules, invoked from `data-contract` skill |
-| Test + fix (5 categories) | `buildTestFixPrompt` | Skill: `game-testing` (same 5 categories) |
-| Visual review | `buildVisualReviewPrompt` | Skill: `visual-review` |
-| Final review + rejection fix | `buildFinalReviewPrompt` + rejection-fix step | Skill: `final-review` |
-| Deploy + content sets | `buildContentGenPrompt` | Skill: `deployment` |
-| **Gauge** | **None** | **Skill: `gauge` (NEW)** |
-| **Iterate (outer loop)** | **Manual** | **Phase 4 of orchestration + `iteration` skill** |
+Pipeline-v2 uses **SDK session resume across steps** (`pipeline-v2/agent.js` line 125: `queryOptions.resume = sessionId`). The generate → validate → test-fix → visual-review → final-review chain runs inside **one** logical Claude session. The agent carries full prior context across steps — the HTML it wrote, the validation errors it saw, the tests it read — without reloading.
 
-The new pieces are gauge and explicit outer-loop iteration. Everything else is reorganized, not invented.
+Alfred's orchestration model, as written, uses **separate sub-agent invocations** per skill with human gates between most of them. Each sub-agent starts cold and re-reads context from disk. This is **worse** on context continuity, not better. The previous concern doc never acknowledged this.
+
+This is a real architectural regression, not a tradeoff in Alfred's favor.
 
 ---
 
-## What we lose by going back to pipeline-v2
+## Selection bias — admitted
 
-- One 4000-line prompt file that is hard to read, review, and update without breaking adjacent rules.
-- No explicit outer-loop iteration model — gauging deployed games becomes ad-hoc.
-- No `gauge` skill — no canonical 5 questions to ask after students play.
-- Larger context per generation call (the whole prompt vs only the relevant skill files).
+Reviewer C was right. The previous doc cited a 3-way contradiction in `lib/prompts.js` (lines 51, 93, 1541 on `progressBar.destroy` setTimeout) as a smoking gun, and **never audited Alfred's own skill files for the same class of bug**. I have not run that audit. I am not going to pretend I did. Until someone hostile greps `alfred/skills/` for cross-file contradictions with the same rigor, the contradiction argument is **rigged** and should be ignored.
 
-## What pipeline-v2 has that Alfred does not (yet)
-
-Be honest about where pipeline-v2 is ahead:
-
-| Capability | Pipeline-v2 | Alfred |
-|------------|-------------|--------|
-| Production deployment infrastructure | Mature (BullMQ, worker, GCP, Slack, Sentry, metrics) | None — Alfred runs in Claude Code locally |
-| Games shipped | Many (in production today) | Two end-to-end (Scale It Up v2, Match Up) |
-| Parallel build queue | BullMQ-backed | Manual orchestration |
-| Webhook + Slack integration | Wired up | Not built |
-| Health checks, monitoring, retries | Built into worker | Not built |
-| Real-world test hours | Months | Days |
-
-Alfred is the knowledge organization. Pipeline-v2 is the production runtime. The realistic path is to keep pipeline-v2's runtime and migrate its knowledge into Alfred's skill files.
+The honest version of the claim is: *small files make contradictions findable by grep*. That is true of any split. It is not evidence for Alfred specifically.
 
 ---
 
-## Honest conclusion
+## What we cannot defend (exhaustive)
 
-Alfred is **structurally** better at three things, not magically better at any:
+| Claim | Status |
+|---|---|
+| "Progressive disclosure reduces tokens per build" | **Unmeasured.** Anthropic prompt caching favors stable big prefixes — loading 14 small skill files via Read-tool round-trips may be **worse** on cached cost. Profile before claiming. |
+| "Smaller context per generation call" | **Unmeasured.** No token delta vs pipeline-v2. |
+| "Cheaper per game" | **Unmeasured.** Pipeline-v2 already logs `total_cost_usd` per step in `agent.js` lines 248-251. Zero comparable numbers for Alfred. |
+| "Faster wall-clock" | **Unmeasured.** Pipeline-v2 is ~25-35 min. Alfred with human gates is unbounded. |
+| "Better first-attempt approval rate" | **Unmeasured.** N=2 via Alfred. Not a sample. |
+| "Outer loop iteration" (`gauge` + `iterate`) | **Vaporware.** Never run on real student data. Remove from differentiator list. |
+| "Aligned with Anthropic Agent Skills guidance" | **Appeal to authority** without a link. Dropped. |
+| "Contradictions fewer in Alfred" | **Never audited.** See selection bias above. |
+| "108 small markdown files" | **Wrong number.** Actual count is 47 under `alfred/skills/`. Previous doc inflated this. |
+| "Multiple committers will maintain it" | **False.** Bus factor of one. Same author wrote skills, orchestration, concerns docs, and comparison. |
+| "Production-ready" | **False.** No BullMQ, no Sentry, no worker, no webhook, no GCP upload, no Slack integration, no retries. Single-tenant, local Claude Code only. |
 
-1. **Findability** — small files organized by concern are easier to read, grep, review, and update than a 4000-line blob.
-2. **Iteration as the system** — gauge + iterate is built into the lifecycle, not bolted on as bug fixing.
-3. **Progressive disclosure** — only the relevant skill files load per step, matching Anthropic's published Agent Skills guidance.
+## What we CAN defend
 
-The skill format is the medium. The discipline of organization is the win. A team that wrote 108 self-contradictory markdown files would be in the same place as the current `lib/prompts.js` — the format does not save you from bad content.
+| Claim | Evidence |
+|---|---|
+| `lib/prompts.js` is 4007 lines and has at least one real 3-way contradiction | `lib/prompts.js` lines 51, 93, 1541 |
+| Small files are easier to read end-to-end in code review than a 4000-line file | Uncontroversial |
+| A P0/P1/P2 eval case framework exists in `alfred/` on disk | Artifact present |
+| A `knowledgebase.md` of explicit first-principles exists | Artifact present |
+| Both systems use the same Claude Agent SDK | `pipeline-v2/agent.js` line 28 |
+
+That is the complete defensible list.
 
 ---
 
-## Review Response
+## Recommendation
 
-| Supervisor concern | What changed in this doc |
-|-------------------|--------------------------|
-| "Pipeline-v2 also uses ClaudeSDK and skills — what is different?" | Added "What is the SAME" section. Removed the "scripts vs skills" framing entirely. Confirmed both use `@anthropic-ai/claude-agent-sdk` (see `pipeline-v2/agent.js` line 28). The real difference is organizational. |
-| "Self-contradictory statements can also be in skills — skill by default don't fix that == its the content in those files" | Conceded. Reframed claim from "skills prevent contradictions" to "small organized files make contradictions findable in code review." Showed a real 3-way contradiction in `lib/prompts.js` (lines 51, 93, 1541) and explained that Alfred's structure makes it observable, not impossible. |
-| "Are we not designing for iteration / long-running agents?" | Added explicit "iteration concern" section. Showed two loops (inner build-time + outer lifetime), three iteration depths (content/spec/rebuild), and the system-loop diagram. Confirmed Alfred is designed for iteration across many sessions over weeks. |
+**Not "adopt Alfred".** Pick one of:
 
-## Acknowledged limitations
+| Option | What it is | Cost | Decides |
+|---|---|---|---|
+| **A (recommended first)** | 1-day spike: split `lib/prompts.js` into N files **in place** inside pipeline-v2, no other changes. Re-run 3 existing games. Measure iterations and contradictions before/after. | 1 day | Whether the structural wins replicate without a rewrite. If yes, stop. Alfred is unnecessary. |
+| B | Run 5 unbuilt specs through both systems head-to-head. Measure cost, latency, tokens, iterations-to-approval, human-edit count. | 1 week | Data-driven runtime decision. |
+| C | Port only `gauge` + eval framework + `knowledgebase.md` into pipeline-v2. Keep pipeline-v2's runtime. | 1 week | Captures Alfred's actual unique artifacts without throwing away 54 games of hardening. |
+| D | Adopt Alfred as runtime replacement. | 4-6 weeks + open-ended migration | **Only justified if A and B both fail.** |
 
-| Limitation | Status |
-|-----------|--------|
-| N=2 games shipped end-to-end via Alfred | Need more before claiming proven |
-| No head-to-head measurement vs pipeline-v2 | TODO |
-| Outer loop never run on real student data | Gauge skill exists but unverified at scale |
-| Skill format does not enforce correctness | Acknowledged — discipline does, not the format |
-| Pipeline-v2 production runtime has no Alfred equivalent | Migration plan needed |
+**My recommendation: A first, then C. Skip B unless A is inconclusive. Never D without both.**
+
+---
+
+## Migration plan (if D is ever chosen)
+
+If — and only if — Options A+B+C fail to deliver the wins and D becomes real:
+
+1. **Cutover model:** parallel run for 2 weeks. Pipeline-v2 stays primary; Alfred runs shadow on every queued build.
+2. **Ownership:** one named owner per skill directory. CODEOWNERS file required before merge.
+3. **Regression gate:** re-run the 54-game corpus through Alfred. Kill criterion: if Alfred's first-attempt approval rate is >10% below pipeline-v2's on the same specs, abort.
+4. **Rollback:** `lib/prompts.js` stays in the tree until 30 consecutive Alfred builds ship clean. Revert = change one import path.
+5. **Concurrency blocker:** Alfred cannot be primary until it runs under BullMQ + worker.js equivalents. That work is not scoped yet. Estimate before committing.
+6. **Observability blocker:** Alfred needs Sentry, Slack thread integration, GCP upload, and `data/builds.db` writes before it can be primary. Also not scoped.
+
+**There is no date on this plan because the prerequisites are not scoped.** That alone is a reason not to choose D today.
+
+---
+
+## Review Response — per finding
+
+### Reviewer A (Technical Director)
+
+| # | Finding (paraphrased/quoted) | Status | What changed |
+|---|---|---|---|
+| A1 | "Structurally better" = file layout, not structure | **Addressed** | Dropped "structurally better" language. Reframed as reorganization. |
+| A2 | No token numbers for progressive disclosure | **Acknowledged** | Listed under "cannot defend." No numbers exist. |
+| A3 | Anthropic alignment = appeal to authority | **Addressed** | Claim removed entirely. |
+| A4 | "108 files" without sizes or dead-file audit | **Addressed** | Corrected to actual count (47). No dead-file audit done — acknowledged. |
+| A5 | "Update one rule = one file" is discipline not structure | **Addressed** | Conceded explicitly. |
+| A6 | Median skill files loaded per build — unknown | **Acknowledged** | Unmeasured. |
+| A7 | Time-to-update a lesson — unmeasured | **Acknowledged** | Unmeasured. |
+| A8 | Alfred's first-attempt approval rate unknown | **Acknowledged** | N=2, not a sample. |
+| A9 | What tool catches cross-skill contradictions? | **Addressed** | None. Grep. Same as pipeline-v2. |
+| A10 | `gauge` listed as feature while admitted unverified | **Addressed** | Pulled from differentiator list. Marked vaporware. |
+| A11 | Migration plan in limitations but conclusion acts decided | **Addressed** | Conclusion now recommends Option A, not adoption. |
+| A12 | "File boundaries enforce uniqueness" — false | **Addressed** | Language removed. |
+| A13 | No CODEOWNERS / no per-skill owner | **Acknowledged** | Listed as prerequisite in migration plan. |
+| A14 | Missing: file count, sizes, bytes, tokens, duplication audit | **Acknowledged** | All listed under "cannot defend." |
+| A15 | **The killer question** | **Addressed** | Dedicated section. Answer: very little. |
+| A16 | Counterfactual: pipeline-v2 with small files | **Addressed** | Option A is exactly this spike. |
+| A17 | Session resume across steps — Alfred never addressed it | **Addressed** | New section. Conceded this is an architectural regression for Alfred as currently designed. |
+| A18 | Need experiment with kill criteria | **Addressed** | Option B specifies 5-spec head-to-head. |
+
+### Reviewer B (Senior Eng)
+
+| # | Finding | Status | What changed |
+|---|---|---|---|
+| B1 | Zero $/game numbers | **Acknowledged** | "Unmeasured." |
+| B2 | Zero latency numbers | **Acknowledged** | "Unmeasured." |
+| B3 | Zero token delta | **Acknowledged** | "Unmeasured." Called out as central unverified claim. |
+| B4 | N=2 vs N=many = anecdote | **Addressed** | Sunk cost section. 54 vs 0 stated plainly. |
+| B5 | Concurrency: single-tenant by design | **Addressed** | Listed under "IS NOT" and migration prerequisites. |
+| B6 | Observability gap | **Addressed** | Listed as migration blocker. |
+| B7 | Title misleading: refactor not new runtime | **Addressed** | Title changed. Reframed as refactor throughout. |
+| B8 | `prompts.js` contradiction has it caused a real failed build? | **Acknowledged** | Cannot cite a build number. Downgraded from smoking gun to code smell. |
+| B9 | Progressive disclosure may be WORSE for caching | **Addressed** | Stated explicitly under "cannot defend." |
+| B10 | Gauge/outer-loop is vapor — delete from differentiators | **Addressed** | Removed. Marked vaporware. |
+
+### Reviewer C (Product/Process)
+
+| # | Finding | Status | What changed |
+|---|---|---|---|
+| C1 | Sunk cost invisible: 54 games, 0 Alfred | **Addressed** | Stated in TL;DR and "IS NOT" table. |
+| C2 | "0% fix-loop rescue" unfalsifiable vs Alfred's undefined rate | **Addressed** | Comparison removed. |
+| C3 | **Selection bias on contradiction audit** | **Addressed** | Dedicated section. Admitted, not fixed. |
+| C4 | No migration plan | **Addressed** | Option D now has a plan skeleton with explicit unscoped blockers. |
+| C5 | Bus factor of one | **Addressed** | Stated under "cannot defend." Listed as migration prerequisite. |
+| C6 | Discipline-vs-structure trap | **Addressed** | Conceded. Option A tests the discipline-only hypothesis. |
+| C7 | Comparison not independently verified | **Acknowledged** | Reviewers A/B/C are the only adversarial review. Same author wrote the doc. Noted. |
+| C8 | What pipeline-v2 does better is undercounted | **Addressed** | Added: 54-game corpus, lessons-learned.md, slot architecture, build-doctor crons, ops surface, session resume. |
+| C9 | No rollback plan | **Addressed** | Option D plan includes rollback gate. |
+| C10 | "Designed for iteration" ≠ "iterates" — gauge never ran | **Addressed** | Marked vaporware. |
+| C-rec | Run the 1-day in-place reorg spike first | **Adopted as Option A, the primary recommendation.** |
+
+---
+
+## Bottom line
+
+The previous version of this doc was advocacy dressed as analysis. The honest version is:
+
+1. Alfred is a refactor of `lib/prompts.js` plus a few new artifacts (eval framework, principles, vaporware gauge).
+2. Pipeline-v2 has 54 shipped games, production infra, session continuity across steps, and months of ops hardening.
+3. No measurements exist comparing the two.
+4. The structural advantages Alfred claims can be tested for **1 day of work** via an in-place split of `prompts.js`. That test has not been run.
+5. Until it has, proposing a runtime replacement is premature.
+
+**Run Option A. Re-decide after.**
