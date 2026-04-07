@@ -962,6 +962,7 @@ const worker = new Worker(QUEUE_NAME, async (job) => {
           requestedBy,
           startedAt: startTime,
           currentStep: event.step,
+          specLink,
         });
       }
     }
@@ -1300,6 +1301,7 @@ Output each learning on its own line, as a bullet point starting with "- ".`;
 
     // 8. Post final Slack result (includes GCS link + publish links)
     if (thread) {
+      report.specLink = specLink;
       await slack.postBuildResult(thread.ts, thread.channel, gameId, report);
     }
 
@@ -1327,6 +1329,7 @@ Output each learning on its own line, as a bullet point starting with "- ".`;
         totalTurns: 0,
         totalToolUses: 0,
         totalCost: 0,
+        specLink,
       });
     }
 

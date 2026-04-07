@@ -579,6 +579,7 @@ async function updateParentMessage(threadTs, channelId, gameId, report, opts = {
       startedAt: opts.startedAt,
       currentStep: opts.currentStep || report.status,
       gameTitle: gameId,
+      specLink: opts.specLink,
     });
   } catch (err) {
     console.warn(`[slack-v2] Parent update error: ${err.message}`);
@@ -710,6 +711,7 @@ async function postBuildResult(threadTs, channelId, gameId, report) {
       buildId: report.buildId,
       currentStep: report.status === 'APPROVED' ? 'Complete ✅' :
         report.status === 'REJECTED' ? 'Complete (rejected) 🔸' : 'Failed ❌',
+      specLink: report.specLink,
     });
 
   } catch (err) {

@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Subjective</title>
+
+  <!-- 1. SentryConfig package -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+  <!-- 2. initSentry() function definition -->
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled && typeof Sentry !== 'undefined') {
+        Sentry.init({
+          dsn: SentryConfig.dsn,
+          environment: SentryConfig.environment,
+          release: 'subjective@1.0.0',
+          tracesSampleRate: SentryConfig.tracesSampleRate,
+          sampleRate: SentryConfig.sampleRate,
+          maxBreadcrumbs: 50,
+          ignoreErrors: [
+            'ResizeObserver loop limit exceeded',
+            'ResizeObserver loop completed with undelivered notifications',
+            'Non-Error promise rejection captured',
+            'Script error.',
+            'Load failed',
+            'Failed to fetch'
+          ]
+        });
+      }
+    }
+
+    window.addEventListener('error', function(event) {
+      if (typeof Sentry !== 'undefined') {
+        Sentry.captureException(event.error || new Error(event.message), {
+          tags: { errorType: 'unhandled', severity: 'critical' },
+          contexts: { errorEvent: { message: event.message, filename: event.filename, lineno: event.lineno } }
+        });
+      }
+    });
+
+    window.addEventListener('unhandledrejection', function(event) {
+      if (typeof Sentry !== 'undefined') {
+        Sentry.captureException(event.reason || new Error('Unhandled promise rejection'), {
+          tags: { errorType: 'unhandled-promise', severity: 'critical' }
+        });
+      }
+    });
+  </script>
+
+  <!-- 3. Sentry SDK (3 scripts, NO integrity attribute) -->
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+  <!-- 4. Initialize Sentry on load -->
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- 5-7. Game packages (exact URLs, this order: FeedbackManager → Components → Helpers) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    /* === CSS Variables (PART-020) === */
+    :root {
+      --mathai-green: #219653;
+      --mathai-light-green: #EAFBF1;
+      --mathai-red: #E35757;
+      --mathai-light-red: #FDECEC;
+      --mathai-blue: #2563eb;
+      --mathai-light-blue: #EBF0FF;
+      --mathai-gray: #828282;
+      --mathai-light-gray: #F2F2F2;
+      --mathai-white: #FFFFFF;
+      --mathai-black: #1A1A2E;
+      --mathai-text-primary: #000000;
+      --mathai-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mathai-font-size-title: 24px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-label: 14px;
+      --mathai-font-size-small: 12px;
+    }
+
+    .mathai-layout-root { max-width: 480px; margin: 0 auto; }
+
+    /* === ScreenLayout v2 overrides === */
+    .mathai-layout-playarea {
+      flex-direction: column !important;
+      align-items: center !important;
+      padding: 8px 16px !important;
+    }
+
+    /* === Transition Screen overrides === */
+    .mathai-ts-screen.active {
+      flex: 1;
+      justify-content: flex-start;
+      padding-top: 16px;
+    }
+    .mathai-ts-card {
+      min-height: 50dvh;
+    }
+
+    /* === Reset === */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+    }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary, #000000);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* === Game Block === */
+    .game-block {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      gap: 16px;
+    }
+
+    /* === Question Text (in questionText slot) === */
+    .question-text-container {
+      width: 100%;
+      max-width: 340px;
+      margin: 0 auto;
+      padding: 8px 16px;
+    }
+
+    .instruction-text {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary, #000000);
+      line-height: 1.5;
+      margin-bottom: 4px;
+    }
+
+    .instruction-text strong { font-weight: 700; }
+
+    .instruction-text-sub {
+      font-size: var(--mathai-font-size-label);
+      color: var(--mathai-gray);
+      line-height: 1.4;
+      margin-bottom: 4px;
+    }
+
+    .instruction-text-sub strong { font-weight: 700; color: var(--mathai-text-primary, #000000); }
+
+    /* === Answer Area === */
+    .answer-area {
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .game-textarea {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid var(--mathai-light-gray);
+      border-radius: 12px;
+      font-size: var(--mathai-font-size-body);
+      font-family: var(--mathai-font-family);
+      color: var(--mathai-text-primary, #000000);
+      resize: vertical;
+      min-height: 120px;
+      max-height: 200px;
+      outline: none;
+      box-sizing: border-box;
+      line-height: 1.5;
+      background: var(--mathai-white);
+      transition: border-color 0.2s ease;
+    }
+
+    .game-textarea:focus {
+      border-color: var(--mathai-blue);
+    }
+
+    .game-textarea::placeholder {
+      color: var(--mathai-gray);
+      font-style: italic;
+    }
+
+    .game-textarea:disabled {
+      background: var(--mathai-light-gray);
+      opacity: 0.7;
+    }
+
+    /* === Loading Indicator === */
+    .loading-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px;
+      color: var(--mathai-gray);
+      font-size: var(--mathai-font-size-label);
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid var(--mathai-light-gray);
+      border-top-color: var(--mathai-blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Button spinner (inside submit button) */
+    .btn-spinner {
+      display: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+    }
+
+    .btn-primary:disabled .btn-spinner {
+      display: inline-block;
+    }
+
+    /* === Feedback Display === */
+    .feedback-display {
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .feedback-result {
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: var(--mathai-font-size-label);
+      line-height: 1.5;
+    }
+
+    .feedback-result.correct {
+      background: var(--mathai-light-green);
+      color: var(--mathai-green);
+      border: 1px solid var(--mathai-green);
+    }
+
+    .feedback-result.incorrect {
+      background: var(--mathai-light-red);
+      color: var(--mathai-red);
+      border: 1px solid var(--mathai-red);
+    }
+
+    .feedback-result.partial {
+      background: var(--mathai-light-blue);
+      color: var(--mathai-blue);
+      border: 1px solid var(--mathai-blue);
+    }
+
+    /* === BUTTONS (PART-022) === */
+    .btn-container {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      width: 100%;
+      max-width: 340px;
+      margin: 8px auto 0;
+    }
+
+    .game-btn {
+      padding: 12px 32px;
+      border: none;
+      border-radius: 12px;
+      font-size: var(--mathai-font-size-body);
+      font-weight: 600;
+      font-family: var(--mathai-font-family);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-height: 44px;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-primary {
+      background: var(--mathai-green);
+      color: var(--mathai-white);
+    }
+    .btn-primary:hover { filter: brightness(0.9); }
+    .btn-primary:active { transform: scale(0.95); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary:disabled:active { transform: none; }
+
+    .btn-secondary {
+      background: var(--mathai-light-gray);
+      color: var(--mathai-text-primary, #000000);
+      border: 2px solid #ddd;
+    }
+    .btn-secondary:hover { background: #e8e8e8; }
+    .btn-secondary:active { transform: scale(0.95); }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    /* ============================================
+       SUBJECTIVE GAME — Production-Ready
+       Single-file HTML (RULE-007)
+       ============================================ */
+
+    // ── Fallback Content ──
+    var fallbackContent = {
+      rounds: [
+        {
+          question: 'Do you know what **variables** are?',
+          subQuestion: 'Can you **explain** what you know about it?',
+          evaluationPrompt: 'You are a strict math tutor evaluating a student response. Return ONLY one word: "correct", "incorrect", "gibberish", or "idk". No other text.\n\nQuestion: "Do you know what variables are? Can you explain what you know about it?"\nStudent\'s response: "{{student_answer}}"\n\nRules:\n- correct: The response, after fixing spelling/grammar, shows ANY understanding of variables (even partial). "yes", "yes I know", explanations of variables are all correct.\n- incorrect: The response attempts an explanation but is WRONG (not about variables at all, or a wrong definition).\n- gibberish: The response is incomprehensible, totally irrelevant to the question, contains profanity, abuse, offensive language, random characters, nonsense words, or any non-academic content. Profanity and abuse are ALWAYS gibberish.\n- idk: The response says "I don\'t know", "idk", "no", "not sure", or similar expressions of not knowing.\n\nIMPORTANT: Profanity, insults, and offensive language are NEVER correct. They are ALWAYS gibberish. The word "idk" as a standalone answer means the student doesn\'t know — classify as idk, NOT correct.\n\nRespond with ONLY one word:',
+          feedbackPrompt: 'You are a math tutor giving brief feedback to a student.\n\nQuestion: "Do you know what variables are? Can you explain what you know about it?"\nStudent\'s response: "{{student_answer}}"\nEvaluation: {{evaluation}}\n\nRules based on evaluation:\n- If evaluation is "correct": Give short feedback acknowledging their understanding. Assess their LEVEL of understanding. Do NOT explain the answer. End with "We will deepen your understanding today!"\n- If evaluation is "incorrect": Say "That\'s an interesting answer!" Do NOT reveal the correct answer.\n- If evaluation is "idk": Say exactly "It\'s alright if you don\'t know! We will learn about them in this activity."\n- If evaluation is "gibberish": Say exactly "It\'s alright if you don\'t know, we will learn about it!"\n\nKeep feedback to 1-2 sentences maximum. Do NOT lecture or explain the topic.',
+          placeholder: 'Type your answer here...'
+        },
+        {
+          question: 'What is the difference between **addition** and **multiplication**?',
+          subQuestion: 'Can you **describe** how they are different with an example?',
+          evaluationPrompt: 'You are a strict math tutor evaluating a student response. Return ONLY one word: "correct", "incorrect", "gibberish", or "idk". No other text.\n\nQuestion: "What is the difference between addition and multiplication? Can you describe how they are different with an example?"\nStudent\'s response: "{{student_answer}}"\n\nRules:\n- correct: The response, after fixing spelling/grammar, shows ANY understanding of how addition and multiplication differ (even partial). "yes", "yes I know the difference", mentioning adding vs multiplying, repeated addition, etc. are all correct.\n- incorrect: The response attempts an explanation but is WRONG (confuses the operations, gives a wrong definition).\n- gibberish: The response is incomprehensible, totally irrelevant to the question, contains profanity, abuse, offensive language, random characters, nonsense words, or any non-academic content. Profanity and abuse are ALWAYS gibberish.\n- idk: The response says "I don\'t know", "idk", "no", "not sure", or similar expressions of not knowing.\n\nIMPORTANT: Profanity, insults, and offensive language are NEVER correct. They are ALWAYS gibberish. The word "idk" as a standalone answer means the student doesn\'t know — classify as idk, NOT correct.\n\nRespond with ONLY one word:',
+          feedbackPrompt: 'You are a math tutor giving brief feedback to a student.\n\nQuestion: "What is the difference between addition and multiplication? Can you describe how they are different with an example?"\nStudent\'s response: "{{student_answer}}"\nEvaluation: {{evaluation}}\n\nRules based on evaluation:\n- If evaluation is "correct": Give short feedback acknowledging their understanding. Assess their LEVEL of understanding. Do NOT explain the answer. End with "We will deepen your understanding today!"\n- If evaluation is "incorrect": Say "That\'s an interesting answer!" Do NOT reveal the correct answer.\n- If evaluation is "idk": Say exactly "It\'s alright if you don\'t know! We will learn about them in this activity."\n- If evaluation is "gibberish": Say exactly "It\'s alright if you don\'t know, we will learn about it!"\n\nKeep feedback to 1-2 sentences maximum. Do NOT lecture or explain the topic.',
+          placeholder: 'Explain with an example...'
+        },
+        {
+          question: 'What does it mean to **solve an equation**?',
+          subQuestion: 'Can you **explain** the steps in your own words?',
+          evaluationPrompt: 'You are a strict math tutor evaluating a student response. Return ONLY one word: "correct", "incorrect", "gibberish", or "idk". No other text.\n\nQuestion: "What does it mean to solve an equation? Can you explain the steps in your own words?"\nStudent\'s response: "{{student_answer}}"\n\nRules:\n- correct: The response, after fixing spelling/grammar, shows ANY understanding of solving equations (even partial). "yes", "yes I know", mentioning finding the value, making sides equal, figuring out the missing number, etc. are all correct.\n- incorrect: The response attempts an explanation but is WRONG (not about solving equations, or a wrong definition).\n- gibberish: The response is incomprehensible, totally irrelevant to the question, contains profanity, abuse, offensive language, random characters, nonsense words, or any non-academic content. Profanity and abuse are ALWAYS gibberish.\n- idk: The response says "I don\'t know", "idk", "no", "not sure", or similar expressions of not knowing.\n\nIMPORTANT: Profanity, insults, and offensive language are NEVER correct. They are ALWAYS gibberish. The word "idk" as a standalone answer means the student doesn\'t know — classify as idk, NOT correct.\n\nRespond with ONLY one word:',
+          feedbackPrompt: 'You are a math tutor giving brief feedback to a student.\n\nQuestion: "What does it mean to solve an equation? Can you explain the steps in your own words?"\nStudent\'s response: "{{student_answer}}"\nEvaluation: {{evaluation}}\n\nRules based on evaluation:\n- If evaluation is "correct": Give short feedback acknowledging their understanding. Assess their LEVEL of understanding. Do NOT explain the answer. End with "We will deepen your understanding today!"\n- If evaluation is "incorrect": Say "That\'s an interesting answer!" Do NOT reveal the correct answer.\n- If evaluation is "idk": Say exactly "It\'s alright if you don\'t know! We will learn about them in this activity."\n- If evaluation is "gibberish": Say exactly "It\'s alright if you don\'t know, we will learn about it!"\n\nKeep feedback to 1-2 sentences maximum. Do NOT lecture or explain the topic.',
+          placeholder: 'Describe in your own words...'
+        }
+      ]
+    };
+
+    // ── Game State (PART-007) ──
+    window.gameState = {
+      gameId: 'game_1710000000_subjective001',
+      contentSetId: null,
+      signalConfig: {},
+      sessionHistory: [],
+      currentRound: 0,
+      totalRounds: 3,
+      score: 0,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      duration_data: {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0,
+        currentTime: null
+      },
+      userAnswer: '',
+      isEvaluating: false,
+      correctAnswers: 0,
+      roundResults: [],
+      currentDynamicAudio: null,
+      voGameStartPlayed: false
+    };
+
+    // ── Module-scope variables ──
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var visibilityTrackerConfig = null;
+    var questionSlotId = null;
+
+    // ── waitForPackages (PART-003) ──
+    async function waitForPackages() {
+      var timeout = 10000;
+      var interval = 50;
+      var elapsed = 0;
+      while (
+        typeof ScreenLayout === 'undefined' ||
+        typeof ProgressBarComponent === 'undefined' ||
+        typeof TransitionScreenComponent === 'undefined' ||
+        typeof TimerComponent === 'undefined' ||
+        typeof FeedbackManager === 'undefined' ||
+        typeof VisibilityTracker === 'undefined' ||
+        typeof SignalCollector === 'undefined' ||
+        typeof MathAIHelpers === 'undefined'
+      ) {
+        if (elapsed >= timeout) throw new Error('Packages failed to load within 10s');
+        await new Promise(function(resolve) { setTimeout(resolve, interval); });
+        elapsed += interval;
+      }
+      console.log('[subjective] All packages loaded');
+    }
+
+    // ── Helper Functions ──
+
+    function formatTime(seconds) {
+      var mins = Math.floor(seconds / 60);
+      var secs = seconds % 60;
+      return mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }
+
+    function computeTriesPerRound(attempts) {
+      var rounds = {};
+      attempts.forEach(function(a) {
+        var r = (a.metadata && a.metadata.round) ? a.metadata.round : 0;
+        rounds[r] = (rounds[r] || 0) + 1;
+      });
+      return Object.keys(rounds).map(function(r) {
+        return { round: Number(r), triesCount: rounds[r] };
+      });
+    }
+
+    function createProgressBar() {
+      if (progressBar) { progressBar.destroy(); progressBar = null; }
+      progressBar = new ProgressBarComponent({
+        autoInject: true,
+        totalRounds: gameState.totalRounds,
+        totalLives: 0,
+        slotId: 'mathai-progress-slot'
+      });
+    }
+
+    function trackEvent(type, target, data) {
+      var event = {
+        type: type,
+        target: target,
+        timestamp: new Date().toISOString(),
+        data: data || {}
+      };
+      gameState.events.push(event);
+      console.log('Event:', JSON.stringify(event, null, 2));
+    }
+
+    function recordAttempt(data) {
+      var attempt = {
+        attempt_timestamp: new Date().toISOString(),
+        time_since_start_of_game: gameState.startTime ? Date.now() - gameState.startTime : 0,
+        input_of_user: data.userAnswer,
+        attempt_number: gameState.attempts.length + 1,
+        correct: data.correct,
+        metadata: {
+          round: (data.metadata && data.metadata.round) ? data.metadata.round : gameState.currentRound,
+          question: data.question,
+          correctAnswer: data.correctAnswer,
+          validationType: data.validationType || 'llm',
+          evaluation: (data.metadata && data.metadata.evaluation) ? data.metadata.evaluation : null,
+          feedback: (data.metadata && data.metadata.feedback) ? data.metadata.feedback : null
+        }
+      };
+      gameState.attempts.push(attempt);
+      gameState.duration_data.attempts.push({
+        timestamp: attempt.attempt_timestamp,
+        correct: attempt.correct,
+        round: attempt.metadata.round
+      });
+      console.log('Attempt recorded:', JSON.stringify(attempt, null, 2));
+    }
+
+    // ── Question Text Update ──
+
+    function updateQuestionText(roundData) {
+      var questionSlot = document.getElementById(questionSlotId);
+      if (!questionSlot) return;
+      var questionHTML = roundData.question.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      var subQuestionHTML = roundData.subQuestion.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      questionSlot.innerHTML = '<div class="question-text-container">'
+        + '<p class="instruction-text">' + questionHTML + '</p>'
+        + '<p class="instruction-text-sub">' + subQuestionHTML + '</p>'
+        + '</div>';
+    }
+
+    // ── Game Flow Functions (Global Scope — RULE-001) ──
+
+    function setupGame() {
+      // Load content only — does NOT start rounds (idempotent)
+      if (!gameState.content) gameState.content = fallbackContent;
+      gameState.totalRounds = gameState.content.rounds.length;
+    }
+
+    function startRound() {
+      gameState.currentRound++;
+      var roundData = gameState.content.rounds[gameState.currentRound - 1];
+
+      // Update question text in slot
+      updateQuestionText(roundData);
+
+      // Reset UI
+      var answerInput = document.getElementById('answer-input');
+      if (answerInput) {
+        answerInput.value = '';
+        answerInput.disabled = false;
+        answerInput.placeholder = roundData.placeholder || 'Type your answer here...';
+      }
+      document.getElementById('feedback-display').style.display = 'none';
+      document.getElementById('loading-indicator').style.display = 'none';
+      var btnSubmit = document.getElementById('btn-submit');
+      btnSubmit.disabled = false;
+      btnSubmit.onclick = handleSubmit;
+      document.getElementById('btn-text').textContent = 'Submit';
+      document.getElementById('btn-spinner').style.display = 'none';
+
+      gameState.userAnswer = '';
+      gameState.isProcessing = false;
+      progressBar.update(gameState.currentRound - 1, 0);
+
+      // Focus textarea after a short delay (ensures layout is ready)
+      setTimeout(function() {
+        if (answerInput) answerInput.focus();
+      }, 100);
+
+      // Record view event
+      if (signalCollector) {
+        signalCollector.recordViewEvent('content_render', {
+          screen: 'gameplay',
+          content_snapshot: {
+            type: 'round_started',
+            round: gameState.currentRound,
+            question: roundData.question,
+            trigger: 'round_start'
+          },
+          components: {
+            progress: { current: gameState.currentRound, total: gameState.totalRounds }
+          }
+        });
+      }
+    }
+
+    function startGame() {
+      FeedbackManager._stopCurrentDynamic();
+      if (transitionScreen) {
+        try { transitionScreen.hide(); } catch(e) {}
+      }
+      setupGame();
+      gameState.currentRound = 0;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.isActive = true;
+      trackEvent('game_start', 'game');
+      startRound();
+    }
+
+    async function handleSubmit() {
+      if (gameState.isProcessing || !gameState.isActive) return;
+      gameState.isProcessing = true;
+
+      var answer = document.getElementById('answer-input').value.trim();
+
+      // Validate non-empty
+      if (!answer) {
+        var feedbackEl = document.getElementById('feedback-result');
+        feedbackEl.textContent = 'Please type your answer first.';
+        feedbackEl.className = 'feedback-result incorrect';
+        document.getElementById('feedback-display').style.display = 'block';
+        gameState.isProcessing = false;
+        return;
+      }
+
+      gameState.userAnswer = answer;
+
+      // Disable button, show loading
+      var btnSubmit = document.getElementById('btn-submit');
+      btnSubmit.disabled = true;
+      document.getElementById('btn-text').textContent = 'Evaluating...';
+      document.getElementById('btn-spinner').style.display = '';
+      document.getElementById('loading-indicator').style.display = 'flex';
+      document.getElementById('feedback-display').style.display = 'none';
+
+      trackEvent('answer_submitted', 'game', { round: gameState.currentRound, answerLength: answer.length });
+
+      try {
+        var roundData = gameState.content.rounds[gameState.currentRound - 1];
+
+        // Sanitize answer — escape quotes to prevent prompt injection
+        var sanitizedAnswer = answer.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
+
+        // Build evaluation prompt — replace {{student_answer}} placeholder with sanitized answer
+        var evalPrompt = roundData.evaluationPrompt.replace(/\{\{student_answer\}\}/g, sanitizedAnswer);
+        var fbPrompt = roundData.feedbackPrompt.replace(/\{\{student_answer\}\}/g, sanitizedAnswer);
+
+        var result = await MathAIHelpers.SubjectiveEvaluation.evaluate({
+          components: [{
+            component_id: 'round_' + gameState.currentRound,
+            evaluation_prompt: evalPrompt,
+            feedback_prompt: fbPrompt
+          }],
+          timeout: 30000
+        });
+
+        // Hide loading
+        document.getElementById('loading-indicator').style.display = 'none';
+
+        // Parse result — evaluation is a single word: correct/incorrect/gibberish/idk
+        var evaluation = (result.data && result.data[0] && result.data[0].evaluation) ? result.data[0].evaluation.trim().toLowerCase() : '';
+        var feedback = (result.data && result.data[0] && result.data[0].feedback) ? result.data[0].feedback : 'Good attempt!';
+
+        // Determine correctness from the one-word evaluation
+        var evalCategory = 'incorrect'; // default
+        if (evaluation.indexOf('correct') === 0 && evaluation.indexOf('incorrect') === -1) {
+          evalCategory = 'correct';
+        } else if (evaluation.indexOf('incorrect') !== -1) {
+          evalCategory = 'incorrect';
+        } else if (evaluation.indexOf('gibberish') !== -1) {
+          evalCategory = 'gibberish';
+        } else if (evaluation.indexOf('idk') !== -1) {
+          evalCategory = 'idk';
+        }
+        var isCorrect = evalCategory === 'correct';
+
+        // Update game state
+        if (isCorrect) gameState.correctAnswers++;
+        gameState.roundResults.push({
+          round: gameState.currentRound,
+          correct: isCorrect,
+          category: evalCategory,
+          feedback: feedback,
+          userAnswer: answer
+        });
+
+        // Record attempt
+        recordAttempt({
+          userAnswer: answer,
+          correct: isCorrect,
+          question: roundData.question,
+          correctAnswer: 'subjective',
+          validationType: 'llm',
+          metadata: {
+            round: gameState.currentRound,
+            question: roundData.question,
+            evaluation: evaluation,
+            evalCategory: evalCategory,
+            feedback: feedback
+          }
+        });
+
+        trackEvent('evaluation_complete', 'game', { round: gameState.currentRound, correct: isCorrect, category: evalCategory });
+
+        // Show feedback UI — style based on 4 categories
+        var feedbackEl = document.getElementById('feedback-result');
+        feedbackEl.textContent = feedback;
+        var feedbackClass = 'feedback-result ';
+        if (evalCategory === 'correct') feedbackClass += 'correct';
+        else if (evalCategory === 'incorrect') feedbackClass += 'incorrect';
+        else feedbackClass += 'partial'; // gibberish and idk get neutral styling
+        feedbackEl.className = feedbackClass;
+        document.getElementById('feedback-display').style.display = 'block';
+
+        // Record feedback view event
+        if (signalCollector) {
+          signalCollector.recordViewEvent('feedback_display', {
+            screen: 'gameplay',
+            content_snapshot: {
+              feedback_type: evalCategory,
+              message: feedback,
+              audio_id: 'dynamic'
+            }
+          });
+        }
+
+        // Update progress
+        progressBar.update(gameState.currentRound, 0);
+
+        // Play SFX (fire-and-forget) — correct gets success SFX, all others get neutral/incorrect SFX
+        if (isCorrect) {
+          FeedbackManager.sound.play('correct_sound_effect', {
+            sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-20.gif', duration: 2, type: 'IMAGE_GIF' }
+          }).catch(function(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); });
+        } else {
+          FeedbackManager.sound.play('incorrect_sound_effect', {
+            sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-28.gif', duration: 2, type: 'IMAGE_GIF' }
+          }).catch(function(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); });
+        }
+
+        // Update button text
+        document.getElementById('btn-text').textContent = 'Playing Feedback...';
+
+        // Play dynamic feedback with voice + subtitle + sticker (string format for playDynamicFeedback)
+        try {
+          var dynamicSticker = isCorrect
+            ? 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-20.gif'
+            : 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-28.gif';
+
+          gameState.currentDynamicAudio = FeedbackManager.playDynamicFeedback({
+            audio_content: feedback,
+            subtitle: feedback,
+            sticker: dynamicSticker
+          });
+          await gameState.currentDynamicAudio;
+        } catch(audioErr) {
+          console.error('Dynamic feedback error:', JSON.stringify({ error: audioErr.message }, null, 2));
+        }
+        gameState.currentDynamicAudio = null;
+
+        // Show Next button
+        document.getElementById('btn-text').textContent = gameState.currentRound < gameState.totalRounds ? 'Next' : 'See Results';
+        btnSubmit.disabled = false;
+        btnSubmit.onclick = handleNextRound;
+        document.getElementById('btn-spinner').style.display = 'none';
+
+        // Disable textarea after submission
+        document.getElementById('answer-input').disabled = true;
+
+        gameState.isProcessing = false;
+
+      } catch(error) {
+        console.error('Evaluation error:', JSON.stringify({ error: error.message }, null, 2));
+        document.getElementById('loading-indicator').style.display = 'none';
+        document.getElementById('btn-text').textContent = 'Submit';
+        btnSubmit.disabled = false;
+        document.getElementById('btn-spinner').style.display = 'none';
+        gameState.isProcessing = false;
+
+        // Show error feedback
+        var feedbackEl = document.getElementById('feedback-result');
+        feedbackEl.textContent = 'Something went wrong. Please try again.';
+        feedbackEl.className = 'feedback-result incorrect';
+        document.getElementById('feedback-display').style.display = 'block';
+      }
+    }
+
+    function handleNextRound() {
+      FeedbackManager._stopCurrentDynamic();
+      document.getElementById('btn-submit').onclick = handleSubmit;
+
+      trackEvent('round_complete', 'game', {
+        round: gameState.currentRound,
+        correct: gameState.roundResults.length > 0 ? gameState.roundResults[gameState.roundResults.length - 1].correct : false
+      });
+
+      if (gameState.currentRound < gameState.totalRounds) {
+        startRound();
+      } else {
+        endGame();
+      }
+    }
+
+    function handleReset() {
+      if (gameState.isProcessing || gameState.isEvaluating) return;
+      FeedbackManager._stopCurrentDynamic();
+      var answerInput = document.getElementById('answer-input');
+      if (answerInput) {
+        answerInput.value = '';
+        answerInput.disabled = false;
+        answerInput.focus();
+      }
+      document.getElementById('feedback-display').style.display = 'none';
+      document.getElementById('loading-indicator').style.display = 'none';
+      // Restore submit button to submit mode
+      var btnSubmit = document.getElementById('btn-submit');
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.onclick = handleSubmit;
+      }
+      document.getElementById('btn-text').textContent = 'Submit';
+      document.getElementById('btn-spinner').style.display = 'none';
+      gameState.userAnswer = '';
+      trackEvent('answer_reset', 'game', { round: gameState.currentRound });
+    }
+
+    async function endGame() {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+
+      gameState.duration_data.currentTime = new Date().toISOString();
+      var accuracy = Math.round((gameState.correctAnswers / gameState.totalRounds) * 100);
+      var timeTaken = Math.round((Date.now() - gameState.startTime) / 1000);
+      var stars = gameState.correctAnswers >= 3 ? 3 : gameState.correctAnswers >= 2 ? 2 : gameState.correctAnswers >= 1 ? 1 : 0;
+
+      var metrics = {
+        accuracy: accuracy,
+        time: timeTaken,
+        stars: stars,
+        attempts: gameState.attempts,
+        duration_data: gameState.duration_data,
+        totalLives: 0,
+        correctAnswers: gameState.correctAnswers,
+        totalRounds: gameState.totalRounds,
+        tries: computeTriesPerRound(gameState.attempts),
+        sessionHistory: gameState.sessionHistory || []
+      };
+
+      console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
+      trackEvent('game_end', 'game', { score: gameState.score, accuracy: accuracy, stars: stars, correctAnswers: gameState.correctAnswers });
+
+      if (typeof Sentry !== 'undefined') {
+        Sentry.addBreadcrumb({ category: 'game', message: 'endGame', data: { stars: stars, accuracy: accuracy, correctAnswers: gameState.correctAnswers }, level: 'info' });
+      }
+
+      // SignalCollector: record BEFORE seal
+      if (signalCollector) {
+        signalCollector.recordViewEvent('screen_transition', {
+          screen: 'results',
+          metadata: { transition_from: 'gameplay' }
+        });
+        signalCollector.seal();
+      }
+
+      // Show results via TransitionScreen content slot
+      showResults(metrics);
+
+      // PostMessage BEFORE audio
+      window.parent.postMessage({
+        type: 'game_complete',
+        data: {
+          metrics: metrics,
+          attempts: gameState.attempts,
+          completedAt: Date.now()
+        }
+      }, '*');
+
+      // Play end-game audio based on stars
+      if (stars === 3) {
+        try { await FeedbackManager.sound.play('victory_sound_effect', { sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-98.gif', duration: 3, type: 'IMAGE_GIF' } }); } catch(e) { console.error('victory_sfx error:', JSON.stringify({ error: e.message }, null, 2)); }
+        try { await FeedbackManager.sound.play('victory'); } catch(e) { console.error('victory audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+      } else if (stars === 2) {
+        try { await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-25.gif', duration: 3, type: 'IMAGE_GIF' } }); } catch(e) { console.error('complete_sfx error:', JSON.stringify({ error: e.message }, null, 2)); }
+        try { await FeedbackManager.sound.play('game_complete_2_star'); } catch(e) { console.error('2star audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+      } else if (stars === 1) {
+        try { await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-25.gif', duration: 3, type: 'IMAGE_GIF' } }); } catch(e) { console.error('complete_sfx error:', JSON.stringify({ error: e.message }, null, 2)); }
+        try { await FeedbackManager.sound.play('game_complete_1_star'); } catch(e) { console.error('1star audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+      } else {
+        try { await FeedbackManager.sound.play('game_over_sound_effect', { sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-95.gif', duration: 3, type: 'IMAGE_GIF' } }); } catch(e) { console.error('game_over_sfx error:', JSON.stringify({ error: e.message }, null, 2)); }
+        try { await FeedbackManager.sound.play('game_over'); } catch(e) { console.error('game_over audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+      }
+
+      // Guarded cleanup — prevents destroying components recreated by restartGame()
+      if (gameState.gameEnded) {
+        if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
+        try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+        if (progressBar) { progressBar.destroy(); progressBar = null; }
+      }
+    }
+
+    function showResults(metrics) {
+      var starsHTML = '';
+      for (var i = 0; i < 3; i++) { starsHTML += i < metrics.stars ? '⭐' : '☆'; }
+
+      var buttonText = metrics.stars >= 3 ? 'Play Again' : 'Retry for more stars';
+
+      var metricsHTML = '<div style="text-align:center;padding:16px;">'
+        + '<div style="font-size:40px;margin-bottom:16px;display:flex;justify-content:center;gap:8px;">' + starsHTML + '</div>'
+        + '<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">'
+        + '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--mathai-light-gray);"><span style="color:var(--mathai-gray);font-size:14px;">Score</span><span style="font-weight:700;font-size:16px;">' + metrics.accuracy + '%</span></div>'
+        + '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--mathai-light-gray);"><span style="color:var(--mathai-gray);font-size:14px;">Time</span><span style="font-weight:700;font-size:16px;">' + formatTime(metrics.time) + '</span></div>'
+        + '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--mathai-light-gray);"><span style="color:var(--mathai-gray);font-size:14px;">Correct</span><span style="font-weight:700;font-size:16px;">' + metrics.correctAnswers + '/' + metrics.totalRounds + '</span></div>'
+        + '</div></div>';
+
+      transitionScreen.show({
+        title: metrics.stars >= 3 ? 'Excellent!' : (metrics.stars >= 1 ? 'Good Try!' : 'Keep Practicing!'),
+        content: metricsHTML,
+        persist: true,
+        buttons: [{ text: buttonText, type: metrics.stars >= 3 ? 'primary' : 'secondary', action: function() { FeedbackManager._stopCurrentDynamic(); restartGame(); } }]
+      });
+    }
+
+    function restartGame() {
+      // Push session snapshot BEFORE resetting
+      if (!gameState.sessionHistory) gameState.sessionHistory = [];
+      gameState.sessionHistory.push({
+        correctAnswers: gameState.correctAnswers,
+        totalRounds: gameState.totalRounds,
+        tries: computeTriesPerRound(gameState.attempts)
+      });
+
+      // Preserve across restart
+      var preserved = {
+        content: gameState.content,
+        contentSetId: gameState.contentSetId,
+        signalConfig: gameState.signalConfig,
+        sessionHistory: gameState.sessionHistory,
+        voGameStartPlayed: gameState.voGameStartPlayed
+      };
+
+      // Reset gameState fields
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.userAnswer = '';
+      gameState.isEvaluating = false;
+      gameState.correctAnswers = 0;
+      gameState.roundResults = [];
+      gameState.currentDynamicAudio = null;
+      gameState.duration_data = {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0,
+        currentTime: null
+      };
+
+      // Restore preserved
+      gameState.content = preserved.content;
+      gameState.contentSetId = preserved.contentSetId;
+      gameState.signalConfig = preserved.signalConfig;
+      gameState.sessionHistory = preserved.sessionHistory;
+      gameState.voGameStartPlayed = preserved.voGameStartPlayed;
+
+      // Recreate SignalCollector
+      signalCollector = new SignalCollector({
+        sessionId: (window.gameVariableState && window.gameVariableState.sessionId) ? window.gameVariableState.sessionId : 'session_' + Date.now(),
+        studentId: (window.gameVariableState && window.gameVariableState.studentId) ? window.gameVariableState.studentId : null,
+        gameId: gameState.gameId,
+        contentSetId: gameState.contentSetId
+      });
+      window.signalCollector = signalCollector;
+      if (gameState.signalConfig && gameState.signalConfig.flushUrl) {
+        signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+        signalCollector.playId = gameState.signalConfig.playId || null;
+        signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+        signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+        signalCollector.startFlushing();
+      }
+
+      // Recreate VisibilityTracker
+      visibilityTracker = new VisibilityTracker(visibilityTrackerConfig);
+
+      // Recreate ProgressBar
+      createProgressBar();
+      progressBar.update(0, 0);
+
+      // Restore question text
+      var questionSlot = document.getElementById(questionSlotId);
+      if (questionSlot) {
+        questionSlot.innerHTML = '<div class="question-text-container">'
+          + '<p class="instruction-text"><strong>Subjective</strong></p>'
+          + '<p class="instruction-text-sub">Answer questions in your own words.</p>'
+          + '</div>';
+      }
+
+      // Re-enable textarea and restore submit button
+      var answerInput = document.getElementById('answer-input');
+      if (answerInput) {
+        answerInput.disabled = false;
+        answerInput.value = '';
+      }
+      var btnSubmit = document.getElementById('btn-submit');
+      if (btnSubmit) {
+        btnSubmit.onclick = handleSubmit;
+        document.getElementById('btn-text').textContent = 'Submit';
+        document.getElementById('btn-spinner').style.display = 'none';
+      }
+
+      trackEvent('game_start', 'game');
+
+      // Show start screen
+      transitionScreen.show({
+        icons: ['✍️'],
+        iconSize: 'large',
+        title: 'Subjective',
+        subtitle: 'Answer questions in your own words. Be as detailed as you can!',
+        persist: true,
+        buttons: [{ text: "Let's Go!", type: 'primary', action: function() { FeedbackManager._stopCurrentDynamic(); startGame(); } }]
+      });
+    }
+
+    function handlePostMessage(event) {
+      if (!event.data || event.data.type !== 'game_init') return;
+      var d = event.data.data;
+      gameState.content = d.content;
+      if (d.gameId) gameState.gameId = d.gameId;
+      gameState.contentSetId = d.contentSetId || null;
+      gameState.signalConfig = d.signalConfig || {};
+
+      if (signalCollector && gameState.signalConfig && gameState.signalConfig.flushUrl) {
+        signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+        signalCollector.playId = gameState.signalConfig.playId || null;
+        signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+        signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+        signalCollector.startFlushing();
+      }
+
+      setupGame();
+    }
+
+    // ── DOMContentLoaded (PART-004) ──
+    window.addEventListener('DOMContentLoaded', async function() {
+      try {
+        await waitForPackages();
+        if (typeof Sentry !== 'undefined') {
+          Sentry.addBreadcrumb({ category: 'package-loading', message: 'All packages loaded', level: 'info' });
+        }
+        await FeedbackManager.init();
+
+        // Preload all sound effects (PART-017)
+        try {
+          await FeedbackManager.sound.preload([
+            { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+            { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+            { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+            { id: 'victory', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/e252bcc4-bd5f-4195-ad04-a02582095b6d.mp3' },
+            { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+            { id: 'game_complete_1_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/2ee85ea3-919b-4010-95a2-40bcd7d90d22.mp3' },
+            { id: 'game_complete_2_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/84f4ff34-6e59-43d6-9663-4d9936cad002.mp3' },
+            { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+            { id: 'game_over', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/5140e0b6-cada-4424-8e5d-f9cd06a0c83f.mp3' }
+          ]);
+        } catch(e) { console.error('Sound preload error:', JSON.stringify({ error: e.message }, null, 2)); }
+
+        // SignalCollector (PART-010 v3)
+        signalCollector = new SignalCollector({
+          sessionId: (window.gameVariableState && window.gameVariableState.sessionId) ? window.gameVariableState.sessionId : 'session_' + Date.now(),
+          studentId: (window.gameVariableState && window.gameVariableState.studentId) ? window.gameVariableState.studentId : null,
+          gameId: gameState.gameId,
+          contentSetId: gameState.contentSetId
+        });
+        window.signalCollector = signalCollector;
+
+        // EventCapture (PART-036)
+        try { if (typeof EventCapture !== 'undefined') EventCapture.init(); } catch (e) { console.error('EventCapture init error:', JSON.stringify({ error: e.message }, null, 2)); }
+
+        // ScreenLayout (PART-025)
+        var layout = ScreenLayout.inject('app', {
+          sections: { header: true, questionText: true, progressBar: true, playArea: true, transitionScreen: true }
+        });
+
+        // Store questionText slot ID for dynamic updates
+        questionSlotId = layout.questionText;
+
+        // Build initial question text into questionText slot
+        var questionSlot = document.getElementById(questionSlotId);
+        if (questionSlot) {
+          questionSlot.innerHTML = '<div class="question-text-container">'
+            + '<p class="instruction-text"><strong>Subjective</strong></p>'
+            + '<p class="instruction-text-sub">Answer questions in your own words.</p>'
+            + '</div>';
+        }
+
+        // Build game content into #gameContent (play area only)
+        var gameContent = document.getElementById('gameContent');
+        gameContent.innerHTML = '<div id="game-screen" class="game-block">'
+          + '<div class="answer-area" id="answer-area" data-signal-id="answer-area">'
+          + '<textarea id="answer-input" data-signal-id="answer-input" class="game-textarea" rows="4" placeholder="Type your answer here..."></textarea>'
+          + '</div>'
+          + '<div id="loading-indicator" class="loading-indicator" style="display: none;">'
+          + '<div class="spinner"></div>'
+          + '<span id="loading-text">Evaluating your answer...</span>'
+          + '</div>'
+          + '<div id="feedback-display" class="feedback-display" style="display: none;">'
+          + '<div id="feedback-result" class="feedback-result"></div>'
+          + '</div>'
+          + '<div class="btn-container">'
+          + '<button class="game-btn btn-secondary" data-signal-id="btn-reset" onclick="handleReset()">Reset</button>'
+          + '<button class="game-btn btn-primary" id="btn-submit" data-signal-id="btn-submit" onclick="handleSubmit()">'
+          + '<span class="btn-spinner" id="btn-spinner"></span>'
+          + '<span id="btn-text">Submit</span>'
+          + '</button>'
+          + '</div>'
+          + '</div>';
+
+        // InteractionManager (PART-038)
+        if (typeof InteractionManager !== 'undefined') {
+          window.interactionManager = new InteractionManager({
+            selector: '.answer-area',
+            disableOnAudioFeedback: false,
+            disableOnEvaluation: true
+          });
+        }
+
+        // ProgressBar (PART-023)
+        createProgressBar();
+
+        // TransitionScreen (PART-024)
+        transitionScreen = new TransitionScreenComponent({
+          autoInject: true
+        });
+
+        // VisibilityTracker (PART-005)
+        visibilityTrackerConfig = {
+          onInactive: function() {
+            var inactiveStart = Date.now();
+            gameState.duration_data.inActiveTime.push({ start: inactiveStart });
+            if (signalCollector) {
+              signalCollector.pause();
+              signalCollector.recordCustomEvent('visibility_hidden', {});
+            }
+            FeedbackManager.sound.pause();
+            FeedbackManager.stream.pauseAll();
+            trackEvent('game_paused', 'system');
+          },
+          onResume: function() {
+            var lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+            if (lastInactive && !lastInactive.end) {
+              lastInactive.end = Date.now();
+              gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
+            }
+            if (signalCollector) {
+              signalCollector.resume();
+              signalCollector.recordCustomEvent('visibility_visible', {});
+            }
+            FeedbackManager.sound.resume();
+            FeedbackManager.stream.resumeAll();
+            trackEvent('game_resumed', 'system');
+          },
+          popupProps: {
+            title: 'Game Paused',
+            description: 'Click Resume to continue.',
+            primaryText: 'Resume'
+          }
+        };
+        visibilityTracker = new VisibilityTracker(visibilityTrackerConfig);
+
+        // Register postMessage listener BEFORE game_ready (prevents race condition)
+        window.addEventListener('message', handlePostMessage);
+
+        // Signal to parent harness that game is ready
+        window.parent.postMessage({ type: 'game_ready' }, '*');
+
+        // Poll canPlayAudio before first audio
+        await new Promise(function(resolve) {
+          if (FeedbackManager.canPlayAudio()) return resolve();
+          var check = setInterval(function() {
+            if (FeedbackManager.canPlayAudio()) { clearInterval(check); resolve(); }
+          }, 200);
+          setTimeout(function() { clearInterval(check); resolve(); }, 15000);
+        });
+
+        // Show start screen with welcome audio
+        transitionScreen.show({
+          icons: ['✍️'],
+          iconSize: 'large',
+          title: 'Subjective',
+          subtitle: 'Answer questions in your own words. Be as detailed as you can!',
+          persist: true,
+          buttons: [{ text: "Let's Go!", type: 'primary', action: function() { FeedbackManager._stopCurrentDynamic(); startGame(); } }]
+        });
+
+        // Play welcome VO (only once, even across restarts)
+        if (!gameState.voGameStartPlayed) {
+          gameState.voGameStartPlayed = true;
+          try {
+            gameState.currentDynamicAudio = FeedbackManager.playDynamicFeedback({
+              audio_content: 'Welcome to Subjective! Answer questions in your own words. Be as detailed as you can!',
+              subtitle: 'Welcome! Answer in your own words.',
+              sticker: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-44.gif'
+            });
+            await gameState.currentDynamicAudio;
+          } catch(e) { console.error('Welcome VO error:', JSON.stringify({ error: e.message }, null, 2)); }
+          gameState.currentDynamicAudio = null;
+        }
+
+      } catch (error) {
+        console.error('Initialization failed:', JSON.stringify({ error: error.message }, null, 2));
+      }
+    });
+
+    // ── Debug Functions (PART-012) ──
+
+    window.debugGame = function() {
+      console.log('Game State:', JSON.stringify(gameState, null, 2));
+    };
+
+    window.debugAudio = function() {
+      console.log('Audio State:', JSON.stringify({
+        sound: FeedbackManager.sound.getState(),
+        stream: FeedbackManager.stream.getState()
+      }, null, 2));
+    };
+
+    window.testAudio = async function(id) {
+      console.log('Testing audio:', id);
+      try {
+        await FeedbackManager.sound.play(id || 'correct_sound_effect');
+      } catch (e) {
+        console.error('Audio test failed:', JSON.stringify({ error: e.message }, null, 2));
+      }
+    };
+
+    window.testPause = function() {
+      if (visibilityTracker) visibilityTracker.triggerInactive();
+    };
+
+    window.testResume = function() {
+      if (visibilityTracker) visibilityTracker.triggerResume();
+    };
+
+    window.debugSignals = function() {
+      if (signalCollector) {
+        console.log('SignalCollector State:', JSON.stringify({
+          inputEvents: signalCollector.inputEvents,
+          currentView: signalCollector.currentView,
+          sealed: signalCollector.sealed
+        }, null, 2));
+      }
+    };
+
+    window.debugEventCapture = function() {
+      try {
+        if (typeof EventCapture !== 'undefined') {
+          var summary = EventCapture.getSummary();
+          console.log('EventCapture Debug:', JSON.stringify(summary, null, 2));
+          console.log('All Events:', JSON.stringify(EventCapture.getEvents(), null, 2));
+          return summary;
+        }
+        console.log('EventCapture not available');
+      } catch(e) { console.error('EventCapture debug error:', JSON.stringify({ error: e.message }, null, 2)); }
+    };
+
+    window.verifySentry = function() {
+      var checks = {
+        sdkLoaded: typeof Sentry !== 'undefined',
+        configLoaded: typeof SentryConfig !== 'undefined',
+        clientActive: typeof Sentry !== 'undefined' && !!Sentry.getClient()
+      };
+      console.log('Sentry Verification:', JSON.stringify(checks, null, 2));
+      return checks;
+    };
+
+    window.testSentry = function() {
+      try {
+        throw new Error('Test error from testSentry()');
+      } catch (error) {
+        if (typeof Sentry !== 'undefined') {
+          Sentry.captureException(error, { tags: { test: true } });
+          console.log('Test error sent to Sentry');
+        } else {
+          console.warn('Sentry not available');
+        }
+      }
+    };
+
+    window.loadRound = function(n) {
+      if (n < 1 || n > gameState.totalRounds) {
+        console.error('Round must be between 1 and ' + gameState.totalRounds);
+        return;
+      }
+      gameState.currentRound = n - 1;
+      gameState.isActive = true;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      startRound();
+      console.log('Jumped to round ' + n);
+    };
+  </script>
+</body>
+</html>

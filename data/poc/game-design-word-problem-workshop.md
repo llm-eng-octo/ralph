@@ -35,7 +35,7 @@
 | PART-012 | Debug Functions | YES | — |
 | PART-013 | Validation Fixed | NO | — |
 | PART-014 | Validation Function | NO | No deterministic check — primary evaluation is 100% LLM |
-| PART-015 | Validation LLM | YES | **PRIMARY** evaluation via `subjectiveEvaluation()` — evaluates word problem correctness AND quality |
+| PART-015 | Validation LLM | YES | **PRIMARY** evaluation via `MathAIHelpers.SubjectiveEvaluation.evaluate()` — evaluates word problem correctness AND quality |
 | PART-016 | StoriesComponent | NO | — |
 | PART-017 | Feedback Integration | YES | Audio: correct_tap, wrong_tap. Stickers: correct/incorrect GIFs, trophy Lottie. Dynamic TTS for evaluation feedback + end-game. |
 | PART-018 | Case Converter | NO | — |
@@ -97,12 +97,16 @@ window.gameState = {
   contentSetId: null,             // Set from game_init postMessage
   signalConfig: null,             // Set from game_init postMessage (flushUrl, playId, etc.)
   sessionHistory: [],             // Accumulated per-session results for restart tracking
+  currentDynamicAudio: null,      // Reference for stopping dynamic TTS on early interaction
+  voGameStartPlayed: false,       // Play welcome VO only once, even across restarts
 };
 
-let visibilityTracker = null;
-let progressBar = null;
-let transitionScreen = null;
-let signalCollector = null;
+var visibilityTracker = null;
+var signalCollector = null;
+var progressBar = null;
+var transitionScreen = null;
+var visibilityTrackerConfig = null;  // Saved for reuse in restartGame()
+var questionSlotId = null;           // Stored from ScreenLayout.inject() return
 ```
 
 ---
@@ -219,7 +223,7 @@ let signalCollector = null;
 All 10 rounds verified — each round has a valid expression, correct result, appropriate rubric, and proper stage assignments.
 
 ```javascript
-const fallbackContent = {
+var fallbackContent = {
   "gameId": "word-problem-workshop",
   "rounds": [
     {
@@ -402,10 +406,59 @@ The game receives content via `postMessage` (`game_init` -> `event.data.data.con
 Scripts MUST be loaded in this exact order in the `<head>`:
 
 ```html
-<!-- Sentry (PART-030) — must be first -->
-<script src="https://browser.sentry-cdn.com/10.23.0/bundle.min.js" crossorigin="anonymous"></script>
+<!-- 1. SentryConfig package -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
 
-<!-- Package Scripts (PART-002) — use bundle files, NOT individual component files -->
+<!-- 2. initSentry() function definition (inline script) -->
+<script>
+  function initSentry() {
+    if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled && typeof Sentry !== 'undefined') {
+      Sentry.init({
+        dsn: SentryConfig.dsn,
+        environment: SentryConfig.environment,
+        release: 'word-problem-workshop@1.0.0',
+        tracesSampleRate: SentryConfig.tracesSampleRate,
+        sampleRate: SentryConfig.sampleRate,
+        maxBreadcrumbs: 50,
+        ignoreErrors: [
+          'ResizeObserver loop limit exceeded',
+          'ResizeObserver loop completed with undelivered notifications',
+          'Non-Error promise rejection captured',
+          'Script error.',
+          'Load failed',
+          'Failed to fetch'
+        ]
+      });
+    }
+  }
+
+  window.addEventListener('error', function(event) {
+    if (typeof Sentry !== 'undefined') {
+      Sentry.captureException(event.error || new Error(event.message), {
+        tags: { errorType: 'unhandled', severity: 'critical' },
+        contexts: { errorEvent: { message: event.message, filename: event.filename, lineno: event.lineno } }
+      });
+    }
+  });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (typeof Sentry !== 'undefined') {
+      Sentry.captureException(event.reason || new Error('Unhandled promise rejection'), {
+        tags: { errorType: 'unhandled-promise', severity: 'critical' }
+      });
+    }
+  });
+</script>
+
+<!-- 3. Sentry SDK (3 scripts, NO integrity attribute) -->
+<script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+<!-- 4. Initialize Sentry on load -->
+<script>window.addEventListener('load', initSentry);</script>
+
+<!-- 5-7. Game packages (exact URLs, this order: FeedbackManager → Components → Helpers) -->
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
@@ -415,100 +468,123 @@ Scripts MUST be loaded in this exact order in the `<head>`:
 
 | Bundle | Globals exported to `window` |
 |--------|------------------------------|
+| `helpers/sentry/index.js` | `SentryConfig` |
 | `feedback-manager/index.js` | `FeedbackManager` |
 | `components/index.js` | `ScreenLayout`, `ScreenLayoutComponent`, `ProgressBarComponent`, `TransitionScreenComponent`, `TimerComponent`, `PopupComponent`, `SubtitleComponent`, `StickerComponent`, `StoriesComponent` |
-| `helpers/index.js` | `VisibilityTracker`, `SignalCollector`, `subjectiveEvaluation`, `createEvaluator`, `APIHelper`, `InteractionManager` |
+| `helpers/index.js` | `VisibilityTracker`, `SignalCollector`, `MathAIHelpers`, `InteractionManager` |
 
 **Common mistakes to avoid:**
 - Do NOT use individual component URLs like `components/screen-layout.js` — they don't exist. Use the bundle `components/index.js`.
 - Do NOT use `helpers/visibility-tracker/index.js` or `helpers/signal-collector/index.js` directly — use the bundle `helpers/index.js`.
 - The TransitionScreen constructor is `TransitionScreenComponent` (NOT `TransitionScreen`).
 - The ScreenLayout constructor is `ScreenLayout` (alias: `ScreenLayoutComponent`).
-- The subjective evaluation function is `subjectiveEvaluation` (global function, NOT `MathAIHelpers.SubjectiveEvaluation`).
+- Subjective evaluation is accessed via `MathAIHelpers.SubjectiveEvaluation.evaluate()` (NOT standalone `subjectiveEvaluation()`).
+- Sentry uses SentryConfig package + 3 SDK scripts (NOT a single `bundle.min.js`).
 
 ---
 
 ## 6. Screens & HTML Structure
 
-### Body HTML (uses `<template>` for ScreenLayout compatibility — PART-025)
+### Body HTML (PART-025 — ScreenLayout v2 sections API)
+
+> **IMPORTANT:** Do NOT use `<template>` tags. Do NOT include a `#results-screen` div. HTML is injected into `#gameContent` after `ScreenLayout.inject()`. Results screen uses TransitionScreen `content` slot.
 
 ```html
-<div id="app"></div>
-
-<template id="game-template">
-  <div id="game-screen" class="game-block">
-    <!-- Expression Card -->
-    <div class="expression-card" id="expression-card">
-      <p class="expression-label">Write a word problem for:</p>
-      <div class="expression-display" id="expression-display"></div>
-      <p class="expression-hint-text" id="expression-hint-text"></p>
-    </div>
-
-    <!-- Word Problem Input Area -->
-    <div class="writing-area" id="writing-area">
-      <label class="input-label" for="word-problem-input">Your word problem:</label>
-      <textarea id="word-problem-input" class="word-problem-input" rows="4" maxlength="500" placeholder="Write a real-world story that matches this math expression..." data-signal-id="word-problem-input"></textarea>
-      <div class="char-count"><span id="char-count">0</span>/500</div>
-      <p class="inline-error" id="writing-error" style="display:none;"></p>
-      <button class="game-btn btn-primary" id="btn-submit-problem" data-signal-id="btn-submit-problem" onclick="handleProblemSubmit()">
-        <span id="btn-submit-text">Submit Word Problem</span>
-      </button>
-    </div>
-
-    <!-- Feedback Area (shown after evaluation) -->
-    <div class="feedback-area" id="feedback-area" style="display:none;">
-      <div class="evaluation-badge" id="evaluation-badge"></div>
-      <div class="feedback-section">
-        <p class="feedback-label">The expression</p>
-        <p class="feedback-value" id="feedback-expression"></p>
-      </div>
-      <div class="feedback-section">
-        <p class="feedback-label">Your word problem</p>
-        <p class="feedback-user-problem" id="feedback-user-problem"></p>
-      </div>
-      <div class="feedback-section" id="llm-feedback-section">
-        <p class="feedback-label">Feedback</p>
-        <p class="feedback-reasoning" id="feedback-reasoning"></p>
-      </div>
-      <div class="feedback-section">
-        <p class="feedback-label">Points this round</p>
-        <p class="feedback-points" id="feedback-points"></p>
-      </div>
-      <div class="feedback-hint" id="feedback-hint" style="display:none;">
-        <p class="hint-label">💡 Tip:</p>
-        <p class="hint-text" id="hint-text"></p>
-      </div>
-      <div class="feedback-example" id="feedback-example" style="display:none;">
-        <p class="example-label">📝 Example word problem:</p>
-        <p class="example-text" id="example-text"></p>
-      </div>
-      <button class="game-btn btn-primary feedback-next-btn" id="btn-next-round" data-signal-id="btn-next-round" onclick="handleNextRound()" style="display:none;">Next Round →</button>
-    </div>
-  </div>
-
-  <div id="results-screen" class="game-block" style="display:none;">
-    <div class="results-card">
-      <div id="stars-display" class="stars-display"></div>
-      <h2 class="results-title">Game Complete!</h2>
-      <div class="results-metrics">
-        <div class="metric-row">
-          <span class="metric-label">Total Points</span>
-          <span class="metric-value" id="result-points">0/30</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Perfect Matches</span>
-          <span class="metric-value" id="result-correct">0/10</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Partial Matches</span>
-          <span class="metric-value" id="result-partial">0/10</span>
-        </div>
-      </div>
-      <button class="game-btn btn-primary" id="btn-restart" data-signal-id="restart-button" onclick="restartGame()">Play Again</button>
-    </div>
-  </div>
-</template>
+<body>
+  <div id="app"></div>
+  <!-- All game HTML injected via JS into #gameContent after ScreenLayout.inject() -->
+</body>
 ```
+
+**ScreenLayout injection:**
+```javascript
+var layout = ScreenLayout.inject('app', {
+  sections: { header: true, questionText: true, progressBar: true, playArea: true, transitionScreen: true }
+});
+questionSlotId = layout.questionText;
+```
+
+**Game content injected into `#gameContent`:**
+```html
+<div id="game-screen" class="game-block">
+  <!-- Expression Card -->
+  <div class="expression-card" id="expression-card">
+    <p class="expression-label">Write a word problem for:</p>
+    <div class="expression-display" id="expression-display"></div>
+    <p class="expression-hint-text" id="expression-hint-text"></p>
+  </div>
+
+  <!-- Writing Area -->
+  <div class="writing-area" id="writing-area">
+    <label class="input-label" for="word-problem-input">Your word problem:</label>
+    <textarea id="word-problem-input" class="word-problem-input" rows="3" maxlength="500"
+      placeholder="Write a real-world story that matches this math expression..."
+      data-signal-id="word-problem-input"></textarea>
+    <div class="char-count"><span id="char-count">0</span>/500</div>
+    <p class="inline-error" id="writing-error" style="display:none;"></p>
+  </div>
+
+  <!-- Button Container — OUTSIDE writing-area so it stays visible during feedback -->
+  <div class="btn-container" id="btn-container">
+    <button class="game-btn btn-secondary" id="btn-reset" data-signal-id="btn-reset" onclick="handleReset()">Reset</button>
+    <button class="game-btn btn-primary" id="btn-submit-problem" data-signal-id="btn-submit-problem" onclick="handleProblemSubmit()">
+      <span class="btn-spinner" id="btn-submit-spinner"></span>
+      <span id="btn-submit-text">Submit Word Problem</span>
+    </button>
+  </div>
+
+  <!-- Loading Indicator -->
+  <div id="loading-indicator" class="loading-indicator" style="display:none;">
+    <div class="spinner"></div>
+    <span>Evaluating your word problem...</span>
+  </div>
+
+  <!-- Feedback Area (shown after evaluation) -->
+  <div class="feedback-area" id="feedback-area" style="display:none;">
+    <div class="evaluation-badge" id="evaluation-badge"></div>
+    <div class="feedback-section">
+      <p class="feedback-label">The expression</p>
+      <p class="feedback-value" id="feedback-expression"></p>
+    </div>
+    <div class="feedback-section">
+      <p class="feedback-label">Your word problem</p>
+      <p class="feedback-user-problem" id="feedback-user-problem"></p>
+    </div>
+    <div class="feedback-section">
+      <p class="feedback-label">Feedback</p>
+      <p class="feedback-reasoning" id="feedback-reasoning"></p>
+    </div>
+    <div class="feedback-section">
+      <p class="feedback-label">Points this round</p>
+      <p class="feedback-points" id="feedback-points"></p>
+    </div>
+    <div class="feedback-hint" id="feedback-hint" style="display:none;">
+      <p class="hint-label">Tip:</p>
+      <p class="hint-text" id="hint-text"></p>
+    </div>
+    <div class="feedback-example" id="feedback-example" style="display:none;">
+      <p class="example-label">Example word problem:</p>
+      <p class="example-text" id="example-text"></p>
+    </div>
+  </div>
+</div>
+```
+
+**Results screen — uses TransitionScreen content slot (NO `#results-screen` div):**
+```javascript
+transitionScreen.show({
+  title: stars >= 3 ? 'Excellent!' : (stars >= 2 ? 'Good Try!' : 'Keep Practicing!'),
+  content: metricsHTML,  // Dynamically built HTML with stars, points, matches, time
+  persist: true,
+  buttons: [{ text: buttonText, type: stars >= 3 ? 'primary' : 'secondary',
+    action: function() { FeedbackManager._stopCurrentDynamic(); restartGame(); } }]
+});
+```
+
+**Submit button has dual mode — repurposed after evaluation:**
+- During writing: `onclick → handleProblemSubmit()`, text "Submit Word Problem"
+- After evaluation: `onclick → handleNextRound()`, text "Next Round" (or "See Results" on last round)
+- After reset: restored to submit mode
 
 ---
 
@@ -548,17 +624,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* === App Container (PART-021 — ScreenLayout handles injection, but fallback constraint) === */
-#app {
-  width: 100%;
-  max-width: 480px;
-  min-height: 100dvh;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow: hidden;
+/* === ScreenLayout v2 overrides === */
+.mathai-layout-root { max-width: 480px; margin: 0 auto; }
+.mathai-layout-playarea {
+  flex-direction: column !important;
+  align-items: center !important;
+  padding: 8px 16px !important;
+  overflow-y: auto !important;
 }
+.mathai-ts-screen.active { flex: 1; justify-content: flex-start; padding-top: 16px; }
+.mathai-ts-card { min-height: 50dvh; }
 
 /* === Game Block === */
 .game-block {
@@ -812,66 +887,51 @@ body {
   font-style: italic;
 }
 
-/* === Results Screen (PART-019) === */
-#results-screen {
+/* === Results Screen — uses TransitionScreen content slot, no separate div === */
+/* Results metrics are built inline in showResults() function */
+
+/* === Button Spinner (inside submit button) === */
+.btn-spinner {
   display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 100;
-  background: var(--mathai-light-gray);
-  overflow-y: auto;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 8px;
 }
+.btn-primary:disabled .btn-spinner { display: inline-block; }
 
-.results-card {
-  background: var(--mathai-white);
-  border-radius: 16px;
-  padding: 32px 24px;
-  text-align: center;
-  max-width: 360px;
-  width: 100%;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-
-.results-title {
-  font-size: var(--mathai-font-size-title);
-  margin-bottom: 24px;
-  color: var(--mathai-text-primary);
-}
-
-.stars-display {
-  font-size: 40px;
-  margin-bottom: 16px;
+/* === Loading Indicator === */
+.loading-indicator {
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 8px;
-}
-
-.results-metrics {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.metric-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--mathai-light-gray);
-}
-
-.metric-label {
+  gap: 10px;
+  padding: 12px;
   color: var(--mathai-gray);
   font-size: var(--mathai-font-size-label);
+  width: 100%;
+  max-width: 360px;
+}
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--mathai-light-gray);
+  border-top-color: var(--mathai-purple);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
-.metric-value {
-  font-weight: 700;
-  font-size: var(--mathai-font-size-body);
-  color: var(--mathai-text-primary);
+/* === Button Container (Reset + Submit side-by-side) === */
+.btn-container {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  width: 100%;
+  max-width: 360px;
+  margin: 4px auto 0;
 }
 
 /* === Animations === */
@@ -899,7 +959,7 @@ body {
 ### Scoring
 
 Each round awards up to 3 points based ENTIRELY on LLM evaluation:
-- **Evaluation tiers (all determined by `subjectiveEvaluation()`):**
+- **Evaluation tiers (all determined by `MathAIHelpers.SubjectiveEvaluation.evaluate()`):**
   - ✅ **Correct match** — word problem correctly represents the expression: **3 points**
   - 🔶 **Partial match** — word problem captures the general idea but has errors in quantities or operations: **1 point**
   - ❌ **No match** — word problem does not represent the expression or is incoherent: **0 points**
@@ -914,24 +974,45 @@ Each round awards up to 3 points based ENTIRELY on LLM evaluation:
 ### Flow Steps
 
 1. **Page loads** → DOMContentLoaded fires:
-   - `waitForPackages([FeedbackManager, ScreenLayout, ProgressBarComponent, TransitionScreenComponent, VisibilityTracker, SignalCollector, subjectiveEvaluation])` — checks these globals exist before proceeding (10s timeout, fallback on failure)
-   - `FeedbackManager.init()`
-   - Audio preload: `correct_tap`, `wrong_tap`
-   - SignalCollector created (PART-010) and assigned to `window.signalCollector`
-   - `ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } })`
-   - Clone `<template id="game-template">` into `#gameContent`
-   - `progressBar = new ProgressBarComponent({ autoInject: true, totalRounds: 10, totalLives: 0, slotId: 'mathai-progress-slot' })`
-   - `transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' })`
-   - VisibilityTracker created
+   - `waitForPackages()` — checks `ScreenLayout`, `ProgressBarComponent`, `TransitionScreenComponent`, `FeedbackManager`, `VisibilityTracker`, `SignalCollector`, `MathAIHelpers` exist (10s timeout)
+   - `FeedbackManager.init()` — do NOT call `unlock()` after
+   - Audio preload: `correct_sound_effect`, `incorrect_sound_effect`, `victory_sound_effect`, `victory`, `game_complete_sound_effect`, `game_complete_1_star`, `game_complete_2_star`
+   - SignalCollector created and assigned to `window.signalCollector`
+   - EventCapture guarded init: `try { if (typeof EventCapture !== 'undefined') EventCapture.init(); } catch (e) {}`
+   - `ScreenLayout.inject('app', { sections: { header: true, questionText: true, progressBar: true, playArea: true, transitionScreen: true } })` — v2 sections API, NOT slots
+   - Store `questionSlotId = layout.questionText` for dynamic updates
+   - Build initial question text into `questionSlotId` slot: "Word Problem Workshop / Turn math expressions into real-world stories!"
+   - Inject game HTML into `#gameContent` (expression card + writing area + **btn-container (outside writing-area)** + loading indicator + feedback area)
    - Attach `input` listener on `#word-problem-input` to update `#char-count`
-   - Register `window.addEventListener('message', handlePostMessage)` for game_init
-   - Show start transition screen (with start button disabled until content is loaded)
-   - Set a 3-second fallback timer: if no `game_init` arrives, load `fallbackContent`
-   - **Fire `game_ready` event and postMessage to parent:**
+   - InteractionManager creation: `{ selector: '.writing-area', disableOnAudioFeedback: false, disableOnEvaluation: true }`
+   - `createProgressBar()` helper — creates ProgressBar with destroy-before-create pattern
+   - `transitionScreen = new TransitionScreenComponent({ autoInject: true })`
+   - VisibilityTracker created — config saved to `visibilityTrackerConfig` for reuse in `restartGame()`
+   - Register `window.addEventListener('message', handlePostMessage)` — BEFORE `game_ready`
+   - Fire `game_ready` event and postMessage to parent
+   - Poll `canPlayAudio()` with `setInterval(200ms)` + `setTimeout(15000ms)` fallback
+   - `setupGame()` — idempotent, loads fallback content
+   - Show start transition screen with welcome audio + sticker:
      ```javascript
-     trackEvent('game_ready', 'game', { timestamp: new Date().toISOString() });
-     window.parent.postMessage({ type: 'game_ready' }, '*');
-     console.log('Game ready — waiting for game_init postMessage');
+     transitionScreen.show({
+       icons: ['✏️'], iconSize: 'large',
+       title: 'Word Problem Workshop',
+       subtitle: 'Turn math expressions into real-world stories!',
+       persist: true,
+       buttons: [{ text: "Let's Go!", type: 'primary',
+         action: function() { FeedbackManager._stopCurrentDynamic(); startGame(); } }]
+     });
+     // Welcome VO (only once, even across restarts)
+     if (!gameState.voGameStartPlayed) {
+       gameState.voGameStartPlayed = true;
+       gameState.currentDynamicAudio = FeedbackManager.playDynamicFeedback({
+         audio_content: 'Welcome to the Word Problem Workshop! See a math expression, then write a real-world story that matches it. Let\'s turn math into stories!',
+         subtitle: 'Turn math expressions into real-world stories!',
+         sticker: ROUND_STICKER_1  // Plain URL string for playDynamicFeedback
+       });
+       await gameState.currentDynamicAudio;
+       gameState.currentDynamicAudio = null;
+     }
      ```
 
 2. **handlePostMessage(event)** — receives content and signal config from parent:
@@ -962,13 +1043,15 @@ Each round awards up to 3 points based ENTIRELY on LLM evaluation:
      ```
 
 3. **startGame()** (from start screen button):
-   - If `!gameState.content`: load fallbackContent
+   - `FeedbackManager._stopCurrentDynamic()` — stops welcome VO if still playing
+   - `transitionScreen.hide()` — explicit hide, TransitionScreen does NOT auto-hide on button click
+   - `setupGame()` — idempotent, loads content
+   - Reset: `gameState.currentRound = 0`
    - Set `gameState.startTime = Date.now()`
+   - Set `gameState.duration_data.startTime = new Date().toISOString()`
    - Set `gameState.isActive = true`, `gameState.gameEnded = false`
-   - Set `gameState.phase = 'writing'`; `syncDOMState()`
-   - Set `duration_data.startTime = new Date().toISOString()`
    - `trackEvent('game_start', 'game')`
-   - Call `setupRound()`
+   - Call `showRoundTransition()` — shows round 1 intro screen with VO
 
 4. **setupRound()**:
    - Get `roundData = gameState.content.rounds[gameState.currentRound]`
@@ -984,10 +1067,10 @@ Each round awards up to 3 points based ENTIRELY on LLM evaluation:
        - Stage 3: `"This combines multiple operations — build a story with different actions!"`
    - Clear `#word-problem-input`, reset `#char-count` to 0
    - Show `#expression-card` and `#writing-area`; hide `#feedback-area`, `#feedback-hint`, `#feedback-example`, `#writing-error`
+   - Re-show `#btn-reset` (hidden during feedback phase)
    - Enable `#btn-submit-problem`, reset text to "Submit Word Problem"
-   - Set `gameState.phase = 'writing'`; `syncDOMState()`
    - `progressBar.update(gameState.currentRound, 0)`
-   - Show `#game-screen`, ensure `#results-screen` hidden
+   - Focus textarea after short delay
    - `trackEvent('round_start', 'game', { round: gameState.currentRound + 1, stage: roundData.stage, expression: roundData.expression })`
    - Record view event:
      ```javascript
@@ -1016,13 +1099,13 @@ Each round awards up to 3 points based ENTIRELY on LLM evaluation:
    - Hide `#writing-error` (clear any previous error)
    - `gameState.wordProblemText = wordProblem`
    - `trackEvent('word_problem_submit', 'game', { wordProblem, round: gameState.currentRound + 1, expression: gameState.roundData.expression })`
-   - Set `gameState.phase = 'evaluating'`; `syncDOMState()`
-   - Disable `#btn-submit-problem`, change text to "Evaluating..."
+   - Disable `#btn-submit-problem`, change text to "Evaluating...", show spinner
+   - Disable textarea (`input.disabled = true`)
    - **Wrap the rest in try/catch/finally to ensure isProcessing reset (PART-015 pattern):**
    - **try:**
      - **LLM Evaluation (PART-015 — PRIMARY evaluation):**
        ```javascript
-       const result = await validateWordProblemLLM(
+       var result = await validateWordProblemLLM(
          wordProblem,
          gameState.roundData.expression,
          gameState.roundData.expressionDisplay,
@@ -1034,7 +1117,7 @@ Each round awards up to 3 points based ENTIRELY on LLM evaluation:
        ```
      - **Calculate round points:**
        ```javascript
-       let roundPoints = 0;
+       var roundPoints = 0;
        if (gameState.evaluationResult === 'correct_match') roundPoints = 3;
        else if (gameState.evaluationResult === 'partial_match') roundPoints = 1;
        gameState.totalPoints += roundPoints;
@@ -1042,31 +1125,34 @@ Each round awards up to 3 points based ENTIRELY on LLM evaluation:
        if (gameState.evaluationResult === 'partial_match') gameState.partialCount++;
        ```
      - `trackEvent('evaluation_complete', 'game', { wordProblem, tier: gameState.evaluationResult, feedback: result.feedback, roundPoints, round: gameState.currentRound + 1 })`
-     - **Play audio + sticker based on evaluation:**
+     - **Show feedback UI via `showFeedbackUI(roundData, result, roundPoints, wordProblem)`**
+     - **Play SFX + sticker based on evaluation (fire-and-forget — short SFX):**
        ```javascript
-       var CORRECT_STICKER = { url: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-30.gif', type: 'IMAGE_GIF' };
-       var INCORRECT_STICKER = { url: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-49.gif', type: 'IMAGE_GIF' };
-       if (gameState.evaluationResult === 'correct_match') {
-         try { await FeedbackManager.sound.play('correct_tap', { sticker: CORRECT_STICKER }); } catch (e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+       // sound.play() sticker format: OBJECT { image, duration, type }
+       var isCorrect = gameState.evaluationResult === 'correct_match';
+       if (isCorrect) {
+         FeedbackManager.sound.play('correct_sound_effect', {
+           sticker: { image: CORRECT_STICKER_URL, duration: 2, type: 'IMAGE_GIF' }
+         }).catch(function(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); });
        } else {
-         try { await FeedbackManager.sound.play('wrong_tap', { sticker: INCORRECT_STICKER }); } catch (e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+         FeedbackManager.sound.play('incorrect_sound_effect', {
+           sticker: { image: INCORRECT_STICKER_URL, duration: 2, type: 'IMAGE_GIF' }
+         }).catch(function(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); });
        }
        ```
-     - **Show feedback area:**
-       - `#evaluation-badge`:
-         - correct_match: class `correct-match`, text "✅ Perfect Match! Your word problem nails it."
-         - partial_match: class `partial-match`, text "🔶 Almost! Your story is close but needs adjustment."
-         - no_match: class `no-match`, text "❌ Not quite. This doesn't match the expression."
-       - `#feedback-expression`: `roundData.expressionDisplay`
-       - `#feedback-user-problem`: kid's word problem text
-       - `#feedback-reasoning`: LLM feedback text (`result.feedback`)
-       - `#feedback-points`: `${roundPoints}/3 points`
-       - If `evaluationResult !== 'correct_match'`:
-         - Show `#feedback-hint` with `roundData.hints.thinkAbout`
-         - Show `#feedback-example` with `roundData.exampleWordProblem`
-     - Hide `#expression-card`, `#writing-area`
-     - Show `#feedback-area`
-     - Show `#btn-next-round`
+     - **Play dynamic TTS with LLM feedback — AWAITED:**
+       ```javascript
+       // playDynamicFeedback() sticker format: PLAIN URL STRING
+       var feedbackText = result.feedback || roundData.hints.revealExplanation;
+       document.getElementById('btn-submit-text').textContent = 'Playing Feedback...';
+       gameState.currentDynamicAudio = FeedbackManager.playDynamicFeedback({
+         audio_content: feedbackText,
+         subtitle: feedbackText,
+         sticker: isCorrect ? CORRECT_STICKER_URL : INCORRECT_STICKER_URL
+       });
+       await gameState.currentDynamicAudio;
+       gameState.currentDynamicAudio = null;
+       ```
      - Record feedback display view event:
        ```javascript
        if (signalCollector) {
@@ -1075,22 +1161,11 @@ Each round awards up to 3 points based ENTIRELY on LLM evaluation:
            content_snapshot: {
              feedback_type: gameState.evaluationResult,
              round_points: roundPoints,
-             llm_feedback: result.feedback,
              round: gameState.currentRound + 1,
              trigger: 'user_action'
            }
          });
        }
-       ```
-     - **Play dynamic TTS with API feedback (evaluation-controlled):**
-       ```javascript
-       try {
-         const feedbackText = result.feedback || gameState.roundData.hints.revealExplanation;
-         await FeedbackManager.playDynamicFeedback({
-           audio_content: feedbackText,
-           subtitle: feedbackText
-         });
-       } catch(e) { console.error('Feedback error:', JSON.stringify({ error: e.message }, null, 2)); }
        ```
      - Record attempt:
        ```javascript
@@ -1119,248 +1194,249 @@ Each round awards up to 3 points based ENTIRELY on LLM evaluation:
          });
        }
        ```
-     - Set `gameState.phase = 'feedback'`; `syncDOMState()`
    - **catch (error):**
-     - Log error: `console.error('Word problem evaluation failed:', error)`
+     - Log error: `console.error('Word problem evaluation failed:', JSON.stringify({ error: error.message }, null, 2))`
      - Report to Sentry if available:
        ```javascript
        if (typeof Sentry !== 'undefined') {
-         Sentry.captureException(error, { tags: { phase: 'word-problem-evaluation', component: 'SubjectiveEvaluation', severity: 'high' } });
+         Sentry.captureException(error, { tags: { phase: 'word-problem-evaluation', severity: 'high' } });
        }
        ```
-     - **CRITICAL — Ensure game never gets stuck:** If the try block threw before showing the feedback UI, show a minimal fallback:
+     - **Graceful fallback — show feedback with 0 points:**
        ```javascript
-       if (document.getElementById('feedback-area').style.display === 'none') {
-         // Fallback: award 0 points (graceful degradation)
-         const roundPoints = 0;
-
-         document.getElementById('evaluation-badge').className = 'evaluation-badge partial-match';
-         document.getElementById('evaluation-badge').textContent = '⚠️ We couldn\'t evaluate your word problem this time.';
-         document.getElementById('feedback-expression').textContent = gameState.roundData.expressionDisplay;
-         document.getElementById('feedback-user-problem').textContent = gameState.wordProblemText;
-         document.getElementById('feedback-reasoning').textContent = 'The evaluation service is temporarily unavailable. Your word problem was saved!';
-         document.getElementById('feedback-points').textContent = roundPoints + '/3 points';
-
-         // Show hint and example as learning opportunity
-         document.getElementById('hint-text').textContent = gameState.roundData.hints.thinkAbout;
-         document.getElementById('feedback-hint').style.display = '';
-         document.getElementById('example-text').textContent = gameState.roundData.exampleWordProblem;
-         document.getElementById('feedback-example').style.display = '';
-
-         document.getElementById('expression-card').style.display = 'none';
-         document.getElementById('writing-area').style.display = 'none';
-         document.getElementById('feedback-area').style.display = '';
-         document.getElementById('btn-next-round').style.display = '';
-
-         recordAttempt({
-           input_of_user: { wordProblem: gameState.wordProblemText },
-           correct: false,
-           metadata: {
-             round: gameState.currentRound + 1,
-             expression: gameState.roundData.expressionDisplay,
-             result: gameState.roundData.result,
-             evaluationTier: 'error',
-             roundPoints: 0,
-             validationType: 'subjective',
-             llmFeedback: '',
-             error: error.message
-           }
-         });
-       }
+       document.getElementById('loading-indicator').style.display = 'none';
+       showFeedbackUI(roundData, { tier: 'no_match', feedback: 'We couldn\'t evaluate your word problem this time. Your answer was saved!' }, 0, wordProblem);
        ```
-     - Set `gameState.phase = 'feedback'`; `syncDOMState()`
-   - **finally:**
-     - Re-enable `#btn-submit-problem`, change text back to "Submit Word Problem"
+     - Record attempt with error metadata
+     - Set submit button to "Next Round" / "See Results", re-enable, set `onclick = handleNextRound`
+   - **After try/catch:**
      - `gameState.isProcessing = false`
 
-6. **handleNextRound()** — kid taps "Next Round →":
-   - Hide `#btn-next-round`
-   - Call `nextRound()`
-
-7. **nextRound()**:
+6. **handleNextRound()** — kid taps "Next Round" / "See Results" (submit button repurposed):
+   - `FeedbackManager._stopCurrentDynamic()` — stops any remaining TTS
+   - Restore submit button: `btnSubmit.onclick = handleProblemSubmit`
+   - `trackEvent('round_complete', 'game', { round: gameState.currentRound + 1 })`
    - `gameState.currentRound++`
    - `progressBar.update(gameState.currentRound, 0)`
-   - `trackEvent('round_complete', 'game', { round: gameState.currentRound })`
    - If `gameState.currentRound >= gameState.totalRounds` → `endGame()`
-   - Else:
-     - Check stage transition: `const nextStage = gameState.content.rounds[gameState.currentRound].stage`
-     - Record screen transition:
-       ```javascript
-       if (signalCollector) {
-         signalCollector.recordViewEvent('screen_transition', {
-           screen: nextStage !== gameState.currentStage ? 'stage_transition' : 'gameplay',
-           metadata: { transition_from: 'gameplay' }
-         });
-       }
-       ```
-     - If stage changed:
-       ```javascript
-       const stageNames = { 1: 'Simple Operations', 2: 'Multi-Step', 3: 'Mixed Operations' };
-       const stageDescs = { 1: 'One operation — build a simple story!', 2: 'Two steps — your story needs two parts!', 3: 'Multiple operations — create a complex story!' };
-       transitionScreen.show({
-         icons: ['✏️'],
-         iconSize: 'normal',
-         title: 'Stage ' + nextStage + ': ' + stageNames[nextStage],
-         subtitle: stageDescs[nextStage],
-         buttons: [{ text: 'Continue', type: 'primary', action: function() { setupRound(); } }]
-       });
-       ```
-     - Else: `setupRound()`
+   - Else → `showRoundTransition()`
 
-8. **endGame()** (all 10 rounds completed):
+7. **showRoundTransition()** — transition screen before each round:
+   - `FeedbackManager._stopCurrentDynamic()`
+   - Get `roundData = gameState.content.rounds[gameState.currentRound]`
+   - Check if stage changed (for rounds after the first):
+     ```javascript
+     if (roundIndex > 0) {
+       var prevRound = gameState.content.rounds[roundIndex - 1];
+       if (prevRound && prevRound.stage !== roundData.stage) {
+         showStageTransition(roundData);
+         return;
+       }
+     }
+     ```
+   - Show round transition screen:
+     ```javascript
+     transitionScreen.show({
+       icons: ['✏️'],
+       iconSize: 'normal',
+       title: 'Round ' + roundData.roundNumber,
+       subtitle: 'Write a word problem for: ' + roundData.expressionDisplay,
+       persist: true,
+       buttons: [{ text: "Let's Go!", type: 'primary', action: function() {
+         FeedbackManager._stopCurrentDynamic();
+         transitionScreen.hide();
+         setupRound();
+       }}]
+     });
+     ```
+   - Play round VO with sticker (fire-and-forget with `.catch()`):
+     ```javascript
+     try {
+       gameState.currentDynamicAudio = FeedbackManager.playDynamicFeedback({
+         audio_content: 'Round ' + roundNum + '! Write a word problem for ' + roundData.expressionDisplay + '.',
+         subtitle: 'Round ' + roundNum + ': ' + roundData.expressionDisplay,
+         sticker: ROUND_STICKERS[stickerIndex]  // Plain URL string for playDynamicFeedback
+       });
+     } catch(e) { console.error('Round VO error:', JSON.stringify({ error: e.message }, null, 2)); }
+     ```
+
+   **showStageTransition(roundData)** — shown when stage changes (round 5, round 8):
+   - `FeedbackManager._stopCurrentDynamic()`
+   - Stage names: `{ 1: 'Simple Operations', 2: 'Multi-Step', 3: 'Mixed Operations' }`
+   - Stage descriptions: `{ 1: 'One operation — build a simple story!', 2: 'Two steps — your story needs two parts!', 3: 'Multiple operations — create a complex story!' }`
+   - Show stage transition screen:
+     ```javascript
+     transitionScreen.show({
+       icons: ['✏️'],
+       iconSize: 'large',
+       title: 'Stage ' + roundData.stage + ': ' + stageNames[roundData.stage],
+       subtitle: stageDescs[roundData.stage],
+       persist: true,
+       buttons: [{ text: "I'm Ready!", type: 'primary', action: function() {
+         FeedbackManager._stopCurrentDynamic();
+         transitionScreen.hide();
+         setupRound();
+       }}]
+     });
+     ```
+   - Play stage VO with sticker (fire-and-forget with `.catch()`):
+     ```javascript
+     try {
+       gameState.currentDynamicAudio = FeedbackManager.playDynamicFeedback({
+         audio_content: 'Stage ' + roundData.stage + ': ' + stageNames[roundData.stage] + '! ' + stageDescs[roundData.stage],
+         subtitle: stageNames[roundData.stage],
+         sticker: ROUND_STICKERS[stickerIndex]  // Plain URL string for playDynamicFeedback
+       });
+     } catch(e) { console.error('Stage VO error:', JSON.stringify({ error: e.message }, null, 2)); }
+     ```
+
+8. **async endGame()** (all 10 rounds completed):
    - Guard: `if (gameState.gameEnded) return`; `gameState.gameEnded = true`; `gameState.isActive = false`
-   - Set `gameState.phase = 'results'`; `syncDOMState()`
    - `gameState.duration_data.currentTime = new Date().toISOString()`
    - Calculate stars and metrics:
      ```javascript
-     const timeTaken = Math.round((Date.now() - gameState.startTime) / 1000);
-     const accuracy = gameState.totalRounds > 0 ? Math.round((gameState.correctCount / gameState.totalRounds) * 100) : 0;
-     let stars = 1;
+     var timeTaken = Math.round((Date.now() - gameState.startTime) / 1000);
+     var accuracy = gameState.totalRounds > 0 ? Math.round((gameState.correctCount / gameState.totalRounds) * 100) : 0;
+     var stars = 1;
      if (gameState.totalPoints >= 24) stars = 3;
      else if (gameState.totalPoints >= 15) stars = 2;
 
-     const metrics = {
-       accuracy,
+     var metrics = {
+       accuracy: accuracy,
        time: timeTaken,
-       stars,
+       stars: stars,
        attempts: gameState.attempts,
        duration_data: gameState.duration_data,
        totalLives: 1,  // No lives in this game — default 1 per PART-011
        tries: computeTriesPerRound(gameState.attempts),
        totalPoints: gameState.totalPoints,
        correctCount: gameState.correctCount,
-       partialCount: gameState.partialCount
+       partialCount: gameState.partialCount,
+       totalRounds: gameState.totalRounds
      };
 
      // Track session history for restart
-     if (gameState.sessionHistory.length > 0) {
-       metrics.sessionHistory = [
-         ...gameState.sessionHistory,
-         { totalLives: 1, tries: computeTriesPerRound(gameState.attempts) }
-       ];
+     if (gameState.sessionHistory && gameState.sessionHistory.length > 0) {
+       metrics.sessionHistory = gameState.sessionHistory.concat([{
+         totalLives: 1,
+         tries: computeTriesPerRound(gameState.attempts)
+       }]);
      }
      ```
-   - End-game TTS with trophy:
+   - `trackEvent('game_end', 'game', { metrics: { stars: stars, accuracy: accuracy, totalPoints: gameState.totalPoints } })`
+   - Sentry breadcrumb:
      ```javascript
-     try {
-       await FeedbackManager.playDynamicFeedback({
-         audio_content: 'You scored ' + gameState.totalPoints + ' out of 30 points! You got ' + gameState.correctCount + ' perfect matches out of 10 rounds!',
-         subtitle: gameState.totalPoints + '/30 points — ' + stars + ' stars!',
-         sticker: { url: 'https://cdn.mathai.ai/mathai-assets/lottie/trophy.json', type: 'Lottie' }
+     if (typeof Sentry !== 'undefined') {
+       Sentry.addBreadcrumb({ category: 'game', message: 'endGame', data: { stars: stars, accuracy: accuracy, totalPoints: gameState.totalPoints }, level: 'info' });
+     }
+     ```
+   - **SignalCollector: recordViewEvent BEFORE seal** (seal freezes collector):
+     ```javascript
+     if (signalCollector) {
+       signalCollector.recordViewEvent('screen_transition', {
+         screen: 'results',
+         metadata: { transition_from: 'gameplay' }
        });
-     } catch(e) { console.error('Feedback error:', JSON.stringify({ error: e.message }, null, 2)); }
-     ```
-   - Seal SignalCollector: `if (signalCollector) signalCollector.seal()`
-   - Update results screen:
-     ```javascript
-     document.getElementById('result-points').textContent = gameState.totalPoints + '/30';
-     document.getElementById('result-correct').textContent = gameState.correctCount + '/10';
-     document.getElementById('result-partial').textContent = gameState.partialCount + '/10';
-     var starsDisplay = document.getElementById('stars-display');
-     starsDisplay.innerHTML = '';
-     for (var i = 0; i < 3; i++) {
-       starsDisplay.innerHTML += '<span class="' + (i < stars ? 'star-filled' : 'star-empty') + '">' + (i < stars ? '⭐' : '☆') + '</span>';
+       signalCollector.seal();
      }
      ```
-   - Show `#results-screen`, hide `#game-screen`
-   - Send postMessage (PART-011 v3 format):
+   - **Show results via TransitionScreen content slot** (no separate `#results-screen` div):
      ```javascript
-     console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
-     console.log('Attempt History:', JSON.stringify(gameState.attempts, null, 2));
-
+     showResults(metrics, stars);
+     ```
+   - **PostMessage BEFORE audio** (so parent isn't blocked by audio await):
+     ```javascript
      window.parent.postMessage({
        type: 'game_complete',
        data: {
-         metrics,
+         metrics: metrics,
          attempts: gameState.attempts,
          completedAt: Date.now()
        }
      }, '*');
      ```
-   - `trackEvent('game_end', 'game', { metrics })`
-   - Cleanup:
+   - **Play end-game audio based on stars** (SFX + sticker → awaited voice):
      ```javascript
-     if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
-     FeedbackManager.sound.stopAll();
-     FeedbackManager.stream.stopAll();
+     if (stars === 3) {
+       try { await FeedbackManager.sound.play('victory_sound_effect', { sticker: { image: VICTORY_STICKER_URL, duration: 3, type: 'IMAGE_GIF' } }); } catch(e) {}
+       try { await FeedbackManager.sound.play('victory'); } catch(e) {}
+     } else if (stars === 2) {
+       try { await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: GAME_COMPLETE_STICKER_URL, duration: 3, type: 'IMAGE_GIF' } }); } catch(e) {}
+       try { await FeedbackManager.sound.play('game_complete_2_star'); } catch(e) {}
+     } else {
+       try { await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: GAME_COMPLETE_STICKER_URL, duration: 3, type: 'IMAGE_GIF' } }); } catch(e) {}
+       try { await FeedbackManager.sound.play('game_complete_1_star'); } catch(e) {}
+     }
+     ```
+   - **Guarded cleanup** — prevents destroying components recreated by restartGame():
+     ```javascript
+     if (gameState.gameEnded) {
+       if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
+       try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+       if (progressBar) { progressBar.destroy(); progressBar = null; }
+     }
      ```
 
-9. **restartGame()** — Full reset:
-   - Save session history before reset:
+9. **restartGame()** — Full reset with preserve/restore:
+   - **Push session snapshot BEFORE resetting:**
      ```javascript
+     if (!gameState.sessionHistory) gameState.sessionHistory = [];
      gameState.sessionHistory.push({
        totalLives: 1,
+       totalPoints: gameState.totalPoints,
        tries: computeTriesPerRound(gameState.attempts)
      });
-     var savedSessionHistory = gameState.sessionHistory.slice();
-     var savedContentSetId = gameState.contentSetId;
-     var savedSignalConfig = gameState.signalConfig;
-     var savedContent = gameState.content;
      ```
-   - Reset all gameState fields to defaults (`currentRound=0, totalPoints=0, correctCount=0, partialCount=0`, etc.)
-   - Restore preserved state:
+   - **Preserve across restart** (content, config, session history, voGameStartPlayed):
      ```javascript
-     gameState.sessionHistory = savedSessionHistory;
-     gameState.contentSetId = savedContentSetId;
-     gameState.signalConfig = savedSignalConfig;
-     gameState.content = savedContent;
+     var preserved = {
+       content: gameState.content,
+       contentSetId: gameState.contentSetId,
+       signalConfig: gameState.signalConfig,
+       sessionHistory: gameState.sessionHistory,
+       voGameStartPlayed: gameState.voGameStartPlayed
+     };
      ```
-   - `gameState.phase = 'start'`; `syncDOMState()`
-   - Recreate SignalCollector:
+   - Reset all gameState fields to defaults: `currentRound=0, score=0, attempts=[], events=[], isActive=false, isProcessing=false, gameEnded=false, currentStage=1, totalPoints=0, wordProblemText='', evaluationResult=null, feedbackText='', roundData=null, correctCount=0, partialCount=0, currentDynamicAudio=null, startTime=null`
+   - Reset `duration_data`: `{ startTime: null, preview: [], attempts: [], evaluations: [], inActiveTime: [], totalInactiveTime: 0, currentTime: null }`
+   - **Restore preserved:**
+     ```javascript
+     gameState.content = preserved.content;
+     gameState.contentSetId = preserved.contentSetId;
+     gameState.signalConfig = preserved.signalConfig;
+     gameState.sessionHistory = preserved.sessionHistory;
+     gameState.voGameStartPlayed = preserved.voGameStartPlayed;
+     ```
+   - **Recreate SignalCollector** (no optional chaining — use `&&` checks):
      ```javascript
      signalCollector = new SignalCollector({
-       sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
-       studentId: window.gameVariableState?.studentId || null,
-       gameId: gameState.gameId || null,
-       contentSetId: gameState.contentSetId || null
+       sessionId: (window.gameVariableState && window.gameVariableState.sessionId) ? window.gameVariableState.sessionId : 'session_' + Date.now(),
+       studentId: (window.gameVariableState && window.gameVariableState.studentId) ? window.gameVariableState.studentId : null,
+       gameId: gameState.gameId,
+       contentSetId: gameState.contentSetId
      });
      window.signalCollector = signalCollector;
-
-     if (gameState.signalConfig) {
-       if (gameState.signalConfig.flushUrl) signalCollector.flushUrl = gameState.signalConfig.flushUrl;
-       if (gameState.signalConfig.playId) signalCollector.playId = gameState.signalConfig.playId;
-       if (gameState.signalConfig.sessionId) signalCollector.sessionId = gameState.signalConfig.sessionId;
-       if (gameState.signalConfig.studentId) signalCollector.studentId = gameState.signalConfig.studentId;
+     if (gameState.signalConfig && gameState.signalConfig.flushUrl) {
+       signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+       signalCollector.playId = gameState.signalConfig.playId || null;
+       signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+       signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
        signalCollector.startFlushing();
      }
      ```
-   - Recreate VisibilityTracker:
+   - **Recreate VisibilityTracker** using saved config:
      ```javascript
-     visibilityTracker = new VisibilityTracker({
-       onInactive: function() {
-         var inactiveStart = Date.now();
-         gameState.duration_data.inActiveTime.push({ start: inactiveStart });
-         if (signalCollector) {
-           signalCollector.pause();
-           signalCollector.recordCustomEvent('visibility_hidden', {});
-         }
-         FeedbackManager.sound.pause();
-         FeedbackManager.stream.pauseAll();
-         trackEvent('game_paused', 'system');
-       },
-       onResume: function() {
-         var lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
-         if (lastInactive && !lastInactive.end) {
-           lastInactive.end = Date.now();
-           gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
-         }
-         if (signalCollector) {
-           signalCollector.resume();
-           signalCollector.recordCustomEvent('visibility_visible', {});
-         }
-         FeedbackManager.sound.resume();
-         FeedbackManager.stream.resumeAll();
-         trackEvent('game_resumed', 'system');
-       },
-       popupProps: {
-         title: 'Game Paused',
-         description: 'Click Resume to continue.',
-         primaryText: 'Resume'
-       }
-     });
+     visibilityTracker = new VisibilityTracker(visibilityTrackerConfig);
      ```
-   - `progressBar = new ProgressBarComponent({ autoInject: true, totalRounds: 10, totalLives: 0, slotId: 'mathai-progress-slot' })`
-   - `progressBar.update(0, 0)`
+   - **Recreate ProgressBar** using destroy-before-create helper:
+     ```javascript
+     createProgressBar();
+     progressBar.update(0, 0);
+     ```
+   - Restore question text slot to initial state
+   - Re-enable writing area: `input.disabled = false; input.value = '';`
+   - Restore submit button: `btnSubmit.onclick = handleProblemSubmit; btnSubmit.disabled = false;`
+   - `trackEvent('game_start', 'game')` — NOTE: this fires `game_start` on restart. Review finding: consider removing to avoid duplicate `game_start` events since `startGame()` also fires it.
    - Show start transition screen:
      ```javascript
      transitionScreen.show({
@@ -1368,7 +1444,8 @@ Each round awards up to 3 points based ENTIRELY on LLM evaluation:
        iconSize: 'large',
        title: 'Word Problem Workshop',
        subtitle: 'Turn math expressions into real-world stories!',
-       buttons: [{ text: "I'm ready!", type: 'primary', action: function() { startGame(); } }]
+       persist: true,
+       buttons: [{ text: "Let's Go!", type: 'primary', action: function() { FeedbackManager._stopCurrentDynamic(); startGame(); } }]
      });
      ```
 
@@ -1376,34 +1453,71 @@ Each round awards up to 3 points based ENTIRELY on LLM evaluation:
 
 ## 9. Functions
 
-### Global Scope (RULE-001)
-
-**syncDOMState()**
-- Set `#app` dataset attributes: `data-phase`, `data-round`, `data-score`, `data-stage`, `data-points`
-- Called immediately after every `gameState.phase` assignment
+### Global Scope (RULE-001) — all `var`, no `let`/`const`, no optional chaining (`?.`)
 
 **handlePostMessage(event)** — as described in Flow Step 2
 
 **startGame()** — as described in Flow Step 3
 
+**showRoundTransition()** — as described in Flow Step 7 (shows round intro or delegates to showStageTransition)
+
+**showStageTransition(roundData)** — as described in Flow Step 7 (shows stage intro when stage changes)
+
 **setupRound()** — as described in Flow Step 4
 
-**async handleProblemSubmit()** — as described in Flow Step 5 (wrapped in try/catch/finally)
+**async handleProblemSubmit()** — as described in Flow Step 5 (wrapped in try/catch)
+
+**showFeedbackUI(roundData, result, roundPoints, wordProblem)** — renders evaluation badge, feedback sections, hint/example:
+- Sets badge class: `correct-match` / `partial-match` / `no-match`
+- Populates: `#feedback-expression`, `#feedback-user-problem`, `#feedback-reasoning`, `#feedback-points`
+- For non-correct_match: shows `#feedback-hint` with `roundData.hints.thinkAbout` and `#feedback-example` with `roundData.exampleWordProblem`
+- Hides expression card + writing area, shows feedback area
+- Hides `#btn-reset` (only "Next Round" / "See Results" button should be visible during feedback)
 
 **handleNextRound()** — as described in Flow Step 6
 
-**nextRound()** — as described in Flow Step 7
+**handleReset()** — resets writing area for current round:
+- Guard: `if (gameState.isProcessing) return`
+- Guard: `if (gameState.evaluationResult !== null) return` — prevents reset after evaluation (double submission)
+- `FeedbackManager._stopCurrentDynamic()`
+- Clear textarea, re-enable it, reset char count, hide errors/loading/feedback
+- Show expression card + writing area back
+- Restore submit button to `handleProblemSubmit`
+- `gameState.wordProblemText = ''`
+- `trackEvent('answer_reset', 'game', { round: gameState.currentRound + 1 })`
 
 **async endGame()** — as described in Flow Step 8
 
+**showResults(metrics, stars)** — renders results via TransitionScreen content slot:
+- Builds inline HTML with star display, metrics rows (Total Points, Perfect Matches, Partial Matches, Time)
+- Shows via `transitionScreen.show({ title, content: metricsHTML, persist: true, buttons: [...] })`
+- Button text: 3 stars → "Play Again", else → "Retry for more stars"
+- Button action: `FeedbackManager._stopCurrentDynamic(); restartGame();`
+
 **restartGame()** — as described in Flow Step 9
+
+**updateQuestionText(roundData)** — updates questionText slot with round/stage info:
+- Shows "Round N — Stage S: StageName" + "Write a word problem for the expression below"
+
+**createProgressBar()** — destroy-before-create helper:
+```javascript
+function createProgressBar() {
+  if (progressBar) { progressBar.destroy(); progressBar = null; }
+  progressBar = new ProgressBarComponent({
+    autoInject: true,
+    totalRounds: gameState.totalRounds || 10,
+    totalLives: 0,
+    slotId: 'mathai-progress-slot'
+  });
+}
+```
 
 **computeTriesPerRound(attempts)** — PART-011 v3 helper:
 ```javascript
 function computeTriesPerRound(attempts) {
   var rounds = {};
   attempts.forEach(function(a) {
-    var r = a.metadata.round;
+    var r = (a.metadata && a.metadata.round) ? a.metadata.round : 0;
     rounds[r] = (rounds[r] || 0) + 1;
   });
   return Object.keys(rounds).map(function(r) {
@@ -1412,41 +1526,65 @@ function computeTriesPerRound(attempts) {
 }
 ```
 
-**async validateWordProblemLLM(wordProblem, expression, expressionDisplay, expectedResult, rubric)** — PART-015 (PRIMARY EVALUATION):
+**formatTime(seconds)** — display helper:
+```javascript
+function formatTime(seconds) {
+  var m = Math.floor(seconds / 60);
+  var s = seconds % 60;
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+```
+
+**async validateWordProblemLLM(wordProblem, expression, expressionDisplay, expectedResult, rubric)** — PART-015 (PRIMARY EVALUATION via `MathAIHelpers.SubjectiveEvaluation.evaluate()`):
 ```javascript
 async function validateWordProblemLLM(wordProblem, expression, expressionDisplay, expectedResult, rubric) {
   try {
-    var result = await subjectiveEvaluation({
-      components: [
-        {
-          component_id: 'wp_' + gameState.currentRound,
-          evaluation_prompt: 'Math expression: "' + expressionDisplay + '" (result = ' + expectedResult + ')\nStudent\'s word problem: "' + wordProblem + '"\nRubric: ' + rubric + '\n\nEvaluate whether the student\'s word problem correctly represents the given math expression.\n\nBe GENEROUS and BROAD in your evaluation — this is a Grade 4 student being creative. Accept any word problem that demonstrates understanding of the math, even if:\n- The items are different types (e.g., "5 apples and 3 oranges = 8 fruits" for 5+3=8 is CORRECT)\n- The wording is informal, uses slang, or has minor grammar/spelling mistakes\n- The story is silly, fantastical, or uses unusual scenarios\n- The student describes the result explicitly (e.g., "together they had 8") rather than posing it as a question\n- The student uses names, places, or cultural references\n\nWhat matters is:\n1. The correct quantities from the expression appear in the story\n2. The relationship between quantities matches the operation (addition = combining/joining/getting more, subtraction = removing/losing/giving away, multiplication = equal groups/repeated sets, division = sharing equally/splitting)\n3. The math works out to the correct result\n\nReturn ONLY one of these three words — nothing else, no quotes, no explanation:\ncorrect_match\npartial_match\nno_match\n\n- correct_match: the word problem correctly represents the expression (quantities and operation meaning are right)\n- partial_match: captures the general idea but has a clear math error (wrong number, wrong operation)\n- no_match: does not represent the expression at all, or is incoherent/irrelevant',
-          feedback_prompt: 'You are a friendly math tutor helping a Grade 4 student learn to write word problems.\n\nMath expression: "' + expressionDisplay + '"\nStudent\'s word problem: "' + wordProblem + '"\nEvaluation: {{evaluation}}\n\nProvide a short (2-3 sentence) encouraging feedback:\n- If "correct_match": Praise their creativity and point out what made their word problem work well (specific quantities, correct operation meaning)\n- If "partial_match": Acknowledge what they got right, then gently explain what needs to change (e.g., wrong quantity, wrong operation meaning)\n- If "no_match": Be kind and encouraging, explain what the expression means in simple terms, and suggest what kind of real-world situation could match it\n\nKeep it warm and age-appropriate for a Grade 4 student. Use simple language.'
-        }
-      ],
-      onComplete: function(response) {
-        console.log('Subjective evaluation complete:', JSON.stringify(response, null, 2));
-      },
-      onError: function(error) {
-        console.error('Subjective evaluation error:', JSON.stringify({ error: error.message }, null, 2));
-      },
+    // Sanitize answer — escape quotes to prevent prompt injection
+    var sanitizedProblem = wordProblem.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
+
+    var result = await MathAIHelpers.SubjectiveEvaluation.evaluate({
+      components: [{
+        component_id: 'wp_' + gameState.currentRound,
+        evaluation_prompt: 'Math expression: "' + expressionDisplay + '" (result = ' + expectedResult + ')\n'
+          + 'Student\'s word problem: "' + sanitizedProblem + '"\n'
+          + 'Rubric: ' + rubric + '\n\n'
+          + 'Evaluate whether the student\'s word problem correctly represents the given math expression.\n\n'
+          + 'Be GENEROUS and BROAD in your evaluation — this is a Grade 4 student being creative. Accept any word problem that demonstrates understanding of the math, even if:\n'
+          + '- The items are different types\n'
+          + '- The wording is informal, uses slang, or has minor grammar/spelling mistakes\n'
+          + '- The story is silly, fantastical, or uses unusual scenarios\n'
+          + '- The student describes the result explicitly rather than posing it as a question\n\n'
+          + 'IMPORTANT: Profanity, insults, abuse, and offensive language are NEVER correct. They are ALWAYS no_match.\n'
+          + 'The word "idk" or "I don\'t know" as a standalone answer means the student doesn\'t know — classify as no_match.\n\n'
+          + 'What matters is:\n'
+          + '1. The correct quantities from the expression appear in the story\n'
+          + '2. The relationship between quantities matches the operation\n'
+          + '3. The math works out to the correct result\n\n'
+          + 'Return ONLY one of these three words — nothing else, no quotes, no explanation:\n'
+          + 'correct_match\npartial_match\nno_match',
+        feedback_prompt: 'You are a friendly math tutor helping a Grade 4 student learn to write word problems.\n\n'
+          + 'Math expression: "' + expressionDisplay + '"\n'
+          + 'Student\'s word problem: "' + sanitizedProblem + '"\n'
+          + 'Evaluation: {{evaluation}}\n\n'
+          + 'Provide a short (2-3 sentence) encouraging feedback.\n'
+          + 'Keep it warm and age-appropriate for a Grade 4 student. Use simple language.'
+      }],
       timeout: 30000
     });
 
     // Guard against malformed API response
     if (!result || !result.data || !result.data[0]) {
       console.error('Subjective evaluation returned malformed response:', JSON.stringify(result, null, 2));
-      return { tier: 'no_match', evaluation: '', feedback: 'We couldn\'t evaluate your word problem this time. Keep trying — writing word problems gets easier with practice!' };
+      return { tier: 'no_match', evaluation: '', feedback: 'We couldn\'t evaluate your word problem this time. Keep trying!' };
     }
 
     var componentResult = result.data[0];
     var evalText = (componentResult.evaluation || '').trim().toLowerCase().replace(/[^a-z_]/g, '');
 
-    // Normalize evaluation to expected tiers (use includes for robustness —
-    // LLM may return extra text around the tier keyword)
+    // Normalize evaluation to expected tiers (indexOf for ES5 compat — no .includes())
     var tier = 'no_match';
-    if (evalText.includes('correct_match')) tier = 'correct_match';
-    else if (evalText.includes('partial_match')) tier = 'partial_match';
+    if (evalText.indexOf('correct_match') !== -1) tier = 'correct_match';
+    else if (evalText.indexOf('partial_match') !== -1) tier = 'partial_match';
 
     return {
       tier: tier,
@@ -1458,7 +1596,7 @@ async function validateWordProblemLLM(wordProblem, expression, expressionDisplay
     if (typeof Sentry !== 'undefined') {
       Sentry.captureException(error, { tags: { phase: 'llm-evaluation', component: 'SubjectiveEvaluation', severity: 'high' } });
     }
-    return { tier: 'no_match', evaluation: '', feedback: 'We couldn\'t evaluate your word problem this time. Keep trying — writing word problems gets easier with practice!' };
+    return { tier: 'no_match', evaluation: '', feedback: 'We couldn\'t evaluate your word problem this time. Keep trying!' };
   }
 }
 ```
@@ -1470,24 +1608,47 @@ async function validateWordProblemLLM(wordProblem, expression, expressionDisplay
 ### Audio Preload
 
 ```
-correct_tap: https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501597903.mp3
-wrong_tap: https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501956470.mp3
+correct_sound_effect: https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3
+incorrect_sound_effect: https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3
+victory_sound_effect: https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3
+victory: https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/e252bcc4-bd5f-4195-ad04-a02582095b6d.mp3
+game_complete_sound_effect: https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3
+game_complete_1_star: https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/2ee85ea3-919b-4010-95a2-40bcd7d90d22.mp3
+game_complete_2_star: https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/84f4ff34-6e59-43d6-9663-4d9936cad002.mp3
 ```
 
-### Stickers
+**Note:** `game_over_sound_effect` and `game_over` are NOT preloaded — the game has no game-over state (all players complete all 10 rounds).
+
+### Sticker URLs
 
 ```
-correct: https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-30.gif (IMAGE_GIF)
-incorrect: https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-49.gif (IMAGE_GIF)
-trophy: https://cdn.mathai.ai/mathai-assets/lottie/trophy.json (Lottie)
+CORRECT_STICKER_URL: https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-20.gif (IMAGE_GIF)
+INCORRECT_STICKER_URL: https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-28.gif (IMAGE_GIF)
+VICTORY_STICKER_URL: https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-98.gif (IMAGE_GIF)
+GAME_COMPLETE_STICKER_URL: https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-25.gif (IMAGE_GIF)
+
+Round stickers (plain URL strings for playDynamicFeedback):
+ROUND_STICKER_1: https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-44.gif
+ROUND_STICKER_2: https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-47.gif
+ROUND_STICKER_3: https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-52.gif
 ```
+
+### Sticker Format Rules
+
+- **`sound.play()` sticker** → object: `{ sticker: { image: URL, duration: N, type: 'IMAGE_GIF' } }`
+- **`playDynamicFeedback()` sticker** → plain URL string: `{ sticker: URL_STRING }`
+- NEVER mix formats.
 
 ### Audio Flow per Interaction
 
-- **Word problem evaluated — correct_match:** `await FeedbackManager.sound.play('correct_tap', { sticker: CORRECT_STICKER })` then TTS with LLM feedback
-- **Word problem evaluated — partial_match:** `await FeedbackManager.sound.play('wrong_tap', { sticker: INCORRECT_STICKER })` then TTS with LLM feedback
-- **Word problem evaluated — no_match:** `await FeedbackManager.sound.play('wrong_tap', { sticker: INCORRECT_STICKER })` then TTS with LLM feedback (falls back to `revealExplanation`)
-- **End game:** `await FeedbackManager.playDynamicFeedback()` with trophy sticker — announces total points and breakdown
+- **Welcome VO (start screen):** `playDynamicFeedback({ audio_content, subtitle, sticker: ROUND_STICKER_1 })` — awaited, only once via `voGameStartPlayed` flag
+- **Round intro VO:** `playDynamicFeedback({ audio_content, subtitle, sticker: ROUND_STICKERS[i] })` — fire-and-forget on transition screen
+- **Stage intro VO:** `playDynamicFeedback({ audio_content, subtitle, sticker: ROUND_STICKERS[i] })` — fire-and-forget on transition screen
+- **Word problem evaluated — correct_match:** SFX `correct_sound_effect` (fire-and-forget with `.catch()`) + sticker → then `playDynamicFeedback` with LLM feedback (awaited)
+- **Word problem evaluated — partial_match / no_match:** SFX `incorrect_sound_effect` (fire-and-forget with `.catch()`) + sticker → then `playDynamicFeedback` with LLM feedback (awaited)
+- **End game — 3 stars:** `await sound.play('victory_sound_effect', { sticker: VICTORY })` → `await sound.play('victory')`
+- **End game — 2 stars:** `await sound.play('game_complete_sound_effect', { sticker: GAME_COMPLETE })` → `await sound.play('game_complete_2_star')`
+- **End game — 1 star:** `await sound.play('game_complete_sound_effect', { sticker: GAME_COMPLETE })` → `await sound.play('game_complete_1_star')`
 
 ---
 
@@ -1495,46 +1656,89 @@ trophy: https://cdn.mathai.ai/mathai-assets/lottie/trophy.json (Lottie)
 
 | # | Moment | Trigger | Audio Type | Content / Sound ID | Await? | Notes |
 |---|--------|---------|------------|--------------------|--------|-------|
-| 1 | Word problem — correct_match | handleProblemSubmit (correct_match) | Static + Sticker | `await FeedbackManager.sound.play('correct_tap', { sticker: CORRECT_STICKER })` | ✅ Awaited | ✅ badge shown; correct GIF sticker |
-| 2 | Word problem — partial_match | handleProblemSubmit (partial_match) | Static + Sticker | `await FeedbackManager.sound.play('wrong_tap', { sticker: INCORRECT_STICKER })` | ✅ Awaited | 🔶 badge shown; incorrect GIF sticker |
-| 3 | Word problem — no_match | handleProblemSubmit (no_match) | Static + Sticker | `await FeedbackManager.sound.play('wrong_tap', { sticker: INCORRECT_STICKER })` | ✅ Awaited | ❌ badge shown; incorrect GIF sticker |
-| 4 | Evaluation feedback TTS | After evaluation complete | Dynamic TTS | `await FeedbackManager.playDynamicFeedback()` with `result.feedback` (fallback: `revealExplanation`) | ✅ Awaited* | Personalized LLM feedback; streaming may resolve early |
-| 5 | Game end | endGame() | Dynamic TTS + Sticker | `await FeedbackManager.playDynamicFeedback()` + trophy sticker | ✅ Awaited* | Points breakdown TTS; streaming may resolve early |
+| 1 | Welcome VO | DOMContentLoaded (after canPlayAudio) | Dynamic TTS | `playDynamicFeedback({ audio_content: 'Welcome to the Word Problem Workshop!...', sticker: ROUND_STICKER_1 })` | ✅ Awaited* | Only once via `voGameStartPlayed` flag; streaming may resolve early |
+| 2 | Round intro VO | showRoundTransition() | Dynamic TTS | `playDynamicFeedback({ audio_content: 'Round N! Write a word problem for...', sticker: ROUND_STICKERS[i] })` | ❌ Fire-and-forget | Stopped by `_stopCurrentDynamic()` in button action |
+| 3 | Stage intro VO | showStageTransition() | Dynamic TTS | `playDynamicFeedback({ audio_content: 'Stage N: StageName!...', sticker: ROUND_STICKERS[i] })` | ❌ Fire-and-forget | Stopped by `_stopCurrentDynamic()` in button action |
+| 4 | Correct SFX | handleProblemSubmit (correct_match) | Static + Sticker | `sound.play('correct_sound_effect', { sticker: { image: CORRECT_STICKER_URL, duration: 2, type: 'IMAGE_GIF' } })` | ❌ Fire-and-forget | `.catch()` attached; short SFX overlaps start of TTS |
+| 5 | Incorrect SFX | handleProblemSubmit (partial/no_match) | Static + Sticker | `sound.play('incorrect_sound_effect', { sticker: { image: INCORRECT_STICKER_URL, duration: 2, type: 'IMAGE_GIF' } })` | ❌ Fire-and-forget | `.catch()` attached; short SFX overlaps start of TTS |
+| 6 | Evaluation feedback TTS | handleProblemSubmit (after SFX) | Dynamic TTS | `playDynamicFeedback({ audio_content: result.feedback, sticker: dynamicSticker })` | ✅ Awaited* | Sequential after #4/#5; btn shows "Playing Feedback..."; streaming may resolve early |
+| 7a | Victory SFX (3★) | endGame() | Static + Sticker | `await sound.play('victory_sound_effect', { sticker: { image: VICTORY_STICKER_URL, duration: 3, type: 'IMAGE_GIF' } })` | ✅ Awaited | Blocks until SFX ends |
+| 7b | Victory voice (3★) | endGame() after #7a | Static | `await sound.play('victory')` | ✅ Awaited | Sequential after #7a |
+| 8a | Complete SFX (2★) | endGame() | Static + Sticker | `await sound.play('game_complete_sound_effect', { sticker: { image: GAME_COMPLETE_STICKER_URL, duration: 3, type: 'IMAGE_GIF' } })` | ✅ Awaited | Blocks until SFX ends |
+| 8b | Complete voice (2★) | endGame() after #8a | Static | `await sound.play('game_complete_2_star')` | ✅ Awaited | Sequential after #8a |
+| 9a | Complete SFX (1★) | endGame() | Static + Sticker | `await sound.play('game_complete_sound_effect', { sticker: { image: GAME_COMPLETE_STICKER_URL, duration: 3, type: 'IMAGE_GIF' } })` | ✅ Awaited | Blocks until SFX ends |
+| 9b | Complete voice (1★) | endGame() after #9a | Static | `await sound.play('game_complete_1_star')` | ✅ Awaited | Sequential after #9a |
 
 **Notes:**
-- Rows 1-3 and 4 are sequential within the same handler — sound plays first, then TTS.
-- No overlapping audio risk — each audio moment is guarded by `isProcessing`.
+- Rows 4/5 and 6 are within the same handler — SFX fires immediately (fire-and-forget), then TTS is awaited. Brief SFX overlap with TTS start is intentional (short sound effect under voice).
+- Rows 7a/7b, 8a/8b, 9a/9b are sequential awaits — SFX plays to completion, then voice starts. Only one path executes based on star count.
+- All transition screen VOs (#2, #3) are stopped by `FeedbackManager._stopCurrentDynamic()` when the user taps the button — no audio bleed.
+- PostMessage `game_complete` is sent BEFORE end-game audio (#7-9) so parent is not blocked.
 
 ---
 
 ## 12. Review Findings
 
-- **Info — First fully-subjective evaluation game:** Unlike "Estimate It!" which uses hybrid validation (deterministic accuracy + LLM reasoning), this game uses `subjectiveEvaluation()` as the **sole and primary** evaluation mechanism. There is no deterministic check — the LLM determines correctness, partial-correctness, and provides feedback. This makes the game a pure showcase of the subjective evaluation pipeline.
+### Production Patterns Applied
 
-- **Info — Three-tier evaluation:** The LLM returns one of three tiers (`correct_match`, `partial_match`, `no_match`) instead of a binary correct/incorrect. This allows nuanced scoring (3/1/0 points) that rewards students who are close but not perfect, encouraging iteration and learning.
+- **No `let`/`const`** — all variables use `var` (ES5 compat for iframe environment)
+- **No optional chaining (`?.`)** — all null checks use explicit `&&` guards
+- **No `.includes()`** — uses `.indexOf() !== -1` for ES5 compat
+- **No `<template>` tags** — game HTML injected via string concatenation in JS
+- **No `#results-screen` div** — results shown via TransitionScreen `content` slot
+- **No `syncDOMState()`** — removed; state-driven DOM is unnecessary with direct DOM manipulation
+- **Answer sanitization** — escape `\`, `"`, `\n` in user input before injecting into LLM prompts
+- **SentryConfig + 3 SDK scripts** — not single `bundle.min.js`
+- **ScreenLayout v2 `sections` API** — not deprecated `slots` API
+- **`MathAIHelpers.SubjectiveEvaluation.evaluate()`** — not standalone `subjectiveEvaluation()`
+- **`canPlayAudio()` polling** — `setInterval(200ms)` + `setTimeout(15000ms)` before first audio
+- **`voGameStartPlayed` flag** — welcome VO plays only once, even across restarts
+- **`visibilityTrackerConfig` saved** — reused in `restartGame()` to recreate VisibilityTracker
+- **`createProgressBar()` helper** — destroy-before-create pattern
+- **`persist: true`** on ALL transition screens
+- **`transitionScreen.hide()`** — explicit call in every button action (does NOT auto-hide)
+- **`FeedbackManager._stopCurrentDynamic()`** — called in every transition button action for full cleanup
+- **`gameState.gameEnded` guard** — prevents cleanup race condition in `endGame()`
+- **`recordViewEvent()` before `seal()`** — seal freezes collector
+- **`postMessage` before audio** in endGame — so parent isn't blocked
+- **EventCapture guarded init** — `try { if (typeof EventCapture !== 'undefined') EventCapture.init(); } catch(e) {}`
 
-- **Info — Subjective Evaluation API:** Uses `subjectiveEvaluation()` global function from the subjective-evaluation package (NOT `MathAIHelpers.SubjectiveEvaluation`). The API controls BOTH evaluation (clean verdict: `"correct_match"` / `"partial_match"` / `"no_match"`) AND feedback (personalized response generated via `feedback_prompt` with `{{evaluation}}` substitution). The TTS audio plays the API's feedback text, falling back to `revealExplanation` only if the API response has no feedback.
+### Informational Notes
 
-- **Info — No deterministic fallback:** Because the primary evaluation IS the LLM, there is no "correct answer" to compare against. If the API fails, the game gracefully awards 0 points and shows the example word problem + hint as a learning fallback. The kid is never stuck.
+- **Info — First fully-subjective evaluation game:** Uses `MathAIHelpers.SubjectiveEvaluation.evaluate()` as the **sole and primary** evaluation mechanism. No deterministic check — the LLM determines correctness, partial-correctness, and provides feedback.
 
-- **Info — No lives:** This game uses no lives (totalLives: 0, reported as 1 per PART-011 convention). The ProgressBar shows round progress only. The creative nature of the task encourages exploration without fear of failure.
+- **Info — Three-tier evaluation:** The LLM returns one of three tiers (`correct_match`, `partial_match`, `no_match`) instead of a binary correct/incorrect. This allows nuanced scoring (3/1/0 points) that rewards students who are close but not perfect.
 
-- **Info — Evaluation loading state:** When the LLM evaluates the word problem, the Submit button is disabled and shows "Evaluating..." text. This prevents double-submission and gives visual feedback that processing is happening. The button is re-enabled on both success and error via try/catch/finally (PART-015 rules).
+- **Info — Subjective Evaluation API:** Uses `MathAIHelpers.SubjectiveEvaluation.evaluate()` from the helpers package. The API controls BOTH evaluation (clean verdict) AND feedback (personalized response generated via `feedback_prompt` with `{{evaluation}}` substitution). The TTS audio plays the API's feedback text, falling back to `revealExplanation` only if the API response has no feedback.
 
-- **Warning — LLM latency:** The `validateWordProblemLLM` call via `subjectiveEvaluation()` may take 2-10 seconds depending on API load. The 30-second timeout covers worst-case scenarios. If the API fails, a graceful fallback message is shown and the kid gets 0 points (no crash). Uses `onComplete`/`onError` callbacks for logging.
+- **Info — No deterministic fallback:** If the API fails, the game gracefully awards 0 points and shows the example word problem + hint as a learning fallback. The kid is never stuck.
 
-- **Warning — LLM evaluation reliability:** Since the LLM is the ONLY evaluation, prompt engineering is critical. The evaluation_prompt is intentionally GENEROUS — it accepts creative, informal, and unconventional word problems as long as the quantities, operation, and result are mathematically correct (e.g., "5 apples and 3 oranges = 8 fruits" is valid for 5+3=8). The prompt instructs the LLM to return ONLY the tier keyword with no extra text. The `tier` normalization in `validateWordProblemLLM` uses `includes()` matching and strips non-alpha characters for robustness — if the LLM adds quotes, punctuation, or explanation around the tier keyword, it still parses correctly. Defaults to `no_match` only for truly unrecognizable responses.
+- **Info — No lives:** This game uses no lives (totalLives: 0, reported as 1 per PART-011 convention). The ProgressBar shows round progress only.
 
-- **Info — Example word problem as fallback:** When the evaluation is not `correct_match`, the game shows both a thinking hint (`thinkAbout`) and a complete example word problem (`exampleWordProblem`). This ensures the kid always sees what a correct answer looks like, even when the LLM evaluation service fails.
+- **Info — Evaluation loading state:** Submit button disabled with "Evaluating..." text during LLM call. Repurposed to "Next Round" / "See Results" after evaluation. Re-enabled on both success and error.
 
-- **Info — Content generation safety:** Division expressions MUST result in whole numbers (no remainders). Multi-step expressions must follow standard order of operations. The `result` field must exactly match the evaluated expression — content validators should programmatically verify this.
+- **Warning — LLM latency:** The `validateWordProblemLLM` call may take 2-10 seconds. The 30-second timeout covers worst-case scenarios. Graceful fallback on failure.
 
-- **Info — SignalCollector v3 compliance:** Uses `recordViewEvent()` for content_render, screen_transition, and feedback_display. Uses `recordCustomEvent()` for round_solved and visibility events. Calls `startFlushing()` after game_init, `seal()` in endGame. No deprecated v2 methods. PostMessage uses `game_complete` type with PART-011 v3 metrics format including `tries` and `totalLives`.
+- **Warning — LLM evaluation reliability:** Prompt engineering is critical. The evaluation_prompt includes profanity/abuse guard (always `no_match`), "idk" guard, and generous acceptance of creative answers. Tier normalization uses `indexOf` matching and strips non-alpha characters for robustness.
 
-- **Info — User-paced feedback:** After evaluation, the kid sees the full feedback card and taps "Next Round →" when ready. No auto-advance timer — the kid controls the pace, which is important since the feedback contains the LLM evaluation, hints, and example word problem.
+- **Info — SFX overlap with TTS is intentional:** SFX fire-and-forget followed immediately by `playDynamicFeedback` creates brief overlap. This is the accepted pattern — short SFX under start of TTS voice.
 
-- **Info — `game_ready` event:** After DOMContentLoaded initialization completes (packages loaded, ScreenLayout injected, components created), the game fires `trackEvent('game_ready', ...)` and sends `window.parent.postMessage({ type: 'game_ready' }, '*')`. This signals to the parent iframe that the game is ready to receive `game_init` with content.
+- **Info — Content generation safety:** Division expressions MUST result in whole numbers. The `result` field must exactly match the evaluated expression.
 
-- **Info — Play Again replays same content:** `restartGame()` preserves and reuses the same content. For varied replay experiences, the parent should send a new content set via `game_init` postMessage on restart. With fallback content, the kid may recall example word problems shown during the first play — this is an acceptable tradeoff for a practice game, since even recalling a correct example reinforces understanding of operation meaning.
+- **Info — SignalCollector v3 compliance:** Uses `recordViewEvent()` for content_render, screen_transition, and feedback_display. Uses `recordCustomEvent()` for round_solved and visibility events. Calls `startFlushing()` after game_init, `seal()` in endGame.
 
-- **Info — Stage 3 parentheses:** Stage 3 expressions use explicit parentheses in `expressionDisplay` (e.g., `(4 x 5) + (3 x 2) = 26`) to remove order-of-operations ambiguity for Grade 4 students. The underlying `expression` field retains the raw form for the LLM rubric. Content generators MUST add parentheses to Stage 3 `expressionDisplay` whenever the result would differ if the expression were evaluated left-to-right.
+- **Info — Stage 3 parentheses:** Stage 3 expressions use explicit parentheses in `expressionDisplay` to remove order-of-operations ambiguity for Grade 4 students.
+
+### Open Review Findings (from spec review)
+
+1. **⚠️ Warning · Completeness — Unused preloaded audio:** `game_over_sound_effect` and `game_over` were removed from preload list since the game has no game-over state (all players complete all 10 rounds). ✅ Fixed in production HTML.
+
+2. **⚠️ Warning · Interaction — Reset button allows double submission:** ✅ Fixed. Added `if (gameState.evaluationResult !== null) return` guard in `handleReset()`. Also `#btn-reset` is hidden during feedback phase by `showFeedbackUI()` and re-shown by `setupRound()`.
+
+3. **ℹ️ Info · Interaction — SFX overlap with TTS:** Accepted as intentional pattern.
+
+4. **ℹ️ Info · Completeness — Unhandled promise rejections in transition VOs:** `showRoundTransition()` and `showStageTransition()` call `playDynamicFeedback()` without `.catch()` on the returned promise. Wrapped in try/catch in production HTML.
+
+5. **⚠️ Warning · Promise — Duplicate `game_start` event:** `trackEvent('game_start')` fires in both `restartGame()` and `startGame()`. Should be removed from `restartGame()`.
+
+6. **ℹ️ Info · Completeness — `startTime` not nulled in restart:** Defensive fix: `gameState.startTime = null` added to reset block in production HTML.

@@ -35,15 +35,15 @@
 | PART-016 | StoriesComponent                 | NO              | —                                                                                                                                                                                                                              |
 | PART-017 | Feedback Integration             | YES             | Extension — 20 preloaded sounds (levels, rounds, gameplay SFX, end-game) + 13 stickers via FeedbackManager.sound.preload(). No playDynamicFeedback — all audio is pre-recorded.                                                |
 | PART-018 | Case Converter                   | NO              | —                                                                                                                                                                                                                              |
-| PART-019 | Results Screen UI                | YES             | Custom metrics: time, rounds completed, accuracy                                                                                                                                                                               |
+| PART-019 | Results Screen UI                | YES             | Custom metrics via TransitionScreen content slot (time, rounds completed, wrong attempts, accuracy). No standalone #results-screen div.                                                                                        |
 | PART-020 | CSS Variables & Colors           | YES             | —                                                                                                                                                                                                                              |
 | PART-021 | Screen Layout CSS                | YES             | —                                                                                                                                                                                                                              |
 | PART-022 | Game Buttons                     | YES             | —                                                                                                                                                                                                                              |
 | PART-023 | ProgressBar Component            | YES             | totalRounds: 9, totalLives: 3                                                                                                                                                                                                  |
-| PART-024 | TransitionScreen Component       | YES             | Screens: start, victory, game-over                                                                                                                                                                                             |
-| PART-025 | ScreenLayout Component           | YES             | slots: progressBar=true, transitionScreen=true                                                                                                                                                                                 |
+| PART-024 | TransitionScreen Component       | YES             | Screens: level-intro, round-intro, victory, game-over. No welcome screen — game starts directly at Level 1.                                                                                                                   |
+| PART-025 | ScreenLayout Component           | YES             | v2 sections API: header, questionText, progressBar, playArea, transitionScreen                                                                                                                                                 |
 | PART-026 | Anti-Patterns                    | YES (REFERENCE) | Verification checklist, not code-generating                                                                                                                                                                                    |
-| PART-030 | Sentry Error Tracking            | YES             | SentryConfig + Sentry SDK v10.23.0, global error handlers, breadcrumbs                                                                                                                                                         |
+| PART-030 | Sentry Error Tracking            | YES             | SentryConfig + Sentry SDK v10.23.0 (3 scripts: bundle, captureconsole, browserprofiling), global error handlers, breadcrumbs                                                                                                   |
 | PART-027 | Play Area Construction           | YES             | Layout: two-column matching (Number                                                                                                                                                                                            | Doubles) |
 | PART-028 | InputSchema Patterns             | YES             | Schema type: rounds with number arrays                                                                                                                                                                                         |
 | PART-033 | Interaction Patterns             | NO              | Custom left-right tap matching                                                                                                                                                                                                 |
@@ -90,13 +90,15 @@ window.gameState = {
   currentRoundData: null, // { numbers: [...], doubles: [...] } for current round
   matchedPairs: new Set(), // Set of left indices that have been correctly matched
   wrongAttempts: 0, // Total wrong attempts across all rounds
+  voGameStartPlayed: false, // Guards canPlayAudio() polling — only happens once
 };
 
-let timer = null;
-let visibilityTracker = null;
-let progressBar = null;
-let transitionScreen = null;
-let signalCollector = null;
+var timer = null;
+var visibilityTracker = null;
+var progressBar = null;
+var transitionScreen = null;
+var signalCollector = null;
+var visibilityTrackerConfig = null;
 ```
 
 ---
@@ -220,60 +222,32 @@ Generate **3 content sets** at different difficulty levels. All sets must have e
 
 ## 5. Screens & HTML Structure
 
-### Body HTML (uses `<template>` for ScreenLayout compatibility — PART-025)
+### Body HTML (ScreenLayout v2 — PART-025)
 
 ```html
 <div id="app"></div>
+```
 
-<template id="game-template">
+- Body contains ONLY `<div id="app"></div>` — no `<template>` tag
+- `ScreenLayout.inject('app', { sections: { header, questionText, progressBar, playArea, transitionScreen } })` creates the layout structure
+- Game content is built via JS (innerHTML) into `#gameContent` after `ScreenLayout.inject()`
+- No `#results-screen` div — results are shown via `transitionScreen.show()` with `content` slot
+- Question text container (with both main instruction and sub-instruction) injected into `mathai-question-slot` via `layout.questionText`
+- Timer container injected into header slot with centering styles: `style="display:flex;justify-content:center;align-items:center;padding:8px 0;"`
+- Play area HTML built into `#gameContent` contains only the matching-area grid:
+  ```html
   <div id="game-screen" class="game-block">
-    <div id="timer-container"></div>
-
-    <div class="instruction-area">
-      <p class="instruction-text">Match the numbers with their <strong>doubles</strong>!</p>
-      <p class="instruction-text-sub">Complete all rounds within 1 minute to earn 3 stars!</p>
-    </div>
-
     <div class="matching-area" id="matching-area">
       <div class="column-headers">
         <span class="column-header">Number</span>
         <span class="column-header">Doubles</span>
       </div>
       <div class="matching-grid" id="matching-grid" data-signal-id="matching-grid">
-        <!-- Rows generated by JavaScript: each left cell gets data-signal-id="left-cell-{i}", each right cell gets data-signal-id="right-cell-{i}" -->
+        <!-- Rows generated by JavaScript -->
       </div>
     </div>
   </div>
-
-  <div id="results-screen" class="game-block hidden">
-    <div class="results-card">
-      <div id="stars-display" class="stars-display"></div>
-      <h2 class="results-title" id="results-title">Great Job!</h2>
-      <div class="results-metrics">
-        <div class="metric-row">
-          <span class="metric-label">Time</span>
-          <span class="metric-value" id="result-time">0:00</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Rounds Completed</span>
-          <span class="metric-value" id="result-rounds">0/9</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Wrong Attempts</span>
-          <span class="metric-value" id="result-wrong">0</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Accuracy</span>
-          <span class="metric-value" id="result-accuracy">0%</span>
-        </div>
-      </div>
-      <button class="game-btn btn-primary" id="btn-restart" data-signal-id="restart-button" onclick="restartGame()">
-        Play Again
-      </button>
-    </div>
-  </div>
-</template>
-```
+  ```
 
 ---
 
@@ -292,6 +266,7 @@ Generate **3 content sets** at different difficulty levels. All sets must have e
   --mathai-light-gray: #f2f2f2;
   --mathai-white: #ffffff;
   --mathai-black: #1a1a2e;
+  --mathai-text-primary: #000000;
   --mathai-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --mathai-font-size-title: 24px;
   --mathai-font-size-body: 16px;
@@ -311,11 +286,41 @@ Generate **3 content sets** at different difficulty levels. All sets must have e
   margin: 0;
   padding: 0;
 }
+html, body {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
 body {
   font-family: var(--mathai-font-family);
   background: var(--mathai-white);
-  color: var(--mathai-black);
+  color: var(--mathai-text-primary, #000000);
   -webkit-font-smoothing: antialiased;
+}
+
+/* === ScreenLayout Overrides === */
+.mathai-layout-root {
+  max-width: 480px;
+  margin: 0 auto;
+}
+.mathai-layout-playarea {
+  /* Do NOT use !important on display — TransitionScreen toggles #gameContent.style.display inline */
+  flex-direction: column !important;
+  align-items: center !important;
+  padding: 8px 16px !important;
+}
+.mathai-ts-screen.active {
+  flex: 1;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 16px;
+}
+.mathai-ts-card {
+  min-height: 50dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 /* === Game Block === */
@@ -328,24 +333,23 @@ body {
   gap: 12px;
 }
 
-/* === Instruction Area === */
-.instruction-area {
+/* === Question Text Container === */
+.question-text-container {
   width: 100%;
   max-width: 340px;
   margin: 0 auto;
+  padding: 8px 16px;
   text-align: center;
 }
 
 .instruction-text {
   font-size: var(--mathai-font-size-body);
-  color: var(--mathai-black);
+  color: var(--mathai-text-primary, #000000);
   line-height: 1.5;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
-.instruction-text strong {
-  font-weight: 700;
-}
+.instruction-text strong { font-weight: 700; }
 
 .instruction-text-sub {
   font-size: var(--mathai-font-size-label);
@@ -400,11 +404,17 @@ body {
   border-radius: 10px;
   font-size: 20px;
   font-weight: 600;
-  color: var(--mathai-black);
+  color: var(--mathai-text-primary, #000000);
   cursor: pointer;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
   transition: all 0.15s ease;
   background: var(--mathai-white);
+}
+
+.number-cell:active:not(.matched):not(.disabled) {
+  transform: scale(0.95);
 }
 
 /* Left column — interactable by default */
@@ -471,36 +481,13 @@ body {
   filter: brightness(0.9);
 }
 
-/* === Results Screen (PART-019) === */
-.results-card {
-  background: var(--mathai-white);
-  border-radius: 16px;
-  padding: 32px 24px;
-  text-align: center;
-  max-width: 360px;
-  width: 100%;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.results-title {
-  font-size: var(--mathai-font-size-title);
-  margin-bottom: 24px;
-  color: var(--mathai-black);
-}
-
-.stars-display {
-  font-size: 40px;
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
+/* === Results Metrics (shown via TransitionScreen content slot — PART-019) === */
 .results-metrics {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 24px;
+  margin: 16px 0;
+  width: 100%;
 }
 
 .metric-row {
@@ -518,12 +505,7 @@ body {
 .metric-value {
   font-weight: 700;
   font-size: var(--mathai-font-size-body);
-  color: var(--mathai-black);
-}
-
-/* === Utility === */
-.hidden {
-  display: none !important;
+  color: var(--mathai-text-primary, #000000);
 }
 ```
 
@@ -534,34 +516,39 @@ body {
 1. **Page loads** → DOMContentLoaded fires
    - Sentry initialized via `window.addEventListener('load', initSentry)` (PART-030)
    - Global error handlers registered for unhandled errors and promise rejections (PART-030)
+   - 3 Sentry SDK scripts loaded: bundle.tracing.replay.feedback.min.js, captureconsole.min.js, browserprofiling.min.js (PART-030)
    - `waitForPackages()` — **defined inline in the `<script>` block** (PART-003). Polls every 50ms (10s timeout) until all package globals exist: `ScreenLayout`, `ProgressBarComponent`, `TransitionScreenComponent`, `TimerComponent`, `FeedbackManager`, `VisibilityTracker`, `SignalCollector`. This function cannot come from an external package since its purpose is to wait for those packages to load.
    - FeedbackManager.init()
-   - Preload sounds: `FeedbackManager.sound.preload([...])` — see Section 11 for full list (level_1-3, round_1-3, rounds_sound_effect, tap_sound, correct_sound_effect, incorrect_sound_effect, new_cards, all_correct, game_over_sound_effect, game_over, game_complete_sound_effect, game_complete_1_star, game_complete_2_star, victory_sound_effect, victory, restart)
    - SignalCollector created with gameId, contentSetId (PART-010 v3)
-   - ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } })
-   - Clone `<template id="game-template">` into `#gameContent`
+   - ScreenLayout.inject('app', { sections: { header: true, questionText: true, progressBar: true, playArea: true, transitionScreen: true } }) — v2 sections API (NOT `slots`)
+   - Inject timer container into header slot with centering styles: `style="display:flex;justify-content:center;align-items:center;padding:8px 0;"`
+   - Set question text in `layout.questionText` slot: full `question-text-container` with both `.instruction-text` ("Match the numbers with their **doubles**!") and `.instruction-text-sub` ("Complete all rounds within 1 minute to earn 3 stars!") injected into `mathai-question-slot`
+   - Build play area HTML into `#gameContent` via innerHTML (NOT cloned from template)
    - TimerComponent created (increase, startTime: 0, endTime: 100000, autoStart: false, format: 'min')
+   - VisibilityTracker created (with SignalCollector pause/resume + custom events); save config as `visibilityTrackerConfig` for reuse in restartGame
    - ProgressBarComponent created (totalRounds: 9, totalLives: 3)
    - TransitionScreen created
-   - VisibilityTracker created (with SignalCollector pause/resume + custom events)
+   - Preload sounds: `FeedbackManager.sound.preload([...])` — see Section 11 for full list
+   - Fallback content set if no content received
    - Register postMessage listener: `window.addEventListener('message', handlePostMessage)`
    - Send `window.parent.postMessage({ type: 'game_ready' }, '*')` (PART-008 — parent harness waits for this before sending game_init)
-   - Show start transition screen
+   - No welcome/start screen — `startGame()` called directly, which goes to `showLevelTransition()` (Level 1 is the first screen user sees)
 
-2. **startGame()** runs (from start screen button):
+2. **startGame()** runs (called directly from init — no start screen):
    - Set gameState.startTime = Date.now()
    - Set gameState.isActive = true
    - Set duration_data.startTime = new Date().toISOString()
    - progressBar.update(0, gameState.lives)
    - trackEvent('game_start', 'game')
-   - showLevelTransition() → which shows "Level 1" screen, plays level_1 audio, user clicks "I'm ready" → showRoundTransition()
+   - Calls showLevelTransition() directly → which shows "Level 1" screen, polls canPlayAudio() on first call, plays level_1 audio, user clicks "I'm ready" → showRoundTransition()
    - NOTE: timer.start() is deferred to loadRound() after transitions dismiss — timer only counts gameplay time
 
 3. **showLevelTransition()** runs:
    - Determine current level: rounds 0-2 = Level 1, rounds 3-5 = Level 2, rounds 6-8 = Level 3
-   - Show transition screen with "Level X" title, "I'm ready" button (visible immediately)
-   - Play level audio (level_1/level_2/level_3) with sticker — fire-and-forget, store reference to cancel
-   - On "I'm ready" click: stop level audio if still playing → showRoundTransition()
+   - Show Level screen FIRST (UI visible immediately) — `transitionScreen.show({ title, buttons, persist: true })`
+   - On first call only: poll `canPlayAudio()` every 200ms (15s timeout) before playing audio — `voGameStartPlayed` flag gates the polling (only happens once)
+   - Level audio is fire-and-forget (not awaited), plays AFTER canPlayAudio resolves
+   - User can click "I'm ready!" anytime to skip audio → showRoundTransition()
 
 4. **showRoundTransition()** runs:
    - Determine round-within-level: position % 3 → round_1, round_2, or round_3
@@ -578,7 +565,7 @@ body {
    - renderGrid(round)
    - Play `new_cards` sound (fire-and-forget)
 
-4. **renderGrid(round)** runs:
+6. **renderGrid(round)** runs:
    - Clear #matching-grid
    - For each index i in round.numbers:
      - Create a .matching-row div
@@ -588,7 +575,7 @@ body {
      - Add click handler on right cell → handleRightClick(i)
      - Append row to grid
 
-5. **User interaction loop:**
+7. **User interaction loop:**
    - User taps a left-side number → handleLeftClick(leftIndex)
      - If already matched → return
      - Play `tap_sound` (fire-and-forget)
@@ -623,7 +610,7 @@ body {
        - 600ms red flash is purely cosmetic (setTimeout to remove .wrong class) — does NOT block interaction
        - If lives <= 0 → endGame('game_over') called immediately (no delay)
 
-7. **roundComplete():**
+8. **roundComplete():**
    - Play `all_correct` (await) with sticker `question_audio_all_correct` and subtitle `"Good job! All cards matched!"`
    - gameState.currentRound++
    - gameState.score++
@@ -632,7 +619,7 @@ body {
    - If currentRound >= totalRounds → endGame('victory')
    - Else → check if new level (round 3→4 or 6→7): showLevelTransition(), otherwise showRoundTransition()
 
-8. **endGame(reason):**
+9. **endGame(reason):**
    - gameState.isActive = false
    - timer.pause()
    - Calculate metrics + stars based on time (including `totalLives`, `tries` from `computeTriesPerRound()`, `sessionHistory`)
@@ -645,7 +632,7 @@ body {
    - If victory with 2★: play `game_complete_sound_effect` (await) → play `game_complete_2_star` (await) with sticker `question_audio_game_complete`
    - Send postMessage `game_complete` with metrics (NO signal payload — signals stream via GCS)
    - **Component cleanup guarded by `gameState.gameEnded`:** Only destroy timer/progressBar/visibilityTracker and call `stopAll()` if `gameState.gameEnded` is still `true`. This prevents a race condition where `restartGame()` is called during end-game audio — `restartGame` sets `gameEnded = false` and recreates components, so the lingering async cleanup must not destroy them.
-   - **IMPORTANT — showResults visibility:** Use `classList.add('hidden')` / `classList.remove('hidden')` to toggle screens, NOT `style.display`. The `.hidden` CSS class uses `display: none !important` which overrides inline styles.
+   - **IMPORTANT — showResults:** Results are shown via `transitionScreen.show()` with `content` slot — no classList toggles on game-screen/results-screen.
 
 ---
 
@@ -661,11 +648,11 @@ body {
 - // NOTE: timer.start() is NOT called here — it starts in loadRound() on the first round, after all transition screens have dismissed
 - progressBar.update(0, gameState.lives)
 - trackEvent('game_start', 'game')
-- // Record screen transition from start to gameplay
-- if (signalCollector) { signalCollector.recordViewEvent('screen_transition', { screen: 'gameplay', metadata: { transition_from: 'start' } }); }
+- // Record screen transition to gameplay
+- if (signalCollector) { signalCollector.recordViewEvent('screen_transition', { screen: 'gameplay', metadata: { transition_from: 'init' } }); }
 - showLevelTransition()
 
-**async showLevelTransition()**
+**showLevelTransition()**
 
 - const levelIndex = Math.floor(gameState.currentRound / 3) // 0, 1, 2
 - const levelNum = levelIndex + 1
@@ -675,10 +662,23 @@ body {
     { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-40.gif', type: 'IMAGE_GIF' },
     { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-40.gif', type: 'IMAGE_GIF' },
   ]
-- // Play level audio fire-and-forget (user can click "I'm ready" to skip)
-- let levelAudioPlaying = true
-- FeedbackManager.sound.play(levelAudioIds[levelIndex], { sticker: levelStickers[levelIndex], subtitle: `Level ${levelNum}` }).catch(e => console.error('Level audio error:', e.message)).finally(() => { levelAudioPlaying = false; })
-- await transitionScreen.show({ title: `Level ${levelNum}`, buttons: [{ text: "I'm ready", type: 'primary', action: () => { if (levelAudioPlaying) { try { FeedbackManager.sound.stopAll(); } catch(e) {} } showRoundTransition(); } }] })
+- // Show transition screen FIRST (UI visible immediately) — NOT awaited
+- transitionScreen.show({ title: `Level ${levelNum}`, buttons: [{ text: "I'm ready! 💪", type: 'primary', action: () => { try { FeedbackManager.sound.stopAll(); } catch(e) {} showRoundTransition(); } }], persist: true })
+- // Poll canPlayAudio() on first call only (voGameStartPlayed guard)
+- if (!gameState.voGameStartPlayed) {
+    gameState.voGameStartPlayed = true;
+    try {
+      await new Promise(function(resolve) {
+        if (FeedbackManager.canPlayAudio()) return resolve();
+        var check = setInterval(function() {
+          if (FeedbackManager.canPlayAudio()) { clearInterval(check); resolve(); }
+        }, 200);
+        setTimeout(function() { clearInterval(check); resolve(); }, 15000);
+      });
+    } catch(e) {}
+  }
+- // Play level audio fire-and-forget AFTER canPlayAudio resolves
+- FeedbackManager.sound.play(levelAudioIds[levelIndex], { sticker: levelStickers[levelIndex], subtitle: `Level ${levelNum}` }).catch(e => console.error('Level audio error:', e.message))
 
 **async showRoundTransition()**
 
@@ -690,7 +690,7 @@ body {
     { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-52.gif', type: 'IMAGE_GIF' },
   ]
 - // Show round transition screen (auto-dismiss after audio)
-- transitionScreen.show({ title: `Round ${roundInLevel + 1}` })
+- transitionScreen.show({ title: `Round ${roundInLevel + 1}`, persist: true })
 - // Play rounds SFX (awaited) then round announcement (awaited) — SFX→announcement pattern, same as endGame
 - try { await FeedbackManager.sound.play('rounds_sound_effect', { sticker: roundStickers[roundInLevel], subtitle: `Round ${roundInLevel + 1}` }); } catch(e) { console.error('Round SFX error:', e.message); }
 - try { await FeedbackManager.sound.play(roundAudioIds[roundInLevel], { sticker: roundStickers[roundInLevel], subtitle: `Round ${roundInLevel + 1}` }); } catch(e) { console.error('Round announcement error:', e.message); }
@@ -876,15 +876,15 @@ body {
 - // Seal SignalCollector — fires sendBeacon to flush remaining events to GCS, stops flush timer, detaches listeners (PART-010 v3)
 - if (signalCollector) { signalCollector.seal(); }
 
+- showResults(metrics, reason)
+
 - If reason === 'game_over':
-  - showResults(metrics, reason)
   - // Play game over sounds back-to-back (both awaited)
   - try { await FeedbackManager.sound.play('game_over_sound_effect', { sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-95.gif', duration: 3, type: 'IMAGE_GIF' } }); } catch(e) { console.error('game_over_sfx error:', e.message); }
   - try { await FeedbackManager.sound.play('game_over'); } catch(e) { console.error('game_over audio error:', e.message); }
   - // game_over TTS clears on retry click (handled in restartGame)
 
-- If reason === 'victory':
-  - showResults(metrics, reason)
+- Else if reason === 'victory':
   - if stars === 3:
     - try { await FeedbackManager.sound.play('victory_sound_effect', { sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-98.gif', duration: 3, type: 'IMAGE_GIF' } }); } catch(e) { console.error('victory_sfx error:', e.message); }
     - try { await FeedbackManager.sound.play('victory'); } catch(e) { console.error('victory audio error:', e.message); }
@@ -902,17 +902,20 @@ body {
 **showResults(metrics, reason)**
 
 - // NOTE: recordViewEvent('screen_transition') for results is called in endGame() BEFORE seal()
-- // IMPORTANT: use classList, NOT inline style.display — .hidden uses !important which overrides inline styles
-- document.getElementById('game-screen').classList.add('hidden')
-- const resultsScreen = document.getElementById('results-screen'); resultsScreen.classList.remove('hidden')
-- document.getElementById('results-title').textContent = reason === 'victory' ? 'Great Job!' : 'Game Over'
-- document.getElementById('result-time').textContent = formatTime(metrics.time)
-- document.getElementById('result-rounds').textContent = `${gameState.currentRound}/${gameState.totalRounds}`
-- document.getElementById('result-wrong').textContent = gameState.wrongAttempts
-- document.getElementById('result-accuracy').textContent = `${metrics.accuracy}%`
-- const starsDisplay = document.getElementById('stars-display')
-- starsDisplay.innerHTML = ''
-- for (let i = 0; i < 3; i++) { starsDisplay.innerHTML += i < metrics.stars ? '⭐' : '☆'; }
+- // Build metricsHTML string for TransitionScreen content slot
+- const metricsHTML = `<div class="results-metrics">
+    <div class="metric-row"><span class="metric-label">Time</span><span class="metric-value">${formatTime(metrics.time)}</span></div>
+    <div class="metric-row"><span class="metric-label">Rounds Completed</span><span class="metric-value">${gameState.currentRound}/${gameState.totalRounds}</span></div>
+    <div class="metric-row"><span class="metric-label">Wrong Attempts</span><span class="metric-value">${gameState.wrongAttempts}</span></div>
+    <div class="metric-row"><span class="metric-label">Accuracy</span><span class="metric-value">${metrics.accuracy}%</span></div>
+  </div>`
+- // Conditional button text based on outcome
+- var buttonText;
+- if (reason === 'victory' && stars >= 3) { buttonText = 'Play Again'; }
+- else if (reason === 'game_over') { buttonText = 'Try Again'; }
+- else { buttonText = 'Retry for more stars'; }
+- const title = reason === 'victory' ? 'Great Job!' : 'Game Over'
+- transitionScreen.show({ stars: metrics.stars, title, content: metricsHTML, buttons: [{ text: buttonText, type: 'primary', action: () => { try { FeedbackManager.sound.stopAll(); FeedbackManager.stream.stopAll(); } catch(e) {} restartGame(); } }], persist: true })
 
 **formatTime(seconds)**
 
@@ -951,16 +954,14 @@ body {
 - gameState.signalConfig = preserved.signalConfig
 - gameState.sessionHistory = preserved.sessionHistory
 - // Recreate destroyed components (endGame nulls these)
-- signalCollector = new SignalCollector({ gameId: gameState.gameId, contentSetId: gameState.contentSetId, flushUrl: gameState.signalConfig?.flushUrl, playId: gameState.signalConfig?.playId })
+- signalCollector = new SignalCollector({ gameId: gameState.gameId, contentSetId: gameState.contentSetId, flushUrl: gameState.signalConfig ? gameState.signalConfig.flushUrl : undefined, playId: gameState.signalConfig ? gameState.signalConfig.playId : undefined })
 - window.signalCollector = signalCollector
 - signalCollector.startFlushing()
 - timer = new TimerComponent('timer-container', { timerType: 'increase', format: 'min', startTime: 0, endTime: 100000, autoStart: false })
-- progressBar = new ProgressBarComponent({ autoInject: true, totalRounds: 9, totalLives: 3, slotId: 'mathai-progress-slot' })
-- visibilityTracker = new VisibilityTracker({ onInactive: () => { const inactiveStart = Date.now(); gameState.duration_data.inActiveTime.push({ start: inactiveStart }); if (signalCollector) { signalCollector.pause(); signalCollector.recordCustomEvent('visibility_hidden', {}); } if (timer) timer.pause({ fromVisibilityTracker: true }); FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); trackEvent('game_paused', 'system'); }, onResume: () => { const lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1]; if (lastInactive && !lastInactive.end) { lastInactive.end = Date.now(); gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start); } if (signalCollector) { signalCollector.resume(); signalCollector.recordCustomEvent('visibility_visible', {}); } if (timer?.isPaused) timer.resume({ fromVisibilityTracker: true }); FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); trackEvent('game_resumed', 'system'); }, popupProps: { title: 'Game Paused', description: 'Click Resume to continue.', primaryText: 'Resume' } })
-- // IMPORTANT: use classList, NOT inline style.display — .hidden uses !important which overrides inline styles
-- document.getElementById('results-screen').classList.add('hidden')
-- document.getElementById('game-screen').classList.remove('hidden')
-- transitionScreen.show({ icons: ['✖️', '2️⃣'], iconSize: 'large', title: 'Matching Doubles', subtitle: 'Match numbers with their doubles!', buttons: [{ text: "Let's go!", type: 'primary', action: () => startGame() }] })
+- createProgressBar(); progressBar.update(0, gameState.lives);
+- visibilityTracker = new VisibilityTracker(visibilityTrackerConfig)
+- // No classList toggles needed — results were shown via TransitionScreen
+- startGame() // Goes directly to Level 1 (no welcome screen)
 
 **computeTriesPerRound()**
 
@@ -1009,17 +1010,24 @@ body {
 ```javascript
 window.endGame = endGame;
 window.restartGame = restartGame;
-window.loadRound = loadRound;
 window.startGame = startGame;
 ```
 
 ### Package Script Order (PART-002 + PART-030)
 
 ```html
-<!-- 1. Sentry Config + SDK FIRST (PART-030) -->
+<!-- 1. Sentry Config + SDK FIRST (PART-030) — 3 scripts -->
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
 <script
   src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js"
+  crossorigin="anonymous"
+></script>
+<script
+  src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js"
+  crossorigin="anonymous"
+></script>
+<script
+  src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js"
   crossorigin="anonymous"
 ></script>
 
@@ -1039,7 +1047,7 @@ function initSentry() {
   Sentry.init({
     dsn: SentryConfig.dsn,
     environment: SentryConfig.environment,
-    release: 'matching-doubles@1.0.0',
+    release: 'game_matching_doubles@1.0.0',
     tracesSampleRate: SentryConfig.tracesSampleRate,
     sampleRate: SentryConfig.sampleRate,
     maxBreadcrumbs: 50,
@@ -1116,57 +1124,46 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     await FeedbackManager.init();
 
-    // Preload all sound effects (PART-017) — see Section 11 for full URL list
-    try {
-      await FeedbackManager.sound.preload([
-        { id: 'level_1', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/daadc184-5a8a-4041-8c36-589dce11e9ad.mp3' },
-        { id: 'level_2', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/2ac37656-6559-4482-ad16-543b275c19da.mp3' },
-        { id: 'level_3', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/dff10ee8-9019-43dc-90fb-9d3ee91208ba.mp3' },
-        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
-        { id: 'round_1', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/ffef09bc-74ed-4814-bfad-79fdd5a5d5a2.mp3' },
-        { id: 'round_2', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/97d60534-298b-4eba-8b8b-43a50f73cd81.mp3' },
-        { id: 'round_3', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/f9f2cf9f-ceb2-406b-9c45-a43602959d81.mp3' },
-        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
-        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
-        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
-        { id: 'new_cards', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' },
-        { id: 'all_correct', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' },
-        { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
-        { id: 'game_over', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/5140e0b6-cada-4424-8e5d-f9cd06a0c83f.mp3' },
-        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
-        { id: 'game_complete_1_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/2ee85ea3-919b-4010-95a2-40bcd7d90d22.mp3' },
-        { id: 'game_complete_2_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/84f4ff34-6e59-43d6-9663-4d9936cad002.mp3' },
-        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
-        { id: 'victory', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/e252bcc4-bd5f-4195-ad04-a02582095b6d.mp3' },
-        { id: 'restart', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/62109bc7-67bd-4e65-b06d-c760c144cd42.mp3' },
-      ]);
-    } catch (e) {
-      console.error('Sound preload error:', JSON.stringify({ error: e.message }, null, 2));
-      if (typeof Sentry !== 'undefined') {
-        Sentry.captureException(e, {
-          tags: { phase: 'audio-playback', component: 'FeedbackManager', severity: 'medium' },
-        });
-      }
-    }
-
-    // SignalCollector (PART-010 v3) — initial creation with gameId only; flushUrl/playId/contentSetId configured in handlePostMessage after game_init
+    // 1. SignalCollector (PART-010 v3) — initial creation with gameId only; flushUrl/playId/contentSetId configured in handlePostMessage after game_init
     signalCollector = new SignalCollector({
       gameId: gameState.gameId,
       contentSetId: gameState.contentSetId,
     });
     window.signalCollector = signalCollector;
 
-    // ScreenLayout (PART-025)
+    // 2. ScreenLayout v2 (PART-025) — sections API
     const layout = ScreenLayout.inject('app', {
-      slots: { progressBar: true, transitionScreen: true },
+      sections: { header: true, questionText: true, progressBar: true, playArea: true, transitionScreen: true },
     });
 
-    // Clone template into gameContent
-    const gameContent = document.getElementById('gameContent');
-    const template = document.getElementById('game-template');
-    gameContent.appendChild(template.content.cloneNode(true));
+    // 3. Inject timer container into header slot (with centering styles)
+    const headerSlot = document.getElementById(layout.header || 'mathai-header-slot');
+    if (headerSlot) {
+      headerSlot.innerHTML = '<div id="timer-container" style="display:flex;justify-content:center;align-items:center;padding:8px 0;"></div>';
+    }
 
-    // Timer (PART-006) — increasing, no auto-start, large endTime for unlimited count-up
+    // 4. Set question text in questionText slot
+    const questionSlot = document.getElementById(layout.questionText || 'mathai-question-slot');
+    if (questionSlot) {
+      questionSlot.innerHTML = '<div class="question-text-container">' +
+        '<p class="instruction-text">Match the numbers with their <strong>doubles</strong>!</p>' +
+        '<p class="instruction-text-sub">Complete all rounds within 1 minute to earn 3 stars!</p>' +
+        '</div>';
+    }
+
+    // 5. Build play area HTML into #gameContent (NOT cloned from template)
+    const gameContent = document.getElementById('gameContent');
+    gameContent.innerHTML = '<div id="game-screen" class="game-block">' +
+      '<div class="matching-area" id="matching-area">' +
+        '<div class="column-headers">' +
+          '<span class="column-header">Number</span>' +
+          '<span class="column-header">Doubles</span>' +
+        '</div>' +
+        '<div class="matching-grid" id="matching-grid" data-signal-id="matching-grid"></div>' +
+      '</div>' +
+    '</div>';
+
+    // 6. Timer (PART-006) — increasing, no auto-start, large endTime for unlimited count-up
     timer = new TimerComponent('timer-container', {
       timerType: 'increase',
       format: 'min',
@@ -1175,21 +1172,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       autoStart: false,
     });
 
-    // ProgressBar (PART-023)
-    progressBar = new ProgressBarComponent({
-      autoInject: true,
-      totalRounds: 9,
-      totalLives: 3,
-      slotId: 'mathai-progress-slot',
-    });
-
-    // TransitionScreen (PART-024)
-    transitionScreen = new TransitionScreenComponent({
-      autoInject: true,
-    });
-
-    // VisibilityTracker (PART-005)
-    visibilityTracker = new VisibilityTracker({
+    // 7. VisibilityTracker (PART-005) — save config for reuse in restartGame
+    visibilityTrackerConfig = {
       onInactive: () => {
         const inactiveStart = Date.now();
         gameState.duration_data.inActiveTime.push({ start: inactiveStart });
@@ -1222,33 +1206,63 @@ window.addEventListener('DOMContentLoaded', async () => {
         description: 'Click Resume to continue.',
         primaryText: 'Resume',
       },
+    };
+    visibilityTracker = new VisibilityTracker(visibilityTrackerConfig);
+
+    // 8. ProgressBar (PART-023)
+    createProgressBar();
+
+    // 9. TransitionScreen (PART-024)
+    transitionScreen = new TransitionScreenComponent({
+      autoInject: true,
     });
 
-    // Fallback content for standalone testing
+    // 10. Audio preloading (PART-017) — see Section 11 for full URL list
+    try {
+      await FeedbackManager.sound.preload([
+        { id: 'level_1', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/daadc184-5a8a-4041-8c36-589dce11e9ad.mp3' },
+        { id: 'level_2', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/2ac37656-6559-4482-ad16-543b275c19da.mp3' },
+        { id: 'level_3', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/dff10ee8-9019-43dc-90fb-9d3ee91208ba.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'round_1', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/ffef09bc-74ed-4814-bfad-79fdd5a5d5a2.mp3' },
+        { id: 'round_2', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/97d60534-298b-4eba-8b8b-43a50f73cd81.mp3' },
+        { id: 'round_3', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/f9f2cf9f-ceb2-406b-9c45-a43602959d81.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'new_cards', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' },
+        { id: 'all_correct', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' },
+        { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+        { id: 'game_over', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/5140e0b6-cada-4424-8e5d-f9cd06a0c83f.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'game_complete_1_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/2ee85ea3-919b-4010-95a2-40bcd7d90d22.mp3' },
+        { id: 'game_complete_2_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/84f4ff34-6e59-43d6-9663-4d9936cad002.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'victory', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/e252bcc4-bd5f-4195-ad04-a02582095b6d.mp3' },
+        { id: 'restart', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/62109bc7-67bd-4e65-b06d-c760c144cd42.mp3' },
+      ]);
+    } catch (e) {
+      console.error('Sound preload error:', JSON.stringify({ error: e.message }, null, 2));
+      if (typeof Sentry !== 'undefined') {
+        Sentry.captureException(e, {
+          tags: { phase: 'audio-playback', component: 'FeedbackManager', severity: 'medium' },
+        });
+      }
+    }
+
+    // 11. Fallback content for standalone testing (BEFORE game_ready)
     if (!gameState.content) {
       gameState.content = fallbackContent;
     }
 
-    // Listen for postMessage (PART-008)
+    // 12. Listen for postMessage (PART-008) — BEFORE game_ready
     window.addEventListener('message', handlePostMessage);
 
-    // Signal parent harness that game is ready to receive content (PART-008)
+    // 13. Signal parent harness that game is ready to receive content (PART-008)
     window.parent.postMessage({ type: 'game_ready' }, '*');
 
-    // Show start screen — "Let's go!" triggers startGame which shows Level 1 transition
-    transitionScreen.show({
-      icons: ['✖️', '2️⃣'],
-      iconSize: 'large',
-      title: 'Matching Doubles',
-      subtitle: 'Match numbers with their doubles!',
-      buttons: [
-        {
-          text: "Let's go!",
-          type: 'primary',
-          action: () => startGame(),
-        },
-      ],
-    });
+    // 14. Start game directly — no welcome screen, goes to Level 1
+    startGame();
   } catch (e) {
     console.error('Init error:', JSON.stringify({ error: e.message }, null, 2));
     if (typeof Sentry !== 'undefined') {
@@ -1274,6 +1288,9 @@ window.debugGame = () => {
         selectedLeftIndex: gameState.selectedLeftIndex,
         matchedPairs: [...gameState.matchedPairs],
         isActive: gameState.isActive,
+        gameEnded: gameState.gameEnded,
+        isProcessing: gameState.isProcessing,
+        phase: gameState.phase,
       },
       null,
       2,
@@ -1283,6 +1300,9 @@ window.debugGame = () => {
 
 window.debugAudio = () => {
   console.log('FeedbackManager available:', typeof FeedbackManager !== 'undefined');
+  if (typeof FeedbackManager !== 'undefined') {
+    console.log('canPlayAudio:', FeedbackManager.canPlayAudio());
+  }
 };
 
 window.testAudio = async (id) => {
@@ -1296,10 +1316,12 @@ window.testAudio = async (id) => {
 
 window.testPause = () => {
   if (timer) timer.pause();
+  console.log('Timer paused');
 };
 
 window.testResume = () => {
   if (timer && gameState.isActive) timer.resume();
+  console.log('Timer resumed');
 };
 
 window.verifySentry = function () {
@@ -1323,6 +1345,29 @@ window.testSentry = function () {
       console.log('Sentry not loaded');
     }
   }
+};
+
+window.debugSignals = () => {
+  if (signalCollector) {
+    try { signalCollector.debug(); } catch(e) {
+      console.log('SignalCollector exists but debug() not available');
+    }
+  } else {
+    console.log('SignalCollector not initialized');
+  }
+};
+
+window.jumpToRound = function(n) {
+  if (n < 1 || n > gameState.totalRounds) {
+    console.log('Invalid round: ' + n + '. Must be 1-' + gameState.totalRounds);
+    return;
+  }
+  gameState.currentRound = n - 1;
+  gameState.isActive = true;
+  gameState.isProcessing = false;
+  gameState.gameEnded = false;
+  loadRound();
+  console.log('Jumped to round ' + n);
 };
 ```
 
@@ -1494,9 +1539,10 @@ await FeedbackManager.sound.preload([
 ### Scenario: Complete game with all correct answers (9 rounds)
 
 ```
-SETUP: Page loaded, start transition screen visible
+SETUP: Page loaded, Level 1 transition screen visible (game starts directly at Level 1)
 ACTIONS:
-  click transition screen "Let's go!" button
+  click transition screen "I'm ready!" button
+  wait for round transition to complete
   wait for #matching-grid to have children
   // Round 1: numbers=[2,5,6], doubles=[10,12,4]
   // 2×2=4 → doubles index 2, 5×2=10 → doubles index 0, 6×2=12 → doubles index 1
@@ -1538,8 +1584,7 @@ ACTIONS:
 ASSERT:
   gameState.score == 9
   gameState.currentRound == 9
-  #results-screen is visible
-  #game-screen is hidden
+  TransitionScreen is visible with results metrics
   accuracy display shows "100%"
   gameState.lives == 3
 ```
@@ -1717,14 +1762,17 @@ SETUP: Fresh page load
 ASSERT:
   waitForPackages() resolves
   FeedbackManager.init() called
-  sound.preload() called with all 20 audio IDs (level_1-3, round_1-3, rounds_sound_effect, tap_sound, correct/incorrect_sound_effect, new_cards, all_correct, game_over/sfx, game_complete/sfx/1star/2star, victory/sfx, restart)
-  ScreenLayout.inject() called with progressBar=true, transitionScreen=true
-  template cloned into #gameContent
+  ScreenLayout.inject() called with v2 sections API: { header, questionText, progressBar, playArea, transitionScreen }
+  Timer container injected into header slot with centering styles
+  Question text set in questionText slot
+  Play area HTML built into #gameContent via innerHTML (no template cloneNode)
   TimerComponent created (increase, endTime: 100000, no autoStart)
+  VisibilityTracker created (config saved as visibilityTrackerConfig)
   ProgressBarComponent created (totalRounds: 9, totalLives: 3)
   TransitionScreenComponent created
-  VisibilityTracker created
-  start transition screen shown
+  sound.preload() called with all 20 audio IDs (level_1-3, round_1-3, rounds_sound_effect, tap_sound, correct/incorrect_sound_effect, new_cards, all_correct, game_over/sfx, game_complete/sfx/1star/2star, victory/sfx, restart)
+  3 Sentry SDK scripts loaded (bundle, captureconsole, browserprofiling)
+  No welcome/start screen — startGame() called directly, goes to Level 1
 ```
 
 ---
@@ -1734,13 +1782,13 @@ ASSERT:
 ### Structural
 
 - [ ] HTML has DOCTYPE, meta charset, meta viewport
-- [ ] SentryConfig + Sentry SDK scripts loaded FIRST, before game packages (PART-030)
+- [ ] SentryConfig + 3 Sentry SDK scripts (bundle, captureconsole, browserprofiling) loaded FIRST, before game packages (PART-030)
 - [ ] Package scripts in correct order: FeedbackManager → Components → Helpers (PART-002)
 - [ ] Single `<style>` in `<head>`, single `<script>` in `<body>` (RULE-007)
-- [ ] `#app` div exists in body
-- [ ] `#game-screen` element exists inside template
-- [ ] `#results-screen` element exists, hidden by default
-- [ ] `#timer-container` element exists inside game-screen
+- [ ] `#app` div exists in body — ONLY element in body (no template tag)
+- [ ] No `#results-screen` div in HTML — results shown via TransitionScreen content slot
+- [ ] No `#game-screen` element — game content built via JS into `#gameContent`
+- [ ] Timer container injected into header slot with centering styles (`display:flex;justify-content:center;align-items:center;padding:8px 0;`)
 
 ### Functional
 
@@ -1754,8 +1802,10 @@ ASSERT:
 - [ ] recordAttempt produces correct attempt shape (PART-009)
 - [ ] trackEvent fires at all interaction points (PART-010)
 - [ ] endGame calculates metrics (including `totalLives`, `tries`, `sessionHistory`), logs, sends `game_complete` postMessage (no signal payload), cleans up (PART-011 v3)
-- [ ] Debug functions on window: debugGame, debugAudio, testAudio, testPause, testResume, verifySentry, testSentry (PART-012, PART-030)
-- [ ] showResults uses `classList.add('hidden')` / `classList.remove('hidden')` to toggle screens — NOT `style.display` (`.hidden` uses `!important`) (PART-019)
+- [ ] Debug functions on window: debugGame, debugAudio, testAudio, testPause, testResume, verifySentry, testSentry, debugSignals, jumpToRound (PART-012, PART-030)
+- [ ] showResults uses `transitionScreen.show()` with `content` slot for metrics (PART-019)
+- [ ] canPlayAudio() polling in showLevelTransition on first call (PART-017)
+- [ ] `voGameStartPlayed` flag prevents duplicate audio permission polling
 - [ ] InputSchema defined with 9 rounds of fallback content (PART-028)
 - [ ] No anti-patterns present (PART-026)
 
@@ -1785,9 +1835,15 @@ ASSERT:
 - [ ] Buttons use `.game-btn` with `.btn-primary` classes (PART-022)
 - [ ] ProgressBar created with totalRounds: 9, totalLives: 3 (PART-023)
 - [ ] ProgressBar.update() first param is rounds COMPLETED (0 at start) (PART-023)
-- [ ] TransitionScreen shows start, victory, game-over screens (PART-024)
-- [ ] ScreenLayout.inject() called before ProgressBar/TransitionScreen (PART-025)
-- [ ] All game content rendered inside `#gameContent` via template cloneNode (PART-025)
+- [ ] TransitionScreen shows level-intro, round-intro, victory, game-over screens — no welcome screen (PART-024)
+- [ ] ScreenLayout.inject() uses v2 sections API: `{ sections: { header, questionText, progressBar, playArea, transitionScreen } }` (PART-025)
+- [ ] All game content built via JS innerHTML into `#gameContent` — no template cloneNode (PART-025)
+- [ ] `html, body { width: 100%; height: 100dvh; overflow: hidden; }` in reset CSS
+- [ ] TransitionScreen CSS overrides: `.mathai-ts-screen.active`, `.mathai-ts-card` with min-height 50dvh
+- [ ] `.mathai-layout-root { max-width: 480px; margin: 0 auto; }`
+- [ ] `.mathai-layout-playarea` override with `!important` on flex-direction, align-items, padding
+- [ ] `:active` tap feedback on `.number-cell` — `transform: scale(0.95)`
+- [ ] Timer container uses centering styles (`display:flex;justify-content:center;align-items:center;padding:8px 0;`)
 
 ### Rules Compliance
 
@@ -1814,9 +1870,11 @@ ASSERT:
 - [ ] Stars: ≤60s = 3★, ≤90s = 2★, >90s = 1★, game-over = 0★
 - [ ] ProgressBar shows "X/9 rounds completed" and heart lives
 - [ ] All doubles in fallback content are verified (number × 2) and shuffled
-- [ ] Level transitions shown at rounds 0, 3, 6 (Level 1, 2, 3) with "I'm ready" button
+- [ ] No welcome/start screen — game starts directly at Level 1
+- [ ] Level transitions shown at rounds 0, 3, 6 (Level 1, 2, 3) with "I'm ready!" button
 - [ ] Round transitions shown before every round with auto-dismiss after audio
 - [ ] 20 sounds preloaded, 13 stickers mapped — see Section 11 for full list
+- [ ] Results screen conditional button text: "Play Again" at 3 stars, "Try Again" on game_over, "Retry for more stars" otherwise
 - [ ] `gameState` declared as `window.gameState = {...}`, NOT `const gameState = {...}`
 - [ ] `gameState.gameId` set as first property (`'game_matching_doubles'`)
 - [ ] `gameState.gameEnded` flag used as endGame guard (prevents double-call)
@@ -1831,7 +1889,7 @@ ASSERT:
 ### Sentry Error Tracking (PART-030)
 
 - [ ] SentryConfig script tag loaded BEFORE Sentry SDK
-- [ ] Sentry SDK version 10.23.0 (NOT 8.x)
+- [ ] Sentry SDK version 10.23.0 (NOT 8.x) — 3 scripts: bundle, captureconsole, browserprofiling
 - [ ] `initSentry()` function defined BEFORE SDK loads
 - [ ] `SentryConfig.enabled` checked before initializing
 - [ ] `SentryConfig.dsn` used (NOT hardcoded DSN)
@@ -1847,7 +1905,7 @@ ASSERT:
 
 - [ ] SignalCollector initialized with `gameId` + `contentSetId` (NOT `templateId`)
 - [ ] `window.signalCollector` assigned
-- [ ] `let signalCollector = null` declared globally
+- [ ] `var signalCollector = null` declared globally
 - [ ] `handlePostMessage` extracts `gameId`, `contentSetId`, `signalConfig` from `game_init` and reconfigures SignalCollector with `flushUrl` + `playId`
 - [ ] `startFlushing()` called after SignalCollector receives `signalConfig` (in handlePostMessage)
 - [ ] No `startProblem()` / `endProblem()` / `updateCurrentAnswer()` calls anywhere (v2 deprecated)
