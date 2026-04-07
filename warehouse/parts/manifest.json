@@ -167,12 +167,12 @@
     },
     {
       "id": "PART-019",
-      "name": "Results Screen UI",
-      "version": "1.0.0",
+      "name": "Results Screen UI (v2 — via TransitionScreen)",
+      "version": "2.0.0",
       "category": "MANDATORY",
       "condition": "Every game",
       "file": "PART-019-results-screen.md",
-      "dependencies": ["PART-011"]
+      "dependencies": ["PART-011", "PART-024"]
     },
     {
       "id": "PART-020",
@@ -185,10 +185,10 @@
     },
     {
       "id": "PART-021",
-      "name": "Screen Layout CSS",
-      "version": "1.0.0",
+      "name": "Screen Layout CSS (v2 — deprecated manual HTML)",
+      "version": "2.0.0",
       "category": "MANDATORY",
-      "condition": "Every game",
+      "condition": "Every game — v1 manual layout deprecated, use PART-025 v2",
       "file": "PART-021-screen-layout.md",
       "dependencies": ["PART-020"]
     },
@@ -199,32 +199,32 @@
       "category": "MANDATORY",
       "condition": "Every game with user interactions",
       "file": "PART-022-buttons.md",
-      "dependencies": ["PART-020", "PART-021"]
+      "dependencies": ["PART-020", "PART-025"]
     },
     {
       "id": "PART-023",
-      "name": "ProgressBar Component",
-      "version": "1.0.0",
-      "category": "CONDITIONAL",
-      "condition": "Game has multiple rounds with visible progress",
+      "name": "ProgressBar Component (v2)",
+      "version": "2.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game with rounds/progress",
       "file": "PART-023-progress-bar.md",
-      "dependencies": ["PART-002", "PART-021"]
+      "dependencies": ["PART-002", "PART-025"]
     },
     {
       "id": "PART-024",
-      "name": "TransitionScreen Component",
-      "version": "1.0.0",
-      "category": "CONDITIONAL",
-      "condition": "Game needs start/victory/game-over/level-transition screens",
+      "name": "TransitionScreen Component (v2)",
+      "version": "2.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game — welcome, results, game-over screens with audio",
       "file": "PART-024-transition-screen.md",
-      "dependencies": ["PART-002", "PART-021"]
+      "dependencies": ["PART-002", "PART-025"]
     },
     {
       "id": "PART-025",
-      "name": "ScreenLayout Component",
-      "version": "1.0.0",
-      "category": "CONDITIONAL",
-      "condition": "Game uses ProgressBar or TransitionScreen components",
+      "name": "ScreenLayout Component (v2)",
+      "version": "2.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game — sections API (header/questionText/progressBar/playArea/transitionScreen)",
       "file": "PART-025-screen-layout-component.md",
       "dependencies": ["PART-002"]
     },
@@ -244,7 +244,7 @@
       "category": "MANDATORY",
       "condition": "Every game",
       "file": "PART-027-play-area-construction.md",
-      "dependencies": ["PART-021"]
+      "dependencies": ["PART-025"]
     },
     {
       "id": "PART-028",
@@ -298,7 +298,7 @@
       "category": "CONDITIONAL",
       "condition": "Game uses drag-and-drop, grids, or tag/chip inputs",
       "file": "PART-033-interaction-patterns.md",
-      "dependencies": ["PART-021", "PART-027"]
+      "dependencies": ["PART-025", "PART-027"]
     },
     {
       "id": "PART-034",
@@ -352,8 +352,8 @@
       "PART-001", "PART-002", "PART-003", "PART-004", "PART-005",
       "PART-007", "PART-008", "PART-009", "PART-010", "PART-011",
       "PART-012", "PART-019", "PART-020", "PART-021", "PART-022",
-      "PART-017", "PART-025",
-      "PART-027", "PART-028", "PART-030", "PART-039"
+      "PART-023", "PART-024", "PART-025",
+      "PART-027", "PART-028", "PART-030", "PART-017", "PART-039"
     ],
     "post_gen": ["PART-034", "PART-035", "PART-037"],
     "verification": ["PART-026"],

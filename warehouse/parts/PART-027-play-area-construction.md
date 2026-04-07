@@ -1,6 +1,8 @@
 # PART-027: Play Area Construction
 
-**Category:** MANDATORY | **Condition:** Every game | **Dependencies:** PART-021
+**Category:** MANDATORY | **Condition:** Every game | **Dependencies:** PART-025
+
+> **Note:** Play area HTML must be injected into `#gameContent` via JS after `ScreenLayout.inject()` (PART-025 v2). Do not place play area HTML directly in `<body>` or `#app`.
 
 ---
 

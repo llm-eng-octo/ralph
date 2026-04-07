@@ -24,45 +24,45 @@ A table showing which warehouse parts are included. This tells the LLM exactly w
 ```markdown
 ## Parts Selected
 
-| Part ID  | Name                          | Included        | Config/Notes                                         |
-| -------- | ----------------------------- | --------------- | ---------------------------------------------------- |
-| PART-001 | HTML Shell                    | YES             | —                                                    |
-| PART-002 | Package Scripts               | YES             | —                                                    |
-| PART-003 | waitForPackages               | YES             | —                                                    |
-| PART-004 | Initialization Block          | YES             | —                                                    |
-| PART-005 | VisibilityTracker             | YES             | popupProps: {{custom or default}}                    |
-| PART-006 | TimerComponent                | {{YES/NO}}      | {{timerType, startTime, endTime, autoStart}}         |
-| PART-007 | Game State Object             | YES             | Custom fields: {{list}}                              |
-| PART-008 | PostMessage Protocol          | YES             | —                                                    |
-| PART-009 | Attempt Tracking              | YES             | —                                                    |
-| PART-010 | Event Tracking                | YES             | Custom events: {{list}}                              |
-| PART-011 | End Game & Metrics            | YES             | {{custom star logic if any}}                         |
-| PART-012 | Debug Functions               | YES             | —                                                    |
-| PART-013 | Validation Fixed              | {{YES/NO}}      | —                                                    |
-| PART-014 | Validation Function           | {{YES/NO}}      | Rules: {{describe}}                                  |
-| PART-015 | Validation LLM                | {{YES/NO}}      | —                                                    |
-| PART-016 | StoriesComponent              | {{YES/NO}}      | —                                                    |
-| PART-017 | Feedback Integration          | {{YES/NO}}      | Audio feedback and sticker moments                   |
-| PART-018 | Case Converter                | {{YES/NO}}      | —                                                    |
-| PART-019 | Results Screen UI             | YES             | Custom metrics: {{list}}                             |
-| PART-020 | CSS Variables & Colors        | YES             | —                                                    |
-| PART-021 | Screen Layout CSS             | YES             | —                                                    |
-| PART-022 | Game Buttons                  | YES             | —                                                    |
-| PART-023 | ProgressBar Component         | {{YES/NO}}      | totalRounds: {{N}}, totalLives: {{N}}                |
-| PART-024 | TransitionScreen Component    | {{YES/NO}}      | Screens: {{start/victory/game-over/level}}           |
-| PART-025 | ScreenLayout Component        | {{YES/NO}}      | slots: progressBar={{t/f}}, transitionScreen={{t/f}} |
-| PART-026 | Anti-Patterns                 | YES (REFERENCE) | Verification checklist, not code-generating          |
-| PART-027 | Play Area Construction        | YES             | Layout: {{grid/options/input/custom}}                |
-| PART-028 | InputSchema Patterns          | YES             | Schema type: {{questions/grid/levels}}               |
-| PART-029 | Story-Only Game               | {{YES/NO}}      | storyBlockId: {{ID}}                                 |
-| PART-030 | Sentry Error Tracking         | YES             | Error monitoring for every game                      |
-| PART-031 | API Helper                    | {{YES/NO}}      | —                                                    |
-| PART-032 | AnalyticsManager              | {{YES/NO}}      | —                                                    |
-| PART-033 | Interaction Patterns          | {{YES/NO}}      | Patterns: {{drag-drop/grid/tag-input}}               |
-| PART-034 | Variable Schema Serialization | YES (POST_GEN)  | Serializes Section 4 to inputSchema.json             |
-| PART-035 | Test Plan Generation          | YES (POST_GEN)  | Generates tests.md after HTML                        |
-| PART-037 | Playwright Testing            | YES (POST_GEN)  | Ralph loop generates tests + fix cycle               |
-| PART-039 | Preview Screen                | YES (MANDATORY)  | Always included — shows before game starts            |
+| Part ID  | Name                            | Included        | Config/Notes                                                        |
+| -------- | ------------------------------- | --------------- | ------------------------------------------------------------------- |
+| PART-001 | HTML Shell                      | YES             | —                                                                   |
+| PART-002 | Package Scripts                 | YES             | —                                                                   |
+| PART-003 | waitForPackages                 | YES             | —                                                                   |
+| PART-004 | Initialization Block            | YES             | —                                                                   |
+| PART-005 | VisibilityTracker               | YES             | popupProps: {{custom or default}}                                   |
+| PART-006 | TimerComponent                  | {{YES/NO}}      | {{timerType, startTime, endTime, autoStart}}                        |
+| PART-007 | Game State Object               | YES             | Custom fields: {{list}}                                             |
+| PART-008 | PostMessage Protocol            | YES             | —                                                                   |
+| PART-009 | Attempt Tracking                | YES             | —                                                                   |
+| PART-010 | Event Tracking                  | YES             | Custom events: {{list}}                                             |
+| PART-011 | End Game & Metrics              | YES             | {{custom star logic if any}}                                        |
+| PART-012 | Debug Functions                 | YES             | —                                                                   |
+| PART-013 | Validation Fixed                | {{YES/NO}}      | —                                                                   |
+| PART-014 | Validation Function             | {{YES/NO}}      | Rules: {{describe}}                                                 |
+| PART-015 | Validation LLM                  | {{YES/NO}}      | —                                                                   |
+| PART-016 | StoriesComponent                | {{YES/NO}}      | —                                                                   |
+| PART-017 | Feedback Integration            | {{YES/NO}}      | Audio feedback and sticker moments                                  |
+| PART-018 | Case Converter                  | {{YES/NO}}      | —                                                                   |
+| PART-019 | Results Screen (v2)             | YES             | Via TransitionScreen content slot — custom metrics: {{list}}        |
+| PART-020 | CSS Variables & Colors          | YES             | —                                                                   |
+| PART-021 | Screen Layout CSS (v2)          | YES             | ⛔ Manual HTML deprecated — v2 CSS only                             |
+| PART-022 | Game Buttons                    | YES             | —                                                                   |
+| PART-023 | ProgressBar Component (v2)      | YES             | totalRounds: {{N}}, totalLives: {{N}}                               |
+| PART-024 | TransitionScreen Component (v2) | YES             | Screens: welcome/level/victory/game-over + AUDIO                    |
+| PART-025 | ScreenLayout Component (v2)     | YES             | sections: header/questionText/progressBar/playArea/transitionScreen |
+| PART-026 | Anti-Patterns                   | YES (REFERENCE) | Verification checklist, not code-generating                         |
+| PART-027 | Play Area Construction          | YES             | Layout: {{grid/options/input/custom}}                               |
+| PART-028 | InputSchema Patterns            | YES             | Schema type: {{questions/grid/levels}}                              |
+| PART-029 | Story-Only Game                 | {{YES/NO}}      | storyBlockId: {{ID}}                                                |
+| PART-030 | Sentry Error Tracking           | YES             | Error monitoring for every game                                     |
+| PART-031 | API Helper                      | {{YES/NO}}      | —                                                                   |
+| PART-032 | AnalyticsManager                | {{YES/NO}}      | —                                                                   |
+| PART-033 | Interaction Patterns            | {{YES/NO}}      | Patterns: {{drag-drop/grid/tag-input}}                              |
+| PART-034 | Variable Schema Serialization   | YES (POST_GEN)  | Serializes Section 4 to inputSchema.json                            |
+| PART-035 | Test Plan Generation            | YES (POST_GEN)  | Generates tests.md after HTML                                       |
+| PART-037 | Playwright Testing              | YES (POST_GEN)  | Ralph loop generates tests + fix cycle                              |
+| PART-039 | Preview Screen                  | YES (MANDATORY) | Always included — shows before game starts                          |
 ```
 
 ### 3. Game State
@@ -146,9 +146,9 @@ const fallbackContent = {
 
 ````
 
-### 5. Screens & HTML Structure
+### 5. Screens & HTML Structure (v2)
 
-Exact HTML for each screen, with all element IDs specified.
+ScreenLayout v2 injects the page structure automatically. Only `<div id="app"></div>` goes in the body. Game content, timer, and results are injected via JS.
 
 ```markdown
 ## Screens
@@ -177,18 +177,44 @@ const previewScreen = new PreviewScreenComponent({
 ### Screen 1: Game Screen (#game-screen)
 
 ```html
-<div id="game-screen">
-  {{Exact HTML with all element IDs, classes, and structure}}
-  {{Include timer-container div if PART-006 selected}}
-  {{Include story-container div if PART-016 selected}}
-</div>
-````
-
-### Screen 2: Results Screen (#results-screen)
-
-```html
-{{From PART-019 with any custom metric rows added}}
+<div id="app"></div>
 ```
+
+### ScreenLayout v2 Init (injected via JS)
+
+```javascript
+ScreenLayout.inject('app', {
+  sections: {
+    header: {{true/false}},     // true only if timer/HUD
+    questionText: true,          // ALWAYS
+    progressBar: true,           // ALWAYS
+    playArea: true,              // ALWAYS
+    transitionScreen: true       // ALWAYS
+  },
+  styles: { /* per-section styles */ }
+});
+```
+
+### Play Area Content (injected into #gameContent via JS)
+
+```javascript
+document.getElementById('gameContent').innerHTML =
+  '{{Exact HTML with all element IDs, classes, and structure}}';
+```
+
+### Results Screen (via TransitionScreen content slot — PART-019 v2)
+
+```javascript
+transitionScreen.show({
+  stars: metrics.stars,
+  title: '{{title}}',
+  content: '{{metrics HTML from PART-019}}',
+  persist: true,
+  buttons: [{ text: 'Play Again', type: 'primary', action: function() { restartGame(); } }]
+});
+```
+
+> ⛔ Do NOT create a separate `#results-screen` div — use TransitionScreen content slot.
 
 ````
 
@@ -196,7 +222,7 @@ const previewScreen = new PreviewScreenComponent({
 
 Complete styles for the game. Must include styles for all screens, states, and interactions.
 
-```markdown
+````markdown
 ## CSS
 
 ```css
@@ -209,6 +235,7 @@ Complete styles for the game. Must include styles for all screens, states, and i
   - Responsive considerations
   - Animations/transitions
 }}
+```
 ````
 
 ````
@@ -585,42 +612,48 @@ Game-specific checklist combining mandatory part checks + game-specific checks.
 - [ ] HTML has DOCTYPE, meta charset, meta viewport
 - [ ] Package scripts in correct order (PART-002)
 - [ ] Single <style> in <head>, single <script> in <body> (RULE-007)
-- [ ] #game-screen element exists
-- [ ] #results-screen element exists, hidden by default
-- [ ] {{#timer-container if PART-006}}
+- [ ] Body contains only `<div id="app"></div>` — no manual layout divs
+- [ ] ⛔ No `#results-screen` div (use TransitionScreen content slot — PART-019 v2)
+- [ ] ⛔ No `.page-center` / `.game-wrapper` / `.game-stack` HTML (use ScreenLayout v2)
+- [ ] {{#timer-container injected into header slot if PART-006}}
 - [ ] {{#story-container if PART-016}}
 
 ### Functional
 
-- [ ] waitForPackages() defined and checks all three packages (PART-003)
+- [ ] waitForPackages() defined and checks all required globals (PART-003)
 - [ ] DOMContentLoaded calls init sequence in order (PART-004)
 - [ ] VisibilityTracker created with onInactive + onResume (PART-005)
 - [ ] {{TimerComponent created with correct config (PART-006)}}
 - [ ] handlePostMessage registered and handles game_init (PART-008)
-- [ ] setupGame has fallback content for standalone testing (PART-008)
+- [ ] Fallback content for standalone testing (PART-008)
 - [ ] recordAttempt produces correct attempt shape (PART-009)
 - [ ] trackEvent fires at all interaction points (PART-010)
 - [ ] endGame calculates metrics, logs, sends postMessage, cleans up (PART-011)
 - [ ] **Every end condition actually calls endGame()** — rounds complete, timer expires, lives lost (PART-011)
 - [ ] Debug functions on window (PART-012)
-- [ ] showResults populates all fields (PART-019)
+- [ ] showResults uses TransitionScreen content slot (PART-019 v2)
 - [ ] InputSchema defined with fallback content (PART-028)
-- [ ] Play area has clear interactive/feedback sections (PART-027)
+- [ ] Play area built inside #gameContent via JS (PART-027)
 - [ ] No anti-patterns present (PART-026)
+- [ ] SignalCollector: deferred endProblem pattern, seal() before postMessage
 - [ ] {{AnalyticsManager initialized with 7 mandatory events (PART-032)}}
 - [ ] {{Interaction patterns initialized and resetable (PART-033)}}
 
-### Design & Layout
+### Design & Layout (v2)
 
 - [ ] CSS uses `var(--mathai-*)` variables, no hardcoded colors (PART-020)
 - [ ] Gameplay feedback uses correct colors — green/red/blue/gray (PART-020)
-- [ ] `.page-center` / `.game-wrapper` / `.game-stack` layout structure (PART-021)
-- [ ] Max-width 480px, uses 100dvh not 100vh (PART-021)
+- [ ] ScreenLayout v2 with `config.sections` API (PART-025) — NOT v1 `config.slots`
+- [ ] Sections: questionText + progressBar + playArea + transitionScreen always true
+- [ ] Header section only if game has timer/HUD
+- [ ] `.mathai-layout-playarea` CSS overrides use `!important` (PART-025)
+- [ ] CSS reset with `100dvh`, not `100vh` (PART-021 v2)
 - [ ] Buttons use `.game-btn` with `.btn-primary` / `.btn-secondary` classes (PART-022)
-- [ ] Only one action button visible at a time (PART-022)
-- [ ] {{ProgressBar created with correct totalRounds/totalLives (PART-023)}}
-- [ ] {{TransitionScreen shows start/victory/game-over screens (PART-024)}}
-- [ ] {{ScreenLayout.inject() called before ProgressBar/TransitionScreen (PART-025)}}
+- [ ] ProgressBar v2: `createProgressBar()` helper, update(0, lives) at init (PART-023)
+- [ ] TransitionScreen v2: welcome + results + game-over screens (PART-024)
+- [ ] **Every transition screen plays audio** — no silent transitions (PART-024)
+- [ ] Results shown via `transitionScreen.show({ content: metricsHTML })` (PART-019 v2)
+- [ ] Question text hidden during gameplay, visible on welcome (PART-025)
 
 ### Rules Compliance
 

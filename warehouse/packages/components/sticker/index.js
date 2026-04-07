@@ -86,7 +86,9 @@
   };
 
   StickerComponent.prototype._updatePosition = function (options) {
-    var alignment = options.alignment || this.config.defaultAlignment;
+    var rawAlignment = options.alignment || this.config.defaultAlignment;
+    // Only LEFT and RIGHT are supported; anything else defaults to RIGHT
+    var alignment = (rawAlignment === "LEFT") ? "LEFT" : "RIGHT";
     var bottom = options.bottom || this.config.defaultBottom;
     var isWideScreen = window.innerWidth > 500;
 
