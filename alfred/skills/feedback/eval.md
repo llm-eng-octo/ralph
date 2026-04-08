@@ -1,29 +1,32 @@
 # Eval: Feedback
 
-Tests for `skills/feedback.md` -- the skill that defines audio, visual, text feedback, timing, emotional design, and micro-animations for student interactions.
+Tests for `skills/feedback/SKILL.md` — the skill that defines all feedback behavior: what plays, when, in what sequence, when to wait, when to stop, and what to prioritise.
 
 ## Version
 
-v1 -- 2026-04-04 -- initial eval with priority tags, checklist format, judge types
+v2 — 2026-04-07 — rewritten to match production patterns from 5 shipped games
 
 ## Setup
 
 Context files that must be loaded before running:
 
-- `skills/feedback.md` (FeedbackManager API, Bloom-level feedback, timing rules, emotional arc)
-- `skills/game-archetypes.md` (archetype determines pacing defaults)
-- `skills/pedagogy/SKILL.md` (Bloom level determines feedback depth)
+- `skills/feedback/SKILL.md` (behavioral cases, cross-cutting rules, priority, await/fire-and-forget)
+- `skills/feedback/reference/feedbackmanager-api.md` (actual API surface)
+- `skills/feedback/reference/timing-and-blocking.md` (await patterns, input blocking, stop triggers)
+- `skills/game-archetypes/SKILL.md` (archetype determines pacing defaults)
+- `skills/pedagogy/SKILL.md` (Bloom level determines subtitle depth)
 
 ## Success Criteria
 
-A feedback specification passes when ALL of the following are true:
+A feedback implementation passes when ALL of the following are true:
 
-1. **FeedbackManager API used correctly.** playDynamicFeedback called with valid type, subtitle under 60 characters.
-2. **Every event has a response.** No student action is silent -- correct, wrong, streak, victory, gameover all handled.
-3. **Timing is exact.** Correct = 1500ms, wrong = 2000ms, L4 correct = 2000ms, victory/gameover = 2000ms.
-4. **Input blocked during feedback.** isProcessing set before playFeedback, cleared in setTimeout callback.
-5. **Emotional safety maintained.** No punitive language, wrong answers always show correct answer, game-over is encouraging.
-6. **Auto-advance implemented.** Feedback -> fade out -> next round -> fade in -> unblock, with no "Next" button.
+1. **Correct FeedbackManager API used.** `FeedbackManager.sound.play(id, {sticker})` for static audio, `FeedbackManager.playDynamicFeedback({audio_content, subtitle})` for TTS. Never a custom `playFeedback()` wrapper.
+2. **Every event has a response.** No student action is silent — correct, wrong, round complete, victory, game over all handled.
+3. **Await/fire-and-forget rules followed.** Single-step answers awaited, multi-step mid-round matches fire-and-forget.
+4. **Input blocking correct.** `isProcessing` set before awaited audio, cleared after it resolves. Never set for fire-and-forget.
+5. **Priority rules respected.** Game over skips wrong SFX. CTA stops audio. Screen renders before end-game audio.
+6. **recordAttempt before audio.** Data captured before FeedbackManager plays.
+7. **Emotional safety maintained.** No punitive language, game-over is encouraging, failure recovery at 3+ consecutive wrong.
 
 ## Ship-Readiness Gate
 
@@ -33,7 +36,7 @@ All P0 cases must PASS. All P1 cases must PASS or PARTIAL.
 
 ## Cases
 
-### Case 1: Standard MCQ correct/wrong feedback flow
+### Case 1: Correct answer — single-step game (awaited feedback)
 
 **Priority:** P0
 **Type:** happy-path
@@ -49,121 +52,27 @@ PART-017: YES
 
 Round: "A triangle has sides 5cm, 5cm, 8cm. What type is it?"
 Correct answer: Isosceles
-Student selects: Equilateral (wrong)
+Student selects: Isosceles (correct)
 ```
 
 **Expect:**
 
-- [ ] playFeedback('incorrect', ...) called with L2 subtitle format: "It's Isosceles. Two sides are equal, not three."
-- [ ] Subtitle is under 60 characters
-- [ ] isProcessing = true set BEFORE playFeedback call
-- [ ] Wrong option marked with .selected-wrong CSS class
-- [ ] Correct option marked with .selected-correct CSS class
-- [ ] .correct-reveal element shows "Answer: Isosceles"
-- [ ] Duration = 2000ms (wrong answer)
-- [ ] After 2000ms: fade out (300ms) -> next round renders -> fade in (350ms) -> isProcessing = false
-- [ ] [LLM] Subtitle explains WHY (L2 requirement), not just WHAT
+- [ ] `gameState.isProcessing = true` set immediately
+- [ ] Correct option gets green CSS class (`.correct` / `.selected-correct`)
+- [ ] `recordAttempt({...correct: true})` called BEFORE audio
+- [ ] `progressBar.update(round, lives)` called
+- [ ] `FeedbackManager.sound.play('correct_sound_effect', { sticker: {..., duration: 2, type: 'IMAGE_GIF'} })` awaited
+- [ ] After audio resolves: `gameState.isProcessing = false`, then advance to next round
+- [ ] [LLM] No setTimeout used for timing — audio duration IS the timing
 
-**Why:** Tests the complete wrong-answer feedback chain for the most common game type and Bloom level.
+**Why:** Tests the core correct-answer flow with proper await pattern and production API.
 
 ---
 
-### Case 2: Missing PART-017 -- graceful degradation
-
-**Priority:** P0
-**Type:** error-handling
-**Judge:** llm
-
-**Input:**
-
-```
-Archetype: MCQ Quiz
-Bloom: L1 Remember
-PART-017: NO (FeedbackManager not available)
-
-Student answers correctly.
-```
-
-**Expect:**
-
-- [ ] playFeedback wrapper called -- try/catch silently skips FeedbackManager
-- [ ] Game does NOT crash or show an error
-- [ ] Visual-only feedback: .selected-correct CSS class applied
-- [ ] No custom overlay built (constraint 1: never build custom feedback overlays)
-- [ ] Timing still enforced: 1500ms before auto-advance
-- [ ] isProcessing still set and cleared on schedule
-- [ ] [LLM] Game remains fully playable without FeedbackManager
-
-**Why:** Tests graceful degradation when the CDN package is unavailable -- a real production scenario.
-
----
-
-### Case 3: Bloom L4 Analyze feedback -- metacognitive prompting
+### Case 2: Wrong answer — lives remaining (stay on round)
 
 **Priority:** P0
 **Type:** happy-path
-**Judge:** llm
-
-**Input:**
-
-```
-Archetype: Board Puzzle
-Bloom: L4 Analyze
-Topic: Comparing data representations
-PART-017: YES
-
-Student submits an incorrect analysis.
-```
-
-**Expect:**
-
-- [ ] playFeedback('incorrect', ...) called
-- [ ] Subtitle uses L4 template: "What could you check? [reflective prompt]. The answer is [answer]."
-- [ ] Duration = 2000ms (L4 wrong AND L4 correct both use 2000ms)
-- [ ] Feedback includes a metacognitive question before revealing the answer
-- [ ] [LLM] Tone is analytical ("What could you check?"), not punitive
-- [ ] [LLM] Subtitle does NOT just show the answer (L4 requires reasoning path)
-- [ ] Scaffolding after 1st wrong = metacognitive prompt, not answer reveal
-
-**Why:** Tests L4-specific feedback behavior which differs significantly from L1-L3 (ask-back pattern, longer duration for correct, analytical tone).
-
----
-
-### Case 4: Streak celebration and failure recovery
-
-**Priority:** P1
-**Type:** edge-case
-**Judge:** llm
-
-**Input:**
-
-```
-Archetype: Lives Challenge
-Bloom: L3 Apply
-PART-017: YES
-
-Sequence: 4 correct answers in a row, then 3 wrong answers in a row.
-```
-
-**Expect:**
-
-- [ ] After 3rd consecutive correct: subtitle includes streak message ("3 in a row!" or similar)
-- [ ] After 4th consecutive correct: escalated streak ("4 in a row! On fire!")
-- [ ] Streak glow animation (.streak-glow CSS class) applied to score area
-- [ ] Streak counter resets to 0 on first wrong answer
-- [ ] After 3rd consecutive wrong: subtitle softens ("This is a tough one. ...")
-- [ ] Language never escalates in severity -- 3rd wrong is as warm as 1st wrong
-- [ ] [LLM] Failure recovery does NOT change the game mechanics (no auto-hints unless spec supports them)
-- [ ] [LLM] consecutiveWrongs counter tracked correctly
-
-**Why:** Tests the emotional arc mechanics -- streak celebration and failure recovery are the key differentiators between "exam" and "game."
-
----
-
-### Case 5: Cross-skill -- feedback timing compatible with data-contract
-
-**Priority:** P1
-**Type:** cross-skill
 **Judge:** llm
 
 **Input:**
@@ -173,21 +82,181 @@ Archetype: MCQ Quiz
 Bloom: L2 Understand
 PART-017: YES
 
-Student answers correctly on round 3.
+Student answers incorrectly. Lives: 3 → 2.
 ```
 
 **Expect:**
 
-- [ ] recordAttempt called with correct = true (data-contract schema)
-- [ ] recordAttempt includes response_time_ms (time from question display to submission)
-- [ ] playFeedback('correct', ...) called after recordAttempt
-- [ ] syncDOM() called after score increment (data-contract requirement)
-- [ ] trackEvent('answer_submitted', ...) fired with round and correct fields
-- [ ] isProcessing blocks any additional taps during 1500ms feedback window
-- [ ] [LLM] Sequence is: record attempt -> update score -> syncDOM -> play feedback -> wait 1500ms -> advance round
-- [ ] [LLM] No data-contract field is stale during the feedback window
+- [ ] `gameState.isProcessing = true` set immediately
+- [ ] Wrong option gets red CSS class (`.wrong` / `.incorrect`)
+- [ ] Life decremented: `gameState.lives--`
+- [ ] `progressBar.update(round, lives)` called immediately (student sees lost heart)
+- [ ] `recordAttempt({...correct: false})` called BEFORE audio
+- [ ] `FeedbackManager.sound.play('incorrect_sound_effect', { sticker: {..., duration: 2} })` awaited
+- [ ] Red flash clears after ~600ms
+- [ ] After audio resolves: `gameState.isProcessing = false`
+- [ ] **Student stays on the same round** — not auto-advanced
+- [ ] [LLM] Wrong option is either deselected (retry freely) or permanently disabled
 
-**Why:** Tests that feedback timing and data-contract obligations work together -- recordAttempt must fire before feedback, syncDOM must reflect score during feedback.
+**Why:** Tests that wrong answers don't advance the round and follow the correct await + blocking pattern.
+
+---
+
+### Case 3: Wrong answer — last life lost (skip wrong SFX, go to game over)
+
+**Priority:** P0
+**Type:** edge-case
+**Judge:** llm
+
+**Input:**
+
+```
+Any archetype, PART-017: YES
+Student answers incorrectly. Lives: 1 → 0.
+```
+
+**Expect:**
+
+- [ ] Life decremented to 0
+- [ ] **Wrong-answer SFX is NOT played** — skipped entirely
+- [ ] Game goes directly to game-over flow
+- [ ] Game Over screen renders FIRST (title, sad emoji, rounds completed, "Try Again" CTA)
+- [ ] `game_complete` postMessage sent to parent BEFORE audio
+- [ ] Game over SFX plays (with sad sticker, 3s) → game over VO plays (sequential await)
+- [ ] CTA is already visible during audio — if tapped, all audio stops, game restarts
+- [ ] [LLM] No "incorrect" audio plays before game-over audio (priority rule)
+
+**Why:** Tests the priority rule — game over trumps wrong-answer SFX.
+
+---
+
+### Case 4: Multi-step correct match (fire-and-forget, don't block)
+
+**Priority:** P0
+**Type:** happy-path
+**Judge:** llm
+
+**Input:**
+
+```
+Archetype: Matching game (pairs/chains)
+PART-017: YES
+
+Student matches one pair. 3 more pairs remain in the round.
+```
+
+**Expect:**
+
+- [ ] Matched elements get green CSS class
+- [ ] `FeedbackManager.sound.play('correct_sound_effect', { sticker })` called but NOT awaited (fire-and-forget with `.catch()`)
+- [ ] `gameState.isProcessing` is NOT set to true — student can immediately match next pair
+- [ ] `recordAttempt` called for the match
+- [ ] [LLM] Student is never blocked from continuing to work while correct SFX plays
+
+**Why:** Tests that multi-step mid-round feedback doesn't block input — critical for flow in matching/chain games.
+
+---
+
+### Case 5: Round complete (all sub-actions done — awaited)
+
+**Priority:** P1
+**Type:** happy-path
+**Judge:** llm
+
+**Input:**
+
+```
+Archetype: Matching game
+PART-017: YES
+
+Student matches the last pair in the round. All pairs complete.
+```
+
+**Expect:**
+
+- [ ] "Round complete" SFX plays with sticker and subtitle (e.g., "All cards matched!")
+- [ ] This audio IS awaited — input paused until it finishes
+- [ ] After audio: game advances to next round transition, level transition, or end-game
+- [ ] [LLM] Round-complete audio is the gate — next round does not load until it finishes
+
+**Why:** Tests the distinction: mid-round matches are fire-and-forget, but round completion IS awaited.
+
+---
+
+### Case 6: Transition screen CTA stops audio
+
+**Priority:** P1
+**Type:** interaction
+**Judge:** llm
+
+**Input:**
+
+```
+Level transition screen visible. Level VO is playing with sticker.
+Student taps "I'm ready!" CTA.
+```
+
+**Expect:**
+
+- [ ] `FeedbackManager._stopCurrentDynamic()` called (if dynamic TTS)
+- [ ] `FeedbackManager.sound.stopAll()` called
+- [ ] Transition screen hides
+- [ ] Game proceeds to round transition or gameplay
+- [ ] [LLM] Audio does not continue playing after CTA tap
+
+**Why:** Tests the cross-cutting rule: CTA always stops audio.
+
+---
+
+### Case 7: Victory — screen before audio, CTA interruptible
+
+**Priority:** P1
+**Type:** happy-path
+**Judge:** llm
+
+**Input:**
+
+```
+Student completes all rounds with 3 stars.
+PART-017: YES
+```
+
+**Expect:**
+
+- [ ] Timer pauses
+- [ ] Results screen renders FIRST (stars, metrics, "Play Again" button visible)
+- [ ] `game_complete` postMessage sent to parent BEFORE audio
+- [ ] Victory SFX plays (with celebration sticker, 3-5s) — awaited
+- [ ] Then victory VO plays — awaited
+- [ ] If student taps "Play Again" while audio is playing: all audio stops, game restarts
+- [ ] [LLM] Student never waits for a blank screen while audio plays
+
+**Why:** Tests the end-game ordering: screen → postMessage → audio. And CTA interrupt.
+
+---
+
+### Case 8: Visibility hidden/restored
+
+**Priority:** P1
+**Type:** edge-case
+**Judge:** llm
+
+**Input:**
+
+```
+Game is mid-round. Student switches tabs.
+```
+
+**Expect:**
+
+- [ ] Timer pauses
+- [ ] `FeedbackManager.sound.pause()` called
+- [ ] `FeedbackManager.stream.pauseAll()` called
+- [ ] "Game Paused" overlay appears
+- [ ] On return: timer resumes, audio resumes, streams resume, overlay dismisses
+- [ ] Gameplay continues from exactly where it was
+
+**Why:** Tests pause/resume behavior — audio must pause (not stop) so it can resume.
 
 ---
 
@@ -196,15 +265,18 @@ Student answers correctly on round 3.
 | Result | Meaning |
 |--------|---------|
 | PASS | All assertions in Expect checklist pass |
-| PARTIAL | Some assertions fail -- note which ones |
+| PARTIAL | Some assertions fail — note which ones |
 | FAIL | Critical assertions fail or output is fundamentally wrong |
 
 ## Ship Gate Check
 
 | Case | Priority | Required result |
 |------|----------|----------------|
-| Case 1: MCQ correct/wrong flow | P0 | PASS |
-| Case 2: Missing PART-017 | P0 | PASS |
-| Case 3: Bloom L4 feedback | P0 | PASS |
-| Case 4: Streak and recovery | P1 | PASS or PARTIAL |
-| Case 5: Cross-skill timing | P1 | PASS or PARTIAL |
+| Case 1: Correct answer (awaited) | P0 | PASS |
+| Case 2: Wrong answer (stay on round) | P0 | PASS |
+| Case 3: Last life (skip wrong SFX) | P0 | PASS |
+| Case 4: Multi-step match (fire-and-forget) | P0 | PASS |
+| Case 5: Round complete (awaited) | P1 | PASS or PARTIAL |
+| Case 6: CTA stops audio | P1 | PASS or PARTIAL |
+| Case 7: Victory screen-before-audio | P1 | PASS or PARTIAL |
+| Case 8: Visibility pause/resume | P1 | PASS or PARTIAL |

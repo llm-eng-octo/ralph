@@ -16,7 +16,7 @@ After spec is approved, before game-building. Produces the 5 plan docs the build
 ## Reads
 
 - `skills/game-archetypes.md` -- archetype profile determines the structural skeleton -- **ALWAYS**
-- `skills/feedback/` -- FeedbackManager API, timing rules, round presentation sequence -- **ALWAYS**
+- `skills/feedback/SKILL.md` -- 17 behavioral cases, await/fire-and-forget rules, priority table, FeedbackManager API -- **ALWAYS**
 - `skills/pedagogy.md` -- Bloom level determines feedback depth and scaffolding -- **ALWAYS**
 - `skills/mobile.md` -- viewport constraints for screen layouts -- **ON-DEMAND** (only for screens.md wireframes)
 - `skills/data-contract/` -- recordAttempt and game_complete schemas -- **ON-DEMAND** (only for scoring.md data contract fields)
@@ -105,7 +105,7 @@ See [cross-validation.md](reference/cross-validation.md) for the full checklist.
 
 1. **STANDARD -- No code in plans.** Zero JavaScript, CSS declarations, or HTML tags. Only exception: FeedbackManager call signatures and CSS class names.
 2. **CRITICAL -- Every screen gets a wireframe.** If game-flow.md lists 4 screens, screens.md has 4 wireframes.
-3. **CRITICAL -- Every feedback moment has a FeedbackManager call.** No "show a message" -- must be `playFeedback(type, subtitle)`.
+3. **CRITICAL -- Every feedback moment has a FeedbackManager call.** No "show a message" -- must be `FeedbackManager.sound.play(id, {sticker})` for SFX or `FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` for VO. See `skills/feedback/SKILL.md` for the 17 behavioral cases.
 4. **CRITICAL -- Plans must be buildable without the spec.** No ambiguities requiring spec lookup.
 5. **STANDARD -- Archetype defaults are explicit.** Write "9 rounds", never "per archetype default."
 6. **CRITICAL -- No invented features.** Implement the spec, not a wish list.

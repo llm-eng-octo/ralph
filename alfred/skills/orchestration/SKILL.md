@@ -101,7 +101,7 @@ STEP 1 — Draft Spec [SUB-AGENT]
 Read alfred/skills/spec-creation.md
 Read alfred/skills/game-archetypes.md
 Read alfred/skills/pedagogy/SKILL.md
-Read alfred/skills/feedback.md
+Read alfred/skills/feedback/SKILL.md
 Read alfred/skills/mobile/SKILL.md
 
 Using the game description above and the loaded skills, generate a complete game spec.
@@ -148,7 +148,7 @@ STEP 4 — Build the Game [SUB-AGENT]
 Read alfred/skills/game-building.md
 Read alfred/skills/data-contract.md
 Read alfred/skills/mobile/SKILL.md
-Read alfred/skills/feedback.md
+Read alfred/skills/feedback/SKILL.md
 
 Using the approved spec and plan, generate the complete game as a single index.html file.
 All CSS and JS must be inline. Follow the archetype skeleton from game-archetypes.md.
@@ -392,7 +392,7 @@ The orchestration steps map to the legacy pipeline-v2 step sequence (replaced by
 | data-contract | `alfred/skills/data-contract.md` | Exists |
 | mobile | `alfred/skills/mobile/SKILL.md` | Exists |
 | pedagogy | `alfred/skills/pedagogy/SKILL.md` | Exists |
-| feedback | `alfred/skills/feedback.md` | Exists |
+| feedback | `alfred/skills/feedback/SKILL.md` | Exists |
 | visual-review | `alfred/skills/visual-review.md` | **Not yet written** |
 | final-review | `alfred/skills/final-review.md` | **Not yet written** |
 | deployment | `alfred/skills/deployment.md` | Exists |

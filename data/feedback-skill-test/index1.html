@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Position Maximizer</title>
+
+  <!-- 1. SentryConfig package -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+  <!-- 2. initSentry() function definition -->
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled && typeof Sentry !== 'undefined') {
+        Sentry.init({
+          dsn: SentryConfig.dsn,
+          environment: SentryConfig.environment,
+          release: 'game-position-maximizer@1.0.0',
+          tracesSampleRate: SentryConfig.tracesSampleRate,
+          sampleRate: SentryConfig.sampleRate,
+          maxBreadcrumbs: 50,
+          ignoreErrors: [
+            'ResizeObserver loop limit exceeded',
+            'ResizeObserver loop completed with undelivered notifications',
+            'Non-Error promise rejection captured',
+            'Script error.',
+            'Load failed',
+            'Failed to fetch'
+          ]
+        });
+      }
+    }
+
+    window.addEventListener('error', (event) => {
+      if (typeof Sentry !== 'undefined') {
+        Sentry.captureException(event.error || new Error(event.message), {
+          tags: { errorType: 'unhandled', severity: 'critical' },
+          contexts: { errorEvent: { message: event.message, filename: event.filename, lineno: event.lineno } }
+        });
+      }
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      if (typeof Sentry !== 'undefined') {
+        Sentry.captureException(event.reason || new Error('Unhandled promise rejection'), {
+          tags: { errorType: 'unhandled-promise', severity: 'critical' }
+        });
+      }
+    });
+  </script>
+
+  <!-- 3. Sentry SDK (3 scripts, NO integrity attribute) -->
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+  <!-- 4. Initialize Sentry on load -->
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- 5-7. Game packages -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+
+  <style>
+    /* === CSS Variables (PART-020) === */
+    :root {
+      --mathai-green: #4CAF50;
+      --mathai-light-green: #E8F5E9;
+      --mathai-red: #F44336;
+      --mathai-light-red: #FFEBEE;
+      --mathai-blue: #2196F3;
+      --mathai-light-blue: #EBF0FF;
+      --mathai-gray: #757575;
+      --mathai-light-gray: #F5F5F5;
+      --mathai-white: #FFFFFF;
+      --mathai-black: #212121;
+      --mathai-text-primary: #000000;
+      --mathai-font-family: 'Nunito', sans-serif;
+      --mathai-font-size-title: 24px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-label: 14px;
+      --mathai-font-size-small: 12px;
+    }
+
+    /* === Reset === */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100dvh; overflow: hidden; }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary, #000000);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .mathai-layout-root { max-width: 480px; margin: 0 auto; }
+
+    /* === ScreenLayout v2 overrides === */
+    .mathai-layout-playarea {
+      flex-direction: column !important;
+      align-items: center !important;
+      padding: 8px 16px !important;
+    }
+
+    /* === Transition Screen overrides === */
+    .mathai-ts-screen.active {
+      flex: 1;
+      justify-content: flex-start;
+      padding-top: 16px;
+    }
+    .mathai-ts-card {
+      min-height: 50dvh;
+    }
+
+    /* === Question Text (in questionText slot) === */
+    .question-text-container {
+      width: 100%;
+      max-width: 340px;
+      margin: 0 auto;
+      padding: 8px 16px;
+    }
+
+    .instruction-text {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary, #000000);
+      line-height: 1.5;
+      margin-bottom: 4px;
+    }
+
+    .instruction-text strong { font-weight: 700; }
+
+    .instruction-text-sub {
+      font-size: var(--mathai-font-size-label);
+      color: var(--mathai-gray);
+      line-height: 1.4;
+      margin-bottom: 4px;
+    }
+
+    /* === Game Block === */
+    .game-block {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      gap: 16px;
+    }
+
+    /* === Prompt Area === */
+    .prompt-area {
+      text-align: center;
+      margin: 8px 0;
+    }
+
+    .prompt-text {
+      font-size: var(--mathai-font-size-label);
+      color: var(--mathai-gray);
+      margin-bottom: 8px;
+    }
+
+    .prompt-text strong { color: var(--mathai-text-primary, #000000); font-weight: 700; }
+
+    .digit-display {
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--mathai-text-primary, #000000);
+      line-height: 1;
+    }
+
+    /* === Play Area (Columnar Number Layout) === */
+    .play-area {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      margin: 16px 0;
+    }
+
+    /* Each number row: label + slots */
+    .number-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .number-label {
+      font-size: var(--mathai-font-size-small);
+      font-weight: 600;
+      color: var(--mathai-gray);
+      text-align: center;
+      min-width: 48px;
+      line-height: 1.2;
+    }
+
+    .number-label .label-icon {
+      font-size: 14px;
+    }
+
+    .slots-row {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    /* === Slot Cell === */
+    .slot-cell {
+      width: 52px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--mathai-light-gray);
+      border-radius: 8px;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--mathai-text-primary, #000000);
+      transition: all 0.15s ease;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Pre-filled (gray, non-interactive) */
+    .slot-cell.filled {
+      background: var(--mathai-light-gray);
+      color: var(--mathai-text-primary, #000000);
+      cursor: default;
+    }
+
+    /* Empty (white, tappable) */
+    .slot-cell.empty {
+      background: var(--mathai-white);
+      cursor: pointer;
+      border-color: var(--mathai-light-gray);
+    }
+
+    .slot-cell.empty:hover:not(.correct):not(.wrong) {
+      border-color: var(--mathai-blue);
+      background: var(--mathai-light-blue);
+    }
+
+    .slot-cell.empty:active:not(.correct):not(.wrong) {
+      transform: scale(0.95);
+    }
+
+    /* Correct - green highlight */
+    .slot-cell.correct {
+      border: 2px solid var(--mathai-green);
+      background: var(--mathai-light-green);
+      color: var(--mathai-green);
+      cursor: default;
+    }
+
+    /* Wrong - red highlight */
+    .slot-cell.wrong {
+      border: 2px solid var(--mathai-red);
+      background: var(--mathai-light-red);
+      color: var(--mathai-red);
+      cursor: default;
+    }
+
+    /* === Buttons (PART-022) === */
+    .game-btn {
+      padding: 12px 32px;
+      border: none;
+      border-radius: 12px;
+      font-size: var(--mathai-font-size-body);
+      font-weight: 600;
+      font-family: var(--mathai-font-family);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-height: 44px;
+      width: 100%;
+      max-width: 340px;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-primary { background: var(--mathai-green); color: var(--mathai-white); }
+    .btn-primary:hover { filter: brightness(0.9); }
+    .btn-primary:active { transform: scale(0.97); }
+
+    /* === Results metrics === */
+    .results-metrics {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      max-width: 300px;
+      margin: 16px auto;
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--mathai-light-gray);
+    }
+
+    .metric-label {
+      font-size: var(--mathai-font-size-label);
+      color: var(--mathai-gray);
+    }
+
+    .metric-value {
+      font-size: var(--mathai-font-size-body);
+      font-weight: 700;
+      color: var(--mathai-text-primary, #000000);
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    // === FALLBACK CONTENT ===
+    var fallbackContent = {
+      rounds: [
+        {
+          type: 'number',
+          digit: 8,
+          numbers: [
+            {
+              slots: [
+                { value: 9, filled: true },
+                { value: -1, filled: false },
+                { value: -1, filled: false },
+                { value: 3, filled: true }
+              ]
+            }
+          ],
+          correctPosition: { numberIndex: 0, slotIndex: 1 },
+          explanation: { correctValue: 800, positionName: 'hundreds' },
+          audio_content: {
+            correct: 'Correct! 8 will contribute 800 to the number from this position.',
+            incorrect: {
+              '0-2': 'Oops! 8 will contribute only 80 to this number from this position. This is not the maximum!'
+            }
+          }
+        },
+        {
+          type: 'number',
+          digit: 7,
+          numbers: [
+            {
+              slots: [
+                { value: -1, filled: false },
+                { value: -1, filled: false },
+                { value: -1, filled: false },
+                { value: 4, filled: true }
+              ]
+            }
+          ],
+          correctPosition: { numberIndex: 0, slotIndex: 0 },
+          explanation: { correctValue: 7000, positionName: 'thousands' },
+          audio_content: {
+            correct: 'Correct! 7 will contribute 7000 to the number from this position.',
+            incorrect: {
+              '0-1': 'Oops! 7 will contribute only 700 to this number from this position. This is not the maximum!',
+              '0-2': 'Oops! 7 will contribute only 70 to this number from this position. This is not the maximum!'
+            }
+          }
+        },
+        {
+          type: 'sum',
+          digit: 9,
+          rows: 4, columns: 5,
+          numbers: [
+            {
+              slots: [
+                { value: -1, filled: false },
+                { value: 6, filled: true },
+                { value: 4, filled: true },
+                { value: 3, filled: true }
+              ],
+              direction: 'horizontal', gridRow: 2
+            },
+            {
+              slots: [
+                { value: -1, filled: false },
+                { value: 1, filled: true }
+              ],
+              direction: 'vertical', gridCol: 3, slotsAbove: 1
+            }
+          ],
+          correctPosition: { numberIndex: 0, slotIndex: 0 },
+          explanation: { correctValue: 9000, positionName: 'thousands' },
+          audio_content: {
+            correct: 'Correct! 9 will contribute 9000 to the sum from this position.',
+            incorrect: {
+              '1-0': 'Oops! 9 will contribute only 900 to the sum from this position. This is not the maximum!'
+            }
+          }
+        },
+        {
+          type: 'sum',
+          digit: 6,
+          rows: 5, columns: 5,
+          numbers: [
+            {
+              slots: [
+                { value: -1, filled: false },
+                { value: -1, filled: false },
+                { value: 5, filled: true }
+              ],
+              direction: 'vertical', gridCol: 1, slotsAbove: 3
+            },
+            {
+              slots: [
+                { value: -1, filled: false },
+                { value: 2, filled: true },
+                { value: 3, filled: true },
+                { value: 0, filled: true }
+              ],
+              direction: 'horizontal', gridRow: 4
+            }
+          ],
+          correctPosition: { numberIndex: 1, slotIndex: 0 },
+          explanation: { correctValue: 6000, positionName: 'thousands' },
+          audio_content: {
+            correct: 'Correct! 6 will contribute 6000 to the sum from this position.',
+            incorrect: {
+              '0-0': 'Oops! 6 will contribute only 600 to the sum from this position. This is not the maximum!',
+              '0-1': 'Oops! 6 will contribute only 60 to the sum from this position. This is not the maximum!'
+            }
+          }
+        },
+        {
+          type: 'sum',
+          digit: 5,
+          rows: 5, columns: 5,
+          numbers: [
+            {
+              slots: [
+                { value: 9, filled: true },
+                { value: 7, filled: true },
+                { value: -1, filled: false },
+                { value: -1, filled: false }
+              ],
+              direction: 'horizontal', gridRow: 3
+            },
+            {
+              slots: [
+                { value: 8, filled: true },
+                { value: 6, filled: true },
+                { value: -1, filled: false }
+              ],
+              direction: 'vertical', gridCol: 4, slotsAbove: 2
+            }
+          ],
+          correctPosition: { numberIndex: 0, slotIndex: 2 },
+          explanation: { correctValue: 50, positionName: 'tens' },
+          audio_content: {
+            correct: 'Correct! 5 will contribute 50 to the sum from this position.',
+            incorrect: {
+              '0-3': 'Oops! 5 will contribute only 5 to the sum from this position. This is not the maximum!',
+              '1-2': 'Oops! 5 will contribute only 5 to the sum from this position. This is not the maximum!'
+            }
+          }
+        }
+      ],
+      totalLives: 3,
+      levelTransitionAfterRound: 2
+    };
+
+    // === STICKER CONSTANTS ===
+    var STICKER_CORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_INCORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_COMPLETE_2STAR = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_COMPLETE_1STAR = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    // === GAME STATE (PART-007) ===
+    window.gameState = {
+      currentRound: 0,
+      totalRounds: 5,
+      score: 0,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      content: null,
+      duration_data: {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0,
+        currentTime: null
+      },
+      lives: 3,
+      totalLives: 3,
+      level: 1,
+      phase: 'start',
+      digit: null,
+      numbers: null,
+      correctPosition: null,
+      wrongPositions: new Set(),
+      isProcessing: false,
+      gameEnded: false,
+      pendingEndProblem: null,
+      gameId: null,
+      contentSetId: null
+    };
+
+    // === GLOBAL MODULE-SCOPE VARIABLES ===
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var interactionManager = null;
+    var visibilityTrackerConfig = null;
+    var _endScreenAudioStopper = null;
+
+    // === WAIT FOR PACKAGES (PART-003) ===
+    function waitForPackages() {
+      return new Promise(function(resolve, reject) {
+        var timeout = setTimeout(function() {
+          reject(new Error('Packages failed to load within 10s'));
+        }, 10000);
+
+        function check() {
+          if (typeof VisibilityTracker !== 'undefined' &&
+              typeof SignalCollector !== 'undefined' &&
+              typeof FeedbackManager !== 'undefined') {
+            clearTimeout(timeout);
+            resolve();
+          } else {
+            setTimeout(check, 100);
+          }
+        }
+        check();
+      });
+    }
+
+    // === UTILITY FUNCTIONS ===
+    function getPlaceValue(number, slotIndex) {
+      var totalSlots = number.slots.length;
+      var positionFromRight = totalSlots - 1 - slotIndex;
+      return Math.pow(10, positionFromRight);
+    }
+
+    function getPositionName(placeValue) {
+      var names = { 1: 'ones', 10: 'tens', 100: 'hundreds', 1000: 'thousands', 10000: 'ten-thousands', 100000: 'hundred-thousands', 1000000: 'millions' };
+      return names[placeValue] || ('x' + placeValue);
+    }
+
+    function computeTries() {
+      var tries = [];
+      for (var r = 0; r < gameState.totalRounds; r++) {
+        var count = 0;
+        for (var i = 0; i < gameState.attempts.length; i++) {
+          if (gameState.attempts[i].metadata && gameState.attempts[i].metadata.round === r) {
+            count++;
+          }
+        }
+        tries.push(count);
+      }
+      return tries;
+    }
+
+    function trackEvent(type, target, data) {
+      data = data || {};
+      gameState.events.push(Object.assign({ type: type, target: target, timestamp: Date.now() }, data));
+      console.log('Event:', JSON.stringify(Object.assign({ type: type, target: target }, data), null, 2));
+    }
+
+    function recordAttempt(data) {
+      var attempt = {
+        attempt_timestamp: new Date().toISOString(),
+        time_since_start_of_game: (Date.now() - gameState.startTime) / 1000,
+        input_of_user: data.userAnswer,
+        attempt_number: gameState.attempts.length + 1,
+        correct: data.correct,
+        metadata: {
+          round: gameState.currentRound,
+          question: data.question,
+          correctAnswer: data.correctAnswer,
+          validationType: data.validationType || 'fixed'
+        }
+      };
+      gameState.attempts.push(attempt);
+      gameState.duration_data.attempts.push({
+        startTime: new Date().toISOString(),
+        time_to_first_attempt: (Date.now() - gameState.startTime) / 1000,
+        duration: 0
+      });
+      console.log('Attempt:', JSON.stringify(attempt, null, 2));
+    }
+
+    // === CREATE PROGRESS BAR ===
+    function createProgressBar() {
+      if (progressBar) {
+        try { progressBar.destroy(); } catch(e) {}
+        progressBar = null;
+      }
+      progressBar = new ProgressBarComponent({
+        autoInject: true,
+        totalRounds: gameState.totalRounds,
+        totalLives: 3,
+        slotId: 'mathai-progress-slot'
+      });
+    }
+
+    // === RENDER PLAY AREA ===
+    function renderPlayArea(round) {
+      var playArea = document.getElementById('play-area');
+      playArea.innerHTML = '';
+      playArea.style.cssText = '';
+
+      function createSlotCell(slot, numIdx, slotIdx) {
+        var cell = document.createElement('div');
+        cell.className = 'slot-cell';
+        cell.dataset.numberIndex = numIdx;
+        cell.dataset.slotIndex = slotIdx;
+        cell.dataset.signalId = 'slot-' + numIdx + '-' + slotIdx;
+        cell.dataset.testid = 'cell-' + numIdx + '-' + slotIdx;
+        if (slot.filled) {
+          cell.classList.add('filled');
+          cell.textContent = slot.value;
+        } else {
+          cell.classList.add('empty');
+          cell.textContent = '';
+          cell.addEventListener('click', function() { handleSlotTap(numIdx, slotIdx); });
+        }
+        return cell;
+      }
+
+      if (round.type === 'number') {
+        var row = document.createElement('div');
+        row.className = 'number-row';
+        var label = document.createElement('div');
+        label.className = 'number-label';
+        label.innerHTML = 'Number<br>1 <span class="label-icon">\u{1F449}</span>';
+        row.appendChild(label);
+        var slotsRow = document.createElement('div');
+        slotsRow.className = 'slots-row';
+        round.numbers[0].slots.forEach(function(slot, slotIdx) {
+          slotsRow.appendChild(createSlotCell(slot, 0, slotIdx));
+        });
+        row.appendChild(slotsRow);
+        playArea.appendChild(row);
+      } else {
+        // Sum type: CSS Grid layout for columnar addition
+        var totalRows = round.rows;
+        var totalCols = round.columns;
+        playArea.style.display = 'grid';
+        playArea.style.gridTemplateColumns = 'auto repeat(' + (totalCols - 1) + ', 52px)';
+        playArea.style.gridTemplateRows = 'repeat(' + totalRows + ', 52px)';
+        playArea.style.gap = '6px';
+        playArea.style.alignItems = 'center';
+        playArea.style.justifyItems = 'center';
+
+        var horizontalNum, verticalNum, horizontalIdx, verticalIdx;
+        round.numbers.forEach(function(number, numIdx) {
+          if (number.direction === 'horizontal') {
+            horizontalNum = number;
+            horizontalIdx = numIdx;
+          } else {
+            verticalNum = number;
+            verticalIdx = numIdx;
+          }
+        });
+
+        var hRow = horizontalNum.gridRow;
+        var vCol = verticalNum.gridCol;
+        var slotsAbove = verticalNum.slotsAbove;
+
+        // Vertical label at row 0
+        var vlabel = document.createElement('div');
+        vlabel.className = 'number-label';
+        vlabel.style.gridRow = '1';
+        vlabel.style.gridColumn = String(vCol + 1);
+        vlabel.innerHTML = 'Number<br>' + (verticalIdx + 1) + ' <span class="label-icon">\u{1F447}</span>';
+        playArea.appendChild(vlabel);
+
+        // Vertical slots
+        verticalNum.slots.forEach(function(slot, slotIdx) {
+          var cell = createSlotCell(slot, verticalIdx, slotIdx);
+          var gridRow;
+          if (slotIdx < slotsAbove) {
+            gridRow = 1 + slotIdx;
+          } else {
+            gridRow = hRow + 1 + (slotIdx - slotsAbove);
+          }
+          cell.style.gridRow = String(gridRow + 1);
+          cell.style.gridColumn = String(vCol + 1);
+          playArea.appendChild(cell);
+        });
+
+        // Horizontal label
+        var hlabel = document.createElement('div');
+        hlabel.className = 'number-label';
+        hlabel.style.gridRow = String(hRow + 1);
+        hlabel.style.gridColumn = '1';
+        hlabel.innerHTML = 'Number<br>' + (horizontalIdx + 1) + ' <span class="label-icon">\u{1F449}</span>';
+        playArea.appendChild(hlabel);
+
+        // Horizontal slots
+        horizontalNum.slots.forEach(function(slot, slotIdx) {
+          var cell = createSlotCell(slot, horizontalIdx, slotIdx);
+          cell.style.gridRow = String(hRow + 1);
+          cell.style.gridColumn = String(slotIdx + 2);
+          playArea.appendChild(cell);
+        });
+      }
+    }
+
+    // === LOAD ROUND ===
+    function loadRound() {
+      // Flush deferred endProblem from previous round
+      if (signalCollector && gameState.pendingEndProblem) {
+        signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
+        gameState.pendingEndProblem = null;
+      }
+
+      var roundNumber = gameState.currentRound + 1;
+      var round = gameState.content.rounds[gameState.currentRound];
+
+      signalCollector.startProblem('round_' + roundNumber, {
+        round_number: roundNumber,
+        question_text: 'Place ' + round.digit + ' to maximise in ' + round.type,
+        correct_answer: round.explanation.positionName + ' (' + round.explanation.correctValue + ')',
+        digit: round.digit,
+        type: round.type,
+        difficulty: roundNumber
+      });
+
+      gameState.digit = round.digit;
+      gameState.numbers = round.numbers;
+      gameState.correctPosition = round.correctPosition;
+      gameState.wrongPositions = new Set();
+      gameState.isProcessing = false;
+
+      // Update prompt text
+      var promptText = document.getElementById('prompt-text');
+      if (round.type === 'sum') {
+        promptText.innerHTML = 'Maximise contribution of this digit in the <strong>sum</strong> \u{1F447}';
+      } else {
+        promptText.innerHTML = 'Maximise contribution of this digit in the <strong>number</strong> \u{1F447}';
+      }
+      document.getElementById('digit-display').textContent = round.digit;
+
+      renderPlayArea(round);
+
+      // CASE 17: New content appearing (fire-and-forget)
+      try { FeedbackManager.sound.play('new_cards').catch(function(e) {}); } catch(e) {}
+
+      signalCollector.recordViewEvent('content_render', {
+        screen: 'gameplay',
+        content_snapshot: {
+          round: roundNumber,
+          digit: round.digit,
+          type: round.type,
+          numbers_count: round.numbers.length,
+          trigger: 'round_start'
+        },
+        components: {
+          progress: { current: roundNumber, total: gameState.totalRounds },
+          lives: gameState.lives
+        }
+      });
+    }
+
+    // === HANDLE SLOT TAP ===
+    async function handleSlotTap(numberIndex, slotIndex) {
+      if (!gameState.isActive || gameState.isProcessing) return;
+
+      // CASE 9: Tap micro-interaction (fire-and-forget)
+      try { FeedbackManager.sound.play('tap_sound').catch(function(e) { console.error('Audio error:', e.message); }); } catch(e) {}
+
+      var key = numberIndex + '-' + slotIndex;
+      if (gameState.wrongPositions.has(key)) return;
+
+      var cell = document.querySelector('.slot-cell[data-number-index="' + numberIndex + '"][data-slot-index="' + slotIndex + '"]');
+      if (!cell || cell.classList.contains('filled') || cell.classList.contains('correct') || cell.classList.contains('wrong')) return;
+
+      gameState.isProcessing = true;
+
+      var round = gameState.content.rounds[gameState.currentRound];
+      var number = gameState.numbers[numberIndex];
+      var placeValue = getPlaceValue(number, slotIndex);
+      var contribution = gameState.digit * placeValue;
+      var posName = getPositionName(placeValue);
+      var typeWord = round.type === 'sum' ? 'sum' : 'number';
+
+      cell.textContent = gameState.digit;
+
+      trackEvent('tap_position', 'grid', {
+        numberIndex: numberIndex,
+        slotIndex: slotIndex,
+        placeValue: placeValue,
+        contribution: contribution,
+        digit: gameState.digit
+      });
+
+      signalCollector.recordViewEvent('visual_update', {
+        screen: 'gameplay',
+        content_snapshot: {
+          type: 'slot_tapped',
+          number_index: numberIndex,
+          slot_index: slotIndex,
+          digit: gameState.digit,
+          contribution: contribution,
+          position_name: posName
+        }
+      });
+
+      if (numberIndex === gameState.correctPosition.numberIndex && slotIndex === gameState.correctPosition.slotIndex) {
+        // CORRECT
+        cell.classList.remove('empty');
+        cell.classList.add('correct');
+
+        trackEvent('correct_position', 'grid', { numberIndex: numberIndex, slotIndex: slotIndex, contribution: contribution, posName: posName });
+
+        // recordAttempt BEFORE audio
+        recordAttempt({
+          userAnswer: { action: 'tap_position', numberIndex: numberIndex, slotIndex: slotIndex, contribution: contribution },
+          correct: true,
+          question: 'Place ' + gameState.digit + ' to maximise in ' + typeWord,
+          correctAnswer: posName + ' (' + contribution + ')',
+          validationType: 'fixed'
+        });
+
+        signalCollector.recordViewEvent('feedback_display', {
+          screen: 'gameplay',
+          content_snapshot: {
+            feedback_type: 'correct',
+            message: round.audio_content.correct,
+            contribution: contribution,
+            position_name: posName
+          }
+        });
+
+        gameState.pendingEndProblem = {
+          id: 'round_' + (gameState.currentRound + 1),
+          outcome: { correct: true, answer: { numberIndex: numberIndex, slotIndex: slotIndex, contribution: contribution } }
+        };
+
+        signalCollector.recordCustomEvent('round_solved', {
+          round: gameState.currentRound + 1,
+          correct: true,
+          contribution: contribution,
+          position_name: posName
+        });
+
+        // CASE 4: Correct answer audio
+        try {
+          await FeedbackManager.sound.play('correct_sound_effect', { sticker: { image: STICKER_CORRECT, duration: 2, type: 'IMAGE_GIF' }, subtitle: "That's right!" });
+          await FeedbackManager.playDynamicFeedback({ audio_content: round.audio_content.correct, subtitle: round.audio_content.correct.substring(0, 60), sticker: STICKER_CORRECT });
+        } catch(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+
+        gameState.isProcessing = false;
+        roundComplete();
+
+      } else {
+        // WRONG
+        cell.classList.remove('empty');
+        cell.classList.add('wrong');
+        gameState.lives--;
+        gameState.wrongPositions.add(key);
+        progressBar.update(gameState.currentRound, gameState.lives);
+
+        var incorrectText = (round.audio_content.incorrect && round.audio_content.incorrect[key]) || ('Oops! ' + gameState.digit + ' contributes only ' + contribution.toLocaleString() + ' from this position.');
+
+        trackEvent('wrong_position', 'grid', { numberIndex: numberIndex, slotIndex: slotIndex, contribution: contribution, posName: posName });
+        trackEvent('life_lost', 'game', { livesRemaining: gameState.lives });
+
+        var correctNumber = gameState.numbers[gameState.correctPosition.numberIndex];
+        var correctPosName = getPositionName(getPlaceValue(correctNumber, gameState.correctPosition.slotIndex));
+
+        recordAttempt({
+          userAnswer: { action: 'tap_position', numberIndex: numberIndex, slotIndex: slotIndex, contribution: contribution },
+          correct: false,
+          question: 'Place ' + gameState.digit + ' to maximise in ' + typeWord,
+          correctAnswer: correctPosName,
+          validationType: 'fixed'
+        });
+
+        signalCollector.recordViewEvent('feedback_display', {
+          screen: 'gameplay',
+          content_snapshot: {
+            feedback_type: 'incorrect',
+            message: incorrectText,
+            contribution: contribution,
+            position_name: posName
+          }
+        });
+
+        signalCollector.recordViewEvent('visual_update', {
+          screen: 'gameplay',
+          content_snapshot: {
+            type: 'life_lost',
+            lives_remaining: gameState.lives
+          }
+        });
+
+        if (gameState.lives <= 0) {
+          // Skip incorrect SFX - go straight to handleGameOver
+          gameState.pendingEndProblem = {
+            id: 'round_' + (gameState.currentRound + 1),
+            outcome: { correct: false, answer: { numberIndex: numberIndex, slotIndex: slotIndex, contribution: contribution } }
+          };
+
+          signalCollector.recordCustomEvent('round_solved', {
+            round: gameState.currentRound + 1,
+            correct: false,
+            contribution: contribution,
+            reason: 'game_over'
+          });
+
+          gameState.isProcessing = false;
+          await handleGameOver();
+        } else {
+          // CASE 7: Wrong answer with lives remaining
+          try {
+            await FeedbackManager.sound.play('incorrect_sound_effect', { sticker: { image: STICKER_INCORRECT, duration: 2, type: 'IMAGE_GIF' }, subtitle: 'Not quite' });
+            await FeedbackManager.playDynamicFeedback({ audio_content: incorrectText, subtitle: incorrectText.substring(0, 60), sticker: STICKER_INCORRECT });
+          } catch(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+
+          // Clear wrong state after audio
+          cell.classList.remove('wrong');
+          cell.classList.add('filled');
+          cell.style.background = 'var(--mathai-light-gray)';
+          cell.style.color = 'var(--mathai-gray)';
+          cell.style.cursor = 'default';
+
+          gameState.isProcessing = false;
+
+          signalCollector.recordViewEvent('visual_update', {
+            screen: 'gameplay',
+            content_snapshot: {
+              type: 'wrong_flash_cleared',
+              number_index: numberIndex,
+              slot_index: slotIndex
+            }
+          });
+        }
+      }
+    }
+
+    // === ROUND COMPLETE ===
+    function roundComplete() {
+      gameState.currentRound++;
+      gameState.score++;
+      progressBar.update(gameState.currentRound, gameState.lives);
+
+      trackEvent('round_complete', 'game', { round: gameState.currentRound, livesRemaining: gameState.lives });
+
+      if (gameState.currentRound === 2) {
+        gameState.level = 2;
+        trackEvent('level_complete', 'game', { level: 1 });
+        showLevelTransition(2);
+      } else if (gameState.currentRound >= gameState.totalRounds) {
+        trackEvent('level_complete', 'game', { level: 2 });
+        endGame('victory');
+      } else {
+        showRoundTransition(gameState.currentRound + 1);
+      }
+    }
+
+    // === SHOW LEVEL TRANSITION ===
+    async function showLevelTransition(level) {
+      gameState.level = level;
+      gameState.phase = 'transition';
+
+      var levelNames = ['Level 1', 'Level 2'];
+      var levelSubtitles = ['Single number \u2014 find the best position', 'Columnar sum \u2014 find the best position'];
+
+      signalCollector.recordViewEvent('overlay_toggle', {
+        screen: 'transition',
+        content_snapshot: {
+          overlay: 'transition_screen',
+          visible: true,
+          title: levelNames[level - 1],
+          level: level
+        }
+      });
+
+      var audioStopped = false;
+
+      transitionScreen.show({
+        icons: ['\u{1F522}'],
+        iconSize: 'large',
+        title: levelNames[level - 1],
+        subtitle: levelSubtitles[level - 1],
+        buttons: [{
+          text: level === 1 ? "Let's go!" : 'Next Level',
+          type: 'primary',
+          action: async function() {
+            audioStopped = true;
+            try { FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+            transitionScreen.hide();
+            showRoundTransition(gameState.currentRound + 1);
+          }
+        }],
+        persist: true
+      });
+
+      // CASE 5: Audio readiness — wait for permission on level 1 only
+      if (level === 1) {
+        await new Promise(function(resolve) {
+          if (FeedbackManager.canPlayAudio()) return resolve();
+          var check = setInterval(function() {
+            if (FeedbackManager.canPlayAudio()) { clearInterval(check); resolve(); }
+          }, 200);
+          setTimeout(function() { clearInterval(check); resolve(); }, 15000);
+        });
+      }
+
+      // CASE 1: Level transition audio
+      try {
+        await FeedbackManager.sound.play('sound_level_transition', { sticker: { image: STICKER_LEVEL, duration: 5, type: 'IMAGE_GIF' } });
+        if (audioStopped) return;
+        await FeedbackManager.playDynamicFeedback({ audio_content: levelNames[level - 1], subtitle: levelNames[level - 1], sticker: STICKER_LEVEL });
+      } catch(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+    }
+
+    // === SHOW ROUND TRANSITION ===
+    async function showRoundTransition(roundNumber) {
+      gameState.phase = 'transition';
+
+      try {
+        transitionScreen.show({
+          icons: ['\u{1F522}'],
+          title: 'Round ' + roundNumber,
+          subtitle: 'Get ready!',
+          buttons: [],
+          persist: false
+        });
+      } catch(e) {}
+
+      // CASE 2 Variant A: Round transition audio (auto-advance, no CTA)
+      try {
+        await FeedbackManager.sound.play('rounds_sound_effect', { sticker: { image: STICKER_ROUND, duration: 2, type: 'IMAGE_GIF' } });
+        await FeedbackManager.playDynamicFeedback({ audio_content: 'Round ' + roundNumber, subtitle: 'Round ' + roundNumber, sticker: STICKER_ROUND });
+      } catch(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+
+      try { transitionScreen.hide(); } catch(e) {}
+
+      var gc = document.getElementById('gameContent');
+      if (gc) gc.style.display = 'block';
+
+      gameState.phase = 'playing';
+      loadRound();
+    }
+
+    // === SETUP GAME ===
+    function setupGame() {
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      progressBar.update(0, gameState.lives);
+      trackEvent('game_start', 'game');
+      signalCollector.recordViewEvent('screen_transition', {
+        screen: 'gameplay',
+        metadata: { transition_from: 'start' }
+      });
+      showLevelTransition(1);
+    }
+
+    // === END GAME (VICTORY) ===
+    async function endGame(reason) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.duration_data.currentTime = new Date().toISOString();
+
+      var totalTime = Math.round((Date.now() - gameState.startTime) / 1000);
+      var correctAttempts = gameState.attempts.filter(function(a) { return a.correct; }).length;
+      var totalAttempts = gameState.attempts.length;
+      var accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
+      var wrongAttempts = totalAttempts - correctAttempts;
+      var stars = gameState.lives;
+      var tries = computeTries();
+
+      var metrics = {
+        accuracy: accuracy,
+        time: totalTime,
+        stars: stars,
+        tries: tries,
+        totalLives: gameState.totalLives,
+        attempts: gameState.attempts,
+        duration_data: gameState.duration_data,
+        roundsCompleted: gameState.currentRound,
+        wrongAttempts: wrongAttempts,
+        livesRemaining: gameState.lives,
+        reason: reason
+      };
+
+      console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
+      trackEvent('game_end', 'game', { reason: reason, roundsCompleted: gameState.currentRound, accuracy: accuracy, stars: stars, time: totalTime });
+
+      if (signalCollector && gameState.pendingEndProblem) {
+        signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
+        gameState.pendingEndProblem = null;
+      }
+
+      signalCollector.recordViewEvent('screen_transition', {
+        screen: 'results',
+        metadata: { transition_from: 'gameplay', reason: reason }
+      });
+
+      var signalPayload = signalCollector ? signalCollector.seal() : { events: [], signals: {}, metadata: {} };
+
+      // SCREEN-FIRST
+      showResults(metrics, reason);
+
+      // Send game_complete BEFORE audio
+      window.parent.postMessage({
+        type: 'game_complete',
+        data: Object.assign({
+          metrics: metrics,
+          attempts: gameState.attempts,
+          completedAt: Date.now(),
+          signal_event_count: signalPayload.events ? signalPayload.events.length : 0,
+          signal_metadata: signalPayload.metadata || {}
+        }, signalPayload)
+      }, '*');
+
+      // CASE 11: Victory end-game audio
+      var audioStopped = false;
+      _endScreenAudioStopper = function() { audioStopped = true; try { FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); } catch(e) {} };
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var stickerUrl = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_COMPLETE_2STAR : STICKER_COMPLETE_1STAR);
+      var voText = stars === 3 ? 'Victory! 3 stars!' : (stars === 2 ? 'Well done! 2 stars!' : 'Good try! 1 star!');
+      try {
+        await FeedbackManager.sound.play(sfxId, { sticker: { image: stickerUrl, duration: 3, type: 'IMAGE_GIF' } });
+        if (audioStopped) return;
+        await FeedbackManager.playDynamicFeedback({ audio_content: voText, subtitle: voText, sticker: stickerUrl });
+      } catch(e) {}
+
+      // Cleanup guarded
+      if (gameState.gameEnded) {
+        if (progressBar) { progressBar.destroy(); progressBar = null; }
+        if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
+      }
+    }
+
+    // === HANDLE GAME OVER ===
+    async function handleGameOver() {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.duration_data.currentTime = new Date().toISOString();
+
+      var totalTime = Math.round((Date.now() - gameState.startTime) / 1000);
+      var correctAttempts = gameState.attempts.filter(function(a) { return a.correct; }).length;
+      var totalAttempts = gameState.attempts.length;
+      var accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
+      var wrongAttempts = totalAttempts - correctAttempts;
+      var stars = 0;
+      var tries = computeTries();
+
+      var metrics = {
+        accuracy: accuracy,
+        time: totalTime,
+        stars: stars,
+        tries: tries,
+        totalLives: gameState.totalLives,
+        attempts: gameState.attempts,
+        duration_data: gameState.duration_data,
+        roundsCompleted: gameState.currentRound,
+        wrongAttempts: wrongAttempts,
+        livesRemaining: 0,
+        reason: 'game_over'
+      };
+
+      console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
+      trackEvent('game_end', 'game', { reason: 'game_over', roundsCompleted: gameState.currentRound, accuracy: accuracy, stars: 0, time: totalTime });
+
+      if (signalCollector && gameState.pendingEndProblem) {
+        signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
+        gameState.pendingEndProblem = null;
+      }
+
+      signalCollector.recordViewEvent('screen_transition', {
+        screen: 'results',
+        metadata: { transition_from: 'gameplay', reason: 'game_over' }
+      });
+
+      var signalPayload = signalCollector ? signalCollector.seal() : { events: [], signals: {}, metadata: {} };
+
+      // SCREEN-FIRST
+      showResults(metrics, 'game_over');
+
+      // Send game_complete BEFORE audio
+      window.parent.postMessage({
+        type: 'game_complete',
+        data: Object.assign({
+          metrics: metrics,
+          attempts: gameState.attempts,
+          completedAt: Date.now(),
+          signal_event_count: signalPayload.events ? signalPayload.events.length : 0,
+          signal_metadata: signalPayload.metadata || {}
+        }, signalPayload)
+      }, '*');
+
+      // CASE 12: Game over audio
+      var audioStopped = false;
+      _endScreenAudioStopper = function() { audioStopped = true; try { FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); } catch(e) {} };
+      try {
+        await FeedbackManager.sound.play('game_over_sound_effect', { sticker: { image: STICKER_GAMEOVER, duration: 3, type: 'IMAGE_GIF' } });
+        if (audioStopped) return;
+        await FeedbackManager.playDynamicFeedback({ audio_content: 'You completed ' + gameState.currentRound + ' rounds', subtitle: 'You completed ' + gameState.currentRound + ' rounds', sticker: STICKER_GAMEOVER });
+      } catch(e) {}
+
+      // Cleanup guarded
+      if (gameState.gameEnded) {
+        if (progressBar) { progressBar.destroy(); progressBar = null; }
+        if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
+      }
+    }
+
+    // === SHOW RESULTS ===
+    function showResults(metrics, reason) {
+      var stars = metrics.stars;
+      var metricsHTML = '<div class="results-metrics">' +
+        '<div class="metric-row"><span class="metric-label">Rounds Completed</span><span class="metric-value">' + gameState.currentRound + '/' + gameState.totalRounds + '</span></div>' +
+        '<div class="metric-row"><span class="metric-label">Wrong Attempts</span><span class="metric-value">' + metrics.wrongAttempts + '</span></div>' +
+        '<div class="metric-row"><span class="metric-label">Accuracy</span><span class="metric-value">' + metrics.accuracy + '%</span></div>' +
+        '</div>';
+
+      transitionScreen.show({
+        stars: stars,
+        title: reason === 'victory' ? 'Great Job!' : 'Game Over',
+        content: metricsHTML,
+        buttons: [{
+          text: 'Play Again',
+          type: 'primary',
+          action: function() {
+            if (_endScreenAudioStopper) { _endScreenAudioStopper(); _endScreenAudioStopper = null; }
+            restartGame();
+          }
+        }],
+        persist: true
+      });
+    }
+
+    // === RESTART GAME ===
+    function restartGame() {
+      // CASE 13: Stop all audio on restart
+      try { FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); FeedbackManager.stream.stopAll(); } catch(e) {}
+
+      // Push current session to history
+      if (!window.sessionHistory) window.sessionHistory = [];
+      window.sessionHistory.push({
+        attempts: [].concat(gameState.attempts),
+        events: [].concat(gameState.events),
+        duration_data: Object.assign({}, gameState.duration_data)
+      });
+
+      // Reset all gameState fields
+      window.gameState.currentRound = 0;
+      window.gameState.score = 0;
+      window.gameState.attempts = [];
+      window.gameState.events = [];
+      window.gameState.lives = 3;
+      window.gameState.totalLives = 3;
+      window.gameState.wrongPositions = new Set();
+      window.gameState.isProcessing = false;
+      window.gameState.isActive = false;
+      window.gameState.gameEnded = false;
+      window.gameState.startTime = null;
+      window.gameState.level = 1;
+      window.gameState.phase = 'start';
+      window.gameState.pendingEndProblem = null;
+      window.gameState.duration_data = {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0,
+        currentTime: null
+      };
+
+      // Recreate destroyed components
+      signalCollector = new SignalCollector({
+        sessionId: (window.gameVariableState && window.gameVariableState.sessionId) || 'session_' + Date.now(),
+        studentId: (window.gameVariableState && window.gameVariableState.studentId) || null,
+        templateId: gameState.gameId || null
+      });
+      window.signalCollector = signalCollector;
+
+      createProgressBar();
+      progressBar.update(0, 3);
+
+      visibilityTracker = new VisibilityTracker(visibilityTrackerConfig);
+
+      // Start game directly
+      setupGame();
+    }
+
+    // === POST MESSAGE HANDLER ===
+    function handlePostMessage(event) {
+      if (!event.data || event.data.type !== 'game_init') return;
+      try {
+        var data = event.data.data;
+        gameState.content = data.content;
+        gameState.gameId = data.gameId || null;
+        gameState.contentSetId = data.contentSetId || null;
+        gameState.signalConfig = data.signalConfig || {};
+        if (data.signalConfig && signalCollector) {
+          signalCollector.flushUrl = data.signalConfig.flushUrl || null;
+          signalCollector.playId = data.signalConfig.playId || null;
+          signalCollector.gameId = data.signalConfig.gameId || data.gameId || null;
+          signalCollector.sessionId = data.signalConfig.sessionId || null;
+          signalCollector.contentSetId = data.signalConfig.contentSetId || data.contentSetId || null;
+          signalCollector.studentId = data.signalConfig.studentId || null;
+          signalCollector.configure(data.signalConfig);
+          signalCollector.startFlushing();
+        }
+        if (typeof Sentry !== 'undefined') {
+          Sentry.setContext('game', { gameId: data.gameId, contentSetId: data.contentSetId });
+        }
+        console.log('Game init received:', JSON.stringify({ gameId: data.gameId, contentSetId: data.contentSetId, hasContent: !!data.content }, null, 2));
+      } catch(e) {
+        console.error('PostMessage error:', JSON.stringify({ error: e.message }, null, 2));
+      }
+    }
+
+    // === DEBUG FUNCTIONS (PART-012) ===
+    window.debugGame = function() {
+      console.log('Game State:', JSON.stringify({
+        currentRound: gameState.currentRound, totalRounds: gameState.totalRounds,
+        lives: gameState.lives, score: gameState.score, level: gameState.level,
+        digit: gameState.digit, correctPosition: gameState.correctPosition,
+        wrongPositions: Array.from(gameState.wrongPositions), isActive: gameState.isActive,
+        phase: gameState.phase, gameEnded: gameState.gameEnded
+      }, null, 2));
+    };
+    window.debugSignals = function() {
+      if (signalCollector) { signalCollector.debug(); }
+      else { console.log('SignalCollector not initialized'); }
+    };
+    window.verifySentry = function() {
+      var checks = {
+        sdkLoaded: typeof Sentry !== 'undefined',
+        initialized: typeof Sentry !== 'undefined' && Sentry.getClient() !== undefined,
+        dsn: typeof Sentry !== 'undefined' && Sentry.getClient() && Sentry.getClient().getDsn() && Sentry.getClient().getDsn().toString()
+      };
+      console.log('Sentry Status:', JSON.stringify(checks, null, 2));
+      return checks;
+    };
+    window.testSentry = function() {
+      try { throw new Error('Test error from testSentry()'); }
+      catch (error) {
+        if (typeof Sentry !== 'undefined') { Sentry.captureException(error, { tags: { test: true } }); }
+        console.log('Test error sent to Sentry. Check dashboard.');
+      }
+    };
+    window.jumpToRound = function(n) {
+      if (n < 1 || n > gameState.totalRounds) { console.log('Invalid round:', n); return; }
+      gameState.currentRound = n - 1;
+      gameState.isActive = true;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      if (n > 2) gameState.level = 2;
+      loadRound();
+      console.log('Jumped to round', n);
+    };
+
+    // === INITIALIZATION (DOMContentLoaded) ===
+    window.addEventListener('DOMContentLoaded', async function() {
+      try {
+        await waitForPackages();
+
+        // Initialize FeedbackManager and preload SFX
+        await FeedbackManager.init();
+        await FeedbackManager.sound.preload([
+          { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+          { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+          { id: 'sound_life_lost', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+          { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+          { id: 'sound_level_transition', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+          { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+          { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+          { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+          { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+          { id: 'new_cards', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' }
+        ]);
+
+        // SignalCollector
+        signalCollector = new SignalCollector({
+          sessionId: (window.gameVariableState && window.gameVariableState.sessionId) || 'session_' + Date.now(),
+          studentId: (window.gameVariableState && window.gameVariableState.studentId) || null,
+          templateId: gameState.gameId || null
+        });
+        window.signalCollector = signalCollector;
+
+        // ScreenLayout v2
+        var layout = ScreenLayout.inject('app', {
+          sections: {
+            header: true,
+            questionText: true,
+            progressBar: true,
+            playArea: true,
+            transitionScreen: true
+          }
+        });
+
+        // Build question text into questionText slot
+        var questionSlot = document.getElementById(layout.questionText);
+        if (questionSlot) {
+          questionSlot.innerHTML = '<div class="question-text-container"><p class="instruction-text">Tap and select the position where the given digits contribute the <strong>maximum value!</strong></p><p class="instruction-text-sub">Positions in grey are already filled and cannot be selected.</p><p class="instruction-text-sub">Take your time, think & answer each round! Complete all rounds without making any mistakes to win 3 stars!</p></div>';
+        }
+
+        // Build game content into #gameContent
+        var gameContent = document.getElementById('gameContent');
+        gameContent.innerHTML = '<div id="game-screen" class="game-block"><div class="prompt-area" id="prompt-area" data-signal-id="prompt-area"><p class="prompt-text" id="prompt-text" data-signal-id="prompt-text">Maximise contribution of this digit in the <strong>number</strong> \u{1F447}</p><div class="digit-display" id="digit-display" data-signal-id="digit-display">0</div></div><div class="play-area" id="play-area" data-signal-id="play-area"></div></div>';
+
+        // InteractionManager
+        interactionManager = new InteractionManager({
+          selector: '.play-area',
+          disableOnAudioFeedback: false,
+          disableOnEvaluation: true
+        });
+        window.interactionManager = interactionManager;
+
+        // VisibilityTracker
+        visibilityTrackerConfig = {
+          onInactive: function() {
+            var inactiveStart = Date.now();
+            gameState.duration_data.inActiveTime.push({ start: inactiveStart });
+            if (signalCollector) { signalCollector.pause(); signalCollector.recordCustomEvent('visibility_hidden', {}); }
+            // CASE 14: Pause audio on inactive
+            try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch(e) {}
+            trackEvent('game_paused', 'system');
+          },
+          onResume: function() {
+            var lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+            if (lastInactive && !lastInactive.end) {
+              lastInactive.end = Date.now();
+              gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
+            }
+            if (signalCollector) { signalCollector.resume(); signalCollector.recordCustomEvent('visibility_visible', {}); }
+            // CASE 15: Resume audio on active
+            try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch(e) {}
+            trackEvent('game_resumed', 'system');
+          },
+          popupProps: { title: 'Game Paused', description: 'Click Resume to continue.', primaryText: 'Resume' }
+        };
+        visibilityTracker = new VisibilityTracker(visibilityTrackerConfig);
+        window.visibilityTrackerConfig = visibilityTrackerConfig;
+
+        // ProgressBar
+        createProgressBar();
+
+        // TransitionScreen
+        transitionScreen = new TransitionScreenComponent({ autoInject: true });
+
+        // PostMessage listener BEFORE game_ready
+        if (!gameState.content) gameState.content = fallbackContent;
+        gameState.totalRounds = gameState.content.rounds.length;
+        window.addEventListener('message', handlePostMessage);
+        window.parent.postMessage({ type: 'game_ready' }, '*');
+
+        // Start game
+        setupGame();
+      } catch(e) {
+        console.error('Init error:', JSON.stringify({ error: e.message }, null, 2));
+        if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+      }
+    });
+  </script>
+</body>
+</html>

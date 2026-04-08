@@ -69,8 +69,8 @@ Round flow:
 Round flow:
 1. Question appears with 4 options
 2. Student taps an option
-3a. CORRECT: .selected-correct on option, playFeedback('correct', 'Right! 3:6 = 1:2'), score++, wait 1500ms, advance
-3b. WRONG: .selected-wrong on tap, .selected-correct on correct option, .correct-reveal shows answer, playFeedback('incorrect', 'It's 1:2. Divide both by 3.'), wait 2000ms, advance
+3a. CORRECT: .selected-correct on option, await FeedbackManager.sound.play('correct_sound_effect', {sticker}), score++, auto-advance
+3b. WRONG: .selected-wrong on tap, .selected-correct on correct option, .correct-reveal shows answer, await FeedbackManager.sound.play('incorrect_sound_effect', {sticker}), stay on round
 4. Next round fades in (350ms)
 ```
 

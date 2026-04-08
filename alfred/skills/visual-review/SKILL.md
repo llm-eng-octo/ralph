@@ -12,7 +12,7 @@ After game-testing passes. Before final review. Uses Playwright MCP to screensho
 
 ## Reads
 - `skills/mobile/SKILL.md` -- device constraints, touch targets, viewport, CSS variables -- ALWAYS
-- `skills/feedback.md` -- correct/incorrect feedback patterns, micro-animations -- ALWAYS
+- `skills/feedback/SKILL.md` -- correct/incorrect feedback patterns, micro-animations, FeedbackManager API -- ALWAYS
 - `skills/game-archetypes.md` -- archetype-specific layout expectations (e.g., grid games vs MCQ) -- ON-DEMAND
 - `skills/data-contract.md` -- game_complete and recordAttempt schemas (verify results screen shows correct data) -- ON-DEMAND
 - Game spec (`spec.md`) -- what the game should look like and do -- ALWAYS

@@ -16,7 +16,7 @@ After game-building produces index.html. Tests with Playwright MCP, fixes issues
 ## Reads
 
 - `data-contract.md` -- gameState schema, recordAttempt schema, game_complete postMessage schema, syncDOM contract, trackEvent schema — **ALWAYS**
-- `feedback.md` -- FeedbackManager integration, timing rules, input blocking — **ON-DEMAND** (only for Category 2 mechanics checks)
+- `skills/feedback/SKILL.md` -- FeedbackManager integration, timing rules, input blocking — **ON-DEMAND** (only for Category 2 mechanics checks)
 - The game's `spec.md` -- round count, lives, scoring thresholds, interaction type — **ALWAYS**
 - The game's `pre-generation/` directory (if it exists) -- game-flow.md, screens.md, round-flow.md, feedback.md, scoring.md — **ON-DEMAND** (only when verifying expected behavior)
 
@@ -94,7 +94,7 @@ Test the core game interaction -- both correct and wrong answer paths.
 | 2.4 | Difficulty changes | Compare content between early and late rounds | If spec defines stages/difficulty progression, later rounds have harder content (larger numbers, more complex expressions, etc.) |
 | 2.5 | Fallback content loads | `browser_evaluate(() => window.gameState.content)` | If no `game_init` was sent, fallbackContent rounds are used and display correctly |
 | 2.6 | Game elements render | Screenshot during gameplay | All interactive elements (buttons, cards, grids, inputs) are visible and correctly sized |
-| 2.7 | FeedbackManager integration | `browser_evaluate(() => typeof window.playDynamicFeedback)` | Function exists (when PART-017 is YES); `playFeedback` wrapper is defined |
+| 2.7 | FeedbackManager integration | `browser_evaluate(() => typeof FeedbackManager !== 'undefined' && typeof FeedbackManager.sound.play === 'function')` | FeedbackManager loaded and initialized; `sound.play` and `playDynamicFeedback` methods exist |
 
 **Procedure:**
 

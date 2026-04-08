@@ -71,11 +71,27 @@ Per PART-011. Game-building rules:
 - `gameState.gameEnded` guard prevents double-fire.
 - See `parts/PART-011.md` for full code and metrics fields.
 
-### playFeedback / FeedbackManager
-Per PART-017. Game-building rules:
-- Valid types: `'correct'`, `'incorrect'`, `'victory'`, `'gameover'`.
+### FeedbackManager Integration
+Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
+- **CDN script:** `https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js`
+- **Init:** `await FeedbackManager.init()` in DOMContentLoaded
+- **Preload:** `await FeedbackManager.sound.preload([...])` with exact SFX URLs from `feedback/reference/feedbackmanager-api.md`
+- **Static SFX:** `await FeedbackManager.sound.play(id, {sticker: {image, duration, type: 'IMAGE_GIF'}})` — awaited for terminal moments, fire-and-forget for mid-round
+- **Dynamic VO:** `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — all VO is dynamic TTS, never preloaded
+- **Sequential audio (transitions, end-game, SFX+TTS):** Always `await` first audio before starting second. Never fire both simultaneously. Use `audioStopped` flag to prevent second audio if CTA tapped during first:
+  ```javascript
+  var audioStopped = false;
+  ctaButton.onclick = function() { audioStopped = true; FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); proceed(); };
+  try {
+    await FeedbackManager.sound.play('rounds_sound_effect', {sticker});
+    if (audioStopped) return;
+    await FeedbackManager.playDynamicFeedback({audio_content: 'Round 3', subtitle: 'Round 3', sticker});
+  } catch(e) {}
+  ```
+- **Stop:** `FeedbackManager.sound.stopAll()` + `FeedbackManager._stopCurrentDynamic()` on CTA taps
+- **Pause/Resume:** `FeedbackManager.sound.pause()/resume()` + `FeedbackManager.stream.pauseAll()/resumeAll()` on visibility change
 - Subtitle under 60 chars. Never use "wrong" -- use "Not quite," "Close," "Almost."
-- See `parts/PART-017.md` for wrapper code and Bloom-level rules.
+- See `skills/feedback/SKILL.md` for all 17 behavioral cases and `feedback/reference/feedbackmanager-api.md` for CDN URLs.
 
 ### ScreenLayout.inject
 Per PART-025. Game-building rules:
@@ -176,9 +192,12 @@ The core game loop MUST follow this order:
 4. `trackEvent('answer_submitted', ...)` (per PART-010)
 5. Update score/lives, `syncDOM()`
 6. Visual feedback (selected-wrong/selected-correct classes, correct-reveal)
-7. `playFeedback()` (per PART-017)
-8. Auto-advance after delay (correct: 1500ms, incorrect: 2000ms)
-9. In callback: `isProcessing = false`, `trackEvent('round_complete')`, check end conditions, advance round
+7. FeedbackManager audio (per `skills/feedback/SKILL.md`):
+   - Single-step correct/wrong: `await FeedbackManager.sound.play(id, {sticker})` — awaited
+   - If content-specific explanation: `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — awaited after SFX
+   - Multi-step mid-round: `FeedbackManager.sound.play(id, {sticker}).catch(...)` — fire-and-forget
+   - Last-life wrong: skip wrong SFX, go to game-over
+8. `isProcessing = false`, `trackEvent('round_complete')`, check end conditions, advance round
 
 ### resetGame (restartGame)
 

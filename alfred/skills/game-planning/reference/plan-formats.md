@@ -109,24 +109,26 @@ List every distinct round type.
 3. **Student acts** -- [tap option / type number / drag item / click cell]
 4. **Correct path:**
    a. Selected option gets `.selected-correct` styling
-   b. `playFeedback('correct', '[subtitle]')` fires
-   c. `gameState.isProcessing = true` blocks input
-   d. Score increments, score display bounces (scoreBounce 400ms)
-   e. After 1500ms: current round fades out (300ms), next round fades in (350ms)
-   f. `gameState.isProcessing = false`, input unblocks
+   b. `gameState.isProcessing = true` blocks input
+   c. `await FeedbackManager.sound.play('correct_sound_effect', {sticker})` — awaited
+   d. If content-specific explanation: `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — awaited
+   e. Score increments, score display bounces (scoreBounce 400ms)
+   f. `gameState.isProcessing = false`, input unblocks, auto-advance to next round
 5. **Wrong path:**
    a. Selected option gets `.selected-wrong` styling
    b. Correct option gets `.selected-correct` styling
    c. `.correct-reveal` shows "Answer: [correct answer]"
-   d. `playFeedback('incorrect', '[subtitle]')` fires
-   e. `gameState.isProcessing = true` blocks input
-   f. [If lives game: life decremented, heart-break animation 600ms]
-   g. [If lives = 0: transition to game_over screen after 2000ms]
-   h. After 2000ms: current round fades out, next round fades in
+   d. `gameState.isProcessing = true` blocks input
+   e. `await FeedbackManager.sound.play('incorrect_sound_effect', {sticker})` — awaited
+   f. If content-specific explanation: `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — awaited
+   g. [If lives game: life decremented, progress bar updated, heart-break animation 600ms]
+   h. [If lives = 0: skip wrong SFX entirely, go straight to game_over (feedback/SKILL.md Case 8)]
    i. `gameState.isProcessing = false`, input unblocks
+   j. Student stays on same round — retries
 6. **Last round complete:**
-   a. `playFeedback('victory', '[topic-specific praise]')` fires
-   b. After 2000ms: transition to results screen
+   a. Results screen renders FIRST, `game_complete` postMessage sent BEFORE audio
+   b. `await FeedbackManager.sound.play('victory_sound_effect', {sticker})` → `await FeedbackManager.playDynamicFeedback({audio_content: '[victory VO]', subtitle, sticker})`
+   c. CTA already visible — if tapped, `FeedbackManager.sound.stopAll()`
 
 ### State changes per step
 
@@ -147,13 +149,18 @@ List every distinct round type.
 
 ## Feedback Moment Table
 
-| Moment | Trigger | FeedbackManager call | Subtitle template | Blocks input? | Duration | What happens after |
-|--------|---------|---------------------|-------------------|---------------|----------|--------------------|
-| Correct answer | Student selects correct option | `playFeedback('correct', subtitle)` | [from Bloom level] | Yes | 1500ms | Auto-advance |
-| Wrong answer | Student selects wrong option | `playFeedback('incorrect', subtitle)` | [from Bloom level] | Yes | 2000ms | Show correct, auto-advance |
-| Streak (3+) | 3+ consecutive correct | `playFeedback('correct', 'N in a row!')` | escalating | Yes | 1500ms | Auto-advance + streak glow |
-| Victory | All rounds complete, score > 0 | `playFeedback('victory', subtitle)` | "Amazing [topic] skills!" | Yes | 2000ms | Results screen |
-| Game over | Lives reach 0 | `playFeedback('gameover', subtitle)` | "Keep practicing [topic]!" | Yes | 2000ms | Game_over screen |
+| Moment | Trigger | FeedbackManager call | Subtitle template | Blocks input? | Await? | What happens after |
+|--------|---------|---------------------|-------------------|---------------|--------|--------------------|
+| Level transition | Level screen shows | `await sound.play('rounds_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content: 'Level N'})` | "Level N" | CTA visible | Yes (sequential, CTA interrupts) | CTA stops all audio |
+| Round transition (auto) | Round screen shows | `await sound.play('rounds_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content: 'Round N'})` | "Round N" | No CTA | Yes (sequential) | Auto-advance after both |
+| Round transition (CTA) | Round screen shows | `await sound.play('rounds_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content: 'Round N'})` | "Round N" | CTA visible | Yes (sequential, CTA interrupts) | CTA stops all audio |
+| Correct (single-step) | Student selects correct option | `await FeedbackManager.sound.play('correct_sound_effect', {sticker})` | [from Bloom level] | Yes | Yes | Auto-advance |
+| Correct (multi-step) | Student matches pair/chain | `FeedbackManager.sound.play('correct_sound_effect', {sticker}).catch(...)` | — | No | No (fire-and-forget) | Continue playing |
+| Wrong answer | Student selects wrong option | `await FeedbackManager.sound.play('incorrect_sound_effect', {sticker})` | [from Bloom level] | Yes | Yes | Stay on round, retry |
+| Last life wrong | Lives reach 0 | Skip wrong SFX → game-over | — | — | — | Game over screen |
+| Round complete | All sub-actions done | `await FeedbackManager.sound.play('all_correct', {sticker})` | "All matched!" | Yes | Yes | Next round |
+| Victory | All rounds complete | Screen first → `game_complete` → `await sound.play('victory_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content: VO})` | per star tier | CTA visible | Yes (sequential) | CTA stops audio |
+| Game over | Lives reach 0 | Screen first → `game_complete` → `await sound.play('game_over_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content: VO})` | contextual | CTA visible | Yes (sequential) | CTA stops audio |
 
 ## Subtitle Examples
 

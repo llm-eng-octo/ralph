@@ -18,7 +18,7 @@ When generating HTML from an approved spec + plan. The main generation step.
 - `skills/game-archetypes.md` -- archetype profile (structure, interaction, scoring, screens, PART flags, defaults) -- **ALWAYS**
 - `skills/data-contract.md` -- gameState schema, recordAttempt schema, game_complete postMessage schema, syncDOM contract, trackEvent schema, handlePostMessage/game_ready protocol, validation rules -- **ALWAYS**
 - `skills/mobile/SKILL.md` -- viewport, touch targets, typography, safe areas, keyboard, orientation, gestures, performance, cross-browser, CSS variables -- **ALWAYS**
-- `skills/feedback.md` -- FeedbackManager API, per-event feedback, Bloom-level subtitles, timing, wrong-answer handling, emotional arc, micro-animations, round presentation -- **ALWAYS**
+- `skills/feedback/SKILL.md` -- behavioral feedback cases, await/fire-and-forget rules, priority table, FeedbackManager API (reference/feedbackmanager-api.md for CDN URLs and code), timing (reference/timing-and-blocking.md) -- **ALWAYS**
 
 ## Input
 
@@ -52,7 +52,7 @@ Write the document structure following [html-template.md](html-template.md). Thi
 
 ### Step 3: Build the JavaScript
 
-Follow the exact function order from [code-patterns.md](code-patterns.md). All 24 code sections must be implemented with the exact signatures and behaviors documented there. Key sections: gameState, syncDOM, handlePostMessage, recordAttempt, trackEvent, endGame, playFeedback, getRounds, getStars, startGame, resetGame, answer handler, init sequence.
+Follow the exact function order from [code-patterns.md](code-patterns.md). All 24 code sections must be implemented with the exact signatures and behaviors documented there. Key sections: gameState, syncDOM, handlePostMessage, recordAttempt, trackEvent, endGame, FeedbackManager integration (preload, sound.play, playDynamicFeedback), getRounds, getStars, startGame, resetGame, answer handler, init sequence.
 
 ### Step 4: Write the Fallback Content
 
@@ -66,7 +66,7 @@ The `fallbackContent.rounds` array is the game's offline dataset. It must:
 
 ### Step 5: Implement the Answer Handler
 
-The answer handler is the core game loop. See the full pattern in [code-patterns.md](code-patterns.md) Section 17. It must follow the exact 11-step sequence: guard -> evaluate -> recordAttempt -> trackEvent -> update state -> syncDOM -> visual feedback -> playFeedback -> animations -> auto-advance with setTimeout.
+The answer handler is the core game loop. See the full pattern in [code-patterns.md](code-patterns.md) Section 17. It must follow the exact sequence: guard -> evaluate -> recordAttempt -> trackEvent -> update state -> syncDOM -> visual feedback -> FeedbackManager.sound.play (awaited for single-step, fire-and-forget for multi-step) -> optional playDynamicFeedback for content-specific explanation -> animations -> auto-advance. See `skills/feedback/SKILL.md` Cases 4-8 for exact behavior per answer type.
 
 ### Step 6: Implement Keyboard Handling (Input-Based Games)
 
@@ -121,20 +121,26 @@ Before outputting, verify against every check:
 - [ ] Inputs have `-webkit-appearance: none; appearance: none`
 - [ ] Total DOM under 500 elements (render one round at a time)
 
-**Feedback checklist:**
-- [ ] `playFeedback('correct', ...)` on correct answer
-- [ ] `playFeedback('incorrect', ...)` on wrong answer
-- [ ] `playFeedback('victory', ...)` on game complete
-- [ ] `playFeedback('gameover', ...)` on lives exhausted
-- [ ] `gameState.isProcessing = true` BEFORE playFeedback
-- [ ] `gameState.isProcessing = false` inside setTimeout AFTER feedback duration
-- [ ] Correct answer revealed on wrong (`.correct-reveal` element)
-- [ ] Auto-advance after 1500ms (correct) / 2000ms (wrong)
+**Feedback checklist (per `skills/feedback/SKILL.md`):**
+- [ ] FeedbackManager CDN script tag: `https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js`
+- [ ] `FeedbackManager.init()` in DOMContentLoaded
+- [ ] `FeedbackManager.sound.preload([...])` with exact SFX URLs from `feedback/reference/feedbackmanager-api.md`
+- [ ] `canPlayAudio()` polling on first transition screen (200ms interval, 15s timeout)
+- [ ] Correct answer: `await FeedbackManager.sound.play('correct_sound_effect', {sticker})` — awaited, blocks input
+- [ ] Wrong answer: `await FeedbackManager.sound.play('incorrect_sound_effect', {sticker})` — awaited, blocks input
+- [ ] Last-life wrong: wrong SFX **skipped**, go straight to game-over
+- [ ] Multi-step correct match: `FeedbackManager.sound.play(...).catch(...)` — fire-and-forget, no blocking
+- [ ] Victory/game-over: screen renders FIRST, `game_complete` postMessage BEFORE audio, then SFX→VO sequentially
+- [ ] All VO via `FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — never hardcode VO URLs
+- [ ] CTA taps call `FeedbackManager.sound.stopAll()` + `FeedbackManager._stopCurrentDynamic()`
+- [ ] Visibility hidden: `FeedbackManager.sound.pause()` + `FeedbackManager.stream.pauseAll()`
+- [ ] Visibility restored: `FeedbackManager.sound.resume()` + `FeedbackManager.stream.resumeAll()`
+- [ ] `gameState.isProcessing = true` BEFORE awaited feedback, `false` AFTER audio resolves
+- [ ] Every FeedbackManager call wrapped in try/catch — audio failure never blocks gameplay
+- [ ] Sticker GIF URLs from `feedback/reference/feedbackmanager-api.md` Standard Sticker GIFs table
 - [ ] Subtitles under 60 characters, Bloom-level-appropriate
-- [ ] Score bounce animation on correct
-- [ ] Shake animation on wrong
-- [ ] Heart break animation on life lost (lives games)
 - [ ] No custom overlays (FeedbackManager owns overlays)
+- [ ] No `new Audio()` — all audio through FeedbackManager
 
 ### Step 9: Output
 
@@ -192,24 +198,25 @@ Write the complete `index.html` file. No placeholder comments. No TODO markers. 
 28. **STANDARD** -- `-webkit-appearance: none; appearance: none` on all inputs.
 29. **ADVISORY** -- Debounce resize and scroll handlers.
 
-### From feedback.md
+### From feedback/SKILL.md
 
 1. **CRITICAL** -- Never build custom feedback overlays -- FeedbackManager owns the overlay layer.
-2. **CRITICAL** -- Every `playFeedback` call MUST be followed by a `setTimeout` that handles the next transition. No fire-and-forget.
-3. **STANDARD** -- Never skip feedback -- even obvious answers need confirmation.
-4. **STANDARD** -- Never show negative scores. Score >= 0 always.
-5. **STANDARD** -- Never use the word "wrong" in student-facing text.
-6. **CRITICAL** -- Input MUST be blocked during feedback (`gameState.isProcessing`).
-7. **ADVISORY** -- Feedback subtitle under 60 characters.
+2. **CRITICAL** -- Single-step correct/wrong: `await FeedbackManager.sound.play(...)` — awaited, blocks input via `gameState.isProcessing`. Multi-step mid-round matches: fire-and-forget, no blocking.
+3. **CRITICAL** -- Last-life wrong answer: skip wrong SFX entirely, go straight to game-over audio (Case 8).
+4. **CRITICAL** -- Screen renders BEFORE end-game audio. `game_complete` postMessage sent BEFORE audio plays (Cases 11, 12).
+5. **CRITICAL** -- CTA taps stop all audio (`FeedbackManager.sound.stopAll()` + `_stopCurrentDynamic()`).
+6. **CRITICAL** -- All SFX URLs from `feedback/reference/feedbackmanager-api.md` Standard Audio URLs table. Never invent URLs.
+7. **CRITICAL** -- All VO via `FeedbackManager.playDynamicFeedback()` — never hardcode VO URLs, never preload VO.
 8. **CRITICAL** -- Call `waitForPackages()` (which waits for FeedbackManager) during init before first round.
-9. **STANDARD** -- Always show correct answer on wrong answer -- student must never be left wondering.
-10. **STANDARD** -- Auto-advance: 1500ms correct, 2000ms wrong (2000ms for both at L4).
-11. **ADVISORY** -- Streak celebration at 3+ consecutive correct.
-12. **ADVISORY** -- Failure recovery (softer language) at 3+ consecutive wrong.
-13. **STANDARD** -- Game-over tone is encouraging, not punitive. Never "Game Over" alone without encouragement.
-14. **ADVISORY** -- Victory subtitle references the specific topic.
-15. **CRITICAL** -- No custom audio -- FeedbackManager handles all audio.
-16. **CRITICAL** -- Never block init on FeedbackManager failure -- it is supplementary.
+9. **STANDARD** -- Never skip feedback -- even obvious answers need confirmation.
+10. **STANDARD** -- Never show negative scores. Score >= 0 always.
+11. **STANDARD** -- Never use "wrong" in student-facing text. Use "Not quite," "Close," "Almost."
+12. **STANDARD** -- Subtitle under 60 characters.
+13. **STANDARD** -- Audio failure is non-blocking. Every FeedbackManager call in try/catch.
+14. **STANDARD** -- Always show correct answer on wrong answer.
+15. **STANDARD** -- Game-over tone is encouraging, not punitive.
+16. **CRITICAL** -- No custom audio (`new Audio()`) — FeedbackManager handles all audio.
+17. **CRITICAL** -- Never block init on FeedbackManager failure.
 
 ---
 
@@ -219,7 +226,7 @@ When the spec does not specify:
 
 | Parameter | Default | Source |
 |-----------|---------|--------|
-| Bloom level | L2 (Understand) | feedback.md |
+| Bloom level | L2 (Understand) | feedback/SKILL.md |
 | Total rounds | Archetype default (9 for MCQ/Lives, 6 for Sort, etc.) | game-archetypes.md |
 | Lives | Archetype default (0 for MCQ, 3 for Lives Challenge) | game-archetypes.md |
 | Timer | Archetype default (0 for most, 60s for Speed Blitz) | game-archetypes.md |
@@ -227,12 +234,9 @@ When the spec does not specify:
 | `question_id` format | `'r' + roundNumber` | data-contract.md |
 | `misconception_tag` | `null` for all attempts | data-contract.md |
 | `difficulty_level` | `1` for all rounds | data-contract.md |
-| Correct feedback duration | 1500ms | feedback.md |
-| Wrong feedback duration | 2000ms | feedback.md |
-| Streak threshold | 3 consecutive correct | feedback.md |
-| Failure recovery threshold | 3 consecutive wrong | feedback.md |
-| Game-over message | "Keep practicing {topic}!" | feedback.md |
-| Victory message | "Amazing {topic} skills!" | feedback.md |
+| Correct SFX sticker | 2s duration | feedback/SKILL.md |
+| Wrong SFX sticker | 2s duration | feedback/SKILL.md |
+| End-game sticker | 3–5s duration | feedback/SKILL.md |
 | Viewport | 375x667, portrait only | mobile.md |
 | Touch targets | 44px minimum | mobile.md |
 | Font | system stack via `--mathai-font-family` | mobile.md |
@@ -249,10 +253,10 @@ When the spec does not specify:
 6. No flexbox `gap` -- use margins; grid `gap` is allowed
 7. No optional chaining (`?.`), nullish coalescing (`??`), `Array.at()`, `structuredClone()`, top-level `await`
 8. No `type="number"` on inputs -- use `type="text"` with `inputmode="numeric"`
-9. No custom audio -- FeedbackManager handles all audio via `playFeedback()`
+9. No custom audio -- FeedbackManager handles all audio via `sound.play()` and `playDynamicFeedback()`
 10. No render-all-rounds -- render only the current round, never all at once
 11. No sending `game_ready` before listener registration -- register `message` listener first, then send `game_ready`
 12. No phase assignment after logic in `game_init` -- `gameState.phase = 'playing'` must be the FIRST LINE
 13. No victory-only `game_complete` guard -- `game_complete` postMessage fires on BOTH victory and game-over
-14. No skipping feedback -- always `playFeedback` then `setTimeout` for auto-advance
+14. No skipping feedback -- always `await FeedbackManager.sound.play(...)` for terminal moments, fire-and-forget for mid-round
 15. No input during feedback -- `isProcessing` guard at top of every input handler

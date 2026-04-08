@@ -1,172 +1,239 @@
-All timing values, auto-advance mechanics, input blocking, wrong answer handling, and the data contract integration sequence for the feedback system.
+# Timing, Blocking, and Audio Control
 
-## Timing Rules
+How feedback timing works in production: what to await, what to fire-and-forget, when to stop, when to pause, and how input blocking integrates with the data contract.
 
-Every timing value in the feedback system. No ambiguity.
+## Await vs Fire-and-Forget
 
-| Timing | Value | Priority | Notes |
-|--------|-------|----------|-------|
-| Correct feedback duration | 1500ms | CRITICAL | Time from `playFeedback('correct')` to `advanceRound()` |
-| Wrong feedback duration | 2000ms | CRITICAL | Extra 500ms for student to read correct answer |
-| L4 correct feedback duration | 2000ms | STANDARD | Analysis problems deserve acknowledgment |
-| Victory/gameover overlay | 2000ms | STANDARD | Time before transitioning to results/game-over screen |
-| Correct answer reveal (on wrong) | Shown immediately, visible for full 2000ms | CRITICAL | Appears in `.correct-reveal` element below the question |
-| Round content fade-out | 300ms | ADVISORY | CSS `opacity 0.3s ease` |
-| Round content fade-in | 350ms | ADVISORY | CSS `opacity 0.35s ease` with `translateY(12px)` |
-| Score bounce animation | 400ms | ADVISORY | CSS `starPop` keyframe: scale(0) -> scale(1.3) -> scale(1) |
-| Shake animation (wrong) | 500ms | ADVISORY | CSS `shake` keyframe on the wrong option |
-| Input block start | Immediate | CRITICAL | `gameState.isProcessing = true` set BEFORE `playFeedback` call |
-| Input block end | After feedback duration | CRITICAL | Cleared inside `setTimeout` callback |
-| FeedbackManager poll interval | 100ms | STANDARD | Maximum 50 attempts (5s total wait) |
+Production games do NOT use fixed setTimeout delays. They `await` the `FeedbackManager.sound.play()` promise — the audio duration itself IS the timing. When fire-and-forget is used, the `.play()` call is not awaited and `.catch()` is chained for error handling.
 
-## Auto-Advance Definition
+| Feedback moment | Await? | Reasoning |
+|----------------|--------|-----------|
+| Level transition SFX → VO | **Yes** (sequential, CTA interrupts) | SFX awaited, then VO awaited; CTA stops all mid-sequence |
+| Round transition (auto-advance, no CTA) | **Yes** (sequential) | SFX awaited, then VO awaited; audio IS the pacing |
+| Round transition (with CTA) | **Yes** (sequential, CTA interrupts) | SFX awaited, then VO awaited; CTA stops all mid-sequence |
+| Round start dynamic TTS | No | Student should interact immediately |
+| Correct SFX (single-step answer) | **Yes** | Block input so student sees the feedback |
+| Correct SFX (multi-step, mid-round match) | No | Don't interrupt flow |
+| Round complete SFX | **Yes** | Gate before next round advances |
+| Wrong SFX | **Yes** | Block input, show feedback, then unlock for retry |
+| Tile select / deselect SFX | No | Pure ambient micro-interaction |
+| Partial progress SFX + VO (chains) | No | Don't interrupt — student starts next chain |
+| End-game SFX → VO (victory/game-over) | **Yes** (sequential) | But screen + CTA already visible, so student CAN interrupt |
+| New cards / content appearing SFX | No | Ambient |
 
-"Auto-advance" means: after the feedback duration timeout fires, the game (1) fades out current round content, (2) increments `gameState.currentRound`, (3) calls `syncDOM()`, (4) renders the next round, (5) fades in new content, and (6) unblocks input. The student does NOT tap "Next" -- it happens automatically.
-
-**What auto-advance is NOT:**
-- It is not instant (there is always a 300ms fade transition)
-- It is not interruptible (student cannot skip feedback by tapping)
-- It does not skip feedback (FeedbackManager overlay always plays its full duration)
-
-## Auto-Advance Sequence
-
-1. Feedback overlay appears (FeedbackManager renders it)
-2. Game CSS animations fire simultaneously (score bounce, shake, etc.)
-3. After duration elapses, game fades out current round content (300ms CSS transition)
-4. Next round content fades in (300ms CSS transition)
-5. Input unblocks when new round is fully visible
-
-## Input Blocking Implementation
+### Awaited Pattern
 
 ```javascript
-// Set before calling playFeedback:
 gameState.isProcessing = true;
-
-// Clear inside the setTimeout that fires after feedback duration:
-setTimeout(function() {
-  gameState.isProcessing = false;
-  advanceRound();
-}, 1500); // or 2000 for incorrect
+// ... visual feedback (CSS classes) ...
+// ... recordAttempt ...
+try {
+  await FeedbackManager.sound.play('correct_sound_effect', { sticker: {...} });
+} catch(e) {}
+gameState.isProcessing = false;
+// advance to next round
 ```
 
-All input handlers must check `gameState.isProcessing` and return immediately if true. This prevents double-submission during feedback.
-
-## Wrong Answer Handling
-
-Wrong answers are the most pedagogically important moments. Handle them carefully.
-
-**Always show the correct answer.** Every wrong answer reveals the correct answer, regardless of Bloom level or game type.
-
-### Correct Answer Reveal Pattern
-
-```html
-<div id="correct-reveal" class="correct-reveal hidden"></div>
-```
+### Fire-and-Forget Pattern
 
 ```javascript
-// After wrong answer:
-var revealEl = document.getElementById('correct-reveal');
-if (revealEl) {
-  revealEl.textContent = 'Answer: ' + correctAnswer;
-  revealEl.classList.remove('hidden');
-}
+FeedbackManager.sound.play('correct_sound_effect', {
+  sticker: { image: '...', duration: 2, type: 'IMAGE_GIF' }
+}).catch(function(e) { console.error('Audio error:', e.message); });
+// student can interact immediately — no await, no isProcessing block
 ```
 
-```css
-.correct-reveal {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--mathai-green);
-  text-align: center;
-  margin-top: 8px;
-  animation: fadeIn 0.35s ease;
-}
+## Input Blocking
 
-.correct-reveal.hidden {
-  display: none;
-}
+`gameState.isProcessing` is the single gatekeeper. Every interaction handler must check it:
+
+```javascript
+if (gameState.isProcessing) return;
 ```
 
-**Reveal timing:** Appears immediately on wrong answer. Stays visible for the full 2000ms. Cleared when next round renders.
+**When to set `isProcessing = true`:**
+- Immediately when a single-step correct/wrong answer is submitted
+- Immediately when round-complete audio starts
+- During handleReset / path reset flows
 
-### Visual Marking of Selected Option
+**When to set `isProcessing = false`:**
+- After the awaited `FeedbackManager.sound.play()` resolves
+- Before starting the next round (so input is ready when gameplay renders)
 
-```css
-.selected-wrong {
-  background: var(--mathai-red-light, #fde8e8);
-  border-color: var(--mathai-red, #e53935);
-  color: var(--mathai-red);
-}
+**When NOT to block input:**
+- Multi-step correct matches (fire-and-forget)
+- Tile select/deselect (micro-interactions)
+- Dynamic TTS at round start
+- Partial progress audio (chain games)
 
-.selected-correct {
-  background: var(--mathai-green-light, #e8f5e9);
-  border-color: var(--mathai-green, #43a047);
-  color: var(--mathai-green);
-}
+## Stop Triggers
+
+| Trigger | What to call |
+|---------|-------------|
+| CTA tapped on transition screen | `FeedbackManager._stopCurrentDynamic()` + `FeedbackManager.sound.stopAll()` |
+| CTA tapped on results/game-over screen | `FeedbackManager._stopCurrentDynamic()` + `FeedbackManager.sound.stopAll()` |
+| New transition screen appearing | `FeedbackManager.sound.stopAll()` (clear previous screen's audio) |
+| Student taps during dynamic TTS | `FeedbackManager.stream.stopAll()` (stop TTS, then process tap) |
+| Restart / Try Again | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` |
+| Game cleanup (endGame) | `FeedbackManager._stopCurrentDynamic()` + `FeedbackManager.sound.pause()` + `FeedbackManager.stream.stopAll()` |
+
+## Pause / Resume Triggers
+
+Only triggered by visibility change:
+
+```javascript
+// Tab hidden / screen lock:
+FeedbackManager.sound.pause();
+FeedbackManager.stream.pauseAll();
+timer.pause({ fromVisibilityTracker: true });
+
+// Tab visible / return:
+FeedbackManager.sound.resume();
+FeedbackManager.stream.resumeAll();
+timer.resume({ fromVisibilityTracker: true });
 ```
 
-When the student picks a wrong option: (1) mark their selection with `.selected-wrong`, (2) mark the correct option with `.selected-correct`, (3) show `.correct-reveal` with the answer text. All three happen simultaneously.
+Pause ≠ Stop. Pause keeps the audio position so it can resume. Stop discards it.
 
-### Misconception-Specific Explanation
+## Round/Level Transition Audio Sequence
 
-When the spec provides misconception tags for distractors, the wrong-answer subtitle should address the specific misconception:
+Transition screens always play **two sequential awaited calls**: SFX first, then dynamic VO. The second audio MUST NOT start until the first completes. CTA can interrupt at any point in the sequence.
 
+**Round transition (auto-advance, no CTA):**
+```javascript
+// No CTA — student cannot skip, both audios play fully
+await FeedbackManager.sound.play('rounds_sound_effect', { sticker: { image: ROUND_GIF, duration: 2, type: 'IMAGE_GIF' } });
+await FeedbackManager.playDynamicFeedback({ audio_content: 'Round 3', subtitle: 'Round 3', sticker: { image: ROUND_GIF, duration: 2, type: 'IMAGE_GIF' } });
+// Both done → hide transition, start gameplay
 ```
-Generic:     "Not quite. It's {correctAnswer}."
-Misconception: "You {misconceptionDescription}. It's {correctAnswer}."
+
+**Round transition (with CTA):**
+```javascript
+// CTA visible — student can tap anytime to skip
+var audioStopped = false;
+
+ctaButton.addEventListener('click', function() {
+  audioStopped = true;
+  FeedbackManager.sound.stopAll();
+  FeedbackManager._stopCurrentDynamic();
+  hideTransition();
+  loadRound();
+});
+
+// Play sequentially — await each in order
+try {
+  await FeedbackManager.sound.play('rounds_sound_effect', { sticker: { image: ROUND_GIF, duration: 2, type: 'IMAGE_GIF' } });
+  if (audioStopped) return; // CTA was tapped between the two calls
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'Round 3', subtitle: 'Round 3', sticker: { image: ROUND_GIF, duration: 2, type: 'IMAGE_GIF' } });
+} catch(e) {}
+// If CTA not tapped, screen stays until tapped
 ```
 
-Examples:
-- "You added instead of multiplying. It's 24."
-- "You used the wrong ratio order. It's 3:5, not 5:3."
-- "That's the perimeter, not the area. It's 36 sq cm."
+**Level transition (with CTA):**
+```javascript
+var audioStopped = false;
 
-The spec's `feedbackWrong` field per round is the primary source. Fall back to generic template if not provided.
+ctaButton.addEventListener('click', function() {
+  audioStopped = true;
+  FeedbackManager.sound.stopAll();
+  FeedbackManager._stopCurrentDynamic();
+  hideTransition();
+  startLevel();
+});
+
+try {
+  await FeedbackManager.sound.play('rounds_sound_effect', { sticker: { image: LEVEL_GIF, duration: 2, type: 'IMAGE_GIF' } });
+  if (audioStopped) return;
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'Level 2', subtitle: 'Level 2', sticker: { image: LEVEL_GIF, duration: 5, type: 'IMAGE_GIF' } });
+} catch(e) {}
+```
+
+**Key pattern:** The `audioStopped` flag prevents the second `await` from firing if CTA was tapped during the first audio. Without this check, the second audio would start immediately after `stopAll()` clears the first.
+
+---
+
+## End-Game Audio Sequence
+
+End-game audio always plays as two sequential awaited calls: SFX first, then dynamic VO. Same `audioStopped` flag pattern as transitions — CTA is visible and can interrupt at any point.
+
+**Victory (3★):**
+```javascript
+var audioStopped = false;
+ctaButton.onclick = function() { audioStopped = true; FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); restartGame(); };
+try {
+  await FeedbackManager.sound.play('victory_sound_effect', { sticker: { image: VICTORY_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  if (audioStopped) return;
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'Victory! 3 stars!', subtitle: 'Victory! 3 stars!', sticker: { image: VICTORY_GIF, duration: 3, type: 'IMAGE_GIF' } });
+} catch(e) {}
+```
+
+**Game complete (2★):**
+```javascript
+try {
+  await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: COMPLETE_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  if (audioStopped) return;
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'Well done! 2 stars!', subtitle: 'Well done! 2 stars!', sticker: { image: COMPLETE_GIF, duration: 3, type: 'IMAGE_GIF' } });
+} catch(e) {}
+```
+
+**Game complete (1★):**
+```javascript
+try {
+  await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: COMPLETE_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  if (audioStopped) return;
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'Good try! 1 star!', subtitle: 'Good try! 1 star!', sticker: { image: COMPLETE_GIF, duration: 3, type: 'IMAGE_GIF' } });
+} catch(e) {}
+```
+
+**Game over:**
+```javascript
+try {
+  await FeedbackManager.sound.play('game_over_sound_effect', { sticker: { image: GAMEOVER_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  if (audioStopped) return;
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'You completed 2 rounds', subtitle: 'You completed 2 rounds', sticker: { image: GAMEOVER_GIF, duration: 3, type: 'IMAGE_GIF' } });
+} catch(e) {}
+```
+
+## Wrong Answer Visual Timing
+
+- `.wrong` / `.incorrect` CSS class applied immediately
+- Class cleared after ~600ms (via setTimeout)
+- In some games, the wrong option becomes permanently disabled (`.filled` with gray background)
+- The FeedbackManager audio plays in parallel with the visual flash
 
 ## Data Contract Integration
 
-When an answer is submitted, the game must execute these steps in exact order. Skipping or reordering breaks either data integrity or user experience.
-
-**Answer submission call sequence -- CRITICAL:**
+When an answer is submitted, execute in this exact order:
 
 ```
-1. recordAttempt(attemptData)    -- log the attempt to the parent app
-2. Update score/lives            -- gameState.score++ or gameState.lives--
-3. syncDOM()                     -- push updated gameState to data-* attributes
-4. playFeedback(type, subtitle)  -- trigger FeedbackManager overlay
-5. Wait (setTimeout)             -- 1500ms correct / 2000ms wrong
-6. advanceRound() or endGame()   -- move to next round or results screen
+1. gameState.isProcessing = true          — block input
+2. Apply visual CSS (.correct / .wrong)   — immediate visual feedback
+3. Update state (lives--, score++)        — update game state
+4. progressBar.update(round, lives)       — update UI immediately
+5. recordAttempt({...})                   — log attempt BEFORE audio
+6. signalCollector.recordViewEvent(...)   — record feedback event
+7. await FeedbackManager.sound.play(...)  — play audio with sticker
+8. gameState.isProcessing = false         — unblock input
+9. Advance (next round / game over)       — proceed
 ```
 
-**Why this order matters:**
-- `recordAttempt` fires BEFORE score update so the attempt captures pre-update state.
-- `syncDOM` fires BEFORE feedback so that test harness assertions see the updated state during the feedback window.
-- `playFeedback` fires BEFORE the wait so the overlay is visible for the full duration.
+**Why this order:**
+- `recordAttempt` fires BEFORE audio so the attempt captures pre-feedback state
+- `progressBar.update` fires BEFORE audio so student sees the heart/round change immediately
+- Visual CSS applies BEFORE audio so student sees green/red while audio plays
+- `isProcessing = false` fires AFTER audio so input is blocked for the full feedback duration
 
-**recordAttempt payload** -- see `skills/data-contract/` for the full field schema. Minimum required fields:
+## End-Game Data Contract
 
-```javascript
-window.parent.postMessage({
-  type: 'recordAttempt',
-  data: {
-    questionIndex: gameState.currentRound,
-    isCorrect: isCorrect,
-    studentAnswer: selectedAnswer,
-    correctAnswer: correctAnswer,
-    timeTaken: roundTimeTaken
-  }
-}, '*');
-```
-
-**End-of-game sequence** -- after the last round's feedback completes:
+The end-game sequence has a strict order:
 
 ```
-1. Calculate final metrics (score, accuracy, time)
-2. syncDOM() with data-phase="game_complete" or data-phase="game_over"
-3. playFeedback('victory', ...) or playFeedback('gameover', ...)
-4. Wait 2000ms
-5. Render results/game-over screen
-6. Post game_complete message to parent
+1. gameState.isActive = false             — stop accepting input
+2. timer.pause()                          — freeze the timer
+3. Calculate metrics (stars, accuracy)    — compute final results
+4. signalCollector.seal()                 — finalize signal data
+5. Render results/game-over screen        — SCREEN FIRST
+6. window.parent.postMessage(game_complete) — DATA BEFORE AUDIO
+7. await end-game SFX → VO               — audio plays last
+8. Cleanup (destroy timer, tracker, etc.) — after audio finishes
 ```
-
-See `skills/data-contract/postmessage-schema.md` for `game_complete` postMessage schema.

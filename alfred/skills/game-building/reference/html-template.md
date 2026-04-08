@@ -68,7 +68,7 @@ The exact document structure every game must follow. Do not deviate from the ele
     /* 8. getStars */
     /* 9. getRounds (with fallback) */
     /* 10. waitForPackages (typeof checks for 4 packages, 180s timeout) */
-    /* 11. playFeedback wrapper */
+    /* 11. FeedbackManager preload + audio helper functions */
     /* 12. handlePostMessage */
     /* 13. render (phase router) */
     /* 14. startGame */
