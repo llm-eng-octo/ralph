@@ -344,6 +344,24 @@
       "condition": "Every game (preview/instruction screen before interaction starts)",
       "file": "PART-039-preview-screen.md",
       "dependencies": ["PART-002", "PART-017", "PART-025"]
+    },
+    {
+      "id": "PART-040",
+      "name": "Video Player",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game includes video content (instructional, pattern, story videos)",
+      "file": "PART-040-video-player.md",
+      "dependencies": ["PART-020", "PART-025", "PART-027"]
+    },
+    {
+      "id": "PART-041",
+      "name": "Audio Player",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game includes content audio with visible player UI (instruction audio, listening exercises)",
+      "file": "PART-041-audio-player.md",
+      "dependencies": ["PART-020", "PART-025", "PART-027"]
     }
   ],
 
@@ -372,7 +390,9 @@
     "has_drag_drop": ["PART-033"],
     "has_grid_interaction": ["PART-033"],
     "has_tag_input": ["PART-033"],
-    "has_interaction_manager": ["PART-038"]
+    "has_interaction_manager": ["PART-038"],
+    "has_video": ["PART-040"],
+    "has_audio_player": ["PART-041"]
   },
 
   "dependency_validation": {

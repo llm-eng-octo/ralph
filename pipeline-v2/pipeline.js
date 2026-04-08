@@ -147,6 +147,12 @@ Test the core game interaction specified in the spec:
 - Difficulty changes between rounds/levels (if spec requires it)
 - Game elements (grid, cards, bubbles, etc.) render correctly
 - Content from fallbackContent loads and displays properly
+- Video player (if present): has native controls visible, plays on tap, no autoplay
+- Video player (if present): white background container (not black), no forced aspect-ratio
+- Video player (if present): ended event fires correctly after playback completes
+- Audio player (if present): custom play/pause button works, progress bar updates during playback
+- Audio player (if present): white card container with shadow, play icon visible, no native controls
+- Audio player (if present): ended event fires correctly, icon resets to play state
 
 ══════════════════════════════════════
 CATEGORY 3: level-progression
@@ -192,6 +198,21 @@ Test the platform integration contract:
   - metrics SHOULD include: totalLives (integer, default 1), tries (per-round attempt counts)
   - data MUST include: completedAt (timestamp)
   - Payload must NOT be flat (score/stars at top level) — must be nested in data.metrics
+- Video element contract (if <video> present — PART-040):
+  - <video> MUST have: controls, playsinline, controlsList="nofullscreen"
+  - <video> MUST NOT have: autoplay, loop
+  - Video container/wrapper CSS must use background: white (not black)
+  - Video container must NOT have forced aspect-ratio — let video size naturally
+  - Error event listener must be attached to video element for debugging
+  - Video must be in instruction/question area, NOT inside the interactive play area
+- Audio player contract (if <audio> present — PART-041):
+  - <audio> MUST NOT have: autoplay, loop
+  - <audio> should NOT have native controls attribute (custom play/pause UI instead)
+  - Custom play/pause icon must use CDN SVGs (play-icon-yellow.svg / pause-icon-yellow.svg)
+  - Progress bar must update via timeupdate event listener
+  - ended event listener must reset play icon and track gameState.audioPlayed
+  - No new Audio() anywhere — use <audio> DOM element (RULE-006)
+  - Audio player must be in instruction/question area, NOT inside the interactive play area
 - SignalCollector integration (if signalCollector is used):
   - window.signalCollector is accessible
   - signalCollector.startFlushing() called after game_init config sets flushUrl from signalConfig
@@ -223,6 +244,7 @@ Test the platform integration contract:
   - ORDERING: Game DOM (#gameContent innerHTML) MUST be rendered BEFORE previewScreen.show() is called. setupGame() must call injectGameHTML()/renderInitialState() FIRST, then showPreviewScreen() as the last step. Otherwise the preview overlay covers empty space when showGameOnPreview:true
   - LAYOUT RULE: When previewScreen:true, ScreenLayout does NOT create #mathai-progress-slot, #mathai-header-slot, or #mathai-question-slot. Those IDs do NOT exist. ProgressBar must render into a local <div id="progress-bar-container"></div> inside #gameContent. Timer container must be a hidden <div id="timer-container" style="display:none;"></div> inside #gameContent. Instructions must be inline inside #gameContent. The ONLY slot IDs that exist are: #mathai-preview-slot, #gameContent, #mathai-transition-slot
   - LAYOUT RULE: ScreenLayout.inject() MUST use the slots API (e.g. { slots: { previewScreen: true, transitionScreen: true } }) — the "sections" API with header/questionText/progressBar/playArea does NOT exist
+  - SCROLL RULE: Game CSS MUST NOT set overflow:hidden or height:100dvh on html, body, .mathai-preview-slot, .mathai-preview-body, or .mathai-preview-game-container. The preview wrapper uses body-level scrolling — all content (instruction + game) flows as ONE scrollable page. Use: html,body { min-height: 100dvh; overflow-x: hidden; } — NOT overflow:hidden or height:100dvh. Do NOT create custom scrollable containers for .mathai-preview-body or #gameContent — the component CSS handles this
 
 ══════════════════════════════════════
 OUTPUT FORMAT (MANDATORY)
@@ -285,6 +307,8 @@ REVIEW CHECKLIST:
    - Are transitions/animations smooth?
    - Does the game look professional?
    - Is feedback clear (correct/incorrect responses)?
+   - Video player (if present): white background, native controls visible, rounded corners, no black bars
+   - Audio player (if present): white 56px card with shadow, yellow play/pause icon, 4px progress bar
 
 5. **Game States**
    - Screenshot and review: start screen

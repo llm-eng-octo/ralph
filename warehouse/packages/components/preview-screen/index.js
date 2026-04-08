@@ -165,7 +165,8 @@
     var style = document.createElement("style");
     style.id = "mathai-preview-screen-styles";
     style.textContent =
-      /* Preview slot — the persistent wrapper */
+      /* Preview slot — the persistent wrapper. NO height cap, NO overflow hidden.
+         Content flows naturally and the page scrolls as one unit. */
       ".mathai-preview-slot {" +
       "  position: relative;" +
       "  max-width: var(--mathai-game-max-width, 480px);" +
@@ -174,6 +175,7 @@
       "  min-height: 100dvh;" +
       "  width: 100%;" +
       "  box-sizing: border-box;" +
+      "  overflow: visible;" +
       "}" +
 
       /* Header bar — fixed at top */
@@ -270,9 +272,19 @@
       "  position: relative;" +
       "  width: 100%;" +
       "  box-sizing: border-box;" +
+      "  overflow: visible;" +
       "}" +
       ".mathai-preview-game-container.game-hidden .game-stack {" +
       "  visibility: hidden;" +
+      "}" +
+
+      /* CRITICAL: kill nested scroll — .game-stack's base CSS sets overflow-y:auto
+         which creates its own scroll container inside the preview body. Inside the
+         preview wrapper, everything must flow as ONE scroll area (instruction +
+         game content). Override to let content size naturally. */
+      ".mathai-preview-game-container .game-stack {" +
+      "  overflow: visible;" +
+      "  height: auto;" +
       "}" +
 
       /* Overlay — non-interactable cover during preview state */
@@ -402,10 +414,17 @@
     var self = this;
     config = config || {};
 
-    // Show-once guard: if the preview has already been shown this session,
-    // skip directly to game state and fire onComplete synchronously.
+    // Show-once guard: if the preview has already been COMPLETED (user saw it
+    // and either skipped or waited for timer), skip directly to game state.
     // This handles restartGame() → setupGame() → showPreviewScreen() without
     // forcing the player through the preview again.
+    //
+    // NOTE: _hasBeenShown is set in switchToGame(), NOT here. This means:
+    //   - First show() with fallback content → enters preview state (flag is false)
+    //   - game_init arrives, calls show() again before user finished preview →
+    //     flag is still false → re-enters preview with real content (correct!)
+    //   - User skips/timer completes → switchToGame() sets flag to true
+    //   - restartGame calls show() → flag is true → auto-skips (correct!)
     if (this._hasBeenShown) {
       this._state = "game";
       this._timerConfig = config.timerConfig || null;
@@ -422,9 +441,15 @@
       console.log("[PreviewScreen] Already shown — skipped to game state");
       return;
     }
-    this._hasBeenShown = true;
 
     try {
+      // Clean up any in-flight audio/timer from a prior show() call
+      // (e.g. game_init arrived with real content while fallback preview was playing)
+      this._stopAudio();
+      this._cancelRaf();
+      this._removeOverlay();
+      this._removeSkipButton();
+
       this._state = "preview";
       this._isPaused = false;
       this._elapsed = 0;
@@ -1040,6 +1065,9 @@
    */
   PreviewScreenComponent.prototype.switchToGame = function () {
     if (this._state === "game") return;
+
+    // Mark preview as completed — subsequent show() calls will auto-skip.
+    this._hasBeenShown = true;
 
     var prevState = this._state;
     this._state = "game";

@@ -207,6 +207,10 @@
           +     '#' + slotIds.previewSlot + ' .mathai-preview-game-container.game-hidden{visibility:hidden!important;}'
           +     '#' + slotIds.previewSlot + ' .mathai-preview-header{position:fixed;top:0;left:0;right:0;height:56px;background:#fff;z-index:20;}'
           +     '#' + slotIds.previewSlot + '{min-height:100dvh;background:#fff;}'
+          +     '#' + slotIds.previewSlot + ' .game-stack{overflow:visible!important;height:auto!important;}'
+          // Kill all scroll-blocking ancestors so the page scrolls as one unit
+          +     '.page-center{height:auto!important;min-height:100dvh!important;overflow:visible!important;display:block!important;}'
+          +     'html,body{overflow-x:hidden!important;overflow-y:auto!important;height:auto!important;min-height:100dvh!important;}'
           +   '</style>';
         html += '<div id="' + slotIds.previewSlot + '" class="mathai-preview-slot">';
 
