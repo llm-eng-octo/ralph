@@ -19,6 +19,7 @@ When generating HTML from an approved spec + plan. The main generation step.
 - `skills/data-contract.md` -- gameState schema, recordAttempt schema, game_complete postMessage schema, syncDOM contract, trackEvent schema, handlePostMessage/game_ready protocol, validation rules -- **ALWAYS**
 - `skills/mobile/SKILL.md` -- viewport, touch targets, typography, safe areas, keyboard, orientation, gestures, performance, cross-browser, CSS variables -- **ALWAYS**
 - `skills/feedback/SKILL.md` -- behavioral feedback cases, await/fire-and-forget rules, priority table, FeedbackManager API (reference/feedbackmanager-api.md for CDN URLs and code), timing (reference/timing-and-blocking.md) -- **ALWAYS**
+- `skills/interaction/SKILL.md` -- 8 canonical interaction patterns (tap, chain, match, swipe, drag-path, drag-drop, input, toggle), event handling, touch specifics, state machines, guards, undo, hit detection (reference/patterns.md for full code, reference/touch-events.md for pointer events, reference/state-and-guards.md for state management) -- **ALWAYS**
 
 ## Input
 

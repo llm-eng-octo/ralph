@@ -18,3 +18,4 @@ tmp/
 repo/
 test-results/
 .claude/settings.json
+worksheet*

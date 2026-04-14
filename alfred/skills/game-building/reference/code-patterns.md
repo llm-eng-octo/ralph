@@ -10,21 +10,36 @@ Every game MUST implement all patterns below. Each section either references a P
 
 Every game listens for `game_init` from a parent window. When running standalone (local server, Playwright tests, preview), there is no parent — `game_init` never arrives — and the game stays on a blank start screen forever.
 
-**Required pattern:** After `postMessage('game_ready')`, add a fallback timer. If no `game_init` arrives within 1000ms, call `setupGame()` directly with fallbackContent.
+**Required pattern:** Add a fallback timer that runs **independently of `waitForPackages()`**. The fallback must be able to fire even if CDN packages never load.
 
 ```javascript
-window.addEventListener('message', handlePostMessage);
-try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+// Inside DOMContentLoaded, AFTER registering the message listener and sending game_ready:
 
-// CRITICAL: standalone fallback — no parent means no game_init
+// 1. Start waitForPackages (may take up to 180s if CDN is down)
+waitForPackages().then(function(loaded) {
+  // ... init CDN components ...
+  setupGame();
+});
+
+// 2. Standalone fallback — runs INDEPENDENTLY, not nested inside waitForPackages
+//    Builds fallback layout if ScreenLayout didn't load, then starts the game.
 setTimeout(function() {
-  if (gameState.phase === 'start_screen' && !gameState.isActive) {
+  if (!gameState.isActive && !gameState.gameEnded) {
+    if (!document.getElementById('gameContent')) {
+      buildFallbackLayout();
+      // ... populate slots with innerHTML ...
+    }
+    gameState.content = fallbackContent;
+    gameState.totalRounds = fallbackContent.rounds.length;
     setupGame();
+    startGame();
   }
-}, 1000);
+}, 2000);
 ```
 
-**Why CRITICAL:** Without this, the game is untestable locally and unrenderable in standalone preview. This bug appeared in TWO consecutive Alfred-built games (Scale It Up v2 and Match Up) before being added here.
+**Why CRITICAL:** Without this, the game is untestable locally and unrenderable in standalone preview. This bug appeared in THREE Alfred-built games before being corrected.
+
+**Anti-pattern (CRITICAL):** Never nest the standalone fallback inside `waitForPackages().then(...)`. If CDN packages fail to load, `waitForPackages` blocks for 180s — the standalone fallback never fires, and Playwright tests time out waiting for the game to start. The fallback MUST be a top-level `setTimeout` that runs regardless of CDN availability.
 
 ---
 
