@@ -10,15 +10,23 @@ Exact output format for all 5 plan documents -- each section below is the templa
 
 ## Flow Diagram
 
-[Screen] -> transition -> [Screen] -> transition -> [Screen]
-     ^                                                  |
-     +----------------------------------------------------+
+[ASCII diagram copied VERBATIM from reference/default-flow.md (Shape 2) or reference/shapes.md (Shape 1 / Shape 3), with any additive customization deltas from reference/flow-gallery.md applied in place.]
 
 Rules:
-- Every screen that exists in the game appears in this diagram
-- Every transition is labeled with what triggers it (tap, timer expiry, lives=0, all rounds done)
-- Loops (replay) are shown explicitly
-- If the archetype has game_over, it appears as a branch
+- Must match the canonical diagram from default-flow.md or shapes.md. Hand-invented flows are not allowed.
+- Customizations appear as ADDITIVE edits only: inserted steps, added conditional branches, or a single relabeled transition — never a wholesale rewrite.
+- Every screen that exists in the game appears in this diagram.
+- Every transition is labeled with what triggers it (tap, timer expiry, lives=0, all rounds done).
+- Loops (replay) are shown explicitly.
+- If the archetype has game_over, it appears as a branch.
+
+## Shape
+
+**Shape:** [Shape 1 Standalone | Shape 2 Multi-round | Shape 3 Sectioned]
+
+## Changes from default
+
+- [List every delta applied from flow-gallery.md, one per bullet. If none, write "None — canonical diagram copied verbatim."]
 
 ## Stages
 

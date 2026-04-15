@@ -20,6 +20,9 @@ After spec is approved, before game-building. Produces the 5 plan docs the build
 - `skills/pedagogy.md` -- Bloom level determines feedback depth and scaffolding -- **ALWAYS**
 - `skills/mobile.md` -- viewport constraints for screen layouts -- **ON-DEMAND** (only for screens.md wireframes)
 - `skills/data-contract/` -- recordAttempt and game_complete schemas -- **ON-DEMAND** (only for scoring.md data contract fields)
+- `reference/default-flow.md` -- canonical multi-round flow diagram (Shape 2) -- **ALWAYS**
+- `reference/shapes.md` -- Shape 1 Standalone, Shape 2 Multi-round, Shape 3 Sectioned -- **ALWAYS**
+- `reference/flow-gallery.md` -- 16 customization patterns to apply as ADDITIVE deltas on top of the canonical diagram -- **ON-DEMAND** (only when the spec's `## Flow` lists a customization trigger)
 
 ## Input
 
@@ -56,9 +59,12 @@ Read the spec. Run game-archetypes.md decision tree (Steps 1-4) to identify the 
 
 ### Step 2: Derive game-flow.md
 
-1. Write the one-liner from the spec's title + topic + action verb. Be concrete: "Player identifies equivalent ratios by selecting the correct option from 4 choices across 9 rounds" not "A ratio game."
-2. Draw the flow diagram from the archetype's screen state machine. Add any spec-specific branches.
-3. Build the stage table from the spec's difficulty progression.
+1. Read the spec's `## Flow` section for shape hints (or infer: no rounds → Shape 1; sections/levels → Shape 3; else Shape 2 default).
+2. Copy the canonical diagram VERBATIM: from `reference/default-flow.md` for Shape 2; from `reference/shapes.md` for Shape 1 or Shape 3.
+3. Apply customization deltas only if the spec's `## Flow` listed changes. Match each trigger against `reference/flow-gallery.md` rows 4–16. Apply as ADDITIVE edits (insert step, add conditional branch, rewrite one label) — never rewrite the whole diagram.
+4. Write `pre-generation/game-flow.md` with: the one-liner, the final ASCII diagram (canonical + deltas), `**Shape:** [...]`, `**Changes from default:** [...]`, and the stage table.
+
+DO NOT hand-invent flow diagrams. DO NOT start from the archetype's minimal screen state machine — that's too skeletal.
 
 ### Step 3: Derive screens.md
 

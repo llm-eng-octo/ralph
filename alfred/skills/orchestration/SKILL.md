@@ -152,6 +152,7 @@ Read alfred/skills/feedback/SKILL.md
 
 Using the approved spec and plan, generate the complete game as a single index.html file.
 All CSS and JS must be inline. Follow the archetype skeleton from game-archetypes.md.
+Implement the flow inline per pre-generation/game-flow.md using the three CDN components (PreviewScreen, TransitionScreen, ProgressBar) — see game-building's reference/flow-implementation.md for the screen→component mapping, progress bar lifecycle, and round loop pattern.
 Wire all required platform integrations (recordAttempt, game_complete, FeedbackManager).
 
 Save the file and tell me the path.
