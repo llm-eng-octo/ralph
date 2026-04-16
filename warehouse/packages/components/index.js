@@ -15,6 +15,7 @@
  * - TimerComponent: Visual timer with progress indicators
  * - PopupComponent: Modal popups with customizable content
  * - StoriesComponent: Sequential story navigation with duration tracking
+ * - VoiceInput: Voice/keyboard input with mic recording, transcription, and visual feedback
  */
 
 (function (window) {
@@ -35,7 +36,8 @@
     sticker: "https://storage.googleapis.com/test-dynamic-assets/packages/sticker/index.js",
     timer: "https://storage.googleapis.com/test-dynamic-assets/packages/timer/index.js",
     stories: "https://storage.googleapis.com/test-dynamic-assets/packages/components/stories/index.js",
-    previewScreen: "https://storage.googleapis.com/test-dynamic-assets/packages/components/preview-screen/index.js"
+    previewScreen: "https://storage.googleapis.com/test-dynamic-assets/packages/components/preview-screen/index.js",
+    voiceInput: "https://storage.googleapis.com/test-dynamic-assets/packages/components/voice-input/index.js"
   };
 
   // Load CSS file
@@ -103,7 +105,8 @@
             loadScript(COMPONENT_URLS.subtitle, "SubtitleComponent"),
             loadScript(COMPONENT_URLS.sticker, "StickerComponent"),
             loadScript(COMPONENT_URLS.timer, "TimerComponent"),
-            loadScript(COMPONENT_URLS.stories, "StoriesComponent")
+            loadScript(COMPONENT_URLS.stories, "StoriesComponent"),
+            loadScript(COMPONENT_URLS.voiceInput, "VoiceInput")
           ])
         )
     );
@@ -128,7 +131,8 @@
         StoriesComponent: window.StoriesComponent,
         PreviewScreenComponent: window.PreviewScreenComponent,
         PreviewScreen: window.PreviewScreen,
-        version: "1.2.0"
+        VoiceInput: window.VoiceInput,
+        version: "1.3.0"
       };
     })
     .catch(function (error) {

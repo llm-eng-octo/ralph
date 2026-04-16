@@ -35,7 +35,7 @@ function handleInteraction() {
 | **Tap-Select (Single)** | Before evaluation + audio | After all audio completes | Full SFX + TTS duration (~2-4s) |
 | **Sequential Chain** | During chain-complete celebration; during incorrect flash | After celebration audio; after wrong flash clears | 600ms (wrong) or SFX duration (complete) |
 | **Two-Phase Match** | During right-click evaluation | After evaluation + wrong flash | Brief (~100ms correct, 600ms wrong) |
-| **Tap + Swipe** | During merge animation | After merge + re-render | 400ms (merge animation) |
+| ~~**Tap + Swipe**~~ **DEPRECATED** | — | — | Use P1 tap-only |
 | **Continuous Drag** | During puzzle-complete; during reset | After audio; after reset animation | SFX + TTS (complete) or 300ms (reset) |
 | **Drag-and-Drop** | During drop evaluation | After evaluation + snap-back | Brief (~100ms correct, 600ms wrong) |
 | **Text/Number Input** | Before evaluation + audio | After all audio completes | Full SFX + TTS duration (~2-4s) |
@@ -122,37 +122,9 @@ gameState.flippedCards = [];              // Currently flipped (max 2)
 gameState.matchedCards = new Set();       // Card indices already matched
 ```
 
-### Pattern 4: Tap + Swipe
+### Pattern 4: ~~Tap + Swipe~~ — DEPRECATED
 
-```
-State: NO_SELECTION
-  Fields: selectedPiece = null
-
-  → Tap piece
-
-State: PIECE_SELECTED
-  Fields: selectedPiece = {row, col}
-  Cell: .selected
-
-  → Tap same piece → NO_SELECTION (toggle off)
-  → Tap different piece → PIECE_SELECTED (new selection)
-  → Swipe (delta > threshold) → MOVING
-  → Swipe (delta < threshold) → stay PIECE_SELECTED (too small, just a tap)
-
-State: MOVING
-  Fields: isProcessing = true (if merge), selectedPiece = null
-
-  → Move completes → NO_SELECTION (check win condition)
-  → Merge animation → NO_SELECTION (after 400ms)
-```
-
-**State fields:**
-```javascript
-gameState.selectedPiece = null;         // {row, col} or null
-gameState.moveHistory = [];             // For undo
-gameState.moveCount = 0;
-gameState.solved = false;
-```
+**DEPRECATED.** Use P1 (Tap-Select) with directional buttons instead. Convert swipe gestures to progressive tapping.
 
 ### Pattern 5: Continuous Drag
 
@@ -228,45 +200,9 @@ cell.classList.add('selected');
 gameState.selectedLeftIndex = newIndex;
 ```
 
-### Undo Stack (Pattern 4)
+### ~~Undo Stack (Pattern 4)~~ — DEPRECATED
 
-Tap + Swipe games maintain a move history for undo:
-
-```javascript
-// Before each move:
-gameState.moveHistory.push({
-  grid: cloneGrid(gameState.grid),
-  moveCount: gameState.moveCount
-});
-
-// Undo:
-function undoMove() {
-  if (gameState.moveHistory.length === 0) return;
-  var prev = gameState.moveHistory.pop();
-  gameState.grid = prev.grid;
-  gameState.moveCount = prev.moveCount;
-  gameState.selectedPiece = null;
-  renderGrid();
-}
-
-// Reset (restore to original):
-function resetPuzzle() {
-  gameState.grid = cloneGrid(gameState.originalGrid);
-  gameState.moveCount = 0;
-  gameState.moveHistory = [];
-  gameState.selectedPiece = null;
-  gameState.solved = false;
-  renderGrid();
-}
-```
-
-**Undo button state:**
-```javascript
-function updateUndoButton() {
-  var btn = document.getElementById('btn-undo');
-  if (btn) btn.disabled = gameState.moveHistory.length === 0;
-}
-```
+P4 (Tap + Swipe) is deprecated. Use P1 tap-only instead.
 
 ### Backtrack During Drag (Pattern 5)
 
@@ -334,7 +270,7 @@ Beyond the universal three, each pattern has additional guards:
 |---------|------------------|
 | Sequential Chain | `completedTiles.has(tileIndex)`, `phase !== 'playing'` |
 | Two-Phase Match | `selectedLeftIndex === null` (for right click), `matchedPairs.has(index)`, `.disabled` class |
-| Tap + Swipe | `solved`, cell has no piece (`grid[r][c] === null`) |
+| ~~Tap + Swipe~~ | **DEPRECATED** |
 | Continuous Drag | `isDragging` (for pointermove), `isInPath(row, col)` (prevent revisit) |
 | Drag-and-Drop | `dragItem` exists (for pointermove/up), item already `.placed` |
 | Text Input | `value.trim() === ''` (empty input) |

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the 16 canonical interaction patterns so every game uses the correct event listeners, state management, touch handling, hit detection, undo behavior, and visual feedback for its interaction type. Without this, each game invents its own interaction code — leading to inconsistent touch handling, broken drag on mobile, missing guards, and unreliable input blocking.
+Define the 17 canonical interaction patterns so every game uses the correct event listeners, state management, touch handling, hit detection, undo behavior, and visual feedback for its interaction type. Without this, each game invents its own interaction code — leading to inconsistent touch handling, broken drag on mobile, missing guards, and unreliable input blocking.
 
 ## When to use
 
@@ -34,7 +34,7 @@ Interaction code baked into the generated game. The builder reads this skill and
 
 | File | Contents | When to read |
 |------|----------|-------------|
-| [patterns-summary.md](reference/patterns-summary.md) | Quick-reference table of all 16 patterns + 2 modifiers | **ALWAYS** (to identify which pattern files to load) |
+| [patterns-summary.md](reference/patterns-summary.md) | Quick-reference table of all 17 patterns + 2 modifiers | **ALWAYS** (to identify which pattern files to load) |
 | [touch-events.md](reference/touch-events.md) | Event type decision tree, pointer events guide, hit detection, gesture suppression, preventDefault rules | **ALWAYS during code generation** |
 | [state-and-guards.md](reference/state-and-guards.md) | Selection state machines, isProcessing guards, undo/reset patterns, common guard code | **ALWAYS during code generation** |
 
@@ -42,35 +42,25 @@ Interaction code baked into the generated game. The builder reads this skill and
 
 | File | Pattern |
 |------|---------|
-| [p01-tap-select-single.md](reference/patterns/p01-tap-select-single.md) | Tap-Select (Single) — MCQ, one tap = one eval |
-| [p02-tap-select-chain.md](reference/patterns/p02-tap-select-chain.md) | Tap-Select (Sequential Chain) — build chain in order |
-| [p03-tap-select-match.md](reference/patterns/p03-tap-select-match.md) | Tap-Select (Two-Phase Match) — left/right matching + card flip |
-| [p04-tap-swipe.md](reference/patterns/p04-tap-swipe.md) | Tap + Swipe — select then swipe to slide |
+| [tap-interaction.md](reference/patterns/tap-interaction.md) | **All tap/click patterns** — P1, P2, P3, P8, P9, P10, P11, P12, P14, P15, P16 |
 | [p05-continuous-drag-path.md](reference/patterns/p05-continuous-drag-path.md) | Continuous Drag (Path) — draw path across grid |
 | [p06-drag-and-drop.md](reference/patterns/p06-drag-and-drop.md) | Drag-and-Drop — clone-based, eviction, edge-scroll, zone-to-zone |
 | [p07-text-input.md](reference/patterns/p07-text-input.md) | Text/Number Input — keyboard, Enter submit, visualViewport |
-| [p08-click-toggle.md](reference/patterns/p08-click-toggle.md) | Click-to-Toggle — cell state cycling, constraint checking |
-| [p09-stepper.md](reference/patterns/p09-stepper.md) | Stepper (+/−) — increment/decrement + submit |
-| [p10-multi-select-submit.md](reference/patterns/p10-multi-select-submit.md) | Multi-Select + Submit — checkbox toggle, running sum variant |
-| [p11-same-grid-pair.md](reference/patterns/p11-same-grid-pair.md) | Same-Grid Pair Selection — two items from one pool |
-| [p12-tap-assign-palette.md](reference/patterns/p12-tap-assign-palette.md) | Tap-to-Assign (Palette) — colour/category painting |
 | [p13-directional-drag.md](reference/patterns/p13-directional-drag.md) | Directional Drag (Constrained Axis) — Rush Hour style |
-| [p14-edge-toggle.md](reference/patterns/p14-edge-toggle.md) | Edge/Segment Toggle — lines between dots |
-| [p15-cell-picker.md](reference/patterns/p15-cell-picker.md) | Cell Select → Number Picker — Sudoku/Futoshiki style |
-| [p16-sequence-replay.md](reference/patterns/p16-sequence-replay.md) | Sequence Replay — observe then reproduce |
+| [p17-voice-input.md](reference/patterns/p17-voice-input.md) | Voice Input — speak or type answer via VoiceInput CDN package |
 | [modifier-observe-phase.md](reference/patterns/modifier-observe-phase.md) | Observe-then-Respond phase wrapper |
 | [modifier-multi-step-mcq.md](reference/patterns/modifier-multi-step-mcq.md) | Multi-Step MCQ — P1 repeated N times per round |
 
 ---
 
-## Full Pattern Inventory (16 patterns)
+## Full Pattern Inventory (17 patterns)
 
 | # | Pattern | Events | Step type | Game count |
 |---|---------|--------|-----------|------------|
 | 1 | Tap-Select (Single) | `click` | Single | 11 |
 | 2 | Tap-Select (Sequential Chain) | `click` | Multi | 1 |
 | 3 | Tap-Select (Two-Phase Match) | `click` | Multi | 3 |
-| 4 | Tap + Swipe | `pointerdown`+`pointerup` | Multi | 1 |
+| 4 | ~~Tap + Swipe~~ **DEPRECATED** — use P1 tap-only | — | — | 0 |
 | 5 | Continuous Drag (Path) | `pointerdown`+`pointermove`+`pointerup` | Multi | 3 |
 | 6 | Drag-and-Drop (Pick & Place) | `pointerdown`+`pointermove`+`pointerup` | Multi | 4 |
 | 7 | Text/Number Input | `keydown`+`click` | Single | 8 |
@@ -83,6 +73,7 @@ Interaction code baked into the generated game. The builder reads this skill and
 | 14 | Edge/Segment Toggle | `click` | Multi | 1 |
 | 15 | Cell Select → Number Picker | `click` (cell) + `click` (picker) | Multi | 3 |
 | 16 | Sequence Replay (Observe → Reproduce) | `click` | Multi | 1 |
+| 17 | Voice Input (Speak or Type) | `getUserMedia` + `click` | Single | — |
 
 ---
 
@@ -109,7 +100,7 @@ Interaction code baked into the generated game. The builder reads this skill and
 |-------------|-------------|-----------|
 | "drag", "sort into", "place in zone" | Drag-and-Drop | P6 |
 | "drag into grid cells", "drag tags into cells" | Drag-and-Drop (grid variant) | P6 |
-| "swipe", "slide jelly/piece", "push" | Tap + Swipe | P4 |
+| "swipe", "slide jelly/piece", "push" | ~~Tap + Swipe~~ **DEPRECATED** — convert to Tap-Select (progressive tap with directional buttons) | P1 |
 | "slide block", "Rush Hour", "move block along axis" | Directional Drag (Constrained) | P13 |
 | "draw a path", "connect cells", "trace", "navigate maze" | Continuous Drag (Path) | P5 |
 | "match pairs", "find the pair", "flip cards" | Two-Phase Match | P3 |
@@ -124,6 +115,7 @@ Interaction code baked into the generated game. The builder reads this skill and
 | "colour-code", "assign category", "label each item" | Tap-to-Assign (Palette) | P12 |
 | "tap cell then pick number", "number picker" | Cell Select → Number Picker | P15 |
 | "watch sequence then repeat", "Simon Says" | Sequence Replay | P16 |
+| "say your answer", "speak", "voice input", "type or speak" | Voice Input | P17 |
 
 ### Step 3: Determine single-step vs multi-step
 
@@ -132,7 +124,7 @@ Interaction code baked into the generated game. The builder reads this skill and
 | P1 Tap-Select (Single) | **Single-step** | 1 tap = 1 evaluation = round complete |
 | P2 Sequential Chain | **Multi-step** | Multiple taps to build chain |
 | P3 Two-Phase Match | **Multi-step** | Multiple pairs to match per round |
-| P4 Tap + Swipe | **Multi-step** | Multiple moves to solve puzzle |
+| P4 ~~Tap + Swipe~~ | **DEPRECATED** | Use P1 tap-only with directional buttons instead |
 | P5 Continuous Drag (Path) | **Multi-step** | Full path needed |
 | P6 Drag-and-Drop | **Multi-step** | Multiple items to place |
 | P7 Text/Number Input | **Single-step** | 1 input + submit = 1 evaluation |
@@ -145,6 +137,7 @@ Interaction code baked into the generated game. The builder reads this skill and
 | P14 Edge/Segment Toggle | **Multi-step** | Multiple edges to form loop |
 | P15 Cell Select → Number Picker | **Multi-step** | Fill multiple cells |
 | P16 Sequence Replay | **Multi-step** | Reproduce sequence tap by tap |
+| P17 Voice Input | **Single-step** | 1 spoken/typed answer + submit = 1 evaluation (uses VoiceInput CDN package) |
 
 ---
 
@@ -198,7 +191,7 @@ Some games use Tap-Select (Single) — P1 — multiple times within a single rou
 | 17 | Hide Unhide | P8 (Click-to-Toggle) + Submit | — |
 | 18 | Identify Pairs List | P11 (Same-Grid Pair) | — |
 | 19 | Interactive Chat | P7 (Input) + P1 (Tap-Select) alternating | — |
-| 20 | Jelly Doods | P4 (Tap + Swipe) | — |
+| 20 | Jelly Doods | P1 (Tap-Select with directional buttons) — ~~P4 deprecated~~ | — |
 | 21 | Kakuro | P6 (Drag-and-Drop into grid) or P15 (Cell + Picker) | — |
 | 22 | Keep Track | P1 (Tap-Select) | Observe (track movement) |
 | 23 | Killer Sudoku | P15 (Cell + Number Picker) | — |
@@ -267,15 +260,10 @@ Some games use Tap-Select (Single) — P1 — multiple times within a single rou
 **Feedback:** Fire-and-forget SFX + sticker per match. Awaited SFX on round-complete.
 **Used by:** Matching Doubles, Match the Cards, Memory Flip.
 
-### Pattern 4: Tap + Swipe
+### Pattern 4: ~~Tap + Swipe~~ — DEPRECATED
 
-**What:** Student taps to select, then swipes to perform directional action.
-**Events:** `pointerdown` on grid, `pointerup` on document.
-**Game type:** Multi-step.
-**Selection:** Tap selects piece (`.selected`). Same tap deselects (toggle).
-**Swipe detection:** `SWIPE_THRESHOLD = 30px`. Direction from `|dx| > |dy|`.
-**Feedback:** No per-move audio. Puzzle-complete triggers awaited SFX + TTS.
-**Used by:** Jelly Doods.
+**DEPRECATED.** Swipe interactions are unreliable on mobile. Convert to P1 (Tap-Select) with directional buttons or progressive tapping. If a spec mentions "swipe", "slide", or "push", redesign as tap-only during spec creation.
+**Previously used by:** Jelly Doods (now uses P1 with directional buttons).
 
 ### Pattern 5: Continuous Drag (Path)
 
@@ -479,7 +467,7 @@ Attach `pointermove`, `pointerup`, and `pointercancel` to `document`, not to the
 | Pattern | CSS on interactive elements |
 |---------|---------------------------|
 | Tap-based (P1, P2, P3, P8, P9, P10, P11, P12, P14, P15, P16) | `touch-action: manipulation` |
-| Swipe (P4) | Default (no override needed) |
+| ~~Swipe (P4)~~ | **DEPRECATED** |
 | Continuous drag (P5) | `touch-action: none` on grid |
 | Drag-and-drop (P6) | `touch-action: none` on draggable items |
 | Constrained drag (P13) | `touch-action: none` on draggable blocks |
@@ -492,7 +480,7 @@ Attach `pointermove`, `pointerup`, and `pointercancel` to `document`, not to the
 | P1 Tap-Select (Single) | None — tap is final |
 | P2 Sequential Chain | Forced reset on error |
 | P3 Two-Phase Match | Re-select first item |
-| P4 Tap + Swipe | Undo button + Reset button |
+| ~~P4 Tap + Swipe~~ | **DEPRECATED** — use P1 tap-only |
 | P5 Continuous Drag | Backtrack drag + Reset button |
 | P6 Drag-and-Drop | Snap-back on miss; tap placed item to return |
 | P7 Text Input | Clear input / retype |

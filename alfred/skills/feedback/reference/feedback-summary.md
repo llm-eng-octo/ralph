@@ -285,7 +285,7 @@ All worksheet questions use one of 16 base interaction patterns (or a compound c
 | **P1** | Tap-Select (Single/MCQ) | **Single** | `click` | Tap one option → immediate eval → round done |
 | **P2** | Tap-Select (Sequential Chain) | **Multi** | `click` | Tap tiles in order to build a chain; wrong tap resets chain |
 | **P3** | Tap-Select (Two-Phase Match) | **Multi** | `click` | Tap item A (left), then tap matching item B (right); two taps = one eval |
-| **P4** | Tap + Swipe | **Multi** | `pointerdown` + `pointerup` | Tap to select piece, swipe to slide it in a direction |
+| **P4** | ~~Tap + Swipe~~ **DEPRECATED** | — | — | Use P1 tap-only with directional buttons |
 | **P5** | Continuous Drag (Path) | **Multi** | `pointerdown` + `pointermove` + `pointerup` | Press and drag across grid cells to draw a path; backtrack by dragging backwards |
 | **P6** | Drag-and-Drop (Pick & Place) | **Multi** | `pointerdown` + `pointermove` + `pointerup` | Pick up item, drag it, drop into a target zone; snap-back on miss |
 | **P7** | Text/Number Input | **Single** | `keydown` + `click` | Type answer + Enter/Submit → immediate eval → round done |
@@ -335,7 +335,7 @@ All worksheet questions use one of 16 base interaction patterns (or a compound c
 | P12 | Tap-to-Assign (Palette) | 44 | 1.1% |
 | P2 | Tap-Select (Sequential Chain) | 36 | 0.9% |
 | P8+P7 | Click-to-Toggle + Text Input | 30 | 0.7% |
-| P4 | Tap + Swipe | 28 | 0.7% |
+| P4 | ~~Tap + Swipe~~ **DEPRECATED** | 28 | 0.7% |
 | P9+P7 | Stepper + Text Input | 28 | 0.7% |
 | P3 | Tap-Select (Two-Phase Match) | 22 | 0.5% |
 | P9 | Stepper (+/-) | 13 | 0.3% |
@@ -349,7 +349,7 @@ All worksheet questions use one of 16 base interaction patterns (or a compound c
 | Step Type | Patterns | Feedback Rule |
 |-----------|----------|---------------|
 | **Single-step** | P1, P7, P1+P7 | SFX (awaited) → dynamic TTS with subtitle + sticker (awaited) |
-| **Multi-step** | P2, P3, P4, P5, P6, P8, P9, P10, P11, P12, P13, P14, P15, P16, P6+P7, P8+P7, P9+P7, P8+P1, P10+P7, P6+P10 | SFX + sticker only — fire-and-forget, no TTS, no subtitle |
+| **Multi-step** | P2, P3, P5, P6, P8, P9, P10, P11, P12, P13, P14, P15, P16, P6+P7, P8+P7, P9+P7, P8+P1, P10+P7, P6+P10 | SFX + sticker only — fire-and-forget, no TTS, no subtitle |
 
 **Note:** P14 (Edge/Segment Toggle) and P16 (Sequence Replay) are defined but have zero occurrences across all 252 current worksheets.
 
