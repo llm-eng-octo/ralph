@@ -68,11 +68,13 @@ DO NOT hand-invent flow diagrams. DO NOT start from the archetype's minimal scre
 
 ### Step 3: Derive screens.md
 
+**`screens.md` is the enumeration + content contract for game-building.** Every screen listed here becomes a required render target; every button listed here becomes a required `transitionScreen.show` button. Game-building MUST NOT omit a listed screen, MUST NOT add a button that isn't listed, MUST NOT relabel a listed button. Short-lived motivation / celebration transitions (e.g. "Ready to improve your score?", "Yay, stars collected!") are NOT optional — enumerate them.
+
 For EVERY screen in the flow diagram:
 1. Start with the archetype's screen state machine as the skeleton.
 2. Read the spec for UI elements mentioned per screen.
-3. Draw an ASCII wireframe showing element positions (375x667 mobile viewport).
-4. List every element with position, content, and interactivity.
+3. Draw an ASCII wireframe showing element positions (375x667 mobile viewport). **Persistent fixtures** (preview header at top, progress bar below header on Shape 2/3) appear on EVERY non-Preview wireframe.
+4. List every element with position, content, and interactivity. For buttons, record the exact visible label — this string is what game-building must emit.
 5. Define entry and exit conditions.
 6. For gameplay screen: define the round presentation sequence (preview, instructions, media, gameplay reveal).
 
@@ -115,7 +117,7 @@ See [cross-validation.md](reference/cross-validation.md) for the full checklist.
 4. **CRITICAL -- Plans must be buildable without the spec.** No ambiguities requiring spec lookup.
 5. **STANDARD -- Archetype defaults are explicit.** Write "9 rounds", never "per archetype default."
 6. **CRITICAL -- No invented features.** Implement the spec, not a wish list.
-7. **CRITICAL -- Round presentation sequence is mandatory.** screens.md must document preview-instructions-media-reveal for each round type.
+7. **CRITICAL -- Round presentation sequence is mandatory.** screens.md must document preview-instructions-media-reveal for each round type. The "Instructions" phase is NOT an on-screen text block — the how-to-play copy is owned by PreviewScreenComponent (`previewInstruction` + `previewAudioText`) and shown once before Round 1. Gameplay screens MUST NOT duplicate that instruction text. A per-round *prompt* ("Which tile matches?") is fine only when semantically distinct from the preview instruction; use Round-N intro transitions to convey round-type changes.
 8. **STANDARD -- All timing values are exact.** Millisecond values only, never "after a brief pause."
 
 ## Defaults
@@ -128,6 +130,6 @@ See [cross-validation.md](reference/cross-validation.md) for the full checklist.
 | Bloom level | L2 (Understand) | pedagogy.md |
 | Star thresholds | 90% / 66% / 33% | game-archetypes.md |
 | Feedback timing | 1500ms correct, 2000ms wrong | feedback/ |
-| Round presentation | preview + gameplay reveal (no instructions after round 1, no media unless spec says) | feedback/ |
+| Round presentation | preview + gameplay reveal (NO instruction text panel on any gameplay screen — preview owns the how-to-play copy; use Round-N intro transitions for type changes) | feedback/ |
 | Progress bar | Tracks round number, bottom of gameplay screen | game-archetypes.md |
 | Wireframe viewport | 375x667 (mobile portrait) | mobile.md |

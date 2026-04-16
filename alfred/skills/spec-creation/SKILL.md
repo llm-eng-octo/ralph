@@ -101,23 +101,34 @@ A structured `spec.md` file with ALL of the following sections. Every section is
 
 ## Content Structure (fallbackContent)
 [The exact shape of the fallbackContent object, with one fully worked example round
-and the misconception tags for every distractor/wrong-answer path.]
+and the misconception tags for every distractor/wrong-answer path.
+
+**Required preview fields** (per PART-039 — every game has a preview screen):
+- `previewInstruction` — HTML string with the full instruction text shown on the preview overlay (bold, images allowed).
+- `previewAudioText` — plain-text narration used to generate preview TTS at deploy time (patched into `previewAudio` post-build).
+- `showGameOnPreview` — optional boolean, default `false`. Set `true` if the student should see the game state (covered by a blocking overlay) while the preview audio plays.]
 
 Example:
 ```js
-const fallbackContent = [
-  {
-    round: 1,
-    stage: 1,
-    type: "A",
-    // ... all fields for this round type
-    misconception_tags: {
-      "[wrong_answer_1]": "misconception-name",
-      "[wrong_answer_2]": "misconception-name"
+const fallbackContent = {
+  previewInstruction: '<p>Tap two tiles that double each other!</p>',
+  previewAudioText: 'Find two numbers where one is double the other. Tap both to match them.',
+  previewAudio: null,           // filled at deploy time by TTS pipeline
+  showGameOnPreview: false,
+  rounds: [
+    {
+      round: 1,
+      stage: 1,
+      type: "A",
+      // ... all fields for this round type
+      misconception_tags: {
+        "[wrong_answer_1]": "misconception-name",
+        "[wrong_answer_2]": "misconception-name"
+      }
     }
-  },
-  // ... all N rounds
-];
+    // ... all N rounds
+  ]
+};
 ```
 
 ## Defaults Applied

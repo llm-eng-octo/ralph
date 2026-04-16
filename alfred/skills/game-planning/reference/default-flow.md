@@ -65,4 +65,4 @@ Retry paths covered by this diagram:
 - **Claim Stars** after any Victory — routes through "Yay, stars collected!" and exits after the star animation / sound.
 - **Try Again** after Game Over — routes through "Ready to improve your score?" and restarts from Round 1 (skipping Preview + Welcome).
 
-**Progress bar:** visible on every screen except Preview. State is preserved through Game Over and the "Ready to improve your score?" transition; reset fires on entering Round 1 of the restart path. Counter increments on correct feedback (animates during the ✓ feedback window), not on round entry.
+**Progress bar:** visible on every screen except Preview. Position: top of game body, below the fixed preview header (owned by ScreenLayout + ProgressBarComponent — never authored at the bottom). State is preserved through Game Over and the "Ready to improve your score?" transition; reset fires on entering Round 1 of the restart path. Counter increments on correct feedback (animates during the ✓ feedback window), not on round entry.

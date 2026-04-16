@@ -59,7 +59,7 @@
       '  border-radius: 12px;',
       '  padding: 64px 32px;',
       '  max-width: 480px;',
-      '  min-height: 50dvh;',
+      '  min-height: fit-content;',
       '  width: 100%;',
       '  margin: 0 auto;',
       '  text-align: center;',

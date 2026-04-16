@@ -86,7 +86,7 @@ What the player does to leave this screen and where they go.
 
 Within the gameplay screen, each round follows this sequence:
 1. **Question preview** -- question text + any images render. Options NOT yet visible.
-2. **Instructions** (conditional) -- shown on first round or when round type changes.
+2. **Instructions** (conditional) -- **NOT an on-screen text block.** The "how to play" copy is delivered ONCE by the PreviewScreenComponent (`previewInstruction` + `previewAudioText`) before Round 1 starts. Gameplay screens MUST NOT re-render the same instruction text in a static panel. Only render a per-round **prompt / question** if it is semantically different from the preview instruction (e.g. "Which tile shows the answer?" — a per-item prompt, not the global how-to-play). When a round type changes, convey the change via a **Round-N intro transition screen**, not by injecting an instruction banner into gameplay.
 3. **Media** (conditional) -- audio/video plays if present. Skippable.
 4. **Gameplay reveal** -- options/inputs fade in (350ms). Input unblocks.
 ```
@@ -96,6 +96,8 @@ Within the gameplay screen, each round follows this sequence:
 - Show actual content examples (real question text, real option text), not placeholders
 - Show element positions: top-left, top-center, top-right, center, bottom
 - Show relative sizing: a progress bar is wide and thin, a question is large text centered
+- **Progress bar is drawn at the TOP of every non-Preview wireframe** (below the preview header, above gameplay content). Never at the bottom.
+- **Persistent fixtures are drawn on every non-Preview wireframe:** (a) preview header (avatar, question label, score, star) at the very top — owned by PreviewScreenComponent and visible in both preview + game states; (b) progress bar below the header (Shape 2 Multi-round and Shape 3 Sectioned only — hidden for Shape 1 Standalone).
 - Use box-drawing characters for the mobile viewport (375x667 proportions)
 - Include the round presentation sequence for gameplay screens
 
@@ -248,9 +250,9 @@ percentage = (score / maxScore) * 100
 | Parameter | Value |
 |-----------|-------|
 | Tracks | Round number (currentRound / totalRounds) |
-| Position | Bottom of gameplay screen |
+| Position | **Top of game body** — below the fixed preview header, above `#gameContent`. Owned by ScreenLayout + ProgressBarComponent. Visible on every screen except Preview. Do NOT place at the bottom. |
 | Style | Filled bar, left-to-right |
-| Updates | After each round completes |
+| Updates | After each correct feedback (animates during ✓ window) |
 
 ## Data Contract Fields
 

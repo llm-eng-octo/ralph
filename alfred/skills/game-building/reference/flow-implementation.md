@@ -4,11 +4,19 @@
 
 This file tells you how to implement the flow from `pre-generation/game-flow.md` inline in the HTML using the three CDN components. Read this alongside `pre-generation/game-flow.md` and `alfred/skills/game-planning/reference/default-flow.md`.
 
+## Plan → build contract (CRITICAL)
+
+`pre-generation/screens.md` is the enumeration + content contract. Before writing any flow code:
+
+1. **Screen completeness.** For every screen enumerated in `screens.md`, produce a function that mounts it. Do NOT skip short-lived motivation / celebration transitions (e.g. `game_over_motivation`, `victory_motivation`, `stars_collected`) — they are required render targets, not optional.
+2. **Buttons come from `screens.md`, not from this file.** The code snippets below show **structure**; the button set (labels, count, order) for each transition comes from the corresponding "Elements" table in `screens.md`. Do NOT invent additional buttons (e.g. an `Exit` button if screens.md lists only `Try Again`). Do NOT rename listed buttons.
+3. **Persistent fixtures.** Preview wrapper stays mounted through every phase (see PART-039 Wrapper persistence). Progress bar is visible on every screen except Preview; position is top of game body — never at the bottom.
+
 ## Screen → component mapping
 
 | Screen | Component | Key call |
 |---|---|---|
-| Preview | PreviewScreenComponent | `previewScreen.show({ instruction, audio, onComplete })` |
+| Preview | PreviewScreenComponent | `previewScreen.show({ instruction, audioUrl, showGameOnPreview, timerConfig, timerInstance, onComplete })` — ctor is `new PreviewScreenComponent({ slotId: 'mathai-preview-slot' })`. `onComplete(previewData)` invokes `startGameAfterPreview(previewData)` (callback, not awaited). Render `#gameContent` BEFORE calling `show()`. See PART-039. |
 | Welcome | TransitionScreenComponent | `ts.show({ title, buttons:[{text:"I'm ready"}], onMounted: () => FeedbackManager.sound.play(vo, {sticker}) })` |
 | Round N intro | TransitionScreenComponent | `ts.show({ title:"Round N", onMounted: () => sound.play(round_n) })` — await sound, then `ts.hide()` |
 | Ready to improve your score? | TransitionScreenComponent | tap-dismiss, onMounted fires motivation VO |
@@ -17,6 +25,8 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 | Gameplay | bare DOM | inject into `.game-stack` |
 
 ## Component invariants
+
+- **No nested scrolling inside the preview wrapper.** PreviewScreenComponent forces `.game-stack` to `overflow:visible; height:auto` (see the inline critical CSS injected by ScreenLayout). Game CSS MUST NOT override `overflow-y:auto` / `overflow:scroll` / fixed `height` on `.game-stack` or any of its descendants. Instruction body + `#gameContent` + `#mathai-transition-slot` share ONE scroll container: `.mathai-preview-body`. A game that introduces a second scroll surface breaks iOS momentum scrolling and produces layout jumps.
 
 - TransitionScreen has no `duration` / `persist` flags — always call `hide()` explicitly.
 - TransitionScreen does not own sound or sticker — always fire `FeedbackManager.sound.play(id, {sticker})` from the `onMounted` callback.
@@ -53,7 +63,14 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 
 ```js
 async function startGame() {
-  await previewScreen.show({ instruction, audio });
+  // Preview resolves via callback, not promise — wrap it:
+  await new Promise(resolve => {
+    previewScreen.show({
+      instruction, audioUrl, showGameOnPreview: false,
+      timerConfig: null, timerInstance: null,
+      onComplete: (previewData) => { startGameAfterPreview(previewData); resolve(); }
+    });
+  });
   await showWelcome();  // transition, tap "I'm ready"
   progressBar.show(); progressBar.update(0, totalLives);
   for (let i = 1; i <= totalRounds; i++) {
