@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Jigsaw Puzzle</title>
+
+  <!-- ====== 1. SentryConfig package ====== -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+  <!-- ====== 2. initSentry() definition ====== -->
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'jigsaw-puzzle@1.0.0' }));
+    }
+  </script>
+
+  <!-- ====== 3. Sentry SDK ====== -->
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+  <!-- ====== 4. Initialize Sentry on load ====== -->
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- ====== 5-7. Game CDN packages ====== -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <!-- ====== 8. DnD Kit via ESM ====== -->
+  <script type="module">
+    import { DragDropManager, Draggable, Droppable } from 'https://esm.sh/@dnd-kit/dom@beta';
+    window.__dndKit = { DragDropManager: DragDropManager, Draggable: Draggable, Droppable: Droppable };
+    window.dispatchEvent(new Event('dnd-kit-loaded'));
+  </script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+
+      --piece-yellow: #FFD54F;
+      --piece-yellow-border: #FFC107;
+      --piece-purple: #CE93D8;
+      --piece-purple-border: #AB47BC;
+      --piece-orange: #FFB74D;
+      --piece-orange-border: #FF9800;
+      --piece-green: #81C784;
+      --piece-green-border: #4CAF50;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    .hidden { display: none !important; }
+
+    .game-wrapper,
+    #app {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Landscape lock */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white, #ffffff);
+        color: var(--mathai-primary, #270f36);
+        font-family: var(--mathai-font-family, system-ui, -apple-system, sans-serif);
+        font-size: var(--mathai-font-size-subtitle, 18px);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    /* ====== GAME STYLES ====== */
+    .game-header {
+      padding: 16px 20px 8px;
+      text-align: center;
+    }
+
+    .instruction-text {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary);
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+
+    .instruction-text strong {
+      font-weight: 700;
+    }
+
+    .round-indicator {
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-gray);
+      margin-bottom: 4px;
+    }
+
+    /* Grid area */
+    .grid-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px 20px;
+      flex-shrink: 0;
+    }
+
+    .puzzle-grid {
+      display: grid;
+      border: 2px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-small);
+      background: var(--mathai-white);
+      position: relative;
+      overflow: visible;
+    }
+
+    .grid-cell {
+      width: 60px;
+      height: 60px;
+      border: 1.5px dashed var(--mathai-border-gray);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    .grid-cell.filled {
+      border-style: solid;
+      border-width: 2px;
+    }
+
+    .grid-cell.filled-yellow {
+      background: var(--piece-yellow);
+      border-color: var(--piece-yellow-border);
+    }
+
+    .grid-cell.filled-purple {
+      background: var(--piece-purple);
+      border-color: var(--piece-purple-border);
+    }
+
+    .grid-cell.filled-orange {
+      background: var(--piece-orange);
+      border-color: var(--piece-orange-border);
+    }
+
+    .grid-cell.filled-green {
+      background: var(--piece-green);
+      border-color: var(--piece-green-border);
+    }
+
+    .grid-cell.drop-highlight {
+      background: rgba(155, 81, 224, 0.1);
+      border-color: var(--mathai-purple);
+    }
+
+    /* Remove internal borders between cells of the same piece */
+    .grid-cell.filled.no-border-right { border-right-color: transparent; }
+    .grid-cell.filled.no-border-left { border-left-color: transparent; }
+    .grid-cell.filled.no-border-top { border-top-color: transparent; }
+    .grid-cell.filled.no-border-bottom { border-bottom-color: transparent; }
+
+    /* Bank area */
+    .bank-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      min-height: 180px;
+    }
+
+    .bank-area {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      background: var(--mathai-light-gray);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 16px;
+      min-height: 120px;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .piece-slot {
+      margin: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .piece-slot.collapsed {
+      display: none;
+    }
+
+    /* Piece in bank */
+    .piece-shape {
+      display: grid;
+      cursor: grab;
+      touch-action: none;
+      position: relative;
+      z-index: 10;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .piece-shape:active {
+      cursor: grabbing;
+      transform: scale(1.05);
+    }
+
+    .piece-shape.dragging {
+      opacity: 0.6;
+      z-index: 1000;
+    }
+
+    .piece-cell {
+      width: 44px;
+      height: 44px;
+      border-radius: 4px;
+      border: 2px solid;
+    }
+
+    .piece-cell.empty-cell {
+      background: transparent;
+      border-color: transparent;
+    }
+
+    .piece-cell.yellow {
+      background: var(--piece-yellow);
+      border-color: var(--piece-yellow-border);
+    }
+
+    .piece-cell.purple {
+      background: var(--piece-purple);
+      border-color: var(--piece-purple-border);
+    }
+
+    .piece-cell.orange {
+      background: var(--piece-orange);
+      border-color: var(--piece-orange-border);
+    }
+
+    .piece-cell.green {
+      background: var(--piece-green);
+      border-color: var(--piece-green-border);
+    }
+
+    /* Remove internal borders for piece cells that are adjacent */
+    .piece-cell.no-border-right { border-right-color: transparent; }
+    .piece-cell.no-border-left { border-left-color: transparent; }
+    .piece-cell.no-border-top { border-top-color: transparent; }
+    .piece-cell.no-border-bottom { border-bottom-color: transparent; }
+
+    /* Piece placed on grid as overlay */
+    .piece-on-grid {
+      position: absolute;
+      display: grid;
+      pointer-events: auto;
+      cursor: grab;
+      touch-action: none;
+      z-index: 10;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .piece-on-grid:active {
+      cursor: grabbing;
+      transform: scale(1.03);
+    }
+
+    .piece-on-grid.dragging {
+      opacity: 0.5;
+      z-index: 1000;
+    }
+
+    .piece-on-grid .piece-grid-cell {
+      width: 60px;
+      height: 60px;
+      border-radius: 4px;
+      border: 2px solid;
+    }
+
+    .piece-on-grid .piece-grid-cell.empty-cell {
+      background: transparent;
+      border-color: transparent;
+      pointer-events: none;
+    }
+
+    .piece-on-grid .piece-grid-cell.yellow {
+      background: var(--piece-yellow);
+      border-color: var(--piece-yellow-border);
+    }
+    .piece-on-grid .piece-grid-cell.purple {
+      background: var(--piece-purple);
+      border-color: var(--piece-purple-border);
+    }
+    .piece-on-grid .piece-grid-cell.orange {
+      background: var(--piece-orange);
+      border-color: var(--piece-orange-border);
+    }
+    .piece-on-grid .piece-grid-cell.green {
+      background: var(--piece-green);
+      border-color: var(--piece-green-border);
+    }
+    .piece-on-grid .piece-grid-cell.no-border-right { border-right-color: transparent; }
+    .piece-on-grid .piece-grid-cell.no-border-left { border-left-color: transparent; }
+    .piece-on-grid .piece-grid-cell.no-border-top { border-top-color: transparent; }
+    .piece-on-grid .piece-grid-cell.no-border-bottom { border-bottom-color: transparent; }
+
+    .piece-on-grid.piece-correct {
+      filter: brightness(1.1);
+      box-shadow: 0 0 8px rgba(33, 150, 83, 0.4);
+    }
+
+    /* Results screen */
+    #results-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 100;
+      background: var(--mathai-white);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .results-stars {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .results-title {
+      font-size: var(--mathai-font-size-title);
+      font-weight: 700;
+      color: var(--mathai-primary);
+      margin-bottom: 8px;
+    }
+
+    .results-subtitle {
+      font-size: var(--mathai-font-size-subtitle);
+      color: var(--mathai-gray);
+      margin-bottom: 24px;
+    }
+
+    .results-metrics {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+
+    .results-metric {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary);
+      margin-bottom: 4px;
+    }
+
+    .btn-primary {
+      background: var(--mathai-purple);
+      color: var(--mathai-white);
+      border: none;
+      border-radius: var(--mathai-border-radius-button);
+      padding: 14px 32px;
+      font-size: var(--mathai-font-size-button);
+      font-weight: 600;
+      cursor: pointer;
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+      font-family: var(--mathai-font-family);
+    }
+
+    .btn-primary:active {
+      opacity: 0.85;
+    }
+
+    /* Round complete celebration */
+    .round-complete-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 50;
+      background: rgba(255, 255, 255, 0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.35s ease;
+    }
+
+    .round-complete-emoji {
+      font-size: 64px;
+      margin-bottom: 16px;
+      animation: starPop 0.4s ease forwards;
+    }
+
+    .round-complete-text {
+      font-size: var(--mathai-font-size-large);
+      font-weight: 700;
+      color: var(--mathai-primary);
+      margin-bottom: 8px;
+    }
+
+    .round-complete-sub {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-gray);
+    }
+
+    /* Micro-animations */
+    @keyframes scoreBounce {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes starPop {
+      0% { transform: scale(0); }
+      60% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes heartBreak {
+      0% { transform: scale(1); opacity: 1; }
+      30% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.5); opacity: 0; color: var(--mathai-red); }
+    }
+
+    @keyframes streakGlow {
+      0% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+      50% { box-shadow: 0 0 16px rgba(255, 193, 7, 0.5); }
+      100% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+    }
+
+    @keyframes confettiFall {
+      0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+
+    @keyframes piecePlaced {
+      0% { transform: scale(0.8); opacity: 0.5; }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes gridCellPop {
+      0% { transform: scale(0.7); }
+      60% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    .score-bounce { animation: scoreBounce 0.4s ease; }
+    .shake-wrong { animation: shake 0.5s ease; }
+    .heart-break { animation: heartBreak 0.6s ease forwards; }
+    .star-earned { animation: starPop 0.4s ease forwards; }
+    .streak-glow { animation: streakGlow 0.6s ease; }
+    .fade-in { animation: fadeIn 0.35s ease; }
+    .cell-pop { animation: gridCellPop 0.3s ease; }
+
+    /* Touch targets */
+    button,
+    .option-btn,
+    [role="button"],
+    input[type="submit"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    /* ScreenLayout overrides */
+    .mathai-layout-root {
+      max-width: var(--mathai-game-max-width);
+      margin: 0 auto;
+    }
+
+    /* TransitionScreen overrides */
+    .mathai-ts-screen.active {
+      z-index: 200;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0"></div>
+
+  <script>
+    /* ====== 1. gameState ====== */
+    var gameState = {
+      gameId: 'jigsaw-puzzle',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 5,
+      score: 0,
+      attempts: [],
+      events: [],
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      correctAnswer: null,
+      startTime: null,
+      roundStartTime: null,
+      content: null,
+      duration_data: { startTime: null, endTime: null, pausedDuration: 0, lastPauseTime: null },
+      /* game-specific */
+      placedPieces: {},
+      dndInstances: null
+    };
+
+    /* ====== 2. window.gameState ====== */
+    window.gameState = gameState;
+
+    /* ====== 3. fallbackContent ====== */
+    var PIECE_COLORS = ['yellow', 'purple', 'orange', 'green'];
+
+    var fallbackContent = {
+      rounds: [
+        {
+          id: 'r1_jigsaw_3x3_a',
+          gridRows: 3,
+          gridCols: 3,
+          pieces: [
+            { id: 'p0', color: 'yellow', cells: [[0,0],[0,1],[1,1]] },
+            { id: 'p1', color: 'purple', cells: [[0,2],[1,2],[2,2]] },
+            { id: 'p2', color: 'orange', cells: [[1,0],[2,0],[2,1]] }
+          ],
+          difficulty: 1
+        },
+        {
+          id: 'r2_jigsaw_3x3_b',
+          gridRows: 3,
+          gridCols: 3,
+          pieces: [
+            { id: 'p0', color: 'yellow', cells: [[0,0],[1,0],[1,1]] },
+            { id: 'p1', color: 'purple', cells: [[0,1],[0,2],[1,2]] },
+            { id: 'p2', color: 'orange', cells: [[2,0],[2,1],[2,2]] }
+          ],
+          difficulty: 1
+        },
+        {
+          id: 'r3_jigsaw_4x3_a',
+          gridRows: 4,
+          gridCols: 3,
+          pieces: [
+            { id: 'p0', color: 'yellow', cells: [[0,0],[0,1],[1,0],[2,0]] },
+            { id: 'p1', color: 'purple', cells: [[0,2],[1,1],[1,2],[2,2]] },
+            { id: 'p2', color: 'orange', cells: [[2,1],[3,0],[3,1],[3,2]] }
+          ],
+          difficulty: 2
+        },
+        {
+          id: 'r4_jigsaw_4x3_b',
+          gridRows: 4,
+          gridCols: 3,
+          pieces: [
+            { id: 'p0', color: 'yellow', cells: [[0,0],[0,1],[0,2],[1,1]] },
+            { id: 'p1', color: 'purple', cells: [[1,0],[2,0],[2,1],[3,0]] },
+            { id: 'p2', color: 'orange', cells: [[1,2],[2,2],[3,1],[3,2]] }
+          ],
+          difficulty: 2
+        },
+        {
+          id: 'r5_jigsaw_4x4',
+          gridRows: 4,
+          gridCols: 4,
+          pieces: [
+            { id: 'p0', color: 'yellow', cells: [[0,0],[0,1],[0,2],[1,1]] },
+            { id: 'p1', color: 'purple', cells: [[0,3],[1,2],[1,3],[2,2]] },
+            { id: 'p2', color: 'orange', cells: [[1,0],[2,0],[2,1],[3,0]] },
+            { id: 'p3', color: 'green', cells: [[2,3],[3,1],[3,2],[3,3]] }
+          ],
+          difficulty: 3
+        }
+      ]
+    };
+
+    /* ====== 4. Module-scope vars ====== */
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var dndKitLib = null;
+    var dndManager = null;
+    var dndDraggables = [];
+    var dndDroppables = [];
+    var tagLocations = {};
+
+    /* Sticker + SFX URLs */
+    var CORRECT_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var INCORRECT_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var ROUND_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var VICTORY_3_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var VICTORY_2_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var VICTORY_1_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var GAME_OVER_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var RESTART_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+    var LEVEL_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+
+    /* ====== 5. syncDOM ====== */
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+    }
+
+    /* ====== 6. trackEvent ====== */
+    function trackEvent(name, data) {
+      var evt = {
+        event_name: name,
+        timestamp: Date.now(),
+        data: data || {}
+      };
+      gameState.events.push(evt);
+    }
+
+    /* ====== 7. recordAttempt ====== */
+    function recordAttempt(data) {
+      var attempt = {
+        question_id: data.question_id || ('r' + (gameState.currentRound + 1)),
+        round_number: gameState.currentRound + 1,
+        student_answer: data.student_answer || '',
+        correct_answer: data.correct_answer || '',
+        is_correct: data.is_correct !== undefined ? data.is_correct : false,
+        response_time_ms: Date.now() - (gameState.roundStartTime || Date.now()),
+        score_delta: data.score_delta || 0,
+        misconception_tag: data.misconception_tag || null,
+        difficulty_level: data.difficulty_level || 1,
+        hint_used: data.hint_used || false,
+        attempt_number: data.attempt_number || 1,
+        metadata: data.metadata || {}
+      };
+      gameState.attempts.push(attempt);
+    }
+
+    /* ====== 8. getStars ====== */
+    function getStars(score) {
+      var total = gameState.totalRounds;
+      if (score >= Math.ceil(total * 0.9)) return 3;
+      if (score >= Math.ceil(total * 0.6)) return 2;
+      if (score >= 1) return 1;
+      return 0;
+    }
+
+    /* ====== 9. getRounds ====== */
+    function getRounds() {
+      if (gameState.content && gameState.content.rounds && gameState.content.rounds.length >= gameState.totalRounds) {
+        return gameState.content.rounds;
+      }
+      return fallbackContent.rounds;
+    }
+
+    /* ====== 10. waitForPackages ====== */
+    function waitForPackages() {
+      return new Promise(function(resolve) {
+        var startTime = Date.now();
+        var maxWait = 180000;
+        function check() {
+          var fm = typeof FeedbackManager !== 'undefined';
+          var tc = typeof TimerComponent !== 'undefined';
+          var vt = typeof VisibilityTracker !== 'undefined';
+          var sc = typeof SignalCollector !== 'undefined';
+          if (fm && tc && vt && sc) { resolve(true); return; }
+          if (Date.now() - startTime > maxWait) { resolve(false); return; }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    /* ====== 10b. waitForDndKit ====== */
+    function waitForDndKit() {
+      return new Promise(function(resolve) {
+        if (window.__dndKit) return resolve(window.__dndKit);
+        var handler = function() {
+          window.removeEventListener('dnd-kit-loaded', handler);
+          resolve(window.__dndKit);
+        };
+        window.addEventListener('dnd-kit-loaded', handler);
+        setTimeout(function() {
+          window.removeEventListener('dnd-kit-loaded', handler);
+          resolve(window.__dndKit || null);
+        }, 10000);
+      });
+    }
+
+    /* ====== 11. FeedbackManager helpers ====== */
+    function playCorrectSFX() {
+      try {
+        FeedbackManager.sound.play('correct_sound_effect', { sticker: CORRECT_STICKER }).catch(function(e) {});
+      } catch (e) {}
+    }
+
+    function playAllCorrectSFX() {
+      return new Promise(function(resolve) {
+        try {
+          FeedbackManager.sound.play('all_correct', { sticker: CORRECT_STICKER }).then(resolve).catch(resolve);
+        } catch (e) { resolve(); }
+      });
+    }
+
+    function playRoundSFX() {
+      return new Promise(function(resolve) {
+        try {
+          FeedbackManager.sound.play('rounds_sound_effect', { sticker: ROUND_STICKER }).then(resolve).catch(resolve);
+        } catch (e) { resolve(); }
+      });
+    }
+
+    function playNewCardsSFX() {
+      try {
+        FeedbackManager.sound.play('new_cards').catch(function(e) {});
+      } catch (e) {}
+    }
+
+    /* ====== 12. handlePostMessage ====== */
+    function handlePostMessage(event) {
+      if (!event.data || !event.data.type) return;
+      if (event.data.type === 'game_init') {
+        gameState.phase = 'playing';
+        if (event.data.data) {
+          gameState.content = event.data.data;
+          if (event.data.data.rounds) {
+            gameState.totalRounds = event.data.data.rounds.length;
+          }
+        }
+        syncDOM();
+        setupGame();
+        startGame();
+      }
+    }
+
+    /* ====== 13. render (phase router) ====== */
+    function render() {
+      var gameContent = document.getElementById('gameContent');
+      if (!gameContent) return;
+
+      if (gameState.phase === 'start_screen') {
+        gameContent.innerHTML = '';
+      } else if (gameState.phase === 'gameplay' || gameState.phase === 'playing') {
+        loadRound();
+      }
+    }
+
+    /* ====== 14. startGame ====== */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = Date.now();
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.phase = 'gameplay';
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      showRoundTransition();
+    }
+
+    /* ====== 14b. setupGame ====== */
+    function setupGame() {
+      gameState.correctAnswer = 'all_pieces_placed';
+      syncDOM();
+    }
+
+    /* ====== 15. loadRound ====== */
+    function loadRound() {
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      syncDOM();
+
+      var rounds = getRounds();
+      var round = rounds[gameState.currentRound];
+      if (!round) return;
+
+      gameState.roundStartTime = Date.now();
+      gameState.correctAnswer = 'all_pieces_placed';
+      gameState.placedPieces = {};
+      gameState.piecePositions = {};
+
+      var gameContent = document.getElementById('gameContent');
+      if (!gameContent) return;
+
+      buildRoundUI(gameContent, round);
+      playNewCardsSFX();
+
+      if (dndKitLib) {
+        setTimeout(function() { setupDnD(round); }, 100);
+      }
+    }
+
+    /* ====== Build Round UI ====== */
+    function buildRoundUI(container, round) {
+      var html = '';
+
+      /* Header */
+      html += '<div class="game-header">';
+      html += '<div class="round-indicator">Round ' + (gameState.currentRound + 1) + ' of ' + gameState.totalRounds + '</div>';
+      html += '<div class="instruction-text">Drag and drop all <strong>jigsaw pieces</strong> into the grid until the grid is complete!</div>';
+      html += '</div>';
+
+      /* Grid */
+      html += '<div class="grid-container">';
+      html += '<div class="puzzle-grid" id="puzzleGrid" style="grid-template-columns: repeat(' + round.gridCols + ', 60px); grid-template-rows: repeat(' + round.gridRows + ', 60px);">';
+
+      /* Build cell-to-piece mapping */
+      var cellMap = {};
+      for (var pi = 0; pi < round.pieces.length; pi++) {
+        var piece = round.pieces[pi];
+        for (var ci = 0; ci < piece.cells.length; ci++) {
+          var key = piece.cells[ci][0] + '-' + piece.cells[ci][1];
+          cellMap[key] = piece.id;
+        }
+      }
+
+      for (var r = 0; r < round.gridRows; r++) {
+        for (var c = 0; c < round.gridCols; c++) {
+          var cellKey = r + '-' + c;
+          var pieceId = cellMap[cellKey] || '';
+          html += '<div class="grid-cell" id="cell-' + cellKey + '" data-row="' + r + '" data-col="' + c + '" data-piece="' + pieceId + '"></div>';
+        }
+      }
+
+      html += '</div>';
+      html += '</div>';
+
+      /* Bank */
+      html += '<div class="bank-container">';
+      html += '<div class="bank-area" id="pieceBank">';
+
+      for (var pi = 0; pi < round.pieces.length; pi++) {
+        var piece = round.pieces[pi];
+        html += buildPieceHTML(piece);
+      }
+
+      html += '</div>';
+      html += '</div>';
+
+      container.innerHTML = html;
+    }
+
+    /* ====== Build piece shape HTML for bank ====== */
+    function buildPieceHTML(piece) {
+      /* Calculate bounding box */
+      var minR = 999, maxR = -1, minC = 999, maxC = -1;
+      for (var i = 0; i < piece.cells.length; i++) {
+        var r = piece.cells[i][0], c = piece.cells[i][1];
+        if (r < minR) minR = r;
+        if (r > maxR) maxR = r;
+        if (c < minC) minC = c;
+        if (c > maxC) maxC = c;
+      }
+
+      var rows = maxR - minR + 1;
+      var cols = maxC - minC + 1;
+
+      /* Normalize cells to 0-based */
+      var normalizedCells = [];
+      var cellSet = {};
+      for (var i = 0; i < piece.cells.length; i++) {
+        var nr = piece.cells[i][0] - minR;
+        var nc = piece.cells[i][1] - minC;
+        normalizedCells.push([nr, nc]);
+        cellSet[nr + '-' + nc] = true;
+      }
+
+      var html = '<div class="piece-slot" id="slot-' + piece.id + '">';
+      html += '<div class="piece-shape" id="piece-' + piece.id + '" data-piece-id="' + piece.id + '" ';
+      html += 'style="grid-template-columns: repeat(' + cols + ', 44px); grid-template-rows: repeat(' + rows + ', 44px);">';
+
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          var key = r + '-' + c;
+          if (cellSet[key]) {
+            /* Check adjacency for internal border removal */
+            var classes = piece.color;
+            if (cellSet[(r) + '-' + (c + 1)]) classes += ' no-border-right';
+            if (cellSet[(r) + '-' + (c - 1)]) classes += ' no-border-left';
+            if (cellSet[(r - 1) + '-' + (c)]) classes += ' no-border-top';
+            if (cellSet[(r + 1) + '-' + (c)]) classes += ' no-border-bottom';
+            html += '<div class="piece-cell ' + classes + '"></div>';
+          } else {
+            html += '<div class="piece-cell empty-cell"></div>';
+          }
+        }
+      }
+
+      html += '</div>';
+      html += '</div>';
+      return html;
+    }
+
+    /* ====== DnD Setup (R1-R3 compliant) ====== */
+    function cleanupDnD() {
+      /* R3: Destroy all DnD instances before creating new ones */
+      if (dndManager) {
+        try { dndManager.destroy(); } catch (e) {}
+        dndManager = null;
+      }
+      for (var i = 0; i < dndDraggables.length; i++) {
+        try { dndDraggables[i].destroy(); } catch (e) {}
+      }
+      for (var i = 0; i < dndDroppables.length; i++) {
+        try { dndDroppables[i].destroy(); } catch (e) {}
+      }
+      dndDraggables = [];
+      dndDroppables = [];
+      tagLocations = {};
+    }
+
+    function setupDnD(round) {
+      cleanupDnD();
+
+      if (!dndKitLib) return;
+
+      var DragDropManager = dndKitLib.DragDropManager;
+      var DraggableClass = dndKitLib.Draggable;
+      var DroppableClass = dndKitLib.Droppable;
+
+      dndManager = new DragDropManager();
+
+      /* R2: Initialize tag source tracking */
+      tagLocations = {};
+
+      /* Create droppables for each grid cell */
+      for (var r = 0; r < round.gridRows; r++) {
+        for (var c = 0; c < round.gridCols; c++) {
+          var cellEl = document.getElementById('cell-' + r + '-' + c);
+          if (cellEl) {
+            var droppable = new DroppableClass({
+              id: 'cell-' + r + '-' + c,
+              element: cellEl
+            }, dndManager);
+            dndDroppables.push(droppable);
+          }
+        }
+      }
+
+      /* Also make the bank a droppable (for return) */
+      var bankEl = document.getElementById('pieceBank');
+      if (bankEl) {
+        var bankDroppable = new DroppableClass({
+          id: 'bank',
+          element: bankEl
+        }, dndManager);
+        dndDroppables.push(bankDroppable);
+      }
+
+      /* Create draggables for each piece */
+      for (var pi = 0; pi < round.pieces.length; pi++) {
+        var piece = round.pieces[pi];
+        var pieceEl = document.getElementById('piece-' + piece.id);
+        if (pieceEl) {
+          var draggable = new DraggableClass({
+            id: 'piece-' + piece.id,
+            element: pieceEl,
+            data: { pieceId: piece.id, color: piece.color }
+          }, dndManager);
+          dndDraggables.push(draggable);
+          tagLocations['piece-' + piece.id] = 'bank';
+        }
+      }
+
+      /* Monitor drag events */
+      dndManager.monitor.addEventListener('dragstart', function(event) {
+        var srcEl = event.operation.source.element;
+        if (srcEl) srcEl.classList.add('dragging');
+      });
+
+      dndManager.monitor.addEventListener('dragend', function(event) {
+        var operation = event.operation;
+        var source = operation.source;
+        var target = operation.target;
+        var canceled = event.canceled;
+
+        var srcEl = source.element;
+        if (srcEl) srcEl.classList.remove('dragging');
+
+        if (gameState.isProcessing || gameState.gameEnded) return;
+        if (!gameState.isActive) return;
+
+        var pieceId = source.id.replace('piece-', '').replace('grid-', '');
+
+        if (canceled || !target) {
+          /* Dropped outside - return to bank */
+          removePieceFromGrid(round, pieceId);
+          return;
+        }
+
+        var targetId = target.id;
+
+        if (targetId === 'bank') {
+          /* Dropped on bank */
+          removePieceFromGrid(round, pieceId);
+          return;
+        }
+
+        /* Dropped on a grid cell — find best valid snap position */
+        var parts = targetId.replace('cell-', '').split('-');
+        var dropRow = parseInt(parts[0]);
+        var dropCol = parseInt(parts[1]);
+
+        var piece = findPiece(round, pieceId);
+        if (!piece) return;
+
+        var bestPos = findBestPlacement(round, piece, dropRow, dropCol, pieceId);
+        if (bestPos) {
+          placePieceOnGrid(round, pieceId, bestPos.row, bestPos.col);
+        } else {
+          /* No valid position nearby — return to bank with shake */
+          removePieceFromGrid(round, pieceId);
+          var pieceEl = document.getElementById('piece-' + pieceId);
+          if (pieceEl) {
+            pieceEl.classList.add('shake-wrong');
+            setTimeout(function() { pieceEl.classList.remove('shake-wrong'); }, 500);
+          }
+        }
+      });
+    }
+
+    /* ====== Find best valid placement near the drop point ====== */
+    function findBestPlacement(round, piece, dropRow, dropCol, excludePieceId) {
+      /* Try exact drop point first */
+      if (canPlacePiece(round, piece, dropRow, dropCol, excludePieceId)) {
+        return { row: dropRow, col: dropCol };
+      }
+
+      /* Search nearby positions, sorted by distance from drop point */
+      var candidates = [];
+      for (var r = 0; r < round.gridRows; r++) {
+        for (var c = 0; c < round.gridCols; c++) {
+          if (r === dropRow && c === dropCol) continue;
+          var dist = Math.abs(r - dropRow) + Math.abs(c - dropCol);
+          candidates.push({ row: r, col: c, dist: dist });
+        }
+      }
+      candidates.sort(function(a, b) { return a.dist - b.dist; });
+
+      /* Only consider positions within 3 cells of where user dropped */
+      for (var i = 0; i < candidates.length; i++) {
+        if (candidates[i].dist > 3) break;
+        if (canPlacePiece(round, piece, candidates[i].row, candidates[i].col, excludePieceId)) {
+          return { row: candidates[i].row, col: candidates[i].col };
+        }
+      }
+
+      return null;
+    }
+
+    /* ====== Validate if a piece can be placed at a given anchor ====== */
+    function canPlacePiece(round, piece, anchorRow, anchorCol, excludePieceId) {
+      var anchor = getPieceAnchor(piece);
+
+      /* Build set of occupied cells from other pieces on the grid */
+      var occupied = {};
+      for (var i = 0; i < round.pieces.length; i++) {
+        var otherPiece = round.pieces[i];
+        if (otherPiece.id === excludePieceId) continue;
+        var pos = gameState.piecePositions[otherPiece.id];
+        if (!pos) continue;
+        var otherAnchor = getPieceAnchor(otherPiece);
+        for (var j = 0; j < otherPiece.cells.length; j++) {
+          var gr = otherPiece.cells[j][0] - otherAnchor.row + pos.row;
+          var gc = otherPiece.cells[j][1] - otherAnchor.col + pos.col;
+          occupied[gr + '-' + gc] = true;
+        }
+      }
+
+      /* Check every cell the piece would occupy */
+      for (var i = 0; i < piece.cells.length; i++) {
+        var gr = piece.cells[i][0] - anchor.row + anchorRow;
+        var gc = piece.cells[i][1] - anchor.col + anchorCol;
+        /* Out of bounds? */
+        if (gr < 0 || gr >= round.gridRows || gc < 0 || gc >= round.gridCols) return false;
+        /* Already occupied? */
+        if (occupied[gr + '-' + gc]) return false;
+      }
+      return true;
+    }
+
+    /* ====== Get piece's correct anchor (min row, min col) ====== */
+    function getPieceAnchor(piece) {
+      var minR = 999, minC = 999;
+      for (var i = 0; i < piece.cells.length; i++) {
+        if (piece.cells[i][0] < minR) minR = piece.cells[i][0];
+        if (piece.cells[i][1] < minC) minC = piece.cells[i][1];
+      }
+      return { row: minR, col: minC };
+    }
+
+    /* ====== Find piece data by ID ====== */
+    function findPiece(round, pieceId) {
+      for (var i = 0; i < round.pieces.length; i++) {
+        if (round.pieces[i].id === pieceId) return round.pieces[i];
+      }
+      return null;
+    }
+
+    /* ====== Place piece on grid at given drop cell ====== */
+    function placePieceOnGrid(round, pieceId, dropRow, dropCol) {
+      var piece = findPiece(round, pieceId);
+      if (!piece) return;
+
+      /* Validate placement — must fit within grid and not overlap other pieces */
+      if (!canPlacePiece(round, piece, dropRow, dropCol, pieceId)) return;
+
+      /* Remove existing grid overlay if piece was already on grid */
+      var existingOverlay = document.getElementById('grid-' + pieceId);
+      if (existingOverlay) existingOverlay.remove();
+
+      /* Compute normalized cells and anchor offset */
+      var anchor = getPieceAnchor(piece);
+      var normalizedCells = [];
+      var cellSet = {};
+      var maxNR = 0, maxNC = 0;
+      for (var i = 0; i < piece.cells.length; i++) {
+        var nr = piece.cells[i][0] - anchor.row;
+        var nc = piece.cells[i][1] - anchor.col;
+        normalizedCells.push([nr, nc]);
+        cellSet[nr + '-' + nc] = true;
+        if (nr > maxNR) maxNR = nr;
+        if (nc > maxNC) maxNC = nc;
+      }
+      var shapeRows = maxNR + 1;
+      var shapeCols = maxNC + 1;
+
+      /* The drop cell becomes the anchor position for the piece */
+      var anchorRow = dropRow;
+      var anchorCol = dropCol;
+
+      /* Build piece overlay HTML */
+      var overlay = document.createElement('div');
+      overlay.id = 'grid-' + pieceId;
+      overlay.className = 'piece-on-grid';
+      overlay.setAttribute('data-piece-id', pieceId);
+      overlay.style.gridTemplateColumns = 'repeat(' + shapeCols + ', 60px)';
+      overlay.style.gridTemplateRows = 'repeat(' + shapeRows + ', 60px)';
+      overlay.style.left = (anchorCol * 60) + 'px';
+      overlay.style.top = (anchorRow * 60) + 'px';
+
+      for (var r = 0; r < shapeRows; r++) {
+        for (var c = 0; c < shapeCols; c++) {
+          var key = r + '-' + c;
+          var cellDiv = document.createElement('div');
+          if (cellSet[key]) {
+            cellDiv.className = 'piece-grid-cell ' + piece.color;
+            if (cellSet[r + '-' + (c + 1)]) cellDiv.classList.add('no-border-right');
+            if (cellSet[r + '-' + (c - 1)]) cellDiv.classList.add('no-border-left');
+            if (cellSet[(r - 1) + '-' + c]) cellDiv.classList.add('no-border-top');
+            if (cellSet[(r + 1) + '-' + c]) cellDiv.classList.add('no-border-bottom');
+          } else {
+            cellDiv.className = 'piece-grid-cell empty-cell';
+          }
+          overlay.appendChild(cellDiv);
+        }
+      }
+
+      /* Add to grid */
+      var grid = document.getElementById('puzzleGrid');
+      if (grid) grid.appendChild(overlay);
+
+      /* Update state */
+      gameState.placedPieces[pieceId] = true;
+      gameState.piecePositions[pieceId] = { row: anchorRow, col: anchorCol };
+      tagLocations['piece-' + pieceId] = 'grid';
+
+      /* Hide piece in bank */
+      var slot = document.getElementById('slot-' + pieceId);
+      if (slot) slot.classList.add('collapsed');
+
+      /* Make the overlay draggable */
+      if (dndKitLib && dndManager) {
+        var DraggableClass = dndKitLib.Draggable;
+        var draggable = new DraggableClass({
+          id: 'grid-' + pieceId,
+          element: overlay,
+          data: { pieceId: pieceId, color: piece.color }
+        }, dndManager);
+        dndDraggables.push(draggable);
+      }
+
+      /* Piece placed successfully — play SFX */
+      playCorrectSFX();
+
+      /* Check if all grid cells are covered */
+      checkRoundComplete(round);
+    }
+
+    /* ====== Remove piece from grid back to bank ====== */
+    function removePieceFromGrid(round, pieceId) {
+      /* Remove overlay */
+      var overlay = document.getElementById('grid-' + pieceId);
+      if (overlay) overlay.remove();
+
+      /* Update state */
+      delete gameState.placedPieces[pieceId];
+      delete gameState.piecePositions[pieceId];
+      tagLocations['piece-' + pieceId] = 'bank';
+
+      /* Show piece in bank again */
+      var slot = document.getElementById('slot-' + pieceId);
+      if (slot) slot.classList.remove('collapsed');
+    }
+
+    /* ====== Check round complete (all grid cells covered, no gaps) ====== */
+    function checkRoundComplete(round) {
+      var totalCells = round.gridRows * round.gridCols;
+
+      /* Count all cells covered by placed pieces */
+      var coveredCells = {};
+      for (var i = 0; i < round.pieces.length; i++) {
+        var piece = round.pieces[i];
+        var pos = gameState.piecePositions[piece.id];
+        if (!pos) return; /* Not all pieces placed yet */
+        var anchor = getPieceAnchor(piece);
+        for (var j = 0; j < piece.cells.length; j++) {
+          var gr = piece.cells[j][0] - anchor.row + pos.row;
+          var gc = piece.cells[j][1] - anchor.col + pos.col;
+          coveredCells[gr + '-' + gc] = true;
+        }
+      }
+
+      /* Check every grid cell is covered */
+      var coveredCount = Object.keys(coveredCells).length;
+      var allCovered = (coveredCount === totalCells);
+
+      if (allCovered) {
+        gameState.isProcessing = true;
+
+        /* Record attempt for the round */
+        recordAttempt({
+          question_id: round.id,
+          student_answer: 'all_pieces_placed',
+          correct_answer: 'all_pieces_placed',
+          is_correct: true,
+          score_delta: 1,
+          difficulty_level: round.difficulty || 1,
+          attempt_number: 1
+        });
+
+        trackEvent('answer_submitted', {
+          round: gameState.currentRound + 1,
+          correct: true
+        });
+
+        gameState.score += 1;
+        syncDOM();
+
+        trackEvent('round_complete', { round: gameState.currentRound + 1 });
+
+        /* Awaited SFX for round complete (Case 6) */
+        playAllCorrectSFX().then(function() {
+          gameState.isProcessing = false;
+          nextRound();
+        });
+      }
+    }
+
+    /* ====== 17. nextRound ====== */
+    function nextRound() {
+      gameState.currentRound += 1;
+      syncDOM();
+
+      if (gameState.currentRound >= gameState.totalRounds) {
+        endGame('victory');
+        return;
+      }
+
+      if (progressBar) {
+        try { progressBar.update(gameState.currentRound, 0); } catch (e) {}
+      }
+
+      showRoundTransition();
+    }
+
+    /* ====== Show round transition ====== */
+    function showRoundTransition() {
+      var roundNum = gameState.currentRound + 1;
+      var audioStopped = false;
+      var dismissed = false;
+
+      function onTransitionDismissed() {
+        if (dismissed) return;
+        dismissed = true;
+        audioStopped = true;
+        try {
+          FeedbackManager.sound.stopAll();
+          FeedbackManager._stopCurrentDynamic();
+        } catch (e) {}
+        /* Hide the CDN transition screen */
+        if (transitionScreen) {
+          try { transitionScreen.hide(); } catch (e) {}
+        }
+        /* Remove any overlay elements */
+        var tsScreen = document.querySelector('.mathai-ts-screen.active');
+        if (tsScreen) tsScreen.classList.remove('active');
+        loadRound();
+      }
+
+      if (transitionScreen) {
+        transitionScreen.show({
+          icons: ['🧩'],
+          title: 'Round ' + roundNum,
+          subtitle: roundNum === 1 ? 'Place all pieces to complete the puzzle!' : 'Here comes a new puzzle!',
+          buttons: [{ text: 'Start', onClick: onTransitionDismissed }],
+          persist: true
+        });
+
+        /* Also attach our own click handler to the CDN button (belt-and-suspenders) */
+        setTimeout(function() {
+          var tsBtns = document.querySelectorAll('.mathai-ts-btn');
+          for (var i = 0; i < tsBtns.length; i++) {
+            tsBtns[i].addEventListener('click', onTransitionDismissed);
+          }
+        }, 100);
+
+        /* Sequential audio: SFX then VO */
+        try {
+          FeedbackManager.sound.play('rounds_sound_effect', { sticker: ROUND_STICKER }).then(function() {
+            if (audioStopped) return;
+            return FeedbackManager.playDynamicFeedback({
+              audio_content: 'Round ' + roundNum,
+              subtitle: 'Round ' + roundNum,
+              sticker: ROUND_STICKER
+            });
+          }).catch(function() {});
+        } catch (e) {}
+      } else {
+        /* No transition screen component - use simple overlay */
+        showSimpleTransition(roundNum, function() {
+          loadRound();
+        });
+      }
+    }
+
+    /* Simple transition fallback */
+    function showSimpleTransition(roundNum, callback) {
+      var overlay = document.createElement('div');
+      overlay.className = 'round-complete-overlay';
+      overlay.innerHTML = '<div class="round-complete-emoji">🧩</div>' +
+        '<div class="round-complete-text">Round ' + roundNum + '</div>' +
+        '<div class="round-complete-sub">' + (roundNum === 1 ? 'Place all pieces to complete the puzzle!' : 'Here comes a new puzzle!') + '</div>' +
+        '<button class="btn-primary" style="margin-top: 24px;">Start</button>';
+
+      document.body.appendChild(overlay);
+
+      var btn = overlay.querySelector('.btn-primary');
+      btn.addEventListener('click', function() {
+        overlay.remove();
+        if (callback) callback();
+      });
+
+      /* Play transition audio */
+      try {
+        FeedbackManager.sound.play('rounds_sound_effect', { sticker: ROUND_STICKER }).then(function() {
+          return FeedbackManager.playDynamicFeedback({
+            audio_content: 'Round ' + roundNum,
+            subtitle: 'Round ' + roundNum,
+            sticker: ROUND_STICKER
+          });
+        }).catch(function() {});
+      } catch (e) {}
+    }
+
+    /* ====== 18. endGame ====== */
+    function endGame(outcome) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+
+      cleanupDnD();
+
+      gameState.duration_data.endTime = Date.now();
+      var totalDuration = gameState.duration_data.endTime - gameState.duration_data.startTime - (gameState.duration_data.pausedDuration || 0);
+
+      var stars = getStars(gameState.score);
+      var accuracy = gameState.totalRounds > 0 ? Math.round((gameState.score / gameState.totalRounds) * 100) : 0;
+
+      gameState.phase = outcome === 'victory' ? 'results' : 'game_over';
+      syncDOM();
+
+      trackEvent('game_end', {
+        outcome: outcome,
+        score: gameState.score,
+        stars: stars,
+        totalRounds: gameState.totalRounds
+      });
+
+      /* game_complete postMessage BEFORE audio */
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            completedAt: Date.now(),
+            metrics: {
+              score: gameState.score,
+              totalRounds: gameState.totalRounds,
+              stars: stars,
+              accuracy: accuracy,
+              duration: totalDuration,
+              attempts: gameState.attempts.length,
+              events: gameState.events.length
+            }
+          }
+        }, '*');
+      } catch (e) {}
+
+      showResults(stars, accuracy, totalDuration);
+    }
+
+    /* ====== 19. showResults ====== */
+    function showResults(stars, accuracy, duration) {
+      var resultsEl = document.getElementById('results-screen');
+      if (!resultsEl) {
+        resultsEl = document.createElement('div');
+        resultsEl.id = 'results-screen';
+        document.body.appendChild(resultsEl);
+      }
+
+      var starStr = '';
+      for (var i = 0; i < 3; i++) {
+        starStr += i < stars ? '⭐' : '☆';
+      }
+
+      var durationSec = Math.round((duration || 0) / 1000);
+      var minutes = Math.floor(durationSec / 60);
+      var seconds = durationSec % 60;
+      var timeStr = minutes > 0 ? (minutes + 'm ' + seconds + 's') : (seconds + 's');
+
+      resultsEl.innerHTML = '<div class="results-stars">' + starStr + '</div>' +
+        '<div class="results-title">' + (stars >= 2 ? 'Puzzle Master!' : 'Good Effort!') + '</div>' +
+        '<div class="results-subtitle">You completed ' + gameState.score + ' of ' + gameState.totalRounds + ' rounds</div>' +
+        '<div class="results-metrics">' +
+          '<div class="results-metric">Accuracy: ' + accuracy + '%</div>' +
+          '<div class="results-metric">Time: ' + timeStr + '</div>' +
+          '<div class="results-metric">Stars: ' + starStr + '</div>' +
+        '</div>' +
+        '<button class="btn-primary" onclick="handleRestart()">Play Again</button>';
+
+      resultsEl.classList.remove('hidden');
+      syncDOM();
+
+      /* End-game audio sequence */
+      var stickerUrl = stars >= 3 ? VICTORY_3_STICKER : (stars >= 2 ? VICTORY_2_STICKER : VICTORY_1_STICKER);
+      var sfxId = stars >= 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var voText = stars >= 3 ? ('Amazing! ' + stars + ' stars! You completed all puzzles!') :
+                   ('Well done! You earned ' + stars + ' star' + (stars !== 1 ? 's' : '') + '!');
+
+      try {
+        FeedbackManager.sound.play(sfxId, { sticker: stickerUrl }).then(function() {
+          return FeedbackManager.playDynamicFeedback({
+            audio_content: voText,
+            subtitle: voText.substring(0, 58),
+            sticker: stickerUrl
+          });
+        }).catch(function() {});
+      } catch (e) {}
+    }
+
+    /* ====== Handle restart ====== */
+    function handleRestart() {
+      try {
+        FeedbackManager.sound.stopAll();
+        FeedbackManager._stopCurrentDynamic();
+      } catch (e) {}
+      resetGame();
+    }
+
+    /* ====== 20. resetGame ====== */
+    function resetGame() {
+      cleanupDnD();
+
+      gameState.phase = 'start_screen';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.correctAnswer = null;
+      gameState.startTime = null;
+      gameState.roundStartTime = null;
+      gameState.duration_data = { startTime: null, endTime: null, pausedDuration: 0, lastPauseTime: null };
+      gameState.placedPieces = {};
+
+      syncDOM();
+
+      /* Hide results screen */
+      var resultsEl = document.getElementById('results-screen');
+      if (resultsEl) resultsEl.classList.add('hidden');
+
+      if (signalCollector) {
+        try { signalCollector.reset(); } catch (e) {}
+      }
+
+      if (progressBar) {
+        try { progressBar.destroy(); } catch (e) {}
+        progressBar = null;
+        createProgressBar();
+      }
+
+      startGame();
+    }
+
+    /* ====== createProgressBar helper ====== */
+    function createProgressBar() {
+      try {
+        if (typeof ProgressBarComponent !== 'undefined') {
+          progressBar = new ProgressBarComponent({
+            slotId: 'mathai-progress-slot',
+            totalRounds: gameState.totalRounds,
+            totalLives: 1
+          });
+        }
+      } catch (e) {}
+    }
+
+    /* ====== Fallback layout builder ====== */
+    function buildFallbackLayout() {
+      var app = document.getElementById('app');
+      if (!app) return;
+
+      app.innerHTML = '<div id="mathai-progress-slot"></div>' +
+        '<div id="mathai-transition-slot"></div>' +
+        '<div id="gameContent" style="flex: 1; display: flex; flex-direction: column;"></div>';
+    }
+
+    /* ====== Global touch handler for DnD ====== */
+    var isDragging = false;
+    document.addEventListener('touchmove', function(e) {
+      if (isDragging) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    /* ====== DOMContentLoaded ====== */
+    document.addEventListener('DOMContentLoaded', function() {
+      /* 1. Start waitForPackages (may take up to 180s) */
+      waitForPackages().then(function(loaded) {
+        try {
+          /* 2. FeedbackManager init */
+          if (typeof FeedbackManager !== 'undefined') {
+            FeedbackManager.init().then(function() {
+              /* 12. Preload audio */
+              FeedbackManager.sound.preload([
+                { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+                { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+                { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+                { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+                { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+                { id: 'all_correct', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' },
+                { id: 'new_cards', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' },
+                { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+              ]).catch(function() {});
+            }).catch(function() {});
+          }
+
+          /* 3. SignalCollector */
+          if (typeof SignalCollector !== 'undefined') {
+            signalCollector = new SignalCollector({ gameId: 'jigsaw-puzzle' });
+          }
+
+          /* 4. ScreenLayout.inject */
+          if (typeof ScreenLayout !== 'undefined') {
+            ScreenLayout.inject('app', {
+              sections: {
+                header: true,
+                questionText: false,
+                progressBar: true,
+                playArea: true,
+                transitionScreen: true
+              }
+            });
+          } else {
+            buildFallbackLayout();
+          }
+
+          /* 9. VisibilityTracker */
+          if (typeof VisibilityTracker !== 'undefined') {
+            visibilityTracker = new VisibilityTracker({
+              onInactive: function() {
+                try {
+                  FeedbackManager.sound.pause();
+                  FeedbackManager.stream.pauseAll();
+                } catch (e) {}
+              },
+              onResume: function() {
+                try {
+                  FeedbackManager.sound.resume();
+                  FeedbackManager.stream.resumeAll();
+                } catch (e) {}
+              }
+            });
+          }
+
+          /* 10. createProgressBar */
+          createProgressBar();
+
+          /* 11. TransitionScreen */
+          if (typeof TransitionScreenComponent !== 'undefined') {
+            transitionScreen = new TransitionScreenComponent({ autoInject: true });
+          }
+
+          setupGame();
+        } catch (e) {
+          console.error('[init] ' + e.message);
+        }
+      });
+
+      /* Wait for dnd-kit (independent of CDN packages, per R1) */
+      waitForDndKit().then(function(lib) {
+        dndKitLib = lib;
+        if (lib) {
+          /* Set up drag tracking for touch-scroll prevention */
+          if (lib.DragDropManager) {
+            /* DnD library loaded successfully */
+            console.log('[dnd-kit] loaded');
+          }
+        }
+      });
+
+      /* 2. Standalone fallback — runs INDEPENDENTLY (per code-patterns.md) */
+      setTimeout(function() {
+        if (!gameState.isActive && !gameState.gameEnded) {
+          if (!document.getElementById('gameContent')) {
+            buildFallbackLayout();
+          }
+          gameState.content = fallbackContent;
+          gameState.totalRounds = fallbackContent.rounds.length;
+          setupGame();
+          startGame();
+        }
+      }, 2000);
+
+      /* 13. Register handlePostMessage listener BEFORE game_ready */
+      window.addEventListener('message', handlePostMessage);
+
+      /* 14. Send game_ready */
+      try {
+        window.parent.postMessage({ type: 'game_ready' }, '*');
+      } catch (e) {}
+
+      /* Window exposures */
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = resetGame;
+      window.nextRound = nextRound;
+      window.startGame = startGame;
+      window.getRounds = getRounds;
+      window.placePieceOnGrid = placePieceOnGrid;
+      window.loadRound = loadRound;
+    });
+  </script>
+</body>
+</html>

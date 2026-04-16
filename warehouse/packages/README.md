@@ -49,6 +49,7 @@ All CDN URLs share the base: `https://storage.googleapis.com/test-dynamic-assets
 | **subjectiveEvaluation** / **createEvaluator** | `helpers/subjective-evaluation/index.js` | helpers/index.js |
 | **AnalyticsManager** | `helpers/analytics/index.js` | helpers/index.js |
 | **SentryConfig** | `helpers/sentry/index.js` | Direct script tag (before all others) |
+| **VoiceInput** | `components/voice-input/index.js` | components/index.js |
 
 ### Bundle Entry Points
 
