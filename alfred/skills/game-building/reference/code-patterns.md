@@ -129,6 +129,7 @@ Per PART-024. Game-building rules:
 ### ProgressBarComponent
 Per PART-023. Game-building rules:
 - CDN ProgressBarComponent renders round counter + lives. Do NOT render these yourself.
+- **CRITICAL: No custom lives/hearts DOM or renderer.** When `totalLives >= 1`, ProgressBar already paints the hearts strip inside `#mathai-progress-slot`. Any game-owned element with `class`/`id` matching `lives-row`, `lives-strip`, `lives-container`, `lives-display`, `hearts-row`, `hearts-strip`, `hearts-container`, `livesRow`, `heartsRow`, or a single-class `heart` — or any function named `renderLivesRow`, `renderLives`, `renderHearts`, `updateLivesDisplay`, `updateLivesRow`, `updateHearts`, `buildLives`, `injectLives` — paints a **second** hearts row on top of the CDN strip (symptom: two rows of hearts visible on-screen). Validator rule `5e0-LIVES-DUP-FORBIDDEN` blocks this. Emit heart glyphs (❤️ 🤍 🩷 ♡ ♥) ONLY through the CDN ProgressBar, never via your own `innerHTML` strings or `<span class="heart">` loops. For a heart-break animation, target the CDN-rendered heart class with a one-shot CSS class — do NOT replicate the hearts in your own DOM. See PART-023 and PART-026 Anti-Pattern 33.
 - `totalLives` must be >= 1 (GEN-PROGRESSBAR-LIVES). Passing 0 causes division-by-zero.
 - `slotId` must be exactly `'mathai-progress-slot'` (GEN-UX-003). **Do NOT use `'previewProgressBar'`** or `'progress-bar-container'` — those are different things (see ID disambiguation below).
 - **ID disambiguation.** `#previewProgressBar` is the audio countdown strip **inside the preview header** (~4px tall, populated by PreviewScreenComponent during preview state — it animates full → empty as preview audio plays). `#mathai-progress-slot` is a **separate** element ScreenLayout creates at the top of `.game-stack` for the round counter + lives bar. Two different elements, two different purposes. If you instantiate ProgressBarComponent with `slotId: 'previewProgressBar'`, the round bar mounts into the countdown strip and crushes the whole header row.
@@ -149,7 +150,7 @@ Per PART-042. Game-building rules:
 
 ### PreviewScreen
 Per PART-039. Game-building rules:
-- MANDATORY for every game. `ScreenLayout.inject` must include `slots: { previewScreen: true, ... }`.
+- **Default ON, opt-out via spec.** Every game includes the preview UNLESS the spec declares top-level `previewScreen: false`. When enabled (the default), `ScreenLayout.inject` must include `slots: { previewScreen: true, ... }` and the rules below apply. When opted out: OMIT the `previewScreen` key from `slots` entirely, do NOT instantiate `PreviewScreenComponent`, do NOT emit any `#mathai-preview-slot` / `.mathai-preview-body` references, and have `DOMContentLoaded` call the first TransitionScreen (level/round intro) directly — no `setupGame()` / `showPreviewScreen()`. Existing pre-PART-039 templates (`make-x`, `estimate-it`, `keep-track`) show the no-preview initial-screen pattern. The rest of this section applies only to the enabled case.
 - **Single source of instructions — STRICT.** The how-to-play copy is delivered ONCE via `content.previewInstruction` + `content.previewAudioText`. Gameplay screens (the DOM inside `#gameContent`) MUST NOT render ANY of the following:
   - A static instruction / prompt banner repeating or paraphrasing the preview instruction (e.g. "Find the two tiles...", "Tap two tiles...", "Select the correct answer").
   - Any element with a class/id containing `instruction`, `help-text`, `prompt-text`, `task-text`, `directions`, `how-to-play`.
@@ -344,7 +345,7 @@ async function showVictory() {
     // Buttons: copy verbatim from screens.md Elements table for the victory screen.
     // Include conditional rules (e.g. "Play Again only if stars < 3") if screens.md states them.
     buttons: [
-      // { text: '<exact label from screens.md>', onClick: () => { transitionScreen.hide(); /* route per screens.md exit condition */ } }
+      // { text: '<exact label from screens.md>', type: 'primary', action: () => { transitionScreen.hide(); /* route per screens.md exit condition */ } }
     ],
     onMounted: () => FeedbackManager.sound.play('sound_game_victory', { sticker: STICKER_CELEBRATE })
   });
@@ -358,7 +359,7 @@ async function showGameOver() {
     title: /* from screens.md */ 'Game Over',
     // Buttons: copy verbatim from screens.md. Do NOT add an Exit/Cancel/Skip unless screens.md lists one.
     buttons: [
-      // { text: '<exact label from screens.md>', onClick: () => { transitionScreen.hide(); /* route per screens.md exit condition */ } }
+      // { text: '<exact label from screens.md>', type: 'primary', action: () => { transitionScreen.hide(); /* route per screens.md exit condition */ } }
     ],
     onMounted: () => FeedbackManager.sound.play('sound_game_over', { sticker: STICKER_SAD })
   });

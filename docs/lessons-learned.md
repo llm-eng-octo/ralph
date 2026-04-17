@@ -2691,3 +2691,37 @@ Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug
 **Problem:** The test harness writes `data-round` as a 0-indexed value derived from `currentRound` (e.g. `currentRound=0` at round 1 → `data-round="0"`). Generated start-transition tests that assert `expect(await getRound()).toBeGreaterThan(0)` immediately after `startGame()` fail on a working game — the harness returns 0 (correct), but the assertion requires >0.
 
 **Rule:** Test-gen rule (GF-ROUND-START): Start-transition tests MUST NOT assert `getRound() > 0`, `getScore() > 0`, or `getLives() > 0` immediately after `startGame()`. Round 1 is represented as 0 in the data-round attribute. Use `toBeGreaterThanOrEqual(0)` or skip initial round assertions. Only assert that `data-phase` transitioned to `'playing'`.
+
+## Lesson 209 — Custom lives / hearts DOM duplicates ProgressBar's built-in hearts strip (2026-04-17)
+
+**Source:** scale-it-up-ratios (user-reported, local file) | **Fix:** validator rule `5e0-LIVES-DUP-FORBIDDEN` + PART-023 / PART-026 anti-pattern 33 + prompt rule GEN-LIVES-DUP
+
+**Problem:** The game injected `<div class="lives-row" id="lives-row" data-testid="lives-row">` into `#gameContent`, painted per-heart `<span class="heart">` glyphs via a `renderLivesRow()` loop, AND called `progressBar.update(roundsCompleted, lives)`. `ProgressBarComponent` with `totalLives >= 1` already renders a hearts strip inside `#mathai-progress-slot`, so the student saw **two rows of hearts** (one in the header, one above the question). Both updated in lockstep from `gameState.lives`, so the duplication was permanently visible.
+
+**Why the LLM did it:** Two reinforcing cues.
+1. `lib/prompts.js` line 569 lists `data-testid="lives-display"` as a "required minimum" data-testid. The LLM read "required minimum" as "you must create an element carrying a lives-related data-testid," rather than "the element holding lives (which is inside the CDN ProgressBar) should carry this data-testid."
+2. The pre-existing rule only forbade a custom `updateLivesDisplay()` **function** — it said nothing about a custom DOM container or `<span class="heart">` glyphs, so the LLM bypassed by renaming the function (`renderLivesRow`) and rendering hearts from a plain innerHTML string.
+
+**Rules:**
+- Prompt (`lib/prompts.js`): new bullet GEN-LIVES-DUP expands the existing "NEVER define updateLivesDisplay()" rule to forbid any class/id matching `lives-*` / `hearts-*` / bare `heart`, any function named `renderLives*` / `updateLives*` / `renderHearts*` / `updateHearts*` / `buildLives` / `injectLives`, and any heart glyph (❤ 🤍 🩷 ♡ ♥) emitted via innerHTML strings. Data-testid `lives-display` refers to the CDN ProgressBar's lives element, never a new custom container.
+- Validator (`lib/validate-static.js`): `5e0-LIVES-DUP-FORBIDDEN` fires on any of the above when `new ProgressBarComponent({ ..., totalLives: N })` exists with `N >= 1` (or totalLives is non-literal — default is lives-enabled).
+- Tests: `test/content-match.test.js` adds a per-fixture assertion.
+- Docs: `warehouse/parts/PART-023-progress-bar.md` gains a "ProgressBar Owns the Lives Display" section + checklist item; `warehouse/parts/PART-026-anti-patterns.md` adds Anti-Pattern 33; `alfred/parts/PART-023.md` gains a Verification Checklist (was absent) with matching drift-guard tokens.
+
+**Heart-break animation guidance:** target the CDN-rendered heart class with a one-shot CSS class — do NOT replicate the hearts in your own DOM just to animate them.
+
+## Lesson 210 — TransitionScreen button uses `onClick` instead of `action` → CTA is a silent no-op (2026-04-17)
+
+**Source:** match-up-equivalent-ratios (user-reported, local file) | **Fix:** validator rule `5e1-TS-BTN-ONCLICK-FORBIDDEN` + prompt rule GEN-TS-BTN-ACTION + code-patterns.md example fix
+
+**Problem:** The game's welcome transition screen was functionally dead — tapping "I'm ready!" did nothing. Game stuck on welcome screen forever. All 5 `transitionScreen.show({...})` call sites in the game (welcome, round-intro, victory, game-over, motivation) used `onClick: function() {...}` in their button objects. The CDN `TransitionScreenComponent` (`warehouse/packages/components/transition-screen/index.js` line 305) reads `btn.action()` verbatim; `onClick` is simply never called. No error, no warning — the click fires, the button is highlighted, nothing happens.
+
+**Why the LLM did it:** Two in-repo examples in `alfred/skills/game-building/reference/code-patterns.md` (lines 348 and 362) showed commented placeholders `{ text: '<exact label>', onClick: () => ... }` — the LLM copied the `onClick` key literally. The prompt guidance in `lib/prompts.js` was split across multiple rules (lines 65, 289, 721, 738, 802, 846, 855 all correctly use `action`) but none explicitly forbade `onClick`, so the copy-from-example form won.
+
+**Rules:**
+- Docs (`alfred/skills/game-building/reference/code-patterns.md`): both placeholder examples rewritten to `{ text: '<label>', type: 'primary', action: () => {...} }`.
+- Prompt (`lib/prompts.js`): new bullet GEN-TS-BTN-ACTION explicitly forbids `onClick` on any TransitionScreen button, with symptom description (dead CTA → game stalls), CDN line-number citation, and WRONG/RIGHT examples.
+- Validator (`lib/validate-static.js`): `5e1-TS-BTN-ONCLICK-FORBIDDEN` — proximity check flags any `onClick:` within 300 chars after a `text:` property in files using `transitionScreen`. Survives nested braces (the handler body's try/catch blocks).
+- Tests: `test/content-match.test.js` adds a per-fixture assertion with the same proximity check.
+
+**Initial regex attempt failed the reverse test.** First pass used `/\{[^{}]*\}/g` to find button-object literals — this matched only innermost `{}`, which in practice means the empty `catch (e) {}` blocks inside the handler body. The outer `{ text, onClick, function(){ try {...} catch {} } }` block contained nested braces, so the regex never saw it. Replaced with a proximity heuristic that looks 300 chars backward from every `onClick:` occurrence for a `text:` property — works for button literals and `buttons.push({...})` alike.
