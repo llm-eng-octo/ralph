@@ -557,7 +557,10 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: hidden;
+  /* NEVER `overflow: hidden` here — on short viewports the game content
+     exceeds 100dvh and that clips the overflow so neither wheel nor touch
+     scroll works. Use `overflow-x: clip` or omit overflow entirely. */
+  overflow-x: clip;
 }
 
 /* === Game Block === */
