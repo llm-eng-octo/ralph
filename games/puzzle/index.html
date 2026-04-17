@@ -204,6 +204,7 @@
       gap: var(--puzzle-cell-gap);
       position: relative;
       cursor: grab;
+      touch-action: none;
       -webkit-user-select: none;
       user-select: none;
       -webkit-touch-callout: none;
@@ -212,10 +213,6 @@
       z-index: 1;
       background: transparent;
     }
-
-    /* P6 V15: touch-action must be 'none' on draggables. dnd-kit adds role="button" at runtime,
-       which would otherwise match the later `button, [role="button"]` rule and override this. */
-    .puzzle-piece[data-piece-id] { touch-action: none; }
 
     .puzzle-piece.piece-on-grid {
       position: absolute;
