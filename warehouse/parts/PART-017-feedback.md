@@ -90,10 +90,75 @@ await FeedbackManager.sound.play('wrong_tap', {
 const text = `You scored ${accuracy}% in ${time} seconds!`;
 await FeedbackManager.playDynamicFeedback({
   audio_content: text,
-  subtitle: text,
+  subtitle: text,   // MUST equal audio_content verbatim — never shorten / summarize
   sticker: 'https://cdn.mathai.ai/mathai-assets/lottie/trophy.json'
 });
 ```
+
+### MANDATORY: Subtitles Never Truncate
+
+Long TTS sentences from dynamic audio (and any narrated content) routinely run 120–250+ characters. The CDN `SubtitleComponent` defaults to `maxWidth: 280px` and ambient styles in generated games often pull in `-webkit-line-clamp`, `text-overflow: ellipsis`, or `overflow: hidden`, which clip the rendered subtitle mid-sentence. Every generated game MUST do BOTH of the following:
+
+**1. Configure the singleton once at init (right after `FeedbackManager.init()`):**
+
+```javascript
+SubtitleComponent.configure({
+  position: {
+    bottom: '60px',
+    maxWidth: 'min(92vw, 720px)'  // wide enough for long TTS, wraps within viewport
+  }
+});
+```
+
+**2. Inject this CSS override in the game's `<style>` block:**
+
+```css
+[class*="subtitle"],
+[id*="subtitle"],
+[class*="Subtitle"],
+[id*="Subtitle"],
+[class*="mathai-subtitle"] {
+  max-width: min(92vw, 720px) !important;
+  width: auto !important;
+  height: auto !important;
+  max-height: none !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  display: block !important;
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: unset !important;
+  line-clamp: unset !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.4 !important;
+}
+```
+
+**3. Never shorten the `subtitle` prop to "fit":**
+
+```javascript
+// ❌ WRONG — hides half the sentence
+await FeedbackManager.playDynamicFeedback({
+  audio_content: longMessage,
+  subtitle: longMessage.slice(0, 60) + '…'
+});
+
+// ❌ WRONG — subtitle doesn't match what's being said
+await FeedbackManager.playDynamicFeedback({
+  audio_content: 'You scored 95 out of 100 and finished in 42 seconds — great work!',
+  subtitle: 'Great work!'
+});
+
+// ✅ CORRECT — subtitle === audio_content (verbatim)
+const message = 'You scored 95 out of 100 and finished in 42 seconds — great work!';
+await FeedbackManager.playDynamicFeedback({
+  audio_content: message,
+  subtitle: message
+});
+```
+
+**Applies to all call sites, not just dynamic audio:** `FeedbackManager.sound.play({ subtitle })`, `SubtitleComponent.show()`, transition screens, story playback, game-over messages — every subtitle, every time, shows the full text.
 
 ## Two Distinct APIs — Do NOT Confuse Them
 
@@ -224,6 +289,11 @@ try {
 - [ ] No `new Audio()` anywhere
 - [ ] VisibilityTracker uses `sound.pause()`/`sound.resume()` — NOT `sound.stopAll()`
 - [ ] No `Promise.race(...)` wrapping `FeedbackManager.sound.play` / `playDynamicFeedback` / `audioRace` helper; templates await FeedbackManager calls directly inside `try/catch`
+- [ ] `SubtitleComponent.configure({ position: { maxWidth: 'min(92vw, 720px)' } })` called once at init (narrower `maxWidth` truncates dynamic TTS)
+- [ ] Game `<style>` block includes the subtitle anti-truncation CSS override (no `-webkit-line-clamp`, no `text-overflow: ellipsis`, no `overflow: hidden`, no `white-space: nowrap` reaching the subtitle container)
+- [ ] For every `playDynamicFeedback({ audio_content, subtitle })`, `subtitle` equals `audio_content` verbatim — never sliced, summarized, or replaced with a shorter label
+- [ ] No `.slice(...)`, `…`, `substring(...)`, or `' ... '` concatenation applied to any value passed as `subtitle`
+- [ ] Manual `SubtitleComponent.show({ text, duration })` calls: `duration` ≥ length of the accompanying audio (or rely on audio-driven auto-hide via `FeedbackManager`)
 
 ## Source Code
 

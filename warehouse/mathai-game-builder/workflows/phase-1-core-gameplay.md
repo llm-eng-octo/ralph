@@ -179,7 +179,7 @@ Ready to start? (Reply "start")
 [ ] Game directory created with gameId as folder name
 [ ] Game ID generated (game_timestamp_random)
 [ ] index.html file created with ScreenLayout component injected: ScreenLayout.inject('app', {slots: {progressBar: [true/false], transitionScreen: [true/false]}}) - see workflows/choices/screenlayout-options.md
-[ ] ProgressBar component (if rounds/levels/lives in prompt): new ProgressBarComponent({autoInject: true, totalRounds: N, totalLives: N}) - see workflows/choices/progressbar-options.md
+[ ] ProgressBar component (if rounds/levels/lives in prompt): new ProgressBarComponent({autoInject: true, totalRounds: N, totalLives: N}) followed by MANDATORY progressBar.update(0, totalLives) to force 0/N on first render - see workflows/choices/progressbar-options.md
 [ ] TransitionScreen component (if start/victory/game-over in prompt): new TransitionScreenComponent({autoInject: true}) - see workflows/choices/transitionscreen-options.md
 [ ] Gameplay Colors: --mathai-cell-bg-green (#D9F8D9) + --mathai-cell-border-green (#27ae60) for correct, --mathai-cell-bg-red (#FFD9D9) + --mathai-cell-border-red (#e74c3c) for incorrect - see workflows/choices/gameplay-colors-options.md
 [ ] NO font-family declared in HTML
@@ -381,7 +381,7 @@ Write({
 [ ] Game directory created with gameId as folder name
 [ ] Game ID generated (game_timestamp_random)
 [ ] index.html file created with ScreenLayout component injected: ScreenLayout.inject('app', {slots: {progressBar: [true/false], transitionScreen: [true/false]}}) - see workflows/choices/screenlayout-options.md
-[ ] ProgressBar component (if rounds/levels/lives in prompt): new ProgressBarComponent({autoInject: true, totalRounds: N, totalLives: N}) - see workflows/choices/progressbar-options.md
+[ ] ProgressBar component (if rounds/levels/lives in prompt): new ProgressBarComponent({autoInject: true, totalRounds: N, totalLives: N}) followed by MANDATORY progressBar.update(0, totalLives) to force 0/N on first render - see workflows/choices/progressbar-options.md
 [ ] TransitionScreen component (if start/victory/game-over in prompt): new TransitionScreenComponent({autoInject: true}) - see workflows/choices/transitionscreen-options.md
 [ ] Gameplay Colors: --mathai-cell-bg-green (#D9F8D9) + --mathai-cell-border-green (#27ae60) for correct, --mathai-cell-bg-red (#FFD9D9) + --mathai-cell-border-red (#e74c3c) for incorrect - see workflows/choices/gameplay-colors-options.md
 [ ] NO font-family declared in HTML
@@ -537,6 +537,8 @@ Read: workflows/choices/gameplay-colors-options.md;
         totalRounds: 5,   // From user prompt
         totalLives: 3     // From user prompt
       });
+      // MANDATORY: force initial render to 0/N — without this the bar may paint as 1/N on first render
+      progressBar.update(0, 3);
 
       // 3. Create TransitionScreen (if checklist applies - see choices/transitionscreen-options.md)
       transitionScreen = new TransitionScreenComponent({autoInject: true});

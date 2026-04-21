@@ -8,214 +8,243 @@
 - **Math Domain:** Number Operations — Addition and Subtraction (+, −)
 - **Topic:** Creating word problems from math expressions
 - **Bloom Level:** L5 Create
+- **Archetype:** Custom (No-Penalty Explorer + Subjective Evaluation variant)
 
 ## One-Line Concept
 
-Student sees a math expression and must speak or type a real-world word problem that matches it. An AI rubric grades the response — the student is rewarded for open-ended, creative construction of meaning.
+Student sees a math expression and must speak or type a real-world word problem that matches it — an AI rubric grades the response on correctness and relevance, rewarding open-ended creative construction of meaning.
 
 ## Target Skills
 
-| Skill                   | Description                                                                |
-| ----------------------- | -------------------------------------------------------------------------- |
-| Word problem creation   | Construct a meaningful real-world scenario that matches a given expression |
-| Operation understanding | Demonstrate deep understanding of what + and − mean in context             |
-| Multi-step reasoning    | Combine multiple operations into one coherent story (Rounds 2 and 3)       |
-
----
-
-## Interactions Used
-
-- **Voice input (primary).** Student taps a mic button and speaks their story. Transcribed text appears live in the input and remains fully editable before submit. Voice input is always available when the device mic is usable.
-- **Submit button.** Student taps Submit when their story is ready. Exactly one evaluation runs per submit. Submit is disabled during evaluation and during feedback playback.
-- **Subjective AI evaluation.** Because the answer is open-ended free text (not a fixed number, MCQ, keyword match, or rule-based check), every submission is graded by an AI rubric. The rubric returns one of three tiers — **correct / partial / incorrect** — plus a short natural-language explanation that powers the spoken and on-screen feedback.
-- **Retry.** On the Game Over screen, a single Retry button restarts the whole game.
-- **Play Again / Claim Stars.** On the Victory screen, Play Again is offered only if the student earned fewer than 3 stars; Claim Stars exits the game.
-
----
+| Skill                   | Description                                                                | Round Type |
+| ----------------------- | -------------------------------------------------------------------------- | ---------- |
+| Word problem creation   | Construct a meaningful real-world scenario that matches a given expression | All rounds |
+| Operation understanding | Demonstrate deep understanding of what + and − mean in context             | All rounds |
+| Multi-step reasoning    | Combine multiple operations into one coherent story (Rounds 2-3)           | R2, R3     |
 
 ## Core Mechanic
 
-1. **What the student sees on a round screen:**
-   - A math expression card, large and prominent, with a stage label chip above it (e.g. "Round 1 · Single Operation").
-   - A short prompt below the card ("Make up a story that matches this expression.").
-   - A combined voice + text input.
-   - A Submit button as the single primary action.
-   - A progress bar showing round N/3 and remaining lives.
+**Interaction Patterns:** P17 Voice Input (primary) + P7 Textarea (fallback when mic unavailable or user prefers typing) → Subjective Evaluation (`MathAIHelpers.SubjectiveEvaluation.evaluate`) scores the response on a 3-tier rubric.
 
-2. **What the student does:**
-   - Speaks a story (tap mic, speak, tap to stop — transcript auto-fills the input) **or** types a story directly.
-   - Optionally edits the transcript after voice input.
-   - Taps Submit.
+### Type A: "Expression → Word Problem" (used in all 3 rounds)
 
-3. **How the answer is evaluated (subjective AI rubric):**
-   - **Correct** — the story uses the numbers from the expression in the right roles, represents the right operation(s), and arrives at the stated total.
-   - **Partial** — the story is close but has one specific thing off: wrong total, a number misused, an operation missing or reversed, or both halves of a compound expression present but unrelated.
-   - **Incorrect** — the story does not match the expression, uses wrong numbers/operations, is off-topic, empty, or gibberish.
-
-4. **What feedback plays (rubric-aware, warm, non-shaming):**
-   - **Correct:** a short spoken praise that names what the student did well, plus a positive visual (e.g. check, confetti). The round advances.
-   - **Partial:** spoken feedback that **concretely names the single thing that was off** — e.g. "Your story adds 10 and 5, but the total should be 12, not 15. Try including the −3 at the end." The student loses 1 life and retries the same round.
-   - **Incorrect:** spoken feedback that **concretely names why the story does not match** the expression and points at the right approach — e.g. "The expression adds, but your story takes away. Try a situation where something is combined." The student loses 1 life and retries the same round.
-   - **Lives reach 0:** the Game Over screen plays a soft non-shaming tone with a "Retry" button.
-   - Feedback MUST never end on a vague cliffhanger ("try again", "almost there") without a concrete reason. Every partial/incorrect response must state **why**.
-
----
+1. **Student sees:** A math expression prominently displayed (e.g., `5 + 3 = 8`), a round prompt ("Make up a story that matches this expression"), a voice-record button, a text field (always visible as an alternate), and a **Submit** button.
+2. **Student does:**
+   - Tap-and-hold the mic button to speak OR type directly into the text field.
+   - Voice input streams through the platform's speech-to-text. Text appears in the field as the student speaks and is editable before submit.
+   - Tap **Submit** to have the answer evaluated.
+3. **What counts as correct:** LLM rubric classifies response into one of three tiers:
+   - **Correct (3 pts, advances to next round):** Story uses all numbers from the expression in the right roles, correct operation(s) are represented, narrative produces the stated total/result.
+   - **Partial** — story is close but not quite right; no points awarded, **1 life lost**, student retries the same round.
+   - **Incorrect** — story doesn't match; 1 life lost, student retries the same round.
+4. **What feedback plays:** Spoken feedback via `FeedbackManager.playDynamicFeedback()` — warm, encouraging, rubric-aware (never shaming). For partial and incorrect tiers, the feedback **must concretely name WHY the answer is off** (which number is wrong, which operation is missing, what total doesn't match) and give a one-line nudge on how to fix it — no vague cliffhangers.
 
 ## Rounds & Progression
 
-3 rounds total — one per stage — to keep the session tight (~3–6 minutes) while covering increasing complexity. The cognitive load per round is high, so the game is intentionally short.
+3 rounds — exactly one round per stage — to keep the game short and creative (the open-ended cognitive load per round is high).
 
-### Stage 1 — Single Operation (Round 1)
+### Stage 1: Single Operation (Round 1)
 
 - One operation, small whole numbers.
-- Addition is canonical for Round 1 (widest range of familiar contexts: combining, joining, receiving).
-- **Example expression:** `5 + 3 = 8`
-- Example correct story: _"Aarav had 5 mangoes. His friend gave him 3 more. Now he has 8 mangoes."_
-- Example partial: _"Aarav had 5 mangoes. His friend gave him 3 more. Now he has 7 mangoes."_ (right operation, wrong total)
-- Example incorrect: _"Aarav had 5 mangoes. He ate 3. Now he has 2."_ (wrong operation — subtraction)
+- Addition chosen as the canonical Round 1 because it carries the widest range of familiar contexts (combining, joining, receiving).
 
-### Stage 2 — Two-Step Expression (Round 2)
+### Stage 2: Two-Step Expression (Round 2)
 
 - Two operations (+ and −) combined without parentheses.
 - Student must weave both operations into one coherent story.
-- **Example expression:** `10 + 5 − 3 = 12`
-- Example correct story: _"Priya had 10 stickers. Her cousin gave her 5 more, making 15. She gave 3 to a friend. Now she has 12."_
-- Example partial: _"Priya had 10 stickers and got 5 more, then gave 3 away."_ (both operations present, final total missing)
-- Example incorrect: _"Priya had 10 stickers and gave 5 away."_ (only one operation represented)
 
-### Stage 3 — Compound Expression (Round 3)
+### Stage 3: Multi-Step / Compound Expression (Round 3)
 
-- A compound expression with grouping (only + and −) describing two sub-scenarios composed into one.
-- Student must describe two related sub-problems inside a single unified scenario.
-- **Example expression:** `(12 + 8) − (4 + 3) = 13`
-- Example correct story: _"The class had 12 red balls and 8 blue balls — 20 in all. During recess, 4 rolled away and 3 were lost — 7 balls gone. 13 balls are left."_
-- Example partial: _"The class had 12 red balls and 8 blue balls. 4 balls rolled away and 3 were lost."_ (both sub-sums implied but final total missing or wrong)
-- Example incorrect: _"The class had 12 red balls."_ (only one group, grouping structure ignored)
+- A compound expression with grouping (only + and −) that describes two sub-scenarios composed into one.
+- Requires describing two separate sub-problems within a single unified scenario.
 
 | Dimension            | Stage 1 (R1)            | Stage 2 (R2)            | Stage 3 (R3)                       |
 | -------------------- | ----------------------- | ----------------------- | ---------------------------------- |
 | Operations per round | 1 (+)                   | 2 (+ and −)             | 3 (with grouping)                  |
-| Number complexity    | Small (single-digit)    | Small–medium            | Medium, with grouping              |
+| Number complexity    | Small (single-digit)    | Small-medium            | Medium, with grouping              |
 | Cognitive demand     | Translate one operation | Sequence two operations | Compose two sub-scenarios into one |
-
----
 
 ## Game Parameters
 
 - **Rounds:** 3
-- **Timer:** None (this is a creative open-ended task — timers would be counterproductive)
-- **Lives:** 3 (shared across all rounds; decrement only on partial or incorrect)
-- **Input modes:** voice (primary) + text (always available)
-- **Feedback:** warm, rubric-aware spoken feedback that concretely explains partial/incorrect and praises correct
-- **Stars:** 3★ = all 3 rounds solved, 2★ = 2 solved, 1★ = 1 solved, 0★ = Game Over before any correct answer
+- **Timer:** None
+- **Lives:** 3 (deducted on partial AND incorrect answers; correct does not deduct)
+- **Star rating:** 3★ = all 3 rounds solved (9 pts), 2★ = 2 rounds solved (6 pts), 1★ = 1 round solved (3 pts), 0★ = 0 rounds solved (game over before any round). Max possible = 9 pts.
+- **Input:** Voice (primary via P17) or typed text (P7 textarea — always visible as fallback)
+- **Feedback:** `FeedbackManager.playDynamicFeedback()` with dynamic rubric-aware narration + on-screen written evaluation
 
 ## Scoring
 
-- **Points:** +3 per correct answer. Partial and incorrect award 0 points.
-- **Max total:** 9 points (3 rounds × 3).
-- **Star thresholds:** 3★ = 9 pts, 2★ = 6 pts, 1★ = 3 pts, 0★ = 0 pts. Because only correct answers score, the final score is always a multiple of 3.
-- **Lives:** start at 3. Both partial and incorrect cost 1 life; correct does not. Lives floor at 0; at 0 the game ends in Game Over.
-- **No partial credit.** A partial answer earns 0 points but gives the student actionable, specific feedback and a retry.
+- **Points per round:** 3 pts awarded only on a correct answer. Partial and incorrect award 0 pts and keep the student on the same round.
+- **Max total:** 9 pts.
+- **Star thresholds (exact):** 3★ = 9 pts, 2★ = 6 pts, 1★ = 3 pts, 0★ = 0 pts. Score is always a multiple of 3 (only correct answers earn points).
+- **Lives:** 3. Both **partial** and **incorrect** answers cost 1 life; only **correct** answers do not. Lives = 0 → Game Over.
+- **Partial credit:** No partial credit — partial answers earn 0 pts, cost 1 life, but let the student retry the same round with concrete feedback on what was wrong.
 
----
+## Flow
 
-## Round Flow (retry until correct)
+**Shape:** Multi-round (default) + customizations
 
-The round loop is the heart of the game. On every Submit:
+**Changes from default:**
 
-- **Correct** → play feedback → advance to the next round (or Victory if this was the last round).
-- **Partial** → play feedback (with concrete "what was off") → deduct 1 life → clear the input → stay on the same round, ready for another attempt.
-- **Incorrect** → play feedback (with concrete "why it does not match") → deduct 1 life → clear the input → stay on the same round, ready for another attempt.
-- **Lives reach 0** (via partial or incorrect) → transition to Game Over → single Retry button → restart from Round 1 with lives = 3 and score = 0.
-- **Last round solved correctly** → transition to Victory.
-
-Rules that always apply:
-
-- Audio-driven pacing: the game advances or clears the input **exactly when the feedback audio finishes**. No artificial wait timers are used.
-- Submit is locked while evaluation + feedback are playing (prevents double-submits).
-- The expression card and prompt stay visible across retries — only the input is cleared.
-
----
-
-## Screen Inventory & Flow
-
-High-level sequence (no lives diagram needed — retry loops are described above):
+- Correct answers advance; partial and incorrect answers retry the same round. Only incorrect costs a life.
+- Lives branch **restored**: the "incorrect AND lives = 0 → Game Over" path is active. An incorrect answer decrements lives by 1 (floor 0). Partial and correct answers leave lives untouched; only correct advances to the next round (or to Victory on R3). If an incorrect answer drops lives to 0 on any round (including R1), the game transitions to a Game Over screen with a single "Retry" button. The default multi-round flow diagram below still applies; the game-over branch fires only when lives reach 0 after an incorrect answer.
+- Feedback screen duration extended (~4-6s) to accommodate the spoken rubric explanation and give the student time to read the 1-line suggestion.
 
 ```
-Preview → Welcome → Round 1 → (retry until correct) → Round 2 → (retry until correct) → Round 3 → (retry until correct) → Victory
-                                   │                                  │                                  │
-                                   └─── lives reach 0 ──────────────────────────────────── Game Over → Retry → back to Preview/Round 1
+┌──────────┐  tap   ┌──────────┐  tap   ┌──────────────┐  auto   ┌────────────┐
+│ Preview  ├───────▶│ Welcome  ├───────▶│ Round N      ├────────▶│ Game       │
+│          │        │ (trans.) │        │ (trans.,     │ (after  │ (round N)  │
+│ 🔊 prev  │        │ 🔊 welc. │        │  no buttons) │  sound) │ 🔊 prompt  │
+│   audio  │        │    VO    │        │ 🔊 "Round N" │         │    / TTS   │
+└──────────┘        └──────────┘        └──────────────┘         └─────┬──────┘
+                                                ▲                      │ student
+                                                │                      │ speaks/types +
+                                                │                      │ submits
+                                                │                      ▼
+                                                │            ┌──────────────────────┐
+                                                │            │ Feedback (4-6s, on   │
+                                                │            │ same game screen)    │
+                                                │            │ 🔊 dynamic rubric VO │
+                                                │            │ shows evaluation +   │
+                                                │            │ 1-line suggestion    │
+                                                │            └─────────┬────────────┘
+                                                │                      │
+                                         more rounds?  ────YES──────── │
+                                                │                      │
+                                                │                     NO
+                                                ▼                      ▼
+                                      (loops to Round N+1)    ┌────────────────────┐
+                                                              │ Victory (status)   │
+                                                              │ 1–3★               │
+                                                              │ 🔊 game_victory →  │
+                                                              │   vo_victory_      │
+                                                              │   stars_N          │
+                                                              └──────┬─────┬───────┘
+                                                  "Play Again"       │     │ "Claim Stars"
+                                                  (only if 1–2★)     ▼     ▼
+                                                   ┌──────────────────┐  ┌──────────────────────┐
+                                                   │ "Ready to        │  │ "Yay, stars          │
+                                                   │  improve your    │  │  collected!"         │
+                                                   │  score?"         │  │ (trans., auto,       │
+                                                   │ (trans., tap)    │  │  no buttons)         │
+                                                   │ 🔊 motivation VO │  │ 🔊 stars-collected   │
+                                                   │ [I'm ready]      │  │    sound + ✨        │
+                                                   └────────┬─────────┘  └──────────┬───────────┘
+                                                            │ tap                   │ auto
+                                                            ▼                       ▼
+                                                   restart from Round 1           exit
+                                                   (skips Preview + Welcome)
 ```
 
-### Preview (onboarding)
+Retry paths:
 
-- Shown first, before any gameplay. Short audio narration + written instruction explain the game in one paragraph.
-- Student can skip ahead.
-- After preview (tap or auto-advance): goes to Welcome.
+- **Play Again** after Victory with fewer than 3★ — routes through "Ready to improve your score?" and restarts from Round 1 (skips Preview + Welcome).
+- **Claim Stars** after any Victory — routes through "Yay, stars collected!" and exits after the star animation.
 
-### Welcome
+## Feedback
 
-- One short transition card with the game title and one tappable CTA ("Let's go!").
-- After tap: goes to Round 1.
+| Event                                 | Behavior                                                                                                                                                                                                   |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Correct answer (3 pts)                | Green checkmark, confetti, `playDynamicFeedback` with warm praise that names what the student did well. Written evaluation below submit area. Advances to next round.                                      |
+| Partial answer (retry, 1 life lost)   | Amber check, feedback audio that **names exactly what is off** (wrong total, missing operation, misused number) and gives one concrete fix. Input clears, student retries the same round. 1 life deducted. |
+| Incorrect answer (retry, 1 life lost) | Gentle feedback that **names exactly why the story does not match** the expression and points at the right approach. 1 life deducted. Input clears, student retries the same round (if lives > 0).         |
+| Incorrect + lives=0                   | Lives drop to 0 → Game Over transition → Retry button → restartGame.                                                                                                                                       |
+| Last round complete                   | 2s pause → Victory screen. `sound_game_victory` → `vo_victory_stars_N` based on total.                                                                                                                     |
+| Lose last life                        | Game Over transition screen; sticker=neutral; soft sound; single "Retry" button → restartGame                                                                                                              |
+| Submit empty                          | Inline message "Tell me your story first!" — no API call, no attempt recorded.                                                                                                                             |
+| Mic permission denied                 | Auto-fall back to textarea. Inline tip: "You can type your story instead."                                                                                                                                 |
+| Evaluation API failure                | Generic "Couldn't evaluate — try once more." Submit button re-enables. No attempt recorded. Per subjective-evaluation SKILL constraint 4.                                                                  |
 
-### Round intro
+## Content Structure (fallbackContent)
 
-- A brief transition announcing the current round ("Round N") with a soft sound, then auto-advances to the round screen. No button to tap.
+**Top-level spec fields:**
 
-### Round screen (the main gameplay state)
+- `previewScreen: true` (default — PART-039 preview enabled)
+- `previewInstruction` — HTML shown on preview overlay
+- `previewAudioText` — plain text for TTS narration at deploy time
+- `showGameOnPreview: false`
 
-- Expression card, prompt, voice+text input, Submit button, progress bar (round N/3, remaining lives).
-- Submit triggers evaluation + feedback. After feedback the screen either advances (correct) or stays (partial / incorrect), with the input cleared in both retry cases.
+```js
+const fallbackContent = {
+  previewInstruction:
+    "<p><strong>Make up a story for the math!</strong></p><p>You'll see a math expression. Your job: tell a short real-world story that matches it. You can <strong>speak</strong> or <strong>type</strong>, then tap <strong>Submit</strong>.</p>",
+  previewAudioText:
+    'In this game, you will see a math expression. Your job is to make up a short real-world story that matches it. You can speak your story or type it, then tap submit. Ready?',
+  previewAudio: null, // filled at deploy time by TTS pipeline
+  showGameOnPreview: false,
+  // hint + exemplar retained as data for future reuse; no in-game scaffolding buttons exposed.
+  rounds: [
+    {
+      round: 1,
+      stage: 1,
+      type: 'A',
+      expression: '5 + 3 = 8',
+      prompt: 'Make up a story that matches this expression.',
+      rubric:
+        'A correct answer is a 1-3 sentence real-world story that (a) introduces a quantity of 5, (b) adds 3 more of the same kind of thing, and (c) arrives at a total of 8. Partial credit if the story uses addition with 5 and 3 but the final total is wrong or missing. Incorrect if the story uses the wrong operation (e.g., takes away), uses wrong numbers, is gibberish, or is empty.',
+      exemplar: 'Aarav had 5 mangoes. His friend gave him 3 more. Now he has 8 mangoes in total.',
+      hint: 'Think about a situation where someone starts with something and then gets more of the same thing.',
+      misconception_tags: {
+        uses_subtraction: 'operation-reversal',
+        wrong_total: 'computation-error',
+        ignores_numbers: 'partial-application',
+      },
+    },
+    {
+      round: 2,
+      stage: 2,
+      type: 'A',
+      expression: '10 + 5 - 3 = 12',
+      prompt: 'Make up one story that matches this two-step expression.',
+      rubric:
+        'A correct answer is a 2-4 sentence real-world story where (a) a starting amount of 10 is increased by 5 (so it is combined or joined with 5 more), (b) then 3 are removed (given away, taken, used up, etc.), and (c) the story arrives at a final total of 12. Partial credit if addition and subtraction both appear but one step is off (wrong number, wrong direction, or missing final total). Incorrect if only one operation is represented, operations are reversed, or the story is off-topic/empty.',
+      exemplar:
+        'Priya had 10 stickers. Her cousin gave her 5 more, making 15. Then she gave 3 to her friend. Now she has 12 stickers.',
+      hint: 'Try a story where someone starts with 10 things, then gets 5 more (that is the +), and then gives 3 away or uses 3 up (that is the −).',
+      misconception_tags: {
+        only_one_operation: 'partial-application',
+        reversed_subtraction: 'operation-reversal',
+        wrong_total: 'computation-error',
+      },
+    },
+    {
+      round: 3,
+      stage: 3,
+      type: 'A',
+      expression: '(12 + 8) - (4 + 3) = 13',
+      prompt:
+        'Make up one story that matches this compound expression. Both groups should belong to the same scenario.',
+      rubric:
+        'A correct answer is a 2-5 sentence real-world story where (a) one sub-scenario produces 12 + 8 = 20 of something (two amounts combined), (b) a related sub-scenario in the same story produces 4 + 3 = 7 of a comparable thing that is then taken away or subtracted from the first amount, and (c) the story arrives at a total of 13. Partial credit if both sub-sums appear but the story reads as two unrelated problems stapled together, or the final total is missing/wrong. Incorrect if only one sub-sum is represented, if the student ignores the grouping or subtraction, or if the story is off-topic/empty.',
+      exemplar:
+        'A class collected 12 red balls and 8 blue balls, which makes 20 balls in total. During recess, 4 balls rolled away and 3 were lost in the grass, losing 7 balls. Now the class has 13 balls left.',
+      hint: 'Think of one scene where two amounts are joined into one total, and then two other amounts are lost or taken away together. Add the first two, add the second two, then subtract.',
+      misconception_tags: {
+        only_one_group: 'partial-application',
+        unrelated_subscenarios: 'multi-step-coordination',
+        wrong_grouping: 'order-of-operations',
+        wrong_total: 'computation-error',
+      },
+    },
+  ],
+};
+```
 
-### Feedback
+## Defaults Applied
 
-- Renders inside the round screen while the audio plays and the subtitle is shown. No separate screen.
-- On correct: green mark / positive cue. On partial: softer visual cue. On incorrect: neutral, never red/angry.
+- **Input (voice vs text):** defaulted to **voice primary, textarea fallback** (creator said "voice or typed" without specifying primacy; voice is the pedagogically distinctive choice for a "Create" task).
+- **Timer:** defaulted to **None** (creator specified None — recorded here for traceability).
+- **Feedback style:** defaulted to **`FeedbackManager.playDynamicFeedback()` with rubric-aware dynamic narration** (creator said "AI evaluates" but did not specify feedback delivery).
+- **Star thresholds (exact values):** defaulted to **3★=7-9, 2★=4-6, 1★=1-3** (creator specified percentage-style thresholds that were inconsistent with the new 3-round, 9-point max; recomputed to match).
+- **Grade range:** defaulted to **Class 3-5** (creator specified — recorded for traceability).
+- **Preview screen:** defaulted to **enabled** (PART-039 default — game is new to the student and benefits from the up-front instruction).
+- **Preview audio text:** drafted based on the one-line concept; finalized at deploy time by TTS pipeline.
 
-### Victory
+## Warnings
 
-- Shown when all 3 rounds have been solved correctly.
-- Content: animated stars (1–3), final score (`X / 9`), a short congratulatory spoken message, and two possible buttons:
-  - **Play Again** — shown only if stars < 3, restarts from Round 1 (skipping Preview + Welcome) with lives = 3, score = 0.
-  - **Claim Stars** — always shown, exits the game with a brief star-collection celebration.
-
-### Game Over
-
-- Shown when lives reach 0.
-- Content: "Game Over" title, current score (`X / 9`), a neutral (non-red, non-sad) sticker, and one button:
-  - **Retry** — restarts from Round 1 with lives = 3 and score = 0.
-
----
-
-## Feedback Behaviour
-
-| Event                                 | Behaviour                                                                                                                                                                                         |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Correct answer                        | Positive visual + warm spoken praise that names what worked. Advance to next round when audio finishes.                                                                                           |
-| Partial answer                        | Soft visual cue + spoken feedback that **names exactly what was off** (e.g. "your total is 7, not 8") and gives a one-line fix. Lose 1 life. Clear input when audio finishes. Stay on same round. |
-| Incorrect answer                      | Gentle spoken feedback that **names exactly why the story does not match** the expression, with a nudge on the right approach. Lose 1 life. Clear input when audio finishes. Stay on same round.  |
-| Lives reach 0                         | Game Over screen with a neutral, non-shaming tone and a Retry button. Soft sound only.                                                                                                            |
-| All rounds complete                   | Victory screen with 1–3 stars and a celebration sound.                                                                                                                                            |
-| Submit with empty input               | Inline nudge: "Tell me your story first!" — no evaluation runs, no attempt recorded.                                                                                                              |
-| Mic unavailable / denied              | Voice button hides silently; the text input continues to work. No error message shown.                                                                                                            |
-| AI evaluation unavailable / times out | A generic "Couldn't evaluate — try once more" inline message; no attempt recorded, no life deducted, Submit re-enables.                                                                           |
-
----
-
-## UX / Presentation Requirements
-
-- **Mobile-first.** The game is designed for a 375×667 primary viewport, and must also render cleanly at 320 and 414 widths with no horizontal scroll.
-- **Touch targets ≥ 44px.** Every button (Submit, mic, keyboard, reset, Let's go!, Retry, Play Again, Claim Stars) meets this minimum.
-- **Typography & hierarchy.** The expression is the largest element on the round screen. The stage chip and prompt are secondary. The input and Submit button sit below, visually anchored to the bottom half of the screen.
-- **Non-shaming visuals.** Incorrect answers never show a red cross, angry sticker, or shaming colour. The palette stays warm and neutral for wrong answers; celebratory for correct.
-- **Body scrolls, containers don't.** The page scrolls naturally; internal containers are not height-capped with internal scroll bars.
-- **Audio respects pacing.** No artificial delays or timeouts cap feedback audio — the game waits until spoken feedback finishes, then transitions.
-- **Accessibility minimums.** Sufficient colour contrast for text, subtitles synced to spoken feedback, keyboard (text) path always available as a fallback to voice.
-
----
-
-## Notes
-
-- Feedback tone is always warm, encouraging, and non-shaming — this is an open-ended creative task, not a right/wrong quiz.
-- With 3 lives and retry-until-correct, a stuck student can run out of lives on a single round. This is intentional difficulty calibration; if it proves too harsh for Class 3-5 in practice, lives can be bumped to 5, or partial can be changed to not cost a life.
-- The concrete-feedback rule is central: vague encouragement without explanation would defeat the whole point of subjective AI evaluation here — the student should always walk away from a wrong attempt knowing _what_ to change.
+- **WARNING: Bloom L5 Create is outside the canonical L1-L4 pedagogy lookup.** Platform pedagogy defaults are defined for L1-L4. For L5, the spec uses feedback that is rubric-aware and non-shaming (closest to L4 Analyze behavior). Creator has confirmed L5 is intended. If the platform later constrains to L1-L4, relabel as L4 Analyze.
+- **WARNING: 3 rounds is below the typical 5-12 round range.** Intentional for an open-ended Create task (each round has high cognitive load). Session length will feel short (~3-6 minutes). Acceptable given the task type.
+- **WARNING: Voice input (P17) requires mic permission.** Graceful fallback to textarea is mandatory; if denied, the game must continue in text-only mode without blocking the student.
+- **WARNING: Subjective evaluation is non-deterministic and has a per-round LLM cost.** With 3 rounds this is acceptable, but gauge analytics must log `validationType: 'llm'` so the cost-per-play can be tracked. Retry-until-correct means total LLM calls per play are unbounded (capped only by lives + number of partials).
+- **WARNING: The retry-until-correct loop means a stuck student can repeatedly burn lives on one round.** With 3 lives and 3 rounds, worst case is game over on the first round after 3 incorrect attempts. Consider whether this is the intended difficulty for Class 3-5 creative tasks.

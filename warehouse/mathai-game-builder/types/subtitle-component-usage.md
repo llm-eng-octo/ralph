@@ -245,9 +245,11 @@ SubtitleComponent.configure({
   },
 
   // Custom positioning
+  // IMPORTANT: maxWidth must be wide enough to NEVER truncate dynamic TTS sentences.
+  // The CDN default of 280px is too narrow for dynamic audio — always override.
   position: {
-    bottom: '80px',    // Distance from bottom
-    maxWidth: '320px'  // Maximum width
+    bottom: '80px',                  // Distance from bottom
+    maxWidth: 'min(92vw, 720px)'     // Wide enough for long TTS; wraps within viewport
   }
 });
 
@@ -581,13 +583,38 @@ SubtitleComponent.show({
 
 ## Best Practices
 
-1. **Keep messages short** - 1-2 sentences maximum
-2. **Use appropriate durations** - 2-3 seconds for simple messages, 4-5 for longer
-3. **Use markdown sparingly** - Bold for emphasis only
-4. **Coordinate with audio** - Match subtitle duration to audio length
+1. **Subtitles MUST NEVER truncate** - the full text must always be visible. Configure `maxWidth: 'min(92vw, 720px)'` and add the CSS override block below so `-webkit-line-clamp`, `text-overflow: ellipsis`, and `overflow: hidden` cannot clip the text. See the MANDATORY section in `components/subtitle-component.md`.
+2. **Subtitle text equals audio text** - for dynamic audio (`playDynamicFeedback`) and any narrated content, the `subtitle` prop MUST be the FULL text passed to `audio_content`, verbatim. Do not summarize, do not slice, do not append `…`.
+3. **Duration matches audio length** - never pass a short fixed `duration` that hides the subtitle before the audio finishes. Prefer `FeedbackManager.sound.play` / `playDynamicFeedback` (auto-sync). For manual `show()`, set duration ≥ audio length.
+4. **Use markdown sparingly** - Bold for emphasis only
 5. **Handle edge cases** - Check `isShowing()` before updating
 6. **Use callbacks wisely** - For navigation after feedback
-7. **Test on devices** - Verify positioning on different screen sizes
+7. **Test on devices** - Verify positioning on different screen sizes, and verify that long dynamic TTS sentences (e.g., 150+ chars) wrap to multiple lines and are fully visible — no ellipsis, no cut-off
+
+### Required CSS override (paste into the game's `<style>`)
+
+```css
+[class*="subtitle"],
+[id*="subtitle"],
+[class*="Subtitle"],
+[id*="Subtitle"],
+[class*="mathai-subtitle"] {
+  max-width: min(92vw, 720px) !important;
+  width: auto !important;
+  height: auto !important;
+  max-height: none !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  display: block !important;
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: unset !important;
+  line-clamp: unset !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.4 !important;
+}
+```
 
 ## Integration with AudioKit
 
@@ -595,8 +622,9 @@ Combined example showing audio + subtitle:
 
 ```javascript
 // 1. Configure both systems
+// maxWidth 280px is too narrow — long dynamic TTS sentences get clipped. Use a wide value.
 SubtitleComponent.configure({
-  position: { bottom: '60px', maxWidth: '280px' }
+  position: { bottom: '60px', maxWidth: 'min(92vw, 720px)' }
 });
 
 // 2. Define unified feedback

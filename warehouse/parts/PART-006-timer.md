@@ -7,8 +7,32 @@
 ## HTML Required
 
 ```html
-<div id="timer-container"></div>
+<!-- Header must be position: relative so the absolute timer anchors to it -->
+<header class="game-header">
+  <div id="timer-container"></div>
+  <!-- other header items (lives, score, etc.) -->
+</header>
 ```
+
+## CSS Required (MANDATORY — timer is always absolute, top-center of header)
+
+```css
+.game-header {
+  position: relative; /* anchor for the absolute timer */
+}
+
+#timer-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  pointer-events: none; /* header siblings (lives/score) stay clickable */
+}
+#timer-container > * { pointer-events: auto; }
+```
+
+**Rule:** `#timer-container` is ALWAYS `position: absolute` and ALWAYS centered in the header (horizontally and vertically). Never place the timer inline in the header's flex/grid flow — other header items (lives, score, close button) keep their natural left/right placement and the timer floats in the visual center above them.
 
 ## Code
 
@@ -119,7 +143,11 @@ timer = new TimerComponent('timer-container', { timerType: 'increase', startTime
 
 ## Verification
 
-- [ ] `<div id="timer-container"></div>` exists in HTML
+- [ ] `<div id="timer-container"></div>` exists in HTML, inside the header element
+- [ ] Header (`.game-header` or equivalent) has `position: relative`
+- [ ] `#timer-container` has `position: absolute` + `top: 50%` + `left: 50%` + `transform: translate(-50%, -50%)`
+- [ ] Timer renders in the visual top-center of the header regardless of header width/content
+- [ ] Timer is NOT inside the header's flex/grid flow (does not shift other header items)
 - [ ] `new TimerComponent('timer-container', {...})` called
 - [ ] `timerType` set correctly for game needs
 - [ ] `onEnd` calls `endGame()` (if countdown)

@@ -18,6 +18,37 @@ TimerComponent provides:
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
 ```
 
+## Positioning (MANDATORY)
+
+The timer is ALWAYS rendered with `position: absolute` at the **top-center of the header**. It must not participate in the header's flex/grid flow — other header items (lives, score, close) keep their normal placement, and the timer floats centered above them.
+
+```html
+<header class="game-header">
+  <div id="timer-container"></div>
+  <!-- lives, score, close, etc. live here in normal flow -->
+</header>
+```
+
+```css
+.game-header {
+  position: relative;  /* anchor for the absolute timer */
+}
+
+#timer-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  pointer-events: none;
+}
+#timer-container > * { pointer-events: auto; }
+```
+
+- Do NOT place `#timer-container` inline in the header flex/grid — it will push lives/score off center.
+- Do NOT use `position: static`, `relative`, `fixed`, or `sticky` for `#timer-container`.
+- The parent (`.game-header` or whichever element holds the timer) MUST be `position: relative`.
+
 ## Usage
 
 ### Countdown Timer
