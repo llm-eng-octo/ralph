@@ -564,6 +564,56 @@ try {
 
 **Source incident:** `make-x` (2026-04-17) — `sound_life_lost` and `sound_correct` both resolved early, causing rounds to advance while feedback audio was still playing.
 
+## Anti-Pattern 35: Game HTML accessing PreviewScreenComponent private DOM
+
+```javascript
+// WRONG — game code reaches into a DOM node owned by PreviewScreenComponent.
+// The CDN component manages visibility via switchToGame()/destroy(); any reach-in
+// from game code is a boundary violation.
+function startGameAfterPreview() {
+  // ... game state init ...
+  var _pi = document.getElementById('previewInstruction');   // ← banned
+  if (_pi) _pi.style.display = 'none';
+}
+
+function restartGame() {
+  // ... reset ...
+  var _pi2 = document.getElementById('previewInstruction');  // ← banned
+  if (_pi2) _pi2.style.display = 'none';
+}
+```
+
+Symptom: game HTML toggles, hides, or re-parents DOM nodes that are owned by PreviewScreenComponent. The component already hides its overlay at `switchToGame()` time; a reach-in from game code competes with the component's own lifecycle and leaves the game tightly coupled to private implementation details. Validator rule: `5e0-DOM-BOUNDARY`.
+
+**Banned IDs (PreviewScreenComponent owns these — game code MUST NOT reference):**
+`previewInstruction`, `previewProgressBar`, `previewTimerText`, `previewQuestionLabel`, `previewScore`, `previewStar`, `previewSkipBtn`, `previewBackBtn`, `previewAvatarSpeaking`, `previewAvatarSilent`, `previewGameContainer`, `popup-backdrop`.
+
+**Banned class prefix:** `.mathai-preview-*` (via `querySelector`, `querySelectorAll`, or `classList.add/remove/toggle/contains`).
+
+**Public contract (game code MAY reference):** `#gameContent` and its children, `.game-stack`, `.game-block`, `.game-wrapper`, `.page-center`, and `#mathai-preview-slot` (the slot container, a legitimate fallback host — distinct from `.mathai-preview-*` class selectors).
+
+```javascript
+// RIGHT — game code operates only within #gameContent. No reach-ins.
+function startGameAfterPreview() {
+  // CDN has already called switchToGame(); the preview overlay is hidden by the component itself.
+  gameState.isActive = true;
+  gameState.startTime = Date.now();
+  syncDOM();
+  showRoundIntro();
+}
+
+function restartGame() {
+  // Reset state, repaint #gameContent. Preview is NOT re-shown — nothing to hide.
+  resetGameState();
+  if (!document.getElementById('matchBoard')) injectGameHTML();
+  showRoundIntro();
+}
+```
+
+If you need to fully remove the preview at end-of-game, call `previewScreen.destroy()` inside `endGame()` cleanup — never reach into its DOM directly.
+
+**Source incident:** `word-problem-workshop` build #1 (2026-04) — emitted `getElementById('previewInstruction').style.display = 'none'` in `startGameAfterPreview`, lifted via in-context examples from `games/matching-doubles/index.html` (since cleaned). Cross-reference: validator rule `5e0-DOM-BOUNDARY`, PART-039 component boundary invariant.
+
 ## Verification
 
 - [ ] All 4 script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` — no relative paths, no `cdn.homeworkapp.ai`, no invented domains
@@ -610,3 +660,4 @@ try {
 - [ ] No `new Audio()` anywhere (RULE-006)
 - [ ] No `Promise.race` wrapping `FeedbackManager.sound.play` / `playDynamicFeedback` / `audioRace` helper (PART-017 Anti-Pattern 32, validator rule `5e0-FEEDBACK-RACE-FORBIDDEN`)
 - [ ] Answer-feedback `sound.play()` calls (`sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_*`, `partial_correct_*`) wrapped in `Promise.all` with 1500ms minimum delay (Anti-Pattern 34, validator rule `5e0-FEEDBACK-MIN-DURATION`)
+- [ ] No game-code reach-ins to PreviewScreenComponent private DOM (no `getElementById`/`querySelector` on `#previewInstruction`, `#previewProgressBar`, `#previewTimerText`, `#previewQuestionLabel`, `#previewScore`, `#previewStar`, `#previewSkipBtn`, `#previewBackBtn`, `#previewAvatarSpeaking`, `#previewAvatarSilent`, `#previewGameContainer`, `#popup-backdrop`; no `.mathai-preview-*` class selectors or `classList` toggles) — Anti-Pattern 35, validator rule `5e0-DOM-BOUNDARY`, PART-039
