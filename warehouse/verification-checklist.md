@@ -36,6 +36,8 @@ Ralph runs this as a loop (max 5 iterations) after HTML generation, before Playw
 - [ ] Dynamic feedback uses `FeedbackManager.playDynamicFeedback({audio_content, subtitle})`
 - [ ] Audio does not carry between screens — verify audio is properly sequenced with `await` before screen transitions
 - [ ] When two audio calls happen back-to-back, the first is `await`ed before the second starts (mono mode: new audio cuts the current one)
+- [ ] **Cleanup between rounds / end of game**: No leftover audio, subtitle, or sticker from the previous round carries over into the next round or the end screen. Every `nextRound()`, `scheduleNextRound()`, `restartGame()`, and `endGame()` body MUST call `try { FeedbackManager.sound.stopAll(); } catch(e) {} try { FeedbackManager.stream.stopAll(); } catch(e) {}` BEFORE mutating `gameState` for the new phase. Exempt only if the function itself triggers a NEW `FeedbackManager.playDynamicFeedback()` (the new overlay auto-clears the previous one). Canonical source: **alfred/skills/feedback/SKILL.md** Cross-Cutting Rule 10 + reference/timing-and-blocking.md § Round/Phase Cleanup. Validator: `5e0-CLEANUP-BETWEEN-ROUNDS`.
+- [ ] **Custom feedback DOM also cleared**: if the game renders subtitle/sticker/feedback outside the FeedbackManager overlay (e.g. `#feedback-area`, `#feedback-panel`, custom sticker node), the same cleanup block MUST reset `feedbackEl.textContent = ''` and remove transient classes (`show`, `correct`, `incorrect`, `visible`, `playing`). Do NOT `.remove()` the node — cached references become stale (GEN-DOM-CACHE).
 
 ## 3. VisibilityTracker & Tab Switch
 
@@ -69,7 +71,8 @@ Ralph runs this as a loop (max 5 iterations) after HTML generation, before Playw
 - [ ] Round advances only after correct answer + user action (next button or auto-advance)
 - [ ] `endGame()` called when `currentRound >= totalRounds`
 - [ ] Submit button state managed: enabled/disabled/visible at correct times
-- [ ] User input cleared between rounds
+- [ ] User input cleared between rounds (selected options, typed text, drag state)
+- [ ] **Feedback cleared between rounds**: audio stopped, subtitle text cleared, sticker hidden — no carryover from previous round. See Section 2 cleanup item.
 - [ ] Attempt recorded for each answer submission with correct shape
 
 ## 6. End Game & Metrics
@@ -77,6 +80,8 @@ Ralph runs this as a loop (max 5 iterations) after HTML generation, before Playw
 - [ ] `endGame()` has a guard against double-call (`if (gameState.gameEnded) return`)
 - [ ] `gameState.isActive` set to `false` in `endGame()`
 - [ ] Timer stopped in `endGame()` (if present)
+- [ ] **Feedback stopped in `endGame()`**: FIRST line after the `gameEnded` guard calls `try { FeedbackManager.sound.stopAll(); } catch(e) {} try { FeedbackManager.stream.stopAll(); } catch(e) {}` — no audio/subtitle/sticker from the last round may be audible or visible on the victory/game-over screen. Custom feedback DOM also cleared (textContent/classList). See alfred/skills/feedback/reference/timing-and-blocking.md § "Round/Phase Cleanup" for the canonical `endGame()` ordering.
+- [ ] **Feedback stopped in `restartGame()`**: same cleanup block runs BEFORE recreating SignalCollector/Timer/ProgressBar/VisibilityTracker, so a restart never starts with residual audio or a leftover sticker from the previous session.
 - [ ] Accuracy calculated: `correctCount / totalRounds`
 - [ ] Stars calculated: ≥80% → 3, ≥50% → 2, >0% → 1, 0% → 0
 - [ ] `game_complete` postMessage sent with `{ metrics, attempts, events }`

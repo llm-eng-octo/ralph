@@ -1,232 +1,262 @@
-# Jigsaw Puzzle — Pre-Generation Plan
+# Pre-Generation Plan: Jigsaw Puzzle
 
-**One-liner:** Kid drags colored polyomino pieces from a bank onto an empty grid; pieces snap on valid fit, bounce back on invalid fit; 5 rounds across 3 stages of increasing grid size and complexity.
-
-**Archetype:** P6 Drag-and-Drop (Pick & Place). **Shape:** 2 (Multi-round). **Rounds:** 5. **Lives:** none. **Timer:** none.
+**Game ID:** jigsaw-puzzle
+**Archetype:** Board Puzzle (#6) — Shape 2 (Multi-round)
+**Bloom:** L1–L2
+**Interaction:** P6 Drag-and-Drop (Pick & Place)
+**Rounds:** 5 | **Lives:** None | **Timer:** None | **PreviewScreen:** YES (mandatory per PART-039)
 
 ---
 
 ## 1. Screen Flow
 
 ```
-Preview ──tap──▶ Welcome ──tap──▶ Round-N Intro ──auto(1500ms)──▶ Gameplay (Round N)
-                                       ▲                              │
-                                       │                              │ all pieces placed correctly
-                                       │                              ▼
-                                       │                        Round-Complete Feedback
-                                       │                        (awaited SFX + "Puzzle complete!" TTS, 2000ms)
-                                       │                              │
-                                       └──── if N < 5 ────────────────┤
-                                                                      │ if N == 5
-                                                                      ▼
-                                                               Victory (1-3 stars)
-                                                                      │
-                                                     ┌────────────────┼───────────────┐
-                                                     │ "Play Again"                   │ "Claim Stars"
-                                                     │ (only if <3★)                  ▼
-                                                     ▼                       Stars-Collected transition
-                                             "Ready to improve?"                     │ auto
-                                             (tap → restart Round 1)                 ▼
-                                                                                    exit
+          ┌─────────────────────────────────────────────────────────────┐
+          │                     PreviewScreen wrapper                   │
+          │  (persistent: header bar + scroll area + progress-bar slot) │
+          │                                                             │
+          │   DOMContentLoaded                                          │
+          │        │                                                    │
+          │        ▼                                                    │
+          │   setupGame()  ── renderInitialState() ── previewScreen.show() ─┐
+          │                                                             │   │
+          │                                                             │   ▼
+          │                                                      ┌──── Preview State ────┐
+          │                                                      │ blue progress bar,    │
+          │                                                      │ instruction HTML,     │
+          │                                                      │ "Skip & show options" │
+          │                                                      └───────────┬───────────┘
+          │                                                                  │ skip OR audio-end
+          │                                                                  ▼
+          │                                                          startGameAfterPreview()
+          │                                                                  │
+          │                                                                  ▼
+          │                         ┌───────────────── Gameplay Round N (1..5) ─────────────┐
+          │                         │  header (Round N / 5)  ·  ProgressBar (N segments lit) │
+          │                         │  Grid (3×3 | 4×3 | 4×4)                                │
+          │                         │  PieceBank (3 or 4 pieces)                             │
+          │                         │                                                        │
+          │                         │  (drag loop → placedPieces map grows)                  │
+          │                         └────────────┬───────────────────────────────────────────┘
+          │                                      │ round_complete (all cells covered)
+          │                                      ▼
+          │                      ┌────────── TransitionScreen ──────────┐
+          │                      │  "Puzzle complete!" → "Round N+1/5"  │
+          │                      │  auto-advance after TTS + 1200ms     │
+          │                      └────────────┬─────────────────────────┘
+          │                                   │ N<5 → next round
+          │                                   │ N==5 ▼
+          │                             ┌── Results ──┐
+          │                             │ stars 1..3  │
+          │                             │ [Play again]│
+          │                             └─────┬───────┘
+          │                                   │ restartGame() (no preview)
+          │                                   ▼
+          │                              Gameplay Round 1
+          └─────────────────────────────────────────────────────────────┘
 ```
 
-**No Game Over branch** — the game has no lives; wrong placements bounce back without penalty. Victory is always reached once the student completes Round 5.
+**Entry/exit triggers table:**
 
-### Screens enumerated
-| # | Screen | Type | Buttons | Exit |
-|---|--------|------|---------|------|
-| 1 | Preview | splash | [Start] | tap Start → Welcome |
-| 2 | Welcome | transition | [Let's Go] | tap → Round-1 Intro |
-| 3 | Round-N Intro (N=1..5) | transition, no buttons | — | auto after 1500ms → Gameplay |
-| 4 | Gameplay (Round N) | gameplay | — | all pieces placed → Round-Complete |
-| 5 | Round-Complete Feedback | inline on gameplay screen | — | after 2000ms → next Round-N Intro OR Victory |
-| 6 | Victory | transition | [Play Again] (if <3★), [Claim Stars] | tap |
-| 7 | "Ready to improve your score?" | transition | [I'm ready] | tap → Gameplay Round 1 |
-| 8 | "Yay, stars collected!" | transition, no buttons | — | auto after sound → exit |
+| Screen | Entry trigger | Exit trigger |
+|---|---|---|
+| PreviewScreen (preview state) | `DOMContentLoaded` → `setupGame()` calls `previewScreen.show()` after `renderInitialState()` | skip button OR audio-finish OR 5s fallback → `onComplete` → `startGameAfterPreview()` |
+| PreviewScreen (game state) | `startGameAfterPreview()` | persists for entire session; only `endGame()` calls `destroy()` |
+| Gameplay Round N | `renderRound(N)` | all cells covered + pieces placed ⇒ round-complete |
+| TransitionScreen (round-N intro / "Puzzle complete!") | round-complete OR restart | button tap OR auto-advance timeout |
+| Results | after round 5 complete | "Play again" → `restartGame()` |
+
+**ProgressBar** (top of scroll area, inside preview wrapper): 5 segments. Fills one segment per completed round, persists across rounds. Never advances on individual piece drops.
 
 ---
 
 ## 2. Round-by-Round Breakdown
 
-Coordinates are `(row, col)`, 0-indexed, row 0 = top, col 0 = left. Pieces have **fixed orientation** (no rotation). Each piece is listed with its target anchor cell on the grid and the set of cells it occupies (anchor cell first).
+| R | Grid | Pieces (bank order) | Student sees | Win condition | Misconception | Expected drops |
+|---|------|---------------------|--------------|--------------- |---------------|----------------|
+| 1 | 3×3 | A yellow I-tromino vert, B purple L-tromino, C orange corner (reverse-L) | Empty 3×3 board + 3 pieces in bank. Instruction ("Drag the three pieces onto the grid…") shown via PreviewScreen on round 1, not repeated afterwards. | `placedCells == {all 9 cells}` AND `availablePieces == []` | `ignore_shape` | ~3 drops (low ambiguity) |
+| 2 | 3×3 | A yellow I-tromino horiz, B purple reverse-L, C orange S-tromino | Empty 3×3 board + 3 pieces. Round 2 transition ("Round 2 of 5"). | same — full tile | `wrong_orientation` | ~4 drops (1 bounce likely) |
+| 3 | 4×3 | A yellow T-tetromino, B purple L-tetromino, C orange skew | Empty 4×3 board + 3 tetrominoes. | full 12-cell tile | `edge_overflow` | ~5 drops (larger grid) |
+| 4 | 4×3 | A yellow J-tetromino, B purple I-tetromino vert, C orange L-tetromino | Empty 4×3 board + 3 tetrominoes. | full 12-cell tile | `overlap` | ~5–6 drops |
+| 5 | 4×4 | A yellow I-tetromino horiz, B purple O, C orange O, D green I-tetromino horiz | Empty 4×4 board + 4 pieces incl. new green. | full 16-cell tile | `color_matching` | ~6–7 drops |
 
-### Round 1 — Stage 1 (3×3 grid, 3 pieces, 3 cells each)
-- **Grid:** 3 rows × 3 cols = 9 cells.
-- **Target grid state:** all 9 cells filled, contiguous coverage.
-- **Pieces:**
-  | Piece | Color | Shape (cells, relative) | Target cells (absolute) |
-  |-------|-------|-------------------------|-------------------------|
-  | P1 | yellow (#FFD93D) | L-tromino: (0,0),(1,0),(1,1) | (0,0),(1,0),(1,1) |
-  | P2 | purple (#8B5CF6) | I-tromino (horizontal): (0,0),(0,1),(0,2) | (0,1→0,2 blocked) → use (2,0),(2,1),(2,2) [bottom row] |
-  | P3 | orange (#FB923C) | L-tromino mirrored: (0,0),(0,1),(1,1) | (0,1),(0,2),(1,2) |
-- **Resolved target grid:**
-  ```
-  Y O O
-  Y Y O
-  P P P
-  ```
-
-### Round 2 — Stage 1 (3×3 grid, 3 pieces, 3 cells each)
-- **Grid:** 3×3.
-- **Pieces:**
-  | Piece | Color | Shape (relative) | Target (absolute) |
-  |-------|-------|------------------|-------------------|
-  | P1 | yellow | I-tromino vertical: (0,0),(1,0),(2,0) | (0,0),(1,0),(2,0) |
-  | P2 | purple | L-tromino: (0,0),(0,1),(1,1) | (0,1),(0,2),(1,2) |
-  | P3 | orange | L-tromino: (0,0),(1,0),(1,1) | (1,1),(2,1),(2,2) — plus (2,1) covers… |
-- **Resolved target grid (corrected to 9 cells):**
-  ```
-  Y P P
-  Y . P
-  Y O O  → adjust: P3 covers (1,1),(2,1),(2,2); final:
-  Y P P
-  Y O P
-  Y O O
-  ```
-  Pieces: P1 yellow column 0; P2 purple (0,1),(0,2),(1,2); P3 orange (1,1),(2,1),(2,2). Total = 9.
-
-### Round 3 — Stage 2 (4×3 grid, 3 pieces, 4 cells each)
-- **Grid:** 4 rows × 3 cols = 12 cells.
-- **Pieces (tetrominoes, fixed orientation):**
-  | Piece | Color | Shape (relative) | Target (absolute) |
-  |-------|-------|------------------|-------------------|
-  | P1 | yellow | T-tetromino: (0,0),(0,1),(0,2),(1,1) | (0,0),(0,1),(0,2),(1,1) |
-  | P2 | purple | S-tetromino: (0,1),(0,2),(1,0),(1,1) | (1,0),(2,0),(2,1),(1,2)… simpler: L-tet (0,0),(1,0),(2,0),(2,1) → target (1,0),(2,0),(3,0),(3,1) |
-  | P3 | orange | L-tet mirrored: (0,0),(0,1),(0,2),(1,0) → target (1,2),(2,2),(3,2),(2,1) — resolve as J-piece at (1,2),(2,1),(2,2),(3,2) |
-- **Resolved target grid:**
-  ```
-  Y Y Y
-  P Y O
-  P O O
-  P P O
-  ```
-  (P1 yellow T at top; P2 purple L in col 0 rows 1-3 plus (3,1); P3 orange J covering (1,2),(2,1),(2,2),(3,2).)
-
-### Round 4 — Stage 2 (4×3 grid, 3 pieces, 4 cells each)
-- **Grid:** 4×3.
-- **Pieces:**
-  | Piece | Color | Shape (relative) | Target (absolute) |
-  |-------|-------|------------------|-------------------|
-  | P1 | yellow | I-tet vertical: (0,0),(1,0),(2,0),(3,0) | (0,0),(1,0),(2,0),(3,0) |
-  | P2 | purple | Z-tet: (0,0),(0,1),(1,1),(1,2) | (0,1),(0,2),(1,2),(2,2) — adjusted to non-overlap: (0,1),(0,2),(1,1),(1,2) square |
-  | P3 | orange | Square + tail: (0,0),(1,0),(1,1),(2,0) → target (2,1),(3,1),(3,2),(2,2) |
-- **Resolved target grid:**
-  ```
-  Y P P
-  Y P P
-  Y O O
-  Y O O
-  ```
-  (P1 column 0; P2 2×2 square top-right; P3 2×2 square bottom-right. Visually two stacked squares + one column — valid 4-tet decomposition.)
-
-### Round 5 — Stage 3 (4×4 grid, 4 pieces, 4 cells each, 4 colors)
-- **Grid:** 4 rows × 4 cols = 16 cells.
-- **Pieces:**
-  | Piece | Color | Shape (relative) | Target (absolute) |
-  |-------|-------|------------------|-------------------|
-  | P1 | yellow (#FFD93D) | Square: (0,0),(0,1),(1,0),(1,1) | (0,0),(0,1),(1,0),(1,1) |
-  | P2 | purple (#8B5CF6) | T-tet: (0,0),(0,1),(0,2),(1,1) | (0,2),(0,3),(1,2),(1,3) → use square | (0,2),(0,3),(1,2),(1,3) |
-  | P3 | orange (#FB923C) | L-tet: (0,0),(1,0),(2,0),(2,1) | (2,0),(3,0),(3,1),(2,1) → square (2,0),(2,1),(3,0),(3,1) |
-  | P4 | green (#10B981) | Square: (0,0),(0,1),(1,0),(1,1) | (2,2),(2,3),(3,2),(3,3) |
-- **Resolved target grid:**
-  ```
-  Y Y P P
-  Y Y P P
-  O O G G
-  O O G G
-  ```
-
-**Design note for game-building:** If any shape/target combination above fails to tile the grid perfectly, swap to the simplest tetromino decomposition that does (prefer 2×2 squares and I-tets). The coverage constraint — 100% of cells filled, zero overlap — is what must hold; the exact shape set is guidance.
+All solutions come directly from `spec.md` content samples and have been verified as exact tilings.
 
 ---
 
-## 3. Scoring and Lives Logic
+## 3. Drag-and-Drop Interaction Logic
 
-- **Lives:** none. Wrong drops have no state cost; piece bounces back. Kid may rearrange freely (pieces already on grid can be dragged back to bank).
-- **Score unit:** 1 point per round completed (all pieces correctly placed). Max = 5.
-- **Star thresholds:**
-  | Stars | Rounds completed |
-  |-------|------------------|
-  | 3 ★   | 5 (all rounds) |
-  | 2 ★   | 3 or 4 |
-  | 1 ★   | 1 or 2 |
-  | 0 ★   | 0 |
-- **Victory is always reached** at Round 5 end (no game-over). If kid abandons, stars reflect rounds completed so far.
-- **Progress bar:** 5 segments; advances 1 segment on each round-complete event (during the 2000ms round-complete feedback window). Visible on all non-Preview screens. Top of game body, below preview header.
+**Drag start**
+- From bank: `pointerdown`/`touchstart` on a bank piece → `dragState = { pieceId, source: 'bank', offset: pointer-within-piece-origin-cell }`. Bank item becomes semi-transparent.
+- From grid: if piece is already placed, pick it up → removes it from `placedPieces`, recomputes `grid cell occupancy`, piece becomes the dragged element.
 
----
+**Drag over (live ghost)**
+- On every `pointermove`, compute target origin cell `[r, c]` via bounding-rect math on `#gameGrid`.
+- Render a translucent "ghost" covering `piece.cells.map(([dr,dc]) => [r+dr, c+dc])`.
+- Ghost tinted: **green** if placement is valid (in-bounds AND no overlap with any other `placedPieces` cell), **red** if invalid.
+- If pointer leaves `#gameGrid`, hide ghost (drop-off-grid will return piece to bank).
 
-## 4. Feedback Patterns per Interaction
+**Drop — valid** (all cells in-bounds AND no overlap)
+- Snap piece into grid cells with CSS transform animation (150ms).
+- `placedPieces[pieceId] = [r, c]`; remove from `availablePieces`.
+- Fire-and-forget snap SFX via `FeedbackManager.sound.play('snap')`.
+- Reset `consecutiveWrongDropsByPiece[pieceId] = 0`.
+- `recordAttempt({ pass: true, pieceId, placedAt: [r,c] })`.
+- Check round-complete.
 
-| Event | Trigger | Feedback | Timing | API call |
-|-------|---------|----------|--------|----------|
-| Piece picked up | pointerdown on bank piece | Piece follows pointer; bank slot shows faded outline | immediate | CSS class `.piece-dragging` |
-| Valid drop (correct cell set empty + in-bounds) | pointerup over grid with all piece cells valid | Piece snaps to grid cells (80ms ease-out translate); fire-and-forget `sound_piece_place` | snap 80ms | `FeedbackManager.sound.play('sound_piece_place')` (fire-and-forget) |
-| Invalid drop (out of bounds, overlap, or partial off-grid) | pointerup over grid with any cell invalid | Piece bounce-back animation to bank slot (250ms cubic-bezier(.5,1.5,.5,1)); fire-and-forget `sound_bounce_back` | 250ms | `FeedbackManager.sound.play('sound_bounce_back')` (fire-and-forget) |
-| Piece dragged off grid | pointerdown on a grid-placed piece, drag to bank area | Grid cells clear; piece returns to bank slot; no sound | immediate | — |
-| Round complete (grid fully covered) | after valid drop that fills last empty cells | Awaited SFX `sound_round_complete` + TTS "Puzzle complete!"; progress bar segment animates fill; 500ms celebratory pulse on grid | 2000ms total | `await FeedbackManager.playDynamicFeedback({audio_content:'sound_round_complete', subtitle:'Puzzle complete!', sticker:'sparkle'})` |
-| Round-N intro | after round-complete settles | Round-N transition screen with "Round N" SFX | 1500ms auto | `FeedbackManager.sound.play('sound_round_intro')` |
-| Victory | after Round 5 complete | Star count reveal + `sound_game_victory` → `vo_victory_stars_N` | awaited | canonical victory flow |
+**Drop — invalid** (out-of-bounds OR overlap)
+- Bounce-back: piece animates back to bank slot (400ms ease-out transform).
+- No state change to `placedPieces`.
+- `consecutiveWrongDropsByPiece[pieceId] += 1`.
+- Soft shake SFX: `FeedbackManager.sound.play('shake')` (fire-and-forget).
+- Tag misconception based on drop geometry:
+  - any cell `r<0 || r>=rows || c<0 || c>=cols` → `edge_overflow`
+  - else any cell collides with another placed piece → `overlap`
+  - else (neither OOB nor overlap but student released outside a valid spot — e.g., on empty grid but hovering wrong cells) → round's `expected_misconception`
+- `recordAttempt({ pass: false, pieceId, attempted: [r,c], misconception: <tag> })`.
+- If `consecutiveWrongDropsByPiece[pieceId] === 2` → soft-glow highlight on valid origin cells for 1500ms, then fade.
 
-**No heartBreak / life-lost animations** — lives system is absent.
+**Drop — outside grid** (pointerup over non-grid area, any non-bank region too)
+- Return piece to bank slot (if from bank: restore opacity; if from grid: pop back to bank list).
+- No SFX, no attempt recorded (this is a "cancelled drag", not a wrong answer).
 
----
-
-## 5. Drag-and-Drop Interaction Details
-
-### Hit-testing
-- Grid cells rendered as absolutely-positioned `<div>`s with `data-row` / `data-col`.
-- On pointermove while dragging, read `document.elementFromPoint(clientX, clientY)` relative to the piece's **anchor cell position** (top-left cell of piece bounding box).
-- For each cell in the piece's shape array, compute `(anchorRow + dr, anchorCol + dc)` and check: (a) in-bounds `0 ≤ r < rows, 0 ≤ c < cols`, (b) grid cell is empty OR occupied by the same piece (when rearranging).
-- Highlight preview: during drag, show faint ghost tint on the cells the piece would occupy; green tint if valid, red tint if invalid.
-
-### Snap-to-grid
-- On pointerup, if all computed cells are valid: animate piece element from current pointer position to the grid cell rect's top-left using 80ms CSS transform. Mark those grid cells occupied (`data-piece-id`, background color = piece color). Set piece's DOM parent to the grid container with absolute positioning locked to the anchor cell.
-- Use `translate3d` for smooth GPU-accelerated snap.
-
-### Bounce-back animation
-- On pointerup with invalid drop: 250ms animation with `cubic-bezier(.5,1.5,.5,1)` (slight overshoot) returning piece to its original bank slot rect.
-- During bounce-back, piece pointer-events are disabled to prevent mid-animation grabs.
-- On animation end, piece is re-parented to its bank slot and pointer-events re-enabled.
-
-### Edge cases
-- If pointerup happens outside both grid and bank: bounce back to bank slot.
-- If piece dragged back to bank from grid: grid cells clear immediately (no snap animation), piece returns to its original bank slot with a 120ms translate.
-- Prevent scroll during drag: `touch-action: none` on grid and bank containers.
-- Pointer events (not mouse/touch separately): single pointerdown/move/up listener set on the document during drag.
+**Touch + mouse parity**
+- Use Pointer Events (`pointerdown`/`pointermove`/`pointerup`/`pointercancel`) with `touch-action: none` on draggable elements.
+- Capture pointer on `pointerdown` (`element.setPointerCapture`) so drag survives fast swipes.
+- Minimum touch target: 44×44 px per cell on 375px viewport (see Section 8).
 
 ---
 
-## 6. Layout Strategy — Mobile 375×667 Viewport
+## 4. State Machine
 
-Available game body after preview header (56px) + progress bar (24px) = **587px vertical** × **375px horizontal**. Use 16px side padding → usable width **343px**.
+**gameState shape:**
 
-### Stage 1 (3×3 grid)
-- **Cell size:** 80×80 px → grid = 240×240 px, centered horizontally (margin-left 51px).
-- **Grid area:** top offset 40px from progress bar → rect (51, 120, 291, 360).
-- **Piece bank:** below grid at top 400px, height 160px, width 343px. 3 pieces laid horizontally, each in a 100×140 slot with 14px gutter.
-- **Piece cell size in bank:** 32×32 px (scales up to 80×80 on grab for visual consistency with grid cell size).
+```
+gameState = {
+  phase: 'start' | 'gameplay' | 'round_complete' | 'results',
+  roundIndex: 0..4,                     // 0-based; round 1 = index 0
+  round: {                              // snapshot of current round from content
+    gridRows, gridCols, pieces, solution, expected_misconception
+  },
+  placedPieces: { pieceId: [r, c] },    // absolute origin cell per placed piece
+  availablePieces: [pieceId, ...],      // pieces still in bank (order preserved)
+  consecutiveWrongDropsByPiece: { pieceId: n },  // resets on correct drop or round change
+  roundsCompleted: 0..5,                // feeds stars + progress bar
+  attempts: [],                         // buffered for recordAttempt calls
+  previewResult: null | { duration },
+  startTime: null | ms,                 // set by startGameAfterPreview()
+  isActive: false | true,
+  duration_data: { preview: [], startTime: ISO }
+}
+```
 
-### Stage 2 (4×3 grid, rounds 3-4)
-- **Cell size:** 72×72 px → grid = 216×288 px (3 cols × 4 rows), centered (margin-left 79px).
-- **Grid area:** top 100px → rect (79, 100, 295, 388).
-- **Piece bank:** top 410px, height 170px, width 343px. 3 slots 100×150 each.
-- **Piece cell in bank:** 30×30 px.
+**Phase transitions:**
 
-### Stage 3 (4×4 grid, round 5)
-- **Cell size:** 64×64 px → grid = 256×256 px, centered (margin-left 59px).
-- **Grid area:** top 100px → rect (59, 100, 315, 356).
-- **Piece bank:** top 380px, height 190px, width 343px. 4 slots 76×170 each with 8px gutter (4 × 76 + 3 × 8 = 328, centered in 343 → margin 7px).
-- **Piece cell in bank:** 28×28 px.
+| From | Event | To | Side effects |
+|------|-------|----|--------------|
+| `start` | `DOMContentLoaded` | preview (component state, not `phase`) | `setupGame()` renders grid + bank, calls `previewScreen.show()` |
+| `start` | preview `onComplete` | `gameplay` | `startGameAfterPreview()`: set `startTime`, `isActive`, call `renderRound(0)` |
+| `gameplay` | valid drop | `gameplay` | update `placedPieces`; check round-complete |
+| `gameplay` | every cell covered AND `availablePieces.length === 0` | `round_complete` | fire "Puzzle complete!" TTS (awaited), celebratory SFX, `roundsCompleted += 1`, advance ProgressBar |
+| `round_complete` | transition-screen advance (roundIndex < 4) | `gameplay` | `roundIndex += 1`, reset `placedPieces/availablePieces/consecutiveWrongDropsByPiece`, `renderRound(roundIndex)`, `syncDOMState()` |
+| `round_complete` | transition-screen advance (roundIndex === 4) | `results` | render stars + Play Again, fire `game_complete` |
+| `results` | Play Again | `gameplay` | `restartGame()` resets state, roundIndex=0, roundsCompleted=0, calls `renderRound(0)` — **does NOT re-show preview** |
 
-### Common styling
-- Grid cells: 2px border `#E5E7EB`, background `#F9FAFB`, border-radius 4px.
-- Placed pieces: solid color fill (palette above), 2px border same color darker 15%, border-radius 4px on outer edges only (via individual cell rounding at shape corners).
-- Bank slot: 1px dashed `#D1D5DB` border, border-radius 8px, background `#FFFFFF`.
-- Piece dragging state: `transform: scale(1.05)`, `box-shadow: 0 8px 16px rgba(0,0,0,.2)`, `z-index: 100`.
-- Ghost highlight on grid during drag: `background: rgba(34,197,94,.25)` valid, `rgba(239,68,68,.25)` invalid.
+**Round-complete check (canonical):**
 
-### Accessibility / touch targets
-- Bank pieces minimum 100×140 hit region (exceeds 44×44 min).
-- Grid cells minimum 64×64 (exceeds 44×44 min).
-- High contrast between all 4 piece colors and neutral grid background.
+```
+occupiedCells = union of (cell offset + origin) for every pieceId in placedPieces
+allCells = cartesian product rows × cols
+roundComplete = (occupiedCells === allCells) AND (availablePieces.length === 0)
+```
+
+Compare as sorted `"r,c"` string sets — not coordinate arrays.
+
+---
+
+## 5. Scoring & Progression Logic
+
+- **Points:** +1 per round completed. Max 5.
+- **Lives:** None. No game-over screen exists.
+- **Timer:** None. `previewScreen.show()` passes `timerConfig: null, timerInstance: null`.
+- **Round-complete validator:** explicit cell-set equality (not "pieces placed === pieces.length", which could pass if a piece is placed but leaves a gap — but given the solutions are exact tilings, both hold. Use cell-set as authoritative guard.)
+- **Star rating** (computed once on transition to `results`):
+  - 3⭐ = 5 rounds completed
+  - 2⭐ = 3–4 rounds completed
+  - 1⭐ = 1–2 rounds completed
+  - 0⭐ = 0 rounds — unreachable here because a session that started completed ≥1 round to reach results naturally; results is only shown after round 5 so in this game stars are always 3⭐ unless the student abandons. Still emit the formula in code for future re-use.
+- **ProgressBar:**
+  - 5 discrete segments.
+  - Advance exactly one segment when a round completes (not per piece drop).
+  - Fill color matches brand; completed segments persist across rounds.
+  - Component rendered once inside PreviewScreen wrapper, NOT re-created per round.
+
+---
+
+## 6. Feedback Patterns
+
+Cross-reference: `alfred/skills/feedback/SKILL.md` 17 cases + await/fire-and-forget priority table.
+
+| Event | Audio | Visual | Await? | TTS? |
+|---|---|---|---|---|
+| Piece picked up (drag start) | — | piece floats (scale 1.05, shadow) | fire-and-forget | — |
+| Ghost-valid (hover on legal drop) | — | green cell outline on projected footprint | — | — |
+| Ghost-invalid (hover OOB/overlap) | — | red cell outline on projected footprint | — | — |
+| Correct drop (snap) | `FeedbackManager.sound.play('snap')` | piece snaps to grid cells; 300ms soft glow on cells | fire-and-forget | — |
+| Wrong drop | `FeedbackManager.sound.play('shake')` | bounce-back 400ms ease-out to bank slot; 100ms shake on piece | fire-and-forget | — |
+| 2 consecutive wrongs same piece | — | soft glow (0.15 alpha pulse, 1500ms) on valid origin cells for that piece | fire-and-forget | — |
+| Round complete | celebratory SFX + `FeedbackManager.playDynamicFeedback({ audio_content: "Puzzle complete!", subtitle: "Puzzle complete!", sticker: "celebrate" })` | grid cells all pulse green 600ms; confetti particle burst | **AWAIT** — block round advance until TTS resolves | YES |
+| Results (5 rounds done) | victory SFX | stars reveal one-by-one (300ms stagger), "Play again" button | fire-and-forget | — |
+
+**Bounce-back hint escalation** (spec scaffold): check `consecutiveWrongDropsByPiece[pieceId] === 2` at end of wrong-drop handler; schedule highlight timer; reset the counter to 0 after the highlight displays to avoid spam on every subsequent wrong drop.
+
+---
+
+## 7. Platform Integration Checklist
+
+- `recordAttempt` on EVERY drop:
+  - valid drop → `{ pass: true, pieceId, placedAt: [r,c], roundId }`
+  - invalid drop → `{ pass: false, pieceId, attempted: [r,c], roundId, misconception }`
+- `game_complete` fires exactly once on transition to `results` with schema: `{ rounds_completed, stars, attempts, duration_ms, previewResult }`
+- `syncDOMState()` called on every phase transition (start→gameplay, per round change, gameplay→round_complete→gameplay, gameplay→results). `data-phase` and `data-round-index` always reflect current state.
+- `FeedbackManager` handles ALL audio — no raw `new Audio()`. Preload `'snap'`, `'shake'`, and celebration SFX at `setupGame()`.
+- `PreviewScreenComponent` rules:
+  - `ScreenLayout.inject('app', { slots: { previewScreen: true, transitionScreen: true } })`.
+  - `previewScreen.show()` called at end of `setupGame()` AFTER grid + bank are rendered.
+  - `timerConfig: null, timerInstance: null` (no timer in this game).
+  - `endGame()` must call `previewScreen.destroy()` exactly once.
+  - `restartGame()` must NOT re-call `previewScreen.show()`.
+- `VisibilityTracker` wired to `previewScreen.pause()`/`resume()`.
+- Fallback content in `fallbackContent.previewInstruction` = round 1 `previewInstruction` HTML; `previewAudioText` = round 1's; `previewAudio: null` (pipeline patches at build time).
+- `data-testid` attributes required on: every grid cell (`cell-r-c`), every piece in bank (`piece-<id>`), every placed piece (`placed-<id>`), "Play Again" button (`play-again`), progress-bar segment (`progress-seg-<i>`).
+
+---
+
+## 8. Technical Notes
+
+**Grid rendering**
+- `#gameGrid` is a CSS grid with `grid-template-rows: repeat(rows, 1fr)` and `grid-template-columns: repeat(cols, 1fr)`. Each cell is an absolutely identifiable `<div data-row="r" data-col="c" data-testid="cell-r-c">`. Keep cell aspect-ratio 1:1 via `aspect-ratio: 1` on `.cell`.
+- Grid container max-width: `min(90vw, 320px)` so 4×4 grid on 375px viewport has ~80px cells (well above 44px touch target).
+
+**Piece rendering**
+- Pieces are absolutely-positioned containers with child `<div>`s at relative offsets derived from `cells`. Each child cell sized in `em` or relative to bank/grid-cell size so the same piece component scales between bank (smaller) and grid (1:1 cell size).
+- Color by class: `.piece-yellow`, `.piece-purple`, `.piece-orange`, `.piece-green`.
+- Placed pieces live in a separate `#placedLayer` absolutely overlaying the grid, positioned by computing the origin cell's `offsetLeft/offsetTop` — this avoids re-parenting and keeps grid CSS simple.
+
+**Coordinate conversion (pointer → cell)**
+- On drag end, read `#gameGrid.getBoundingClientRect()`; compute `cellW = rect.width / gridCols`, `cellH = rect.height / gridRows`.
+- `targetCol = Math.floor((pointerX - rect.left) / cellW)`; same for row.
+- Validate placement using `piece.cells`: `valid = every cell ([r+dr, c+dc]) is in-bounds AND not in occupiedCells`.
+
+**Mobile viewport (375×667)**
+- 4×4 grid at `width:min(90vw, 320px)` → ~80px cells.
+- 3×3 grid at same max-width → ~106px cells.
+- Piece bank row below grid, horizontally scrollable if it overflows, pieces min 60×60px.
+- `touch-action: none` on grid and pieces to prevent browser swipe gestures from cancelling drags.
+- Pointer Events (not legacy `touchstart`/`mousedown`) with `setPointerCapture` for reliable fast drags.
+- Respect persistent PreviewScreen header — no duplicate header inside `#gameContent`.
+
+**Accessibility (light)**
+- Every piece has `aria-label="yellow I-tromino"` etc.
+- Every grid cell has `aria-label="row 1 column 1, empty"` / `"...filled with yellow"`.
+- Drops announced via `aria-live="polite"` region: "Placed yellow piece" / "Doesn't fit there".

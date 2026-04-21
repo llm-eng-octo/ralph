@@ -78,6 +78,48 @@ if (gameState.isProcessing) return;
 | Student taps during dynamic TTS | `FeedbackManager.stream.stopAll()` (stop TTS, then process tap) |
 | Restart / Try Again | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` |
 | Game cleanup (endGame) | `FeedbackManager._stopCurrentDynamic()` + `FeedbackManager.sound.pause()` + `FeedbackManager.stream.stopAll()` |
+| `nextRound()` / `scheduleNextRound()` silent auto-advance (no CTA) | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — FIRST line, before `currentRound++` |
+| `endGame()` entry (victory/game-over TransitionScreen) | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — FIRST line after the `gameEnded` guard, before phase mutation |
+| `restartGame()` entry | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — FIRST line, before recreating SignalCollector / Timer / ProgressBar |
+| Level-transition button `action` callback | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — before `startLevel()` / `nextLevel()` |
+
+**Why the last four rows exist:** The FeedbackManager overlay auto-clear fires only when a NEW `playDynamicFeedback()` call starts. Silent round auto-advance, restart, end-screen entry, and level transitions do NOT necessarily start a new dynamic feedback — so the previous round's subtitle + sticker + audio will bleed into the new phase unless stopped explicitly. See Feedback SKILL Cross-Cutting Rule 10 and Anti-pattern 13.
+
+## Round/Phase Cleanup (Canonical Call)
+
+Every round-boundary function (`nextRound`, `scheduleNextRound` timeout body, `endGame`, `restartGame`, level-transition `action`) MUST execute this block as its FIRST statement, before mutating `gameState`:
+
+```javascript
+// Canonical cleanup — MUST run BEFORE any gameState mutation
+try { FeedbackManager.sound.stopAll(); } catch (e) {}
+try { FeedbackManager.stream.stopAll(); } catch (e) {}
+
+// If the game renders custom feedback DOM outside FeedbackManager's overlay:
+if (feedbackEl) {
+  feedbackEl.textContent = '';
+  feedbackEl.classList.remove('show', 'correct', 'incorrect', 'visible');
+}
+```
+
+**Ordering in `endGame()`** (cleanup slots in right after the re-entry guard):
+
+```javascript
+async function endGame(reason) {
+  if (gameState.gameEnded) return;       // 1. re-entry guard
+  gameState.gameEnded = true;             // 2. set guard flag
+  try { FeedbackManager.sound.stopAll(); } catch(e) {}   // 3. cleanup FIRST
+  try { FeedbackManager.stream.stopAll(); } catch(e) {}
+  gameState.isActive = false;             // 4. stop accepting input
+  gameState.phase = reason === 'victory' ? 'results' : 'gameover';  // 5. phase
+  syncDOMState();                         // 6. propagate to data-phase
+  // 7. results screen + postMessage + end-game audio (as defined by End-Game Data Contract)
+  await transitionScreen.show({ ... });
+}
+```
+
+**Why this ordering (matches GEN-PHASE-SEQUENCE):** cleanup runs BEFORE phase assignment so no audio is still resolving when `syncDOMState()` paints the new `data-phase`; phase assignment runs BEFORE `syncDOMState()` so the 500ms test harness poll never reads a stale value. Running cleanup AFTER state mutation opens a 1–2 frame window where the next round paints with the previous round's sticker still on screen — visually jarring and detectable in Playwright screenshots.
+
+**Caller does NOT need to also call `FeedbackManager._stopCurrentDynamic()`** — the pair `sound.stopAll()` + `stream.stopAll()` covers both static SFX and dynamic TTS. `_stopCurrentDynamic()` is only needed as an additional belt-and-suspenders call on CTA interrupts where the sequential `audioStopped` flag pattern is in play (see "Round/Level Transition Audio Sequence" below).
 
 ## Pause / Resume Triggers
 

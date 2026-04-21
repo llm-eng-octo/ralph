@@ -168,15 +168,24 @@ Per PART-039. Game-building rules:
 - `endGame()` calls `previewScreen.destroy()`.
 - `restartGame()` must NOT call `previewScreen.show()` or `setupGame()` — preview is once per session.
 - `hide()` does NOT exist. Do not call it.
-- VisibilityTracker's `onInactive`/`onResume` must also invoke `previewScreen.pause()`/`previewScreen.resume()`. Canonical wiring:
+- VisibilityTracker's `onInactive`/`onResume` must also invoke `previewScreen.pause()`/`previewScreen.resume()`. The pause popup itself is rendered by `VisibilityTracker`'s built-in `PopupComponent` — leave `autoShowPopup` at its default (`true`) and customize copy via `popupProps`. **Never** build a game-local pause overlay. Canonical wiring:
   ```javascript
   visibilityTracker = new VisibilityTracker({
+    // autoShowPopup defaults to true — do NOT set to false
+    popupProps: {
+      // Optional copy overrides; defaults are "Resume Activity" / "Resume"
+      // title: 'Paused',
+      // description: 'Tap Resume to continue.',
+      // primaryText: 'Resume',
+    },
     onInactive: function() {
       try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch(e) {}
+      try { if (timer) timer.pause({ fromVisibilityTracker: true }); } catch(e) {}
       try { if (previewScreen) previewScreen.pause(); } catch(e) {}
     },
     onResume: function() {
       try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch(e) {}
+      try { if (timer) timer.resume({ fromVisibilityTracker: true }); } catch(e) {}
       try { if (previewScreen) previewScreen.resume(); } catch(e) {}
     }
   });
@@ -377,9 +386,85 @@ function endGame(won) {
 }
 ```
 
-### Preview timer sync
+### Round-complete handler — progress bar bumps FIRST
 
-When the game has a `TimerComponent`, pass `timerConfig` + `timerInstance` into `previewScreen.show()`. The PreviewScreen reads the game's TimerComponent each frame via `requestAnimationFrame` and mirrors it in the header — the game still owns `timer.start()` / `timer.pause()`. Game CSS MUST NOT override `.mathai-preview-header .mathai-timer-*` classes.
+Every round-complete handler (the code path that fires when the round's answer is accepted / last sub-question is locked) **MUST** start with:
+
+```javascript
+if (progressBar) {
+  try { progressBar.update(gameState.currentRound, Math.max(0, gameState.lives)); } catch (e) {}
+}
+```
+
+BEFORE any of: awaited round-complete SFX, sticker, subtitle, VO, `trackEvent('round_complete', ...)`, `nextRound()`, `endGame('victory')`.
+
+Why: round-complete SFX is typically awaited (1–2s) and the final round hands off directly to `endGame('victory')` → Victory transition. If the bar is updated after the await, the Victory screen renders with the bar still at `N-1/N`. Bumping first makes the bar paint `N/N` the instant the last answer locks, in sync with the visual "green / locked" state. Same ordering principle as `recordAttempt`-before-audio — data/UI first, audio/transitions second. PART-023 + feedback/SKILL.md ordering priority 0.
+
+**Anti-pattern — bar updated after the await:**
+
+```javascript
+// WRONG — Victory renders with "8/9" on the final round
+async function onRoundComplete() {
+  await FeedbackManager.sound.play('all_correct', { ... });
+  progressBar.update(gameState.currentRound, gameState.lives);   // too late
+  if (lastRound) endGame('victory');
+}
+```
+
+**Correct — bar updated first:**
+
+```javascript
+async function onRoundComplete() {
+  progressBar.update(gameState.currentRound, Math.max(0, gameState.lives));   // first
+  await FeedbackManager.sound.play('all_correct', { ... });                    // then SFX
+  if (lastRound) endGame('victory');                                           // then transition
+}
+```
+
+### Preview timer sync — the game must render its own timer; do NOT rely on PreviewScreen mirroring
+
+`timerConfig` and `timerInstance` on `previewScreen.show(...)` drive PreviewScreen's **internal** preview-phase countdown only. The current PreviewScreen CDN (`packages/components/preview-screen/index.js`) does **NOT** mirror `timerInstance` into `#previewTimerText` or any other header element during gameplay — earlier skill text claiming "PreviewScreen mirrors the TimerComponent each frame" is wrong and must not be followed.
+
+To render the game's TimerComponent during gameplay:
+
+1. **Mount `<div id="timer-container">` as a direct child of `#mathai-preview-slot`**, NOT inside `.mathai-preview-header` or `.mathai-preview-header-center`. Keeping it out of the header's flex flow is what makes centering stable regardless of left/right slot widths.
+2. **Make `#mathai-preview-slot` a positioning context** — add `#mathai-preview-slot { position: relative; }` in game CSS.
+3. **Absolute-center the timer at top** — matches the canonical React `TimerComponent`'s `showInActionBar: true` styles verbatim:
+   ```css
+   #timer-container {
+     position: absolute;
+     top: 1rem;
+     left: 50%;
+     transform: translateX(-50%);
+     z-index: 50;
+     pointer-events: none;
+   }
+   #timer-container > * { pointer-events: auto; }
+   ```
+4. **Override the TimerComponent's hard-coded inline styles.** Its `render()` sets `.timer-display { width: 320px; height: 41px; font-size: 24px; color: #000FFF }` which is too wide for the header and uses the wrong colour. In game CSS:
+   ```css
+   #timer-container .timer-wrapper { padding: 0 !important; margin: 0 !important; }
+   #timer-container .timer-display {
+     width: auto !important;
+     height: auto !important;
+     padding: 0 !important;
+     font-size: 16px !important;
+     font-weight: 700 !important;
+     color: var(--mathai-primary) !important;
+     font-family: var(--mathai-font-family) !important;
+   }
+   ```
+5. **Hide the CDN's empty `#previewTimerText` span** so it doesn't occupy header space:
+   ```css
+   #previewTimerText { display: none !important; }
+   ```
+6. `new TimerComponent('timer-container', { timerType, format, startTime, endTime, autoStart: false })` per PART-006. Call `timer.start()` in `startGameAfterPreview`. Pause/resume from the VisibilityTracker `onInactive` / `onResume` callbacks with `{ fromVisibilityTracker: true }`.
+
+**Anti-patterns (all seen in matching-doubles build, April 2026):**
+
+- ❌ Mounting `#timer-container` with `display: none` expecting PreviewScreen to mirror text into the header — it doesn't; the timer runs invisibly.
+- ❌ Mounting `#timer-container` inside `.mathai-preview-header-center` — the TimerComponent's hardcoded 320px width fights the flex slot sizing and pushes `.mathai-preview-header-right` (score/star) off-screen on 375-480px viewports.
+- ❌ Omitting the `.timer-display` width/height/colour overrides — timer renders as a huge blue block.
 
 ### Audio permission gate
 

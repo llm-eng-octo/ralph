@@ -350,27 +350,7 @@
       font-size: 10px;
     }
 
-    /* ====== Paused overlay ====== */
-    #pause-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(20, 10, 40, 0.68);
-      z-index: 900;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      color: var(--mathai-white);
-      text-align: center;
-      padding: 24px;
-    }
-    #pause-overlay.visible { display: flex; }
-    .pause-card {
-      background: var(--mathai-white);
-      color: var(--mathai-primary);
-      padding: 22px 24px;
-      border-radius: var(--mathai-border-radius);
-      min-width: 220px;
-    }
+    /* Pause popup is rendered by VisibilityTracker's built-in PopupComponent */
     .pause-card h2 {
       font-size: 20px;
       margin-bottom: 14px;
@@ -469,12 +449,6 @@
 <body>
   <div id="app" data-phase="preview" data-score="0" data-lives="3" data-round="0">
     <button type="button" id="btn-start" data-testid="btn-start" class="hidden" aria-hidden="true" tabindex="-1">Start</button>
-  </div>
-  <div id="pause-overlay" role="dialog" aria-modal="true" aria-label="Game paused">
-    <div class="pause-card">
-      <h2>Paused</h2>
-      <button type="button" class="pause-resume" id="pause-resume-btn">Resume</button>
-    </div>
   </div>
   <div id="results-screen" class="hidden"></div>
   <div id="sts-live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
@@ -2039,8 +2013,7 @@
       if (signalCollector) {
         try { signalCollector.pause(); signalCollector.recordCustomEvent('visibility_hidden', {}); } catch(e) {}
       }
-      var po = document.getElementById('pause-overlay');
-      if (po) po.classList.add('visible');
+      /* Pause popup rendered by VisibilityTracker's built-in PopupComponent — no manual overlay */
     }
     function onVisibilityRestored() {
       gameState.visibilityPaused = false;
@@ -2049,8 +2022,6 @@
       if (signalCollector) {
         try { signalCollector.resume(); signalCollector.recordCustomEvent('visibility_visible', {}); } catch(e) {}
       }
-      var po = document.getElementById('pause-overlay');
-      if (po) po.classList.remove('visible');
     }
 
     /* Suppress touchmove while dragging */
@@ -2092,6 +2063,11 @@
         } catch(e) {}
 
         visibilityTracker = new VisibilityTracker({
+          popupProps: {
+            title: 'Game Paused',
+            description: 'Tap Resume to continue.',
+            primaryText: 'Resume'
+          },
           onInactive: onVisibilityHidden,
           onResume: onVisibilityRestored
         });

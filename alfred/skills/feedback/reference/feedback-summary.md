@@ -62,7 +62,7 @@ What plays depends on the **game type** and the **moment**.
 | Gameplay round renders                       | Optional question TTS (non-blocking)                                                        |
 | Student selects correct answer (single-step) | Immediately — SFX → TTS sequential                                                          |
 | Student matches correct pair (multi-step)    | Immediately — SFX fire-and-forget                                                           |
-| All sub-actions in round complete            | Immediately — round-complete SFX awaited                                                    |
+| All sub-actions in round complete            | FIRST: `progressBar.update(currentRound, lives)` synchronously; THEN await round-complete SFX; THEN `nextRound`/`endGame`. Paints `N/N` on the final round before Victory renders (PART-023). |
 | Student selects wrong answer (single-step)   | Immediately — SFX → TTS sequential                                                          |
 | Student makes wrong match (multi-step)       | Immediately — SFX fire-and-forget                                                           |
 | Last life lost                               | Skip wrong SFX, trigger game-over flow                                                      |
@@ -227,22 +227,26 @@ Pause and resume are **only** triggered by visibility changes (tab switch, scree
 ### Pause (tab hidden / screen lock):
 
 ```javascript
+// Inside VisibilityTracker's onInactive callback:
 FeedbackManager.sound.pause();
 FeedbackManager.stream.pauseAll();
 timer.pause({ fromVisibilityTracker: true });
-// Show "Game Paused" overlay
+if (previewScreen) previewScreen.pause();
+// Pause overlay is shown by VisibilityTracker automatically — do NOT render your own.
 ```
 
 ### Resume (tab visible / return):
 
 ```javascript
+// Inside VisibilityTracker's onResume callback:
 FeedbackManager.sound.resume();
 FeedbackManager.stream.resumeAll();
 timer.resume({ fromVisibilityTracker: true });
-// Dismiss pause overlay, continue gameplay
+if (previewScreen) previewScreen.resume();
+// VisibilityTracker dismisses its own popup — do NOT hide a custom overlay here.
 ```
 
-**Key:** Pause/resume applies to both static audio (`sound`) and dynamic TTS streams (`stream`). Timer also pauses/resumes in sync.
+**Key:** Pause/resume applies to both static audio (`sound`) and dynamic TTS streams (`stream`). Timer also pauses/resumes in sync. The pause/resume popup is rendered by `VisibilityTracker`'s built-in `PopupComponent` (default `autoShowPopup: true`) — customize with `popupProps`, never replace with a game-local overlay.
 
 ---
 
@@ -260,7 +264,7 @@ When two feedback moments conflict, one wins and one is skipped or stopped:
 | `game_complete` postMessage vs end-game audio | **postMessage**          | Sent before audio starts                |
 | Round-complete audio vs next round            | **Round-complete audio** | Next round waits until audio finishes   |
 | recordAttempt vs feedback audio               | **recordAttempt**        | Attempt logged before any audio plays   |
-| progressBar.update vs feedback audio          | **progressBar**          | UI updates before audio plays           |
+| progressBar.update vs feedback audio          | **progressBar**          | UI updates before audio plays. Applies to per-answer feedback AND to round-complete: bar bumps **first**, then the awaited round-complete SFX runs. Otherwise the final round's Victory screen lags the bar at `N-1/N` (matching-doubles, April 2026). |
 
 ### Priority Ordering (highest to lowest):
 
