@@ -19,7 +19,7 @@ const progressBar = new ProgressBarComponent({
 - First arg is rounds **completed**, NOT the current round number.
 - On start: `update(0, totalLives)`.
 - Entering round N: reflects prior state → typically `update(N-1, livesLeft)` (already satisfied by the previous correct feedback).
-- After correct feedback on round N: `update(N, livesLeft)`.
+- **Round-complete bump — MUST be the first action in the round-complete handler, BEFORE any awaited SFX/subtitle/VO, BEFORE `nextRound`, BEFORE `endGame('victory')`:** `update(gameState.currentRound, Math.max(0, gameState.lives))`. Firing the bar bump synchronously when the last pair/answer locks keeps the visual fill in sync with the locked state. On the final round this paints `N/N` *before* the victory screen renders — otherwise the bar sticks at `N-1/N` on victory (matching-doubles regression, April 2026). Same ordering principle as `recordAttempt`-before-feedback-audio: UI/data events update first, audio/transitions play second.
 - After wrong feedback with lives remaining: `update(roundsCompleted, livesLeft-1)` (hearts decrement only; round count unchanged).
 - On restart entry: `update(0, totalLives)` (reset).
 - Second arg MUST be clamped: `Math.max(0, lives)` — a negative value throws RangeError inside the heart renderer.
@@ -64,7 +64,7 @@ See `warehouse/parts/PART-023-progress-bar.md` for full detail.
 - [ ] `createProgressBar()` helper exists (called at init and restart)
 - [ ] `ProgressBarComponent` instantiated with `totalRounds` and `totalLives`
 - [ ] `progressBar.update(0, lives)` called at init (NOT 1)
-- [ ] `update()` called after each round with correct completed count
+- [ ] `update(currentRound, lives)` called as the FIRST action in the round-complete handler (before awaited round-complete SFX, before `nextRound`/`endGame`) — final round must paint `N/N` on Victory, not `N-1/N`
 - [ ] `destroy()` called before recreation in `createProgressBar()`
 - [ ] ScreenLayout has `progressBar: true` in slots (preview-wrapper) or sections (legacy)
 - [ ] ProgressBar recreated on `handlePostMessage` and `restartGame()`

@@ -7,8 +7,50 @@
 ## HTML Required
 
 ```html
-<div id="timer-container"></div>
+<!-- Header must be position: relative so the absolute timer anchors to it -->
+<header class="game-header">
+  <div class="header-left">‹ avatar Q1</div>     <!-- normal flex flow -->
+  <div id="timer-container"></div>                 <!-- absolutely positioned -->
+  <div class="header-right">0/3 ⭐</div>           <!-- normal flex flow -->
+</header>
 ```
+
+## CSS Required (MANDATORY — timer is always absolute, top-center of header)
+
+```css
+.game-header {
+  position: relative; /* REQUIRED — anchor for the absolute timer */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#timer-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  pointer-events: none; /* header siblings (lives/score) stay clickable */
+}
+#timer-container > * { pointer-events: auto; }
+```
+
+**Rule:** `#timer-container` is ALWAYS `position: absolute` and ALWAYS centered in the header (horizontally and vertically). Never place the timer inline in the header's flex/grid flow — other header items (lives, score, close button) keep their natural left/right placement and the timer floats in the visual center above them.
+
+**Why:** If the timer is a flex child of the header, the left group (back button, avatar, question label) and right group (score, lives, star) are almost never equal widths. `justify-content: space-between` distributes children by gap, not by visual center, so the timer gets pushed toward whichever side is narrower. In the common layout the left group is wider than the right group, so the timer visibly drifts **toward the right**. Absolute positioning with `translate(-50%, -50%)` is the only way to keep the timer in the true visual center regardless of sibling widths.
+
+**❌ Anti-pattern (the "timer inclined toward the right" bug):**
+
+```css
+/* WRONG — timer is a flex child, drifts off-center */
+#timer-container {
+  /* no position: absolute */
+  /* relies on flex/grid to center — breaks when sibling widths differ */
+}
+```
+
+All four properties are required together on `#timer-container`: `position: absolute`, `top: 50%`, `left: 50%`, `transform: translate(-50%, -50%)`. Missing any one of them breaks centering. Do not substitute `margin: auto`, `justify-self: center`, or `grid-column: 2` — these only work when sibling widths are equal, which cannot be guaranteed.
 
 ## Code
 
@@ -119,7 +161,11 @@ timer = new TimerComponent('timer-container', { timerType: 'increase', startTime
 
 ## Verification
 
-- [ ] `<div id="timer-container"></div>` exists in HTML
+- [ ] `<div id="timer-container"></div>` exists in HTML, inside the header element
+- [ ] Header (`.game-header` or equivalent) has `position: relative`
+- [ ] `#timer-container` has `position: absolute` + `top: 50%` + `left: 50%` + `transform: translate(-50%, -50%)`
+- [ ] Timer renders in the visual top-center of the header regardless of header width/content
+- [ ] Timer is NOT inside the header's flex/grid flow (does not shift other header items)
 - [ ] `new TimerComponent('timer-container', {...})` called
 - [ ] `timerType` set correctly for game needs
 - [ ] `onEnd` calls `endGame()` (if countdown)

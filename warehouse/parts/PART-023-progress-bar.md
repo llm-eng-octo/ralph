@@ -52,18 +52,27 @@ progressBar.update(0, gameState.lives);
 | `update(roundsCompleted, lives)` | number, number | Update progress display |
 | `destroy()` | — | Cleanup when game ends or restarts |
 
-## CRITICAL: update() Parameter Is Rounds COMPLETED
+## CRITICAL: update() Parameter Is Rounds COMPLETED — Progress MUST Start at 0
+
+**Symptom of the bug:** on first render the bar shows "1/N" (or the first segment already filled), making it feel like the player has already completed one round before they even started. This is always caused by passing `1` (or `currentRound` when `currentRound` is 1-indexed) to `update()` at init instead of `0`.
 
 ```javascript
 // WRONG — passing currentRound (1) on a totalRounds=1 game shows "1/1" = 100% complete
 progressBar.update(1, lives);  // Shows full bar immediately!
 
+// WRONG — skipping the init update() call; component may paint 1/N by default on first render
+progressBar = new ProgressBarComponent({ totalRounds: 5, totalLives: 3 });
+// (no update() call here — BAD)
+
 // CORRECT — pass 0 at game start (0 rounds completed yet)
-progressBar.update(0, lives);  // Shows "Round 0/1"
+progressBar = new ProgressBarComponent({ totalRounds: 5, totalLives: 3 });
+progressBar.update(0, lives);  // MANDATORY — forces "Round 0/5" on first paint
 
 // After round 1 is done:
-progressBar.update(1, lives);  // Now shows "Round 1/1"
+progressBar.update(1, lives);  // Now shows "Round 1/5"
 ```
+
+**Rule:** the very next line after `new ProgressBarComponent(...)` MUST be `progressBar.update(0, gameState.totalLives)`. Same after `createProgressBar()` is re-called on restart / postMessage.
 
 ## createProgressBar() Helper — Required Pattern
 

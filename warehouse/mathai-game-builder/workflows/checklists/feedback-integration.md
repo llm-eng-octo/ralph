@@ -16,6 +16,32 @@
 
 ⚠️ **Dynamic Audio API (ONLY THIS):** `https://asia-south1-mathai-449208.cloudfunctions.net/generate-audio?text=YOUR_MESSAGE`
 
+🚨 **SUBTITLES MUST NEVER TRUNCATE** — applies to every call site (static audio, `playDynamicFeedback`, streaming audio, manual `SubtitleComponent.show()`, transition screens, story playback). Full audio text must always be visible.
+
+- Configure the singleton ONCE at init (right after `FeedbackManager.init()`):
+  ```javascript
+  SubtitleComponent.configure({
+    position: { bottom: '60px', maxWidth: 'min(92vw, 720px)' }
+  });
+  ```
+  The CDN default of `280px` is too narrow for dynamic TTS and causes visible truncation.
+- Paste this CSS override into the game's `<style>` block so ambient styles can't clip the subtitle:
+  ```css
+  [class*="subtitle"], [id*="subtitle"],
+  [class*="Subtitle"], [id*="Subtitle"],
+  [class*="mathai-subtitle"] {
+    max-width: min(92vw, 720px) !important;
+    width: auto !important; height: auto !important; max-height: none !important;
+    white-space: normal !important;
+    overflow: visible !important; text-overflow: clip !important;
+    display: block !important;
+    -webkit-line-clamp: unset !important; -webkit-box-orient: unset !important; line-clamp: unset !important;
+    word-break: break-word !important; overflow-wrap: anywhere !important;
+    line-height: 1.4 !important;
+  }
+  ```
+- `subtitle` text MUST equal the audio text verbatim. Never `.slice()`, summarize, add `…`, or replace a long sentence with a shorter label.
+
 ⚠️ **API Returns 2 Types:**
 
 - **JSON (cached):** Use `FeedbackManager.sound` (preload + play)
@@ -43,6 +69,9 @@ URLs for audio and stickers can ONLY come from these sources:
 - Call `SubtitleComponent.show()` or `StickerComponent.show()` directly
 - Use string for sticker (must be object)
 - Generate or fabricate audio/sticker URLs
+- Truncate, shorten, or summarize the `subtitle` text — it must match the audio text verbatim
+- Leave `SubtitleComponent` at its 280px default (long TTS will visibly clip)
+- Set a fixed short `duration` that hides the subtitle before the audio ends
 
 ## Quick Start (Static Audio)
 

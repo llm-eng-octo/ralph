@@ -2,85 +2,71 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Matching Doubles</title>
 
-  <!-- ====== 1. SentryConfig package (MUST be first script) ====== -->
-  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
-
-  <!-- ====== 2. initSentry() definition (inline) ====== -->
-  <script>
-    function initSentry() {
-      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
-      if (typeof Sentry === 'undefined') return;
-      Sentry.init(SentryConfig.getConfig({
-        release: 'matching-doubles@1.0.0'
-      }));
-    }
-  </script>
-
-  <!-- ====== 3. Sentry SDK (3 scripts, NO integrity attribute) ====== -->
-  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
-  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
-  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
-
-  <!-- ====== 4. Initialize Sentry on load ====== -->
-  <script>window.addEventListener('load', initSentry);</script>
-
-  <!-- ====== 5-7. Game CDN packages (exact order: feedback-manager, components, helpers) ====== -->
+  <!-- ====== Game CDN packages (mandatory order: feedback-manager, components, helpers) ====== -->
   <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
   <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
   <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
 
   <style>
-    /* ====== 1. :root variables ====== */
     :root {
       --mathai-game-max-width: 480px;
       --mathai-stack-gap: 10px;
-      --mathai-game-padding-top: 54px;
+      --mathai-game-padding-top: 20px;
       --mathai-primary: #270f36;
       --mathai-level-text: #270F63;
       --mathai-purple: #9B51E0;
-      --mathai-green: #219653;
       --mathai-blue: #667eea;
       --mathai-red: #E35757;
       --mathai-orange: #F2994A;
+      --mathai-amber: #E8A317;
       --mathai-yellow: #FFDE49;
+      --mathai-soft-grey: #7A8088;
       --mathai-white: #ffffff;
       --mathai-gray: #666666;
       --mathai-light-gray: #f5f5f5;
+      --mathai-card-bg: #FFF8EC;
       --mathai-disabled-gray: #E0E0E0;
-      --mathai-text-primary: #4a4a4a;
+      --mathai-text-primary: #2A2438;
+      --mathai-text-muted: #5A5666;
       --mathai-border-gray: #e0e0e0;
-      --mathai-cell-bg-green: #D9F8D9;
-      --mathai-cell-bg-yellow: #FCF6D7;
-      --mathai-cell-bg-red: #FFD9D9;
-      --mathai-cell-bg-grey: #E0E0E0;
-      --mathai-cell-border-green: #27ae60;
-      --mathai-cell-border-red: #e74c3c;
+      --mathai-cell-bg-green: #E5F8EE;
+      --mathai-cell-bg-amber: #FFF1D6;
+      --mathai-cell-bg-grey: #ECEEF1;
+      --mathai-cell-bg-red: #FFE3E3;
+      --mathai-cell-border-green: #22A06B;
+      --mathai-cell-border-amber: #E8A317;
+      --mathai-cell-border-grey: #7A8088;
+      --mathai-cell-border-red: #E35757;
+      --mathai-accent-blue: #4A6FFF;
+      --mathai-tile-bg: #FFFFFF;
+      --mathai-tile-border: #D9DCE3;
+      --mathai-tile-selected-bg: #E8EEFF;
+      --mathai-tile-selected-border: #4A6FFF;
       --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
-      --mathai-font-size-title: 32px;
+      --mathai-font-size-title: 26px;
       --mathai-font-size-subtitle: 18px;
       --mathai-font-size-button: 16px;
       --mathai-font-size-body: 16px;
       --mathai-font-size-small: 14px;
-      --mathai-font-size-large: 24px;
-      --mathai-padding-large: 56px 40px;
-      --mathai-padding-medium: 16px 24px;
+      --mathai-font-size-large: 22px;
+      --mathai-font-size-tile: 22px;
+      --mathai-padding-large: 28px 20px;
+      --mathai-padding-medium: 16px 20px;
       --mathai-padding-small: 10px;
-      --mathai-border-radius: 24px;
+      --mathai-border-radius: 20px;
       --mathai-border-radius-small: 8px;
-      --mathai-border-radius-button: 10px;
-      --mathai-border-radius-card: 12px;
-      --mathai-success: #219653;
+      --mathai-border-radius-button: 12px;
+      --mathai-border-radius-card: 16px;
+      --mathai-success: #22A06B;
       --mathai-error: #E35757;
-      --mathai-warning: #F2994A;
+      --mathai-warning: #E8A317;
     }
 
-    /* ====== 2. Reset ====== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* ====== 3. html, body ====== */
     html, body {
       width: 100%;
       overflow-x: hidden;
@@ -98,7 +84,6 @@
       line-height: 1.5;
     }
 
-    /* ====== 4. #app ====== */
     #app {
       width: 100%;
       max-width: var(--mathai-game-max-width);
@@ -107,8 +92,6 @@
       display: flex;
       flex-direction: column;
       position: relative;
-      /* NEVER overflow:hidden here — clips content that exceeds viewport
-         and kills both wheel and touch scroll. Use overflow-x: clip. */
       overflow-x: clip;
       padding-top: env(safe-area-inset-top, 0px);
       padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -123,13 +106,11 @@
       #app { min-height: 100vh; }
     }
 
-    /* Preview-wrapper scroll compatibility: the preview body must own
-       vertical scrolling so gameplay surfaces still pan correctly. */
     #mathai-preview-slot {
       height: 100dvh;
       overflow: hidden;
+      position: relative; /* positioning context for absolute-centered #timer-container */
     }
-
     #mathai-preview-slot .mathai-preview-body {
       height: 100dvh;
       box-sizing: border-box;
@@ -138,11 +119,10 @@
       -webkit-overflow-scrolling: touch;
     }
 
-    /* ====== 5. Hidden utility ====== */
     .hidden { display: none !important; }
 
-    /* ====== 6. Gameplay styles ====== */
-    .match-board {
+    /* ====== Game-specific styles ====== */
+    .md-stack {
       width: 100%;
       padding: 12px 16px 24px;
       display: flex;
@@ -150,190 +130,161 @@
       align-items: stretch;
     }
 
-    .match-columns {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-gap: 16px;
-      width: 100%;
-      max-width: 420px;
-      margin: 0 auto;
+    .md-prompt-card {
+      background: var(--mathai-card-bg);
+      border: 2px solid #F0E1C0;
+      border-radius: var(--mathai-border-radius-card);
+      padding: 14px 16px;
+      text-align: center;
+      margin-bottom: 14px;
     }
 
-    .match-col {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .match-col-header {
+    .md-stage-chip {
+      display: inline-block;
       font-size: var(--mathai-font-size-small);
       font-weight: 700;
-      color: var(--mathai-gray);
-      text-align: center;
+      color: var(--mathai-text-muted);
+      background: var(--mathai-light-gray);
+      border-radius: 999px;
+      padding: 4px 12px;
+      margin-bottom: 8px;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 10px;
     }
 
-    .match-tile-stack {
+    .md-prompt {
+      font-size: var(--mathai-font-size-subtitle);
+      font-weight: 700;
+      color: var(--mathai-primary);
+      line-height: 1.35;
+    }
+
+    .md-grid {
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: flex-start;
+      width: 100%;
+      margin-top: 4px;
+    }
+
+    .md-col {
       display: flex;
       flex-direction: column;
       align-items: stretch;
+      flex: 1 1 0;
+      min-width: 0;
+      max-width: 180px;
     }
 
-    .match-tile {
-      min-height: 56px;
-      min-width: 44px;
+    .md-col-left {
+      margin-right: 8px;
+    }
+
+    .md-col-right {
+      margin-left: 8px;
+    }
+
+    .md-col-label {
+      text-align: center;
+      font-size: var(--mathai-font-size-small);
+      font-weight: 700;
+      color: var(--mathai-text-muted);
+      margin-bottom: 8px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .md-tile {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--mathai-white);
-      border: 2px solid var(--mathai-border-gray);
-      border-radius: var(--mathai-border-radius-card);
-      font-size: var(--mathai-font-size-large);
-      font-weight: 700;
+      width: 100%;
+      min-height: 54px;
+      padding: 10px 8px;
+      margin-bottom: 10px;
+      border: 2px solid var(--mathai-tile-border);
+      background: var(--mathai-tile-bg);
       color: var(--mathai-text-primary);
+      border-radius: var(--mathai-border-radius-button);
+      font-family: var(--mathai-font-family);
+      font-size: var(--mathai-font-size-tile);
+      font-weight: 800;
       cursor: pointer;
       touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
-      padding: 10px 12px;
-      text-align: center;
-      line-height: 1.2;
-      transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
-      user-select: none;
+      -webkit-appearance: none;
+      appearance: none;
       -webkit-user-select: none;
+      user-select: none;
+      transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
     }
 
-    .match-tile + .match-tile {
-      margin-top: 10px;
+    .md-tile:last-child {
+      margin-bottom: 0;
     }
 
-    .match-tile:active {
+    .md-tile:active {
       transform: scale(0.97);
     }
 
-    .match-tile.selected {
-      background: var(--mathai-cell-bg-yellow);
-      border-color: var(--mathai-orange);
-      color: var(--mathai-primary);
-      transform: scale(1.03);
-      box-shadow: 0 4px 12px rgba(242, 153, 74, 0.25);
+    .md-tile.selected {
+      background: var(--mathai-tile-selected-bg);
+      border-color: var(--mathai-tile-selected-border);
+      color: var(--mathai-accent-blue);
+      box-shadow: 0 0 0 3px rgba(74, 111, 255, 0.18);
     }
 
-    .match-tile.selected-correct,
-    .match-tile.locked {
+    .md-tile.locked {
       background: var(--mathai-cell-bg-green);
       border-color: var(--mathai-cell-border-green);
-      color: var(--mathai-green);
-      pointer-events: none;
+      color: var(--mathai-success);
+      cursor: default;
+      opacity: 1;
+      animation: mdPulse 0.35s ease;
+    }
+    .md-tile.locked:active {
+      transform: none;
     }
 
-    .match-tile.locked {
-      opacity: 0.95;
-    }
-
-    .match-tile.locked-pulse {
-      animation: lockPulse 0.28s ease;
-    }
-
-    .match-tile.selected-wrong {
+    .md-tile.wrong {
       background: var(--mathai-cell-bg-red);
       border-color: var(--mathai-cell-border-red);
-      color: var(--mathai-red);
+      color: var(--mathai-error);
+      animation: mdShake 0.55s ease;
     }
 
-    .match-tile.shake-wrong {
-      animation: shake 0.5s ease;
-    }
-
-    .match-tile.disabled {
-      opacity: 0.6;
+    .md-tile[disabled],
+    .md-tile.disabled {
       pointer-events: none;
-      cursor: not-allowed;
     }
 
-    .match-tile.fade-in {
-      animation: fadeIn 0.35s ease;
-    }
-
-    .round-stage-chip {
-      align-self: center;
-      margin-bottom: 10px;
-      padding: 4px 12px;
-      border-radius: 999px;
-      background: var(--mathai-light-gray);
-      color: var(--mathai-gray);
-      font-size: var(--mathai-font-size-small);
-      font-weight: 600;
-      letter-spacing: 0.03em;
-    }
-
-    /* ====== 7. Landscape lock overlay ====== */
-    @media screen and (orientation: landscape) and (max-height: 500px) {
-      body::before {
-        content: 'Please rotate your phone to portrait mode';
-        position: fixed;
-        inset: 0;
-        z-index: 99999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: var(--mathai-white, #ffffff);
-        color: var(--mathai-primary, #270f36);
-        font-family: var(--mathai-font-family, system-ui, -apple-system, sans-serif);
-        font-size: var(--mathai-font-size-subtitle, 18px);
-        text-align: center;
-        padding: 24px;
-      }
-    }
-
-    /* ====== 8. Micro-animations ====== */
-    @keyframes scoreBounce {
-      0% { transform: scale(1); }
-      40% { transform: scale(1.3); }
+    @keyframes mdPulse {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.08); }
       100% { transform: scale(1); }
     }
 
-    @keyframes shake {
+    @keyframes mdShake {
       0%, 100% { transform: translateX(0); }
-      20% { transform: translateX(-6px); }
-      40% { transform: translateX(6px); }
-      60% { transform: translateX(-4px); }
-      80% { transform: translateX(4px); }
+      15%      { transform: translateX(-6px); }
+      30%      { transform: translateX(6px); }
+      45%      { transform: translateX(-5px); }
+      60%      { transform: translateX(5px); }
+      75%      { transform: translateX(-3px); }
+      90%      { transform: translateX(3px); }
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(12px); }
-      to { opacity: 1; transform: translateY(0); }
+    @keyframes mdFadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
-    @keyframes starPop {
-      0% { transform: scale(0); }
-      60% { transform: scale(1.3); }
-      100% { transform: scale(1); }
+    .md-tile.fresh {
+      animation: mdFadeIn 0.2s ease;
     }
 
-    @keyframes heartBreak {
-      0% { transform: scale(1); opacity: 1; }
-      30% { transform: scale(1.2); opacity: 1; }
-      100% { transform: scale(0.5); opacity: 0; color: var(--mathai-red); }
-    }
-
-    @keyframes lockPulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.08); }
-      100% { transform: scale(1); }
-    }
-
-    .score-bounce { animation: scoreBounce 0.4s ease; }
-    .shake-wrong { animation: shake 0.5s ease; }
-    .heart-break { animation: heartBreak 0.6s ease forwards; }
-    .star-earned { animation: starPop 0.4s ease forwards; }
-    .fade-in { animation: fadeIn 0.35s ease; }
-
-    /* ====== 9. Touch targets ====== */
+    /* Touch targets */
     button,
-    .match-tile,
     [role="button"],
     input[type="submit"] {
       min-height: 44px;
@@ -341,33 +292,75 @@
       touch-action: manipulation;
     }
 
-    /* ====== 10. Gesture suppression ====== */
-    input, textarea {
-      -webkit-user-select: text;
-      user-select: text;
-    }
-
-    /* Timer container (mounted inside transition/preview header if present) */
+    /* Timer — absolute-positioned at top-center of the preview slot, independent of the
+       preview header's flex flow. Matches the canonical React TimerComponent pattern when
+       `showInActionBar: true` (position:absolute; top:0.5rem; left:50%; translateX(-50%)). */
     #timer-container {
-      display: inline-flex;
+      position: absolute;
+      top: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      pointer-events: none;
+    }
+    #timer-container > * { pointer-events: auto; }
+    #timer-container .timer-wrapper { padding: 0 !important; margin: 0 !important; }
+    #timer-container .timer-display {
+      width: auto !important;
+      height: auto !important;
+      padding: 0 !important;
+      font-size: 16px !important;
+      font-weight: 700 !important;
+      color: var(--mathai-primary) !important;
+      font-family: var(--mathai-font-family) !important;
+    }
+    /* Hide CDN's empty preview-timer-text span to avoid visual duplication */
+    #previewTimerText { display: none !important; }
+
+    /* Landscape lock */
+    .md-landscape-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      z-index: 9999;
       align-items: center;
       justify-content: center;
+      text-align: center;
+      padding: 24px;
+      font-size: var(--mathai-font-size-subtitle);
+      font-weight: 600;
+    }
+    @media screen and (max-height: 500px) and (orientation: landscape) {
+      .md-landscape-overlay { display: flex; }
+    }
+
+    @media (max-width: 360px) {
+      .md-tile { font-size: 18px; min-height: 48px; padding: 8px 6px; }
     }
   </style>
 </head>
 <body>
-  <div id="app" data-phase="start_screen" data-score="0" data-lives="3"></div>
+  <div id="app" data-phase="start_screen" data-score="0" data-round="1" data-lives="3"></div>
+
+  <div class="md-landscape-overlay">
+    <div>
+      <div style="font-size: 36px; margin-bottom: 8px;">&#x1F4F1;</div>
+      Please rotate to portrait to play
+    </div>
+  </div>
 
   <script>
-    /* ====== 1. gameState initialization ====== */
+    /* ====== gameState ====== */
     var gameState = {
       gameId: 'matching-doubles',
       phase: 'start_screen',
-      currentRound: 0,
+      currentRound: 1,
       totalRounds: 9,
-      score: 0,
-      lives: 3,
       totalLives: 3,
+      lives: 3,
+      score: 0,
       attempts: [],
       events: [],
       startTime: null,
@@ -385,26 +378,23 @@
       },
       roundStartTime: null,
       correctAnswer: null,
-      streak: 0,
-      consecutiveWrongs: 0,
       previewResult: null,
       stars: 0,
-      /* Matching-doubles specific */
-      selectedLeftIndex: null,
-      selectedRightIndex: null,
-      lockedLeft: {},          /* left index -> true once matched */
-      lockedRight: {},         /* right index -> true once matched */
-      pairsMatchedRound: 0,    /* resets per round */
-      pairsMatchedTotal: 0,    /* across full session */
-      wrongMatchesRound: 0,
-      wrongMatchesTotal: 0,
-      stage: 1
+      /* matching-doubles specific */
+      lockedPairs: {},          /* { "<leftValue>": <rightValue>, ... } — current round only */
+      selectedLeft: null,       /* left value currently selected (or null) */
+      selectedRight: null,      /* right value currently selected (or null) */
+      totalPairsMatched: 0,     /* cumulative across all rounds */
+      totalWrongMatches: 0,     /* cumulative across all rounds */
+      finalTimeSeconds: null,   /* set in endGame */
+      roundsData: [],           /* [{round, attempts, wrongAttempts, misconceptions}] */
+      currentRoundAttempts: 0,
+      currentRoundWrong: 0,
+      currentRoundMisconceptions: []
     };
-
-    /* ====== 2. window.gameState ====== */
     window.gameState = gameState;
 
-    /* ====== 3. fallbackContent (full 9-round content set from spec) ====== */
+    /* ====== fallbackContent (verbatim from spec Content Structure) ====== */
     var fallbackContent = {
       previewInstruction:
         '<p><strong>Match the doubles!</strong> Tap a number on the left, then tap its <em>double</em> (&times;2) on the right. Finish all 9 rounds before you run out of 3 lives. The faster you finish, the more stars you earn!</p>',
@@ -416,180 +406,154 @@
         /* Stage 1: Warm-up (no distractors) */
         {
           round: 1, stage: 1, type: 'A',
-          left: [3, 5, 8],
+          left:  [3, 5, 8],
           right: [16, 6, 10],
           pairs: { '3': 6, '5': 10, '8': 16 },
           misconception_tags: {}
         },
         {
           round: 2, stage: 1, type: 'A',
-          left: [4, 7, 9],
+          left:  [4, 7, 9],
           right: [18, 8, 14],
           pairs: { '4': 8, '7': 14, '9': 18 },
           misconception_tags: {}
         },
         {
           round: 3, stage: 1, type: 'A',
-          left: [2, 6, 9],
+          left:  [2, 6, 9],
           right: [18, 4, 12],
           pairs: { '2': 4, '6': 12, '9': 18 },
           misconception_tags: {}
         },
-
-        /* Stage 2: Standard (bigger numbers, 4 pairs) */
+        /* Stage 2: Standard */
         {
           round: 4, stage: 2, type: 'A',
-          left: [6, 11, 15, 22],
+          left:  [6, 11, 15, 22],
           right: [44, 12, 30, 22],
           pairs: { '6': 12, '11': 22, '15': 30, '22': 44 },
           misconception_tags: {}
         },
         {
           round: 5, stage: 2, type: 'A',
-          left: [9, 13, 18, 25],
+          left:  [9, 13, 18, 25],
           right: [36, 18, 50, 26],
           pairs: { '9': 18, '13': 26, '18': 36, '25': 50 },
           misconception_tags: {}
         },
         {
           round: 6, stage: 2, type: 'A',
-          left: [8, 14, 20, 27],
+          left:  [8, 14, 20, 27],
           right: [28, 40, 54, 16],
           pairs: { '8': 16, '14': 28, '20': 40, '27': 54 },
           misconception_tags: {}
         },
-
-        /* Stage 3: Confusability (5 pairs + misconception distractors) */
+        /* Stage 3: Confusability (distractors) */
         {
           round: 7, stage: 3, type: 'A',
-          left: [15, 18, 21, 24, 30],
+          left:  [15, 18, 21, 24, 30],
           right: [36, 17, 42, 60, 30, 48],
           pairs: { '15': 30, '18': 36, '21': 42, '24': 48, '30': 60 },
-          misconception_tags: {
-            '17': 'double-add-instead'
-          }
+          misconception_tags: { '17': 'double-add-instead' }
         },
         {
           round: 8, stage: 3, type: 'A',
-          left: [17, 23, 28, 35, 40],
+          left:  [17, 23, 28, 35, 40],
           right: [46, 29, 56, 80, 70, 34, 55],
           pairs: { '17': 34, '23': 46, '28': 56, '35': 70, '40': 80 },
-          misconception_tags: {
-            '29': 'double-next-number',
-            '55': 'double-off-by-one'
-          }
+          misconception_tags: { '29': 'double-next-number', '55': 'double-off-by-one' }
         },
         {
           round: 9, stage: 3, type: 'A',
-          left: [19, 26, 33, 42, 50],
+          left:  [19, 26, 33, 42, 50],
           right: [38, 52, 44, 66, 84, 100, 51],
           pairs: { '19': 38, '26': 52, '33': 66, '42': 84, '50': 100 },
-          misconception_tags: {
-            '44': 'double-add-instead',
-            '51': 'double-next-number'
-          }
+          misconception_tags: { '44': 'double-add-instead', '51': 'double-next-number' }
         }
       ]
     };
 
-    /* ====== 4. Module-scope vars ====== */
-    var timer = null;
+    /* ====== Module-scope vars ====== */
     var visibilityTracker = null;
     var signalCollector = null;
     var progressBar = null;
     var transitionScreen = null;
     var previewScreen = null;
+    var timer = null;
     var interactionManager = null;
-    var voGameStartPlayed = false;
 
-    /* ====== Sticker URLs ====== */
-    var STICKER_CORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
-    var STICKER_INCORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
-    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
-    var STICKER_LEVEL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
-    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    /* ====== Sticker URLs (from feedback/reference/feedbackmanager-api.md) ====== */
+    var STICKER_CORRECT  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_VICTORY  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
     var STICKER_COMPLETE_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
     var STICKER_COMPLETE_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
     var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
-    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+    var STICKER_RESTART  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
 
-    /* ====== 5. syncDOM ====== */
+    /* ====== syncDOM ====== */
     function syncDOM() {
       var app = document.getElementById('app');
       if (!app) return;
       app.setAttribute('data-phase', gameState.phase);
       app.setAttribute('data-score', gameState.score);
-      app.setAttribute('data-lives', gameState.lives);
       app.setAttribute('data-round', gameState.currentRound);
-      app.setAttribute('data-stage', gameState.stage);
-      app.setAttribute('data-pairs-matched-total', gameState.pairsMatchedTotal);
-      app.setAttribute('data-selected-left', gameState.selectedLeftIndex === null ? '' : String(gameState.selectedLeftIndex));
-      app.setAttribute('data-selected-right', gameState.selectedRightIndex === null ? '' : String(gameState.selectedRightIndex));
+      app.setAttribute('data-stage', getCurrentStage());
+      app.setAttribute('data-lives', gameState.lives);
+      try {
+        document.body.setAttribute('data-phase', gameState.phase);
+        document.body.setAttribute('data-lives', gameState.lives);
+      } catch (e) {}
     }
 
-    /* ====== 6. trackEvent ====== */
-    function trackEvent(type, data) {
-      gameState.events.push({
-        type: type,
-        timestamp: Date.now(),
-        data: data || {}
-      });
-    }
-
-    /* ====== 7. recordAttempt ====== */
-    function recordAttempt(roundIndex, userInput, correct, metadata) {
+    function getCurrentStage() {
       var rounds = getRounds();
-      var round = rounds[roundIndex];
-      var leftValue = metadata && (typeof metadata.left_value !== 'undefined') ? metadata.left_value : null;
-      var correctAnswer = null;
-      if (leftValue !== null && round && round.pairs) {
-        correctAnswer = round.pairs[String(leftValue)];
+      var idx = Math.max(0, Math.min(gameState.currentRound - 1, rounds.length - 1));
+      return rounds[idx] && rounds[idx].stage ? rounds[idx].stage : 1;
+    }
+
+    /* ====== trackEvent ====== */
+    function trackEvent(type, data) {
+      var evt = { event: type, timestamp: Date.now() };
+      if (data && typeof data === 'object') {
+        for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) evt[k] = data[k];
       }
+      gameState.events.push(evt);
+    }
+
+    /* ====== recordAttempt ====== */
+    function recordAttempt(data) {
+      var rIdx = gameState.currentRound;
       var attempt = {
         attempt_timestamp: Date.now(),
         time_since_start_of_game: gameState.startTime ? Date.now() - gameState.startTime : 0,
-        input_of_user: userInput,
-        correct: correct,
-        round_number: roundIndex + 1,
-        question_id: 'r' + (roundIndex + 1) + (leftValue !== null ? ('-p' + leftValue) : ''),
-        correct_answer: correctAnswer,
+        input_of_user: data.userAnswer,
+        correct: data.correct === true,
+        round_number: rIdx,
+        question_id: data.question_id || ('r' + rIdx + '_left_' + data.leftValue),
+        correct_answer: data.correctAnswer,
         response_time_ms: gameState.roundStartTime ? Date.now() - gameState.roundStartTime : 0,
-        misconception_tag: correct ? null : (metadata && metadata.misconception_tag ? metadata.misconception_tag : null),
-        difficulty_level: round && round.stage ? round.stage : 1,
-        is_retry: metadata && metadata.is_retry ? true : false,
-        metadata: metadata || {}
+        misconception_tag: data.misconception_tag || null,
+        difficulty_level: getCurrentStage(),
+        is_retry: false,
+        metadata: {
+          left_tile_value: data.leftValue,
+          right_tile_value: data.rightValue,
+          lives_remaining: gameState.lives,
+          stage: getCurrentStage(),
+          round_type: 'A',
+          attempt_number_in_round: gameState.currentRoundAttempts
+        }
       };
       gameState.attempts.push(attempt);
       gameState.duration_data.attempts.push({
-        round: roundIndex + 1,
-        timestamp: Date.now()
+        round: rIdx,
+        timestamp: Date.now(),
+        correct: attempt.correct
       });
     }
 
-    /* ====== 8. getStars (time-only, per spec) ======
-       3★ if final timer <= 60s
-       2★ if final timer <= 90s
-       1★ otherwise OR if lives hit 0
-    */
-    function getStars() {
-      if (gameState.lives <= 0) return 1;
-      var elapsedSec = 0;
-      if (timer && typeof timer.getTimeTaken === 'function') {
-        try { elapsedSec = timer.getTimeTaken(); } catch(e) { elapsedSec = 0; }
-      }
-      if (!elapsedSec || elapsedSec < 0) {
-        elapsedSec = gameState.startTime ? Math.round((Date.now() - gameState.startTime) / 1000) : 0;
-      }
-      if (elapsedSec <= 60) return 3;
-      if (elapsedSec <= 90) return 2;
-      return 1;
-    }
-
-    /* calcStars (exposed on window for contract FM-11) */
-    function calcStars() { return getStars(); }
-    window.calcStars = calcStars;
-
-    /* ====== 9. getRounds ====== */
+    /* ====== getRounds ====== */
     function getRounds() {
       if (gameState.content && gameState.content.rounds &&
           gameState.content.rounds.length >= gameState.totalRounds) {
@@ -598,7 +562,19 @@
       return fallbackContent.rounds;
     }
 
-    /* ====== 10. waitForPackages ====== */
+    /* ====== getStars — time-only star tiers (per spec) ====== */
+    function getStars() {
+      if (gameState.lives <= 0) return 1;
+      var t = gameState.finalTimeSeconds;
+      if (t === null || typeof t !== 'number') return 1;
+      if (t <= 60) return 3;
+      if (t <= 90) return 2;
+      return 1;
+    }
+    function calcStars() { return getStars(); }
+    window.calcStars = calcStars;
+
+    /* ====== waitForPackages ====== */
     function waitForPackages() {
       return new Promise(function(resolve, reject) {
         var startTime = Date.now();
@@ -606,13 +582,12 @@
         function check() {
           try {
             if (typeof FeedbackManager !== 'undefined' &&
-                typeof TimerComponent !== 'undefined' &&
                 typeof VisibilityTracker !== 'undefined' &&
-                typeof SignalCollector !== 'undefined' &&
                 typeof ScreenLayout !== 'undefined' &&
                 typeof ProgressBarComponent !== 'undefined' &&
                 typeof TransitionScreenComponent !== 'undefined' &&
-                typeof PreviewScreenComponent !== 'undefined') {
+                typeof PreviewScreenComponent !== 'undefined' &&
+                typeof TimerComponent !== 'undefined') {
               resolve(true);
               return;
             }
@@ -628,29 +603,28 @@
       });
     }
 
-    /* ====== 11. Audio helpers ====== */
+    /* ====== Audio preload ====== */
     function preloadAudio() {
       try {
         FeedbackManager.sound.preload([
-          { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
-          { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
-          { id: 'sound_life_lost', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
-          { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
-          { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
-          { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
-          { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
-          { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
-          { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
-          { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
-          { id: 'new_cards', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' },
-          { id: 'all_correct', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' }
+          { id: 'correct_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+          { id: 'incorrect_sound_effect',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+          { id: 'sound_life_lost',           url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+          { id: 'rounds_sound_effect',       url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+          { id: 'victory_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+          { id: 'game_complete_sound_effect',url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+          { id: 'game_over_sound_effect',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+          { id: 'all_correct',               url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' },
+          { id: 'sound_bubble_select',       url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+          { id: 'sound_bubble_deselect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+          { id: 'new_cards',                 url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' }
         ]);
       } catch (e) {
         console.error('[preload] Audio preload error:', e.message);
       }
     }
 
-    /* ====== 12. handlePostMessage ====== */
+    /* ====== handlePostMessage ====== */
     function handlePostMessage(event) {
       if (!event || !event.data || !event.data.type) return;
       if (event.data.type === 'game_init') {
@@ -663,7 +637,6 @@
             gameState.totalRounds = d.content.rounds.length;
           }
         }
-        /* Extract signalConfig onto gameState (PART-010) */
         gameState.signalConfig = d.signalConfig || {};
         if (gameState.signalConfig && signalCollector) {
           try {
@@ -685,39 +658,42 @@
       }
     }
 
-    /* ====== 13. createProgressBar helper ====== */
+    /* ====== createProgressBar ====== */
     function createProgressBar() {
       try { if (progressBar) progressBar.destroy(); } catch (e) {}
-      progressBar = new ProgressBarComponent({
-        slotId: 'mathai-progress-slot',
-        totalRounds: gameState.totalRounds,
-        totalLives: Math.max(1, gameState.totalLives)
-      });
-      progressBar.show();
-      progressBar.update(0, gameState.totalLives);
+      try {
+        progressBar = new ProgressBarComponent({
+          slotId: 'mathai-progress-slot',
+          totalRounds: gameState.totalRounds,
+          totalLives: gameState.totalLives,
+          showLives: true
+        });
+        progressBar.show();
+        progressBar.update(Math.max(0, gameState.currentRound - 1), Math.max(0, gameState.lives));
+      } catch (e) {
+        console.error('[progressBar] create error:', e.message);
+      }
     }
 
-    /* ====== 14. Inject game HTML into #gameContent ====== */
+    /* ====== injectGameHTML ====== */
     function injectGameHTML() {
       var gc = document.getElementById('gameContent');
       if (!gc) return;
       gc.innerHTML =
-        '<div class="match-board" id="matchBoard">' +
-          '<div class="round-stage-chip" id="stageChip">Warm-up</div>' +
-          '<div class="match-columns" id="matchColumns">' +
-            '<div class="match-col">' +
-              '<div class="match-col-header">Number</div>' +
-              '<div class="match-tile-stack" id="leftStack"></div>' +
+        '<div class="md-stack" id="mdStack">' +
+          '<div class="md-grid" id="mdGrid" data-testid="md-grid">' +
+            '<div class="md-col md-col-left" id="mdColLeft">' +
+              '<div class="md-col-label">Number</div>' +
+              '<div id="mdTilesLeft"></div>' +
             '</div>' +
-            '<div class="match-col">' +
-              '<div class="match-col-header">Double</div>' +
-              '<div class="match-tile-stack" id="rightStack"></div>' +
+            '<div class="md-col md-col-right" id="mdColRight">' +
+              '<div class="md-col-label">Double</div>' +
+              '<div id="mdTilesRight"></div>' +
             '</div>' +
           '</div>' +
         '</div>';
     }
 
-    /* ====== helper: stage label ====== */
     function stageLabel(stage) {
       if (stage === 1) return 'Warm-up';
       if (stage === 2) return 'Standard';
@@ -725,372 +701,309 @@
       return 'Round';
     }
 
-    /* ====== 15. renderRound (loadRound) ====== */
+    /* ====== renderRound — build tiles for current round into #gameContent ====== */
     function renderRound() {
       gameState.isProcessing = false;
       gameState.isActive = true;
       gameState.phase = 'playing';
-
-      /* Reset per-round transient state (NOT timer, NOT lives, NOT pairsMatchedTotal) */
-      gameState.selectedLeftIndex = null;
-      gameState.selectedRightIndex = null;
-      gameState.lockedLeft = {};
-      gameState.lockedRight = {};
-      gameState.pairsMatchedRound = 0;
-      gameState.wrongMatchesRound = 0;
+      gameState.roundStartTime = Date.now();
+      gameState.lockedPairs = {};
+      gameState.selectedLeft = null;
+      gameState.selectedRight = null;
+      gameState.currentRoundAttempts = 0;
+      gameState.currentRoundWrong = 0;
+      gameState.currentRoundMisconceptions = [];
 
       var rounds = getRounds();
-      var round = rounds[gameState.currentRound];
+      var round = rounds[Math.max(0, gameState.currentRound - 1)];
       if (!round) return;
 
-      gameState.stage = round.stage || 1;
-      /* correctAnswer: surface the first unmatched pair's correct right-value for exposure */
-      gameState.correctAnswer = round.pairs[String(round.left[0])];
-      gameState.roundStartTime = Date.now();
+      gameState.correctAnswer = round.pairs;
 
-      /* Clear any lingering sticker/subtitle */
-      try {
-        if (FeedbackManager && FeedbackManager.feedback) {
-          FeedbackManager.feedback.hideAll();
-        }
-      } catch (e) {}
-
-      /* Ensure gameContent is visible after transition screen */
-      var gc = document.getElementById('gameContent');
-      if (gc) gc.style.display = '';
-
-      /* Make sure the board is injected (post-transition) */
-      if (!document.getElementById('matchBoard')) {
+      if (!document.getElementById('mdTilesLeft')) {
         injectGameHTML();
       }
 
-      var stageChip = document.getElementById('stageChip');
-      if (stageChip) stageChip.textContent = 'Round ' + (gameState.currentRound + 1) + ' \u00B7 ' + stageLabel(gameState.stage);
+      var stageChip = document.getElementById('mdStageChip');
+      if (stageChip) {
+        stageChip.textContent = 'Round ' + gameState.currentRound + ' \u00B7 ' + stageLabel(round.stage);
+      }
 
-      /* Render left tiles (by index) */
-      var leftStack = document.getElementById('leftStack');
-      if (leftStack) {
-        leftStack.innerHTML = '';
-        for (var i = 0; i < round.left.length; i++) {
-          var lv = round.left[i];
-          var t = document.createElement('div');
-          t.className = 'match-tile fade-in';
-          t.setAttribute('role', 'button');
-          t.setAttribute('tabindex', '0');
-          t.setAttribute('data-col', 'left');
-          t.setAttribute('data-index', String(i));
-          t.setAttribute('data-value', String(lv));
-          t.setAttribute('data-testid', 'left-' + i);
-          t.textContent = String(lv);
-          t.addEventListener('click', handleTileTap);
-          leftStack.appendChild(t);
+      var leftHost = document.getElementById('mdTilesLeft');
+      var rightHost = document.getElementById('mdTilesRight');
+      if (leftHost) leftHost.innerHTML = '';
+      if (rightHost) rightHost.innerHTML = '';
+
+      var i;
+      if (leftHost) {
+        for (i = 0; i < round.left.length; i++) {
+          var lVal = round.left[i];
+          var lBtn = document.createElement('button');
+          lBtn.type = 'button';
+          lBtn.className = 'md-tile fresh';
+          lBtn.setAttribute('data-side', 'left');
+          lBtn.setAttribute('data-value', String(lVal));
+          lBtn.setAttribute('data-index', String(i));
+          lBtn.setAttribute('data-testid', 'md-tile-left-' + i);
+          lBtn.setAttribute('aria-label', 'Left tile ' + lVal);
+          lBtn.textContent = String(lVal);
+          lBtn.addEventListener('click', onTileTap);
+          leftHost.appendChild(lBtn);
+        }
+      }
+      if (rightHost) {
+        for (i = 0; i < round.right.length; i++) {
+          var rVal = round.right[i];
+          var rBtn = document.createElement('button');
+          rBtn.type = 'button';
+          rBtn.className = 'md-tile fresh';
+          rBtn.setAttribute('data-side', 'right');
+          rBtn.setAttribute('data-value', String(rVal));
+          rBtn.setAttribute('data-index', String(i));
+          rBtn.setAttribute('data-testid', 'md-tile-right-' + i);
+          rBtn.setAttribute('aria-label', 'Right tile ' + rVal);
+          rBtn.textContent = String(rVal);
+          rBtn.addEventListener('click', onTileTap);
+          rightHost.appendChild(rBtn);
         }
       }
 
-      /* Render right tiles (by index — NEVER by value, to handle R4's 22 collision) */
-      var rightStack = document.getElementById('rightStack');
-      if (rightStack) {
-        rightStack.innerHTML = '';
-        for (var j = 0; j < round.right.length; j++) {
-          var rv = round.right[j];
-          var rt = document.createElement('div');
-          rt.className = 'match-tile fade-in';
-          rt.setAttribute('role', 'button');
-          rt.setAttribute('tabindex', '0');
-          rt.setAttribute('data-col', 'right');
-          rt.setAttribute('data-index', String(j));
-          rt.setAttribute('data-value', String(rv));
-          rt.setAttribute('data-testid', 'right-' + j);
-          rt.textContent = String(rv);
-          rt.addEventListener('click', handleTileTap);
-          rightStack.appendChild(rt);
-        }
-      }
+      /* Ambient new-cards SFX (fire-and-forget) */
+      try {
+        FeedbackManager.sound.play('new_cards', {}).catch(function() {});
+      } catch (e) {}
 
       if (progressBar) {
-        progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
-      }
-
-      if (signalCollector) {
         try {
-          signalCollector.recordViewEvent('content_render', {
-            screen: 'gameplay',
-            content_snapshot: {
-              round: gameState.currentRound + 1,
-              stage: gameState.stage,
-              left: round.left,
-              right: round.right
-            }
-          });
+          progressBar.update(Math.max(0, gameState.currentRound - 1), Math.max(0, gameState.lives));
         } catch (e) {}
       }
 
-      /* Soft "new cards" SFX — fire-and-forget ambient (CASE 17) */
-      try {
-        if (FeedbackManager && FeedbackManager.sound) {
-          var p = FeedbackManager.sound.play('new_cards');
-          if (p && p.catch) p.catch(function() {});
-        }
-      } catch (e) {}
-
       syncDOM();
     }
+    window.loadRound = renderRound;
+    window.renderRound = renderRound;
 
-    /* ====== 16. Answer handler (tile tap) ====== */
-    function handleTileTap(e) {
-      /* Guard */
-      if (gameState.gameEnded || !gameState.isActive) return;
-      if (gameState.isProcessing) return; /* wait for round-complete audio */
+    /* ====== onTileTap — core interaction handler ====== */
+    function onTileTap(ev) {
+      if (gameState.isProcessing) return;
+      if (!gameState.isActive) return;
+      if (gameState.gameEnded) return;
 
-      var tile = e.currentTarget;
-      var col = tile.getAttribute('data-col');
-      var idx = parseInt(tile.getAttribute('data-index'), 10);
-
-      if (isNaN(idx) || (col !== 'left' && col !== 'right')) return;
-
-      /* Ignore taps on locked tiles */
-      if (col === 'left' && gameState.lockedLeft[idx]) return;
-      if (col === 'right' && gameState.lockedRight[idx]) return;
-
-      if (col === 'left') {
-        if (gameState.selectedLeftIndex === idx) {
-          /* Deselect (CASE 9) */
-          gameState.selectedLeftIndex = null;
-          setTileSelected(col, idx, false);
-          playBubble('sound_bubble_deselect');
-          syncDOM();
-          return;
-        }
-        /* Select left (clears any previously selected left) */
-        if (gameState.selectedLeftIndex !== null) {
-          setTileSelected('left', gameState.selectedLeftIndex, false);
-        }
-        gameState.selectedLeftIndex = idx;
-        setTileSelected(col, idx, true);
-        playBubble('sound_bubble_select');
-
-        /* If a right was already selected, attempt match */
-        if (gameState.selectedRightIndex !== null) {
-          attemptMatch();
-        } else {
-          syncDOM();
-        }
-        return;
-      }
-
-      /* col === 'right' */
-      if (gameState.selectedRightIndex === idx) {
-        /* Deselect */
-        gameState.selectedRightIndex = null;
-        setTileSelected(col, idx, false);
-        playBubble('sound_bubble_deselect');
-        syncDOM();
-        return;
-      }
-      if (gameState.selectedRightIndex !== null) {
-        setTileSelected('right', gameState.selectedRightIndex, false);
-      }
-      gameState.selectedRightIndex = idx;
-      setTileSelected(col, idx, true);
-      playBubble('sound_bubble_select');
-
-      if (gameState.selectedLeftIndex !== null) {
-        attemptMatch();
-      } else {
-        syncDOM();
-      }
-    }
-
-    function setTileSelected(col, idx, selected) {
-      var sel = '.match-tile[data-col="' + col + '"][data-index="' + idx + '"]';
-      var el = document.querySelector(sel);
+      var el = ev.currentTarget;
       if (!el) return;
-      if (selected) el.classList.add('selected');
-      else el.classList.remove('selected');
+      if (el.classList.contains('locked')) return;
+      if (el.classList.contains('wrong')) return;
+
+      var side = el.getAttribute('data-side');
+      var value = Number(el.getAttribute('data-value'));
+      var idx = Number(el.getAttribute('data-index'));
+
+      if (side === 'left') {
+        handleLeftTap(el, value, idx);
+      } else if (side === 'right') {
+        handleRightTap(el, value, idx);
+      }
     }
 
-    function getTile(col, idx) {
-      var sel = '.match-tile[data-col="' + col + '"][data-index="' + idx + '"]';
-      return document.querySelector(sel);
-    }
-
-    function playBubble(id) {
-      try {
-        if (FeedbackManager && FeedbackManager.sound) {
-          var p = FeedbackManager.sound.play(id);
-          if (p && p.catch) p.catch(function() {});
-        }
-      } catch (e) {}
-    }
-
-    /* ====== Attempt match (two-tap cycle complete) ====== */
-    function attemptMatch() {
-      var rounds = getRounds();
-      var round = rounds[gameState.currentRound];
-      if (!round) return;
-
-      var lIdx = gameState.selectedLeftIndex;
-      var rIdx = gameState.selectedRightIndex;
-      var leftValue = round.left[lIdx];
-      var rightValue = round.right[rIdx];
-      var expectedRight = round.pairs[String(leftValue)];
-      var isCorrect = (rightValue === expectedRight);
-
-      /* Misconception tag: keyed off RIGHT-tile value (per spec) */
-      var misconceptionTag = null;
-      if (!isCorrect && round.misconception_tags) {
-        misconceptionTag = round.misconception_tags[String(rightValue)] || null;
+    function handleLeftTap(el, value, idx) {
+      /* Re-tap of already-selected left => deselect */
+      if (gameState.selectedLeft &&
+          gameState.selectedLeft.value === value &&
+          gameState.selectedLeft.index === idx) {
+        el.classList.remove('selected');
+        gameState.selectedLeft = null;
+        try { FeedbackManager.sound.play('sound_bubble_deselect', {}).catch(function() {}); } catch (e) {}
+        return;
       }
 
-      /* recordAttempt (all 12 fields) — BEFORE audio */
-      recordAttempt(gameState.currentRound, rightValue, isCorrect, {
-        left_index: lIdx,
-        right_index: rIdx,
-        left_value: leftValue,
-        right_value: rightValue,
-        stage: round.stage,
-        misconception_tag: misconceptionTag,
-        is_retry: false
-      });
+      /* A different left tile was selected before — deselect the prior, select the new. */
+      if (gameState.selectedLeft) {
+        var priorEl = findTileEl('left', gameState.selectedLeft.value, gameState.selectedLeft.index);
+        if (priorEl) priorEl.classList.remove('selected');
+        try { FeedbackManager.sound.play('sound_bubble_deselect', {}).catch(function() {}); } catch (e) {}
+      }
 
-      /* trackEvent */
-      trackEvent('answer_submitted', {
-        round: gameState.currentRound + 1,
-        leftIndex: lIdx,
-        rightIndex: rIdx,
-        leftValue: leftValue,
-        rightValue: rightValue,
-        correct: isCorrect
-      });
+      el.classList.add('selected');
+      gameState.selectedLeft = { value: value, index: idx };
+      try { FeedbackManager.sound.play('sound_bubble_select', {}).catch(function() {}); } catch (e) {}
+    }
+
+    function handleRightTap(el, rightValue, rightIdx) {
+      /* Right tap with no left selected — no-op, no audio. */
+      if (!gameState.selectedLeft) return;
+
+      var leftValue = gameState.selectedLeft.value;
+      var leftIdx = gameState.selectedLeft.index;
+      var leftEl = findTileEl('left', leftValue, leftIdx);
+
+      var expectedDouble = leftValue * 2;
+      var isCorrect = (rightValue === expectedDouble);
+
+      /* Increment attempt counters BEFORE recordAttempt */
+      gameState.currentRoundAttempts += 1;
 
       if (isCorrect) {
-        handleCorrectMatch(lIdx, rIdx, leftValue, rightValue);
-      } else {
-        handleWrongMatch(lIdx, rIdx, leftValue, rightValue, misconceptionTag);
-      }
-    }
+        /* ====== CORRECT MATCH — fire-and-forget (multi-step, CASE 5) ====== */
+        if (leftEl) { leftEl.classList.remove('selected'); leftEl.classList.add('locked'); leftEl.setAttribute('disabled', 'disabled'); }
+        el.classList.add('locked'); el.setAttribute('disabled', 'disabled');
 
-    /* ====== Correct match (CASE 5 — fire-and-forget) ====== */
-    function handleCorrectMatch(lIdx, rIdx, leftValue, rightValue) {
-      /* Lock both tiles by index identity */
-      gameState.lockedLeft[lIdx] = true;
-      gameState.lockedRight[rIdx] = true;
+        gameState.lockedPairs[String(leftValue)] = rightValue;
+        gameState.totalPairsMatched += 1;
+        gameState.score = gameState.totalPairsMatched;
+        gameState.selectedLeft = null;
 
-      gameState.selectedLeftIndex = null;
-      gameState.selectedRightIndex = null;
-      gameState.pairsMatchedRound = gameState.pairsMatchedRound + 1;
-      gameState.pairsMatchedTotal = gameState.pairsMatchedTotal + 1;
-      gameState.score = gameState.score + 1;
-      gameState.streak = gameState.streak + 1;
-      gameState.consecutiveWrongs = 0;
-      syncDOM();
+        try {
+          recordAttempt({
+            userAnswer: rightValue,
+            correctAnswer: expectedDouble,
+            correct: true,
+            leftValue: leftValue,
+            rightValue: rightValue,
+            misconception_tag: null,
+            question_id: 'r' + gameState.currentRound + '_left_' + leftValue
+          });
+        } catch (e) { console.error('[recordAttempt] error:', e.message); }
 
-      /* Visual: turn both tiles green + pulse */
-      var leftTile = getTile('left', lIdx);
-      var rightTile = getTile('right', rIdx);
-      [leftTile, rightTile].forEach(function(t) {
-        if (!t) return;
-        t.classList.remove('selected');
-        t.classList.add('selected-correct', 'locked', 'locked-pulse');
-        setTimeout(function() { try { t.classList.remove('locked-pulse'); } catch(e) {} }, 320);
-      });
-
-      /* Fire-and-forget SFX + sticker (CASE 5, no TTS, no subtitle) */
-      try {
-        if (FeedbackManager && FeedbackManager.sound) {
-          var p = FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_CORRECT });
-          if (p && p.catch) p.catch(function() {});
-        }
-      } catch (e) {}
-
-      /* Check round-complete */
-      var rounds = getRounds();
-      var round = rounds[gameState.currentRound];
-      if (gameState.pairsMatchedRound >= round.left.length) {
-        /* All pairs matched — await round-complete (CASE 6) */
-        finishRoundAwaited();
-      }
-    }
-
-    /* ====== Wrong match (CASE 7 — fire-and-forget multi-step) ====== */
-    function handleWrongMatch(lIdx, rIdx, leftValue, rightValue, misconceptionTag) {
-      gameState.lives = gameState.lives - 1;
-      gameState.streak = 0;
-      gameState.consecutiveWrongs = gameState.consecutiveWrongs + 1;
-      gameState.wrongMatchesRound = gameState.wrongMatchesRound + 1;
-      gameState.wrongMatchesTotal = gameState.wrongMatchesTotal + 1;
-      syncDOM();
-
-      var leftTile = getTile('left', lIdx);
-      var rightTile = getTile('right', rIdx);
-      [leftTile, rightTile].forEach(function(t) {
-        if (!t) return;
-        t.classList.remove('selected');
-        t.classList.add('selected-wrong', 'shake-wrong');
-      });
-
-      /* Progress bar: hearts decrement only */
-      if (progressBar) {
-        progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
-      }
-
-      /* Clear selection indices immediately so further taps work once shake is done */
-      gameState.selectedLeftIndex = null;
-      gameState.selectedRightIndex = null;
-      syncDOM();
-
-      /* Block tile taps briefly so shake can play */
-      gameState.isProcessing = true;
-
-      /* Check last-life first — CASE 8: skip wrong SFX, go straight to game over */
-      if (gameState.lives <= 0) {
-        /* Keep the red flash momentarily so the student sees what happened, then end */
-        setTimeout(function() {
-          gameState.isProcessing = false;
-          endGame(false);
-        }, 650);
-        return;
-      }
-
-      /* CASE 7 multi-step: wrong SFX + sad sticker (PART-017 min-duration wrapper), NO TTS, NO subtitle */
-      try {
-        if (FeedbackManager && FeedbackManager.sound) {
-          var p = Promise.all([
-            FeedbackManager.sound.play('sound_life_lost', { sticker: STICKER_INCORRECT }),
-            new Promise(function(r) { setTimeout(r, 1500); })
-          ]);
-          if (p && p.catch) p.catch(function() {});
-        }
-      } catch (e) {}
-
-      /* After shake (~600ms), reset the two tiles to neutral so round continues */
-      setTimeout(function() {
-        [leftTile, rightTile].forEach(function(t) {
-          if (!t) return;
-          t.classList.remove('selected-wrong', 'shake-wrong');
+        trackEvent('answer_submitted', {
+          round: gameState.currentRound,
+          correct: true,
+          response_time_ms: gameState.roundStartTime ? Date.now() - gameState.roundStartTime : 0,
+          leftValue: leftValue,
+          rightValue: rightValue
         });
-        gameState.isProcessing = false;
+
+        try {
+          FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_CORRECT })
+            .catch(function(e) { console.error('Audio error:', e && e.message); });
+        } catch (e) {}
+
         syncDOM();
-      }, 650);
+
+        /* Check round completion */
+        var rounds = getRounds();
+        var round = rounds[Math.max(0, gameState.currentRound - 1)];
+        var requiredPairs = round.left.length;
+        if (Object.keys(gameState.lockedPairs).length >= requiredPairs) {
+          onRoundComplete();
+        }
+      } else {
+        /* ====== WRONG MATCH ====== */
+        var currentRoundObj = getRounds()[Math.max(0, gameState.currentRound - 1)];
+        var tagMap = (currentRoundObj && currentRoundObj.misconception_tags) || {};
+        var tag = tagMap[String(rightValue)] || null;
+
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        gameState.totalWrongMatches += 1;
+        gameState.currentRoundWrong += 1;
+        if (tag) gameState.currentRoundMisconceptions.push(tag);
+
+        try {
+          recordAttempt({
+            userAnswer: rightValue,
+            correctAnswer: expectedDouble,
+            correct: false,
+            leftValue: leftValue,
+            rightValue: rightValue,
+            misconception_tag: tag,
+            question_id: 'r' + gameState.currentRound + '_left_' + leftValue
+          });
+        } catch (e) { console.error('[recordAttempt] error:', e.message); }
+
+        trackEvent('answer_submitted', {
+          round: gameState.currentRound,
+          correct: false,
+          response_time_ms: gameState.roundStartTime ? Date.now() - gameState.roundStartTime : 0,
+          leftValue: leftValue,
+          rightValue: rightValue,
+          misconception_tag: tag
+        });
+
+        if (leftEl) leftEl.classList.add('wrong');
+        el.classList.add('wrong');
+
+        /* Update progress bar (hearts) BEFORE audio, per data-contract order */
+        syncDOM();
+        if (progressBar) {
+          try { progressBar.update(Math.max(0, gameState.currentRound - 1), Math.max(0, gameState.lives)); } catch (e) {}
+        }
+
+        /* Case 8: last life => skip wrong SFX entirely, jump to game_over */
+        if (gameState.lives === 0) {
+          /* brief visual flash still, then endGame */
+          setTimeout(function() {
+            if (leftEl) { leftEl.classList.remove('wrong'); leftEl.classList.remove('selected'); }
+            if (el) { el.classList.remove('wrong'); }
+            gameState.selectedLeft = null;
+            endGame('game_over');
+          }, 450);
+          return;
+        }
+
+        /* Wrong SFX with minimum-duration wrapper — ensures full playback before continuing */
+        (async function() {
+          try {
+            await Promise.all([
+              FeedbackManager.sound.play('sound_life_lost', { sticker: STICKER_WRONG }),
+              new Promise(function(r) { setTimeout(r, 1500); })
+            ]);
+          } catch (e) {}
+        })();
+
+        /* Clear the wrong visual + deselect both tiles after shake */
+        setTimeout(function() {
+          if (leftEl) {
+            leftEl.classList.remove('wrong');
+            leftEl.classList.remove('selected');
+          }
+          if (el) {
+            el.classList.remove('wrong');
+          }
+          gameState.selectedLeft = null;
+        }, 600);
+      }
     }
 
-    /* ====== Round complete (CASE 6, awaited) ====== */
-    async function finishRoundAwaited() {
+    function findTileEl(side, value, index) {
+      var host = side === 'left' ? document.getElementById('mdTilesLeft') : document.getElementById('mdTilesRight');
+      if (!host) return null;
+      var children = host.children;
+      for (var i = 0; i < children.length; i++) {
+        var c = children[i];
+        if (c.getAttribute('data-side') === side &&
+            Number(c.getAttribute('data-value')) === value &&
+            Number(c.getAttribute('data-index')) === index) {
+          return c;
+        }
+      }
+      return null;
+    }
+
+    /* ====== onRoundComplete — awaited SFX+subtitle, then advance ====== */
+    async function onRoundComplete() {
+      if (gameState.isProcessing) return;
       gameState.isProcessing = true;
+      gameState.phase = 'round_complete';
       syncDOM();
 
-      /* Progress bar: bump rounds completed */
+      /* Progress bar: bump rounds-completed IMMEDIATELY (before feedback/SFX) so the
+         bar fills in sync with the last-pair lock. On round 9 this paints "9/9" before
+         any round-complete audio or the victory screen. PART-023 semantic. */
       if (progressBar) {
-        progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
+        try { progressBar.update(gameState.currentRound, Math.max(0, gameState.lives)); } catch (e) {}
       }
 
-      trackEvent('round_complete', {
-        round: gameState.currentRound + 1,
-        pairsMatched: gameState.pairsMatchedRound,
-        wrongMatches: gameState.wrongMatchesRound
+      /* Record round data */
+      gameState.roundsData.push({
+        round: gameState.currentRound,
+        attempts: gameState.currentRoundAttempts,
+        wrongAttempts: gameState.currentRoundWrong,
+        misconceptions: gameState.currentRoundMisconceptions.slice()
       });
 
-      /* CASE 6 awaited round-complete SFX + sticker + subtitle (PART-017 min-duration wrapper) */
+      trackEvent('round_complete', { round: gameState.currentRound });
+
+      /* Awaited round-complete SFX with min-duration wrap (PART-017) */
       try {
         await Promise.all([
           FeedbackManager.sound.play('all_correct', {
@@ -1099,44 +1012,52 @@
           }),
           new Promise(function(r) { setTimeout(r, 1500); })
         ]);
-      } catch (e) {
-        console.error('[audio] round-complete SFX error:', e.message);
-      }
+      } catch (e) { console.error('[round-complete audio] error:', e && e.message); }
 
-      try {
-        if (FeedbackManager && FeedbackManager.feedback) FeedbackManager.feedback.hideAll();
-      } catch (e) {}
-
-      /* Advance */
       gameState.isProcessing = false;
-      nextRound();
+
+      if (gameState.currentRound < gameState.totalRounds) {
+        nextRound();
+      } else {
+        endGame('victory');
+      }
     }
 
-    /* ====== 17. nextRound ====== */
-    function nextRound() {
-      gameState.currentRound = gameState.currentRound + 1;
+    /* ====== nextRound — cleanup FIRST, then state mutation, then renderRound ====== */
+    async function nextRound() {
+      /* Cleanup FIRST — before any state mutation (feedback cross-cutting rule 10) */
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+
+      gameState.currentRound += 1;
+      gameState.lockedPairs = {};
+      gameState.selectedLeft = null;
+      gameState.selectedRight = null;
+      gameState.isProcessing = false;
+      gameState.phase = 'round_intro';
       syncDOM();
 
-      if (gameState.currentRound >= gameState.totalRounds) {
-        endGame(true);
-        return;
+      if (progressBar) {
+        try { progressBar.update(Math.max(0, gameState.currentRound - 1), Math.max(0, gameState.lives)); } catch (e) {}
       }
 
-      if (gameState.lives <= 0) {
-        endGame(false);
-        return;
-      }
-
-      showRoundIntro();
+      await showRoundIntro();
+      renderRound();
     }
-    window.nextRound = nextRound;
 
-    /* ====== Round intro transition ====== */
+    /* ====== showRoundIntro — sequential awaited SFX -> dynamic TTS, auto-advance ====== */
     async function showRoundIntro() {
-      var roundNum = gameState.currentRound + 1;
+      var roundNum = gameState.currentRound;
       var rounds = getRounds();
-      var round = rounds[gameState.currentRound];
+      var round = rounds[Math.max(0, gameState.currentRound - 1)];
       var stageTxt = round ? stageLabel(round.stage) : '';
+
+      if (!transitionScreen) {
+        return;
+      }
+
+      /* audioStopped flag pattern — in case visibility pause / end-game interrupts mid-sequence */
+      var audioStopped = false;
 
       try {
         await transitionScreen.show({
@@ -1147,42 +1068,75 @@
             (async function() {
               try {
                 await FeedbackManager.sound.play('rounds_sound_effect', { sticker: STICKER_ROUND });
-              } catch (e) {}
+                if (audioStopped) return;
+                await FeedbackManager.playDynamicFeedback({
+                  audio_content: 'Round ' + roundNum,
+                  subtitle: 'Round ' + roundNum,
+                  sticker: STICKER_ROUND
+                });
+              } catch (e) { /* non-blocking */ }
               try { transitionScreen.hide(); } catch (e) {}
-              renderRound();
             })();
           }
         });
       } catch (e) {
-        console.error('[transition] round intro error:', e.message);
-        /* Fallback: skip the transition and render directly */
-        renderRound();
+        console.error('[transition] round intro error:', e && e.message);
       }
     }
 
-    /* ====== 18. endGame ====== */
-    function endGame(won) {
+    /* ====== endGame — screen first, game_complete BEFORE audio ====== */
+    function endGame(reason) {
       if (gameState.gameEnded) return;
       gameState.gameEnded = true;
+
+      /* Cleanup FIRST — before state mutation (feedback cross-cutting rule 10) */
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+
       gameState.isActive = false;
 
-      /* Pause the timer (CASE 11 / 12) */
-      try { if (timer && timer.pause) timer.pause(); } catch (e) {}
+      var outcome;
+      if (reason === 'game_over') outcome = 'game_over';
+      else if (reason === 'victory' || reason === true) outcome = 'victory';
+      else outcome = 'victory';
 
-      gameState.phase = won ? 'results' : 'game_over';
+      /* Pause + read final elapsed */
+      try {
+        if (timer) {
+          timer.pause();
+          gameState.finalTimeSeconds = Math.floor(timer.getTimeTaken ? timer.getTimeTaken() : ((Date.now() - (gameState.startTime || Date.now())) / 1000));
+        } else if (gameState.startTime) {
+          gameState.finalTimeSeconds = Math.floor((Date.now() - gameState.startTime) / 1000);
+        } else {
+          gameState.finalTimeSeconds = 0;
+        }
+      } catch (e) {
+        gameState.finalTimeSeconds = gameState.startTime ? Math.floor((Date.now() - gameState.startTime) / 1000) : 0;
+      }
+
+      /* Stars: forced 1 on game_over or lives==0, else time-based */
+      if (outcome === 'game_over' || gameState.lives === 0) {
+        gameState.stars = 1;
+      } else if (gameState.finalTimeSeconds <= 60) {
+        gameState.stars = 3;
+      } else if (gameState.finalTimeSeconds <= 90) {
+        gameState.stars = 2;
+      } else {
+        gameState.stars = 1;
+      }
+
+      gameState.phase = outcome === 'game_over' ? 'game_over' : 'results';
       syncDOM();
 
-      trackEvent('game_end', { won: won, score: gameState.score, stars: getStars() });
+      trackEvent('game_end', {
+        outcome: outcome,
+        stars: gameState.stars,
+        lives: gameState.lives,
+        score: gameState.totalPairsMatched || 0,
+        rounds_played: gameState.currentRound,
+        time: gameState.finalTimeSeconds
+      });
 
-      /* Calculate metrics */
-      var totalTimeMs = gameState.startTime ? Date.now() - gameState.startTime : 0;
-      var elapsedSec = 0;
-      try {
-        if (timer && timer.getTimeTaken) elapsedSec = timer.getTimeTaken();
-      } catch (e) {}
-      if (!elapsedSec || elapsedSec < 0) elapsedSec = Math.round(totalTimeMs / 1000);
-
-      /* accuracy = correct / total attempts (as percentage 0-100 integer) */
       var totalAttempts = gameState.attempts.length;
       var correctAttempts = 0;
       for (var i = 0; i < gameState.attempts.length; i++) {
@@ -1190,9 +1144,6 @@
       }
       var accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
 
-      gameState.stars = getStars();
-
-      /* Compute tries per round */
       var tries = [];
       for (var r = 0; r < gameState.totalRounds; r++) {
         var count = 0;
@@ -1202,22 +1153,20 @@
         if (count > 0) tries.push({ round: r + 1, tries: count });
       }
 
-      /* Seal signal collector (before postMessage) */
       var sealResult = null;
       if (signalCollector) {
-        try {
-          if (signalCollector.seal) sealResult = signalCollector.seal();
-        } catch (e) {}
+        try { if (signalCollector.seal) sealResult = signalCollector.seal(); } catch (e) {}
       }
 
-      /* game_complete postMessage BEFORE audio (dual-path: fires on both won + lost) */
+      /* game_complete postMessage BEFORE audio */
       try {
         window.parent.postMessage({
           type: 'game_complete',
           data: {
+            outcome: outcome,
             metrics: {
               accuracy: accuracy,
-              time: elapsedSec,
+              time: gameState.finalTimeSeconds,
               stars: gameState.stars,
               attempts: gameState.attempts,
               duration_data: gameState.duration_data,
@@ -1226,6 +1175,14 @@
             },
             completedAt: Date.now(),
             previewResult: gameState.previewResult || null,
+            /* Matching-Doubles-specific analytics (forward-compat extras) */
+            reason: outcome,
+            finalTimeSeconds: gameState.finalTimeSeconds,
+            totalRoundsCompleted: outcome === 'victory' ? gameState.totalRounds : (gameState.currentRound - 1),
+            totalPairsMatched: gameState.totalPairsMatched,
+            totalWrongMatches: gameState.totalWrongMatches,
+            livesRemaining: gameState.lives,
+            roundsData: gameState.roundsData.slice(),
             signal_event_count: sealResult && typeof sealResult.signal_event_count === 'number'
               ? sealResult.signal_event_count
               : (signalCollector && signalCollector.getEventCount ? signalCollector.getEventCount() : 0),
@@ -1236,33 +1193,99 @@
         console.error('[postMessage] game_complete error:', e.message);
       }
 
-      /* Destroy preview screen (session-final cleanup, exactly once) */
+      /* Top-level CustomEvent (parity with other shipped games) */
+      try {
+        window.dispatchEvent(new CustomEvent('game_complete', {
+          detail: {
+            outcome: outcome,
+            stars: gameState.stars,
+            rounds: outcome === 'game_over' ? (gameState.currentRound - 1) : gameState.totalRounds,
+            time: gameState.finalTimeSeconds
+          }
+        }));
+      } catch (e) {}
+
+      /* Destroy preview screen (session-final cleanup, exactly once). Must NOT be reached on restart. */
       if (previewScreen) {
         try { previewScreen.destroy(); } catch (e) {}
+        previewScreen = null;
       }
 
-      /* Show end screen */
-      if (won) {
-        showVictory();
-      } else {
+      /* Render screen FIRST, then play audio */
+      if (outcome === 'game_over') {
         showGameOver();
+      } else {
+        showVictory();
       }
     }
     window.endGame = endGame;
 
+    /* ====== Game Over screen ====== */
+    async function showGameOver() {
+      if (!transitionScreen) return;
+      var totalPairsPossible = computeTotalPairsThroughRound(gameState.currentRound);
+      var subtitle = 'You matched ' + gameState.totalPairsMatched + ' of ' + totalPairsPossible + ' pairs.';
+      var audioStopped = false;
+      try {
+        await transitionScreen.show({
+          icons: ['\uD83D\uDE14'],
+          title: 'Game Over',
+          subtitle: subtitle,
+          sticker: STICKER_GAMEOVER,
+          buttons: [{
+            text: 'Try Again',
+            primary: true,
+            action: function() {
+              audioStopped = true;
+              try { FeedbackManager.sound.pause(); FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+              try { transitionScreen.hide(); } catch (e) {}
+              showMotivation();
+            }
+          }],
+          persist: true,
+          onMounted: function() {
+            (async function() {
+              try {
+                await FeedbackManager.sound.play('game_over_sound_effect', { sticker: STICKER_GAMEOVER });
+                if (audioStopped) return;
+                await FeedbackManager.playDynamicFeedback({
+                  audio_content: 'Good try! Let\u2019s practice those doubles again!',
+                  subtitle: 'Good try!',
+                  sticker: STICKER_GAMEOVER
+                });
+              } catch (e) {}
+            })();
+          }
+        });
+      } catch (e) {
+        console.error('[transition] game_over error:', e && e.message);
+      }
+    }
+
+    function computeTotalPairsThroughRound(roundNum) {
+      /* Total pairs possible in all rounds completed + current round */
+      var rounds = getRounds();
+      var total = 0;
+      for (var i = 0; i < Math.min(rounds.length, Math.max(0, roundNum)); i++) {
+        total += rounds[i].left.length;
+      }
+      return total;
+    }
+
     /* ====== Victory screen ====== */
     async function showVictory() {
+      if (!transitionScreen) return;
       var stars = gameState.stars;
+      var timeS = gameState.finalTimeSeconds;
+      var subtitle = 'Completed in ' + timeS + 's';
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var sticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_COMPLETE_2 : STICKER_COMPLETE_1);
+      var voText;
+      if (stars === 3) voText = 'Lightning fast doubling!';
+      else if (stars === 2) voText = 'Nice work!';
+      else voText = 'You finished \u2014 let\u2019s get faster next time!';
+
       var audioStopped = false;
-      var elapsedSec = 0;
-      try { if (timer && timer.getTimeTaken) elapsedSec = timer.getTimeTaken(); } catch (e) {}
-      if (!elapsedSec) elapsedSec = gameState.startTime ? Math.round((Date.now() - gameState.startTime) / 1000) : 0;
-
-      var mm = Math.floor(elapsedSec / 60);
-      var ss = elapsedSec % 60;
-      var timeStr = mm + ':' + (ss < 10 ? '0' + ss : String(ss));
-      var subtitle = 'Time: ' + timeStr + ' \u00B7 Pairs matched: ' + gameState.pairsMatchedTotal;
-
       var buttons = [];
       if (stars < 3) {
         buttons.push({
@@ -1270,9 +1293,8 @@
           action: function() {
             audioStopped = true;
             try { FeedbackManager.sound.pause(); FeedbackManager._stopCurrentDynamic(); } catch (e) {}
-            try { FeedbackManager.feedback.hideAll(); } catch (e) {}
             try { transitionScreen.hide(); } catch (e) {}
-            restartGame();
+            showMotivation();
           }
         });
       }
@@ -1282,7 +1304,6 @@
         action: function() {
           audioStopped = true;
           try { FeedbackManager.sound.pause(); FeedbackManager._stopCurrentDynamic(); } catch (e) {}
-          try { FeedbackManager.feedback.hideAll(); } catch (e) {}
           try { transitionScreen.hide(); } catch (e) {}
           showStarsCollected();
         }
@@ -1293,19 +1314,14 @@
           title: 'Victory \uD83C\uDF89',
           subtitle: subtitle,
           stars: stars,
+          sticker: sticker,
           buttons: buttons,
           persist: true,
           onMounted: function() {
             (async function() {
-              var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
-              var sticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_COMPLETE_2 : STICKER_COMPLETE_1);
               try {
                 await FeedbackManager.sound.play(sfxId, { sticker: sticker });
                 if (audioStopped) return;
-                var voText;
-                if (stars === 3) voText = 'Lightning fast doubling! Amazing work!';
-                else if (stars === 2) voText = 'Nice work! You matched them all.';
-                else voText = 'You finished! Let\u2019s get faster next time.';
                 await FeedbackManager.playDynamicFeedback({
                   audio_content: voText,
                   subtitle: voText.length > 60 ? voText.substring(0, 57) + '...' : voText,
@@ -1316,243 +1332,73 @@
           }
         });
       } catch (e) {
-        console.error('[transition] victory error:', e.message);
+        console.error('[transition] victory error:', e && e.message);
       }
     }
 
-    /* ====== Game over screen ====== */
-    async function showGameOver() {
-      var audioStopped = false;
-      var pairsTotal = gameState.pairsMatchedTotal;
-      var pairsPossibleSoFar = 0;
-      var rounds = getRounds();
-      for (var r = 0; r <= gameState.currentRound && r < rounds.length; r++) {
-        if (rounds[r] && rounds[r].left) pairsPossibleSoFar += rounds[r].left.length;
+    async function showMotivation() {
+      /* Motivation screen — copy defaults verbatim from default-transition-screens.md */
+      if (!transitionScreen) {
+        restartToRound1();
+        return;
       }
-      var subtitle = 'You matched ' + pairsTotal + ' of ' + pairsPossibleSoFar + ' pairs';
-
       try {
         await transitionScreen.show({
-          title: 'Game Over',
-          subtitle: subtitle,
-          icons: ['\uD83D\uDE14'],
+          title: 'Ready to improve your score? \u26A1',
+          subtitle: 'Take another shot \u2014 you\u2019ve got this!',
           buttons: [{
-            text: 'Try Again',
+            text: 'I\u2019m ready! \uD83D\uDE4C',
             primary: true,
             action: function() {
-              audioStopped = true;
               try { FeedbackManager.sound.pause(); FeedbackManager._stopCurrentDynamic(); } catch (e) {}
-              try { FeedbackManager.feedback.hideAll(); } catch (e) {}
               try { transitionScreen.hide(); } catch (e) {}
-              restartGame();
+              restartToRound1();
             }
           }],
           persist: true,
           onMounted: function() {
-            (async function() {
-              try {
-                await FeedbackManager.sound.play('game_over_sound_effect', { sticker: STICKER_GAMEOVER });
-                if (audioStopped) return;
-                var voText = 'Good try \u2014 let\u2019s practice those doubles again!';
-                await FeedbackManager.playDynamicFeedback({
-                  audio_content: voText,
-                  subtitle: voText,
-                  sticker: STICKER_GAMEOVER
-                });
-              } catch (e) {}
-            })();
+            try {
+              FeedbackManager.sound.play('rounds_sound_effect', { sticker: STICKER_RESTART })
+                .catch(function() {});
+            } catch (e) {}
           }
         });
       } catch (e) {
-        console.error('[transition] game over error:', e.message);
+        restartToRound1();
       }
     }
 
-    /* ====== Stars collected screen ====== */
+    /* ====== Stars Collected screen — 2.5s auto-dismiss ====== */
     async function showStarsCollected() {
+      if (!transitionScreen) return;
       var stars = gameState.stars;
       try {
         await transitionScreen.show({
-          title: 'Yay!\n' + stars + ' Star' + (stars > 1 ? 's' : '') + ' Collected!',
+          title: 'Yay! \uD83C\uDF89\n' + stars + ' Star' + (stars === 1 ? '' : 's') + ' collected!',
           styles: { title: { whiteSpace: 'pre-line' } },
           duration: 2500,
+          sticker: STICKER_VICTORY,
           onMounted: function() {
             try {
-              FeedbackManager.sound.play('victory_sound_effect', { sticker: STICKER_VICTORY });
+              FeedbackManager.sound.play('victory_sound_effect', { sticker: STICKER_VICTORY })
+                .catch(function() {});
             } catch (e) {}
           }
         });
       } catch (e) {}
+      /* After auto-dismiss, notify host to exit */
+      try { window.parent.postMessage({ type: 'game_exit' }, '*'); } catch (e) {}
     }
 
-    /* ====== 19. setupGame ====== */
-    function setupGame() {
-      var content = gameState.content || fallbackContent;
-
-      /* 1. Render initial round UI into #gameContent FIRST (preview overlay sits on top) */
-      injectGameHTML();
-
-      /* Populate initial round display (round 0) */
-      var rounds = getRounds();
-      if (rounds && rounds.length > 0) {
-        var round = rounds[0];
-        gameState.stage = round.stage || 1;
-        gameState.correctAnswer = round.pairs[String(round.left[0])];
-
-        var stageChip = document.getElementById('stageChip');
-        if (stageChip) stageChip.textContent = 'Round 1 \u00B7 ' + stageLabel(gameState.stage);
-
-        var leftStack = document.getElementById('leftStack');
-        if (leftStack) {
-          leftStack.innerHTML = '';
-          for (var i = 0; i < round.left.length; i++) {
-            var t = document.createElement('div');
-            t.className = 'match-tile';
-            t.setAttribute('role', 'button');
-            t.setAttribute('tabindex', '0');
-            t.setAttribute('data-col', 'left');
-            t.setAttribute('data-index', String(i));
-            t.setAttribute('data-value', String(round.left[i]));
-            t.setAttribute('data-testid', 'left-' + i);
-            t.textContent = String(round.left[i]);
-            leftStack.appendChild(t);
-          }
-        }
-        var rightStack = document.getElementById('rightStack');
-        if (rightStack) {
-          rightStack.innerHTML = '';
-          for (var j = 0; j < round.right.length; j++) {
-            var rt = document.createElement('div');
-            rt.className = 'match-tile';
-            rt.setAttribute('role', 'button');
-            rt.setAttribute('tabindex', '0');
-            rt.setAttribute('data-col', 'right');
-            rt.setAttribute('data-index', String(j));
-            rt.setAttribute('data-value', String(round.right[j]));
-            rt.setAttribute('data-testid', 'right-' + j);
-            rt.textContent = String(round.right[j]);
-            rightStack.appendChild(rt);
-          }
-        }
-      }
-
-      syncDOM();
-
-      /* 2. Show preview LAST */
-      if (previewScreen) {
-        previewScreen.show({
-          instruction: content.previewInstruction || fallbackContent.previewInstruction,
-          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
-          showGameOnPreview: content.showGameOnPreview === true,
-          timerConfig: timer ? { type: 'increase', startTime: 0, endTime: 100000 } : null,
-          timerInstance: timer || null,
-          onComplete: function(previewData) {
-            startGameAfterPreview(previewData);
-          }
-        });
-      }
-    }
-
-    /* ====== 20. startGameAfterPreview ====== */
-    async function startGameAfterPreview(previewData) {
-      if (gameState.isActive) return;
-      gameState.previewResult = previewData || null;
-      gameState.duration_data.preview = gameState.duration_data.preview || [];
-      gameState.duration_data.preview.push({ duration: previewData ? previewData.duration : 0 });
-
-      gameState.startTime = Date.now();
-      gameState.isActive = true;
-      gameState.duration_data.startTime = new Date().toISOString();
-      gameState.phase = 'playing';
-      syncDOM();
-
-      /* Hide the preview instruction block — CDN keeps it rendered alongside game-container */
-      try {
-        var _pi = document.getElementById('previewInstruction');
-        if (_pi) _pi.style.display = 'none';
-      } catch (e) {}
-
-      /* Start the count-up timer — runs continuously across all rounds */
-      try { if (timer && timer.start) timer.start(); } catch (e) {}
-
-      trackEvent('game_start', { totalRounds: gameState.totalRounds });
-
-      if (signalCollector) {
-        try {
-          signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
-        } catch (e) {}
-      }
-
-      if (progressBar) {
-        progressBar.show();
-        progressBar.update(0, gameState.totalLives);
-      }
-
-      /* Go straight to Round 1 intro — no separate welcome screen (preview already played) */
-      voGameStartPlayed = true;
-      await showRoundIntro();
-    }
-
-    /* ====== startGame (standalone/fallback only) ====== */
-    function startGame() {
-      if (gameState.isActive) return;
-      gameState.isActive = true;
-      gameState.startTime = Date.now();
-      gameState.duration_data.startTime = new Date().toISOString();
-      gameState.currentRound = 0;
-      gameState.score = 0;
-      gameState.lives = gameState.totalLives;
-      gameState.attempts = [];
-      gameState.events = [];
-      gameState.isProcessing = false;
-      gameState.gameEnded = false;
-      gameState.phase = 'playing';
-      gameState.streak = 0;
-      gameState.consecutiveWrongs = 0;
-      gameState.pairsMatchedTotal = 0;
-      gameState.wrongMatchesTotal = 0;
-
-      trackEvent('game_start', { totalRounds: gameState.totalRounds });
-      syncDOM();
-
-      try { if (timer && timer.start) timer.start(); } catch (e) {}
-
-      if (progressBar) {
-        progressBar.show();
-        progressBar.update(0, gameState.totalLives);
-      }
-
-      renderRound();
-    }
-    window.startGame = startGame;
-
-    /* ====== 21. restartGame (skips Preview per PART-039) ====== */
-    function restartGame() {
-      /* Pause all audio (stopAll destroys internal state — use pause per PART-017) */
+    /* ====== restartToRound1 — MUST NOT re-show or destroy preview ====== */
+    function restartToRound1() {
+      /* Cleanup FIRST */
       try { FeedbackManager.sound.pause(); } catch (e) {}
-      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
       try { FeedbackManager._stopCurrentDynamic(); } catch (e) {}
 
-      /* Reset the timer (destroy + recreate so count-up starts from 0) */
-      try {
-        if (timer && timer.destroy) timer.destroy();
-      } catch (e) {}
-      try {
-        timer = new TimerComponent('timer-container', {
-          timerType: 'increase',
-          format: 'min',
-          startTime: 0,
-          endTime: 100000,
-          autoStart: false,
-          onEnd: function() { /* count-up has no natural end */ }
-        });
-      } catch (e) {
-        console.error('[restart] Timer recreate error:', e.message);
-      }
-
-      /* Reset all mutable state */
-      gameState.phase = 'playing';
-      gameState.currentRound = 0;
+      gameState.phase = 'round_intro';
+      gameState.currentRound = 1;
       gameState.score = 0;
       gameState.lives = gameState.totalLives;
       gameState.attempts = [];
@@ -1563,18 +1409,17 @@
       gameState.gameEnded = false;
       gameState.roundStartTime = null;
       gameState.correctAnswer = null;
-      gameState.streak = 0;
-      gameState.consecutiveWrongs = 0;
       gameState.stars = 0;
-      gameState.selectedLeftIndex = null;
-      gameState.selectedRightIndex = null;
-      gameState.lockedLeft = {};
-      gameState.lockedRight = {};
-      gameState.pairsMatchedRound = 0;
-      gameState.pairsMatchedTotal = 0;
-      gameState.wrongMatchesRound = 0;
-      gameState.wrongMatchesTotal = 0;
-      gameState.stage = 1;
+      gameState.finalTimeSeconds = null;
+      gameState.lockedPairs = {};
+      gameState.selectedLeft = null;
+      gameState.selectedRight = null;
+      gameState.totalPairsMatched = 0;
+      gameState.totalWrongMatches = 0;
+      gameState.roundsData = [];
+      gameState.currentRoundAttempts = 0;
+      gameState.currentRoundWrong = 0;
+      gameState.currentRoundMisconceptions = [];
       gameState.duration_data = {
         startTime: new Date().toISOString(),
         preview: gameState.duration_data && gameState.duration_data.preview ? gameState.duration_data.preview : [],
@@ -1583,36 +1428,170 @@
         inActiveTime: [],
         totalInactiveTime: 0
       };
-
-      /* Reset signal collector (do NOT seal+reinstantiate per GEN-SIGNAL-RESET) */
-      if (signalCollector) {
-        try { signalCollector.reset(); } catch (e) {}
-      }
-
-      /* Recreate progress bar */
-      createProgressBar();
-
-      trackEvent('game_start', { totalRounds: gameState.totalRounds });
       syncDOM();
 
-      /* Ensure the board is present */
-      if (!document.getElementById('matchBoard')) {
+      if (signalCollector) {
+        try { if (signalCollector.reset) signalCollector.reset(); } catch (e) {}
+      }
+
+      /* Rebuild progress bar so hearts/rounds reset cleanly */
+      createProgressBar();
+
+      /* Timer: reset + start (do NOT recreate) */
+      try {
+        if (timer) {
+          if (timer.reset) timer.reset();
+          if (timer.start) timer.start();
+        }
+      } catch (e) {}
+
+      if (!document.getElementById('mdTilesLeft')) {
         injectGameHTML();
       }
 
-      /* Keep preview instruction hidden on restart (PART-039: preview not re-shown) */
+      trackEvent('game_restart', { totalRounds: gameState.totalRounds });
+
+      /* Show Round 1 intro + render Round 1 — NEVER re-show preview */
+      (async function() {
+        await showRoundIntro();
+        renderRound();
+      })();
+    }
+    window.restartGame = restartToRound1;
+    window.restartToRound1 = restartToRound1;
+
+    /* ====== setupGame — render DOM FIRST, then show preview ====== */
+    function setupGame() {
+      /* 1. Inject game DOM so preview overlay covers a real screen */
+      injectGameHTML();
+
+      /* 2. Populate Round 1 tiles inside the static DOM so the preview non-interactable state shows real content. */
+      var rounds = getRounds();
+      if (rounds && rounds.length > 0) {
+        var r0 = rounds[0];
+        gameState.correctAnswer = r0.pairs;
+
+        var stageChip = document.getElementById('mdStageChip');
+        if (stageChip) stageChip.textContent = 'Round 1 \u00B7 ' + stageLabel(r0.stage);
+
+        var leftHost = document.getElementById('mdTilesLeft');
+        var rightHost = document.getElementById('mdTilesRight');
+        if (leftHost) leftHost.innerHTML = '';
+        if (rightHost) rightHost.innerHTML = '';
+        var i;
+        if (leftHost) {
+          for (i = 0; i < r0.left.length; i++) {
+            var lv = r0.left[i];
+            var lbtn = document.createElement('button');
+            lbtn.type = 'button';
+            lbtn.className = 'md-tile';
+            lbtn.setAttribute('data-side', 'left');
+            lbtn.setAttribute('data-value', String(lv));
+            lbtn.setAttribute('data-index', String(i));
+            lbtn.textContent = String(lv);
+            leftHost.appendChild(lbtn);
+          }
+        }
+        if (rightHost) {
+          for (i = 0; i < r0.right.length; i++) {
+            var rv = r0.right[i];
+            var rbtn = document.createElement('button');
+            rbtn.type = 'button';
+            rbtn.className = 'md-tile';
+            rbtn.setAttribute('data-side', 'right');
+            rbtn.setAttribute('data-value', String(rv));
+            rbtn.setAttribute('data-index', String(i));
+            rbtn.textContent = String(rv);
+            rightHost.appendChild(rbtn);
+          }
+        }
+      }
+
+      syncDOM();
+
+      var content = gameState.content || fallbackContent;
+
+      /* 3. Preview LAST */
+      if (previewScreen) {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          timerConfig: { type: 'increase', startTime: 0, endTime: 100000 },
+          timerInstance: timer || null,
+          onComplete: function(previewData) {
+            startGameAfterPreview(previewData);
+          }
+        });
+      } else {
+        startGameAfterPreview(null);
+      }
+    }
+
+    /* ====== startGameAfterPreview ====== */
+    async function startGameAfterPreview(previewData) {
+      if (gameState.isActive) return;
+      gameState.previewResult = previewData || null;
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: previewData ? previewData.duration : 0 });
+
+      /* Hide preview instruction text — CDN component keeps it rendered after skip */
       try {
-        var _pi2 = document.getElementById('previewInstruction');
-        if (_pi2) _pi2.style.display = 'none';
+        var pi = document.getElementById('previewInstruction');
+        if (pi) pi.style.display = 'none';
       } catch (e) {}
 
-      /* Start timer fresh */
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.phase = 'round_intro';
+      syncDOM();
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+
+      if (signalCollector) {
+        try { signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+      }
+
+      /* Start the count-up timer */
       try { if (timer && timer.start) timer.start(); } catch (e) {}
 
-      /* Skip Preview per PART-039 — go directly to Round 1 intro */
-      showRoundIntro();
+      if (progressBar) {
+        try {
+          progressBar.show();
+          progressBar.update(0, gameState.lives);
+        } catch (e) {}
+      }
+
+      /* Round 1 intro → render Round 1 */
+      await showRoundIntro();
+      renderRound();
     }
-    window.restartGame = restartGame;
+
+    /* ====== Standalone startGame (fallback only — when waitForPackages times out) ====== */
+    function startGame() {
+      if (gameState.isActive) return;
+      try { var pi = document.getElementById('previewInstruction'); if (pi) pi.style.display = 'none'; } catch (e) {}
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.phase = 'playing';
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+
+      if (progressBar) {
+        try { progressBar.show(); progressBar.update(0, gameState.lives); } catch (e) {}
+      }
+      renderRound();
+    }
+    window.startGame = startGame;
 
     /* ====== Fallback layout builder ====== */
     function buildFallbackLayout() {
@@ -1627,11 +1606,43 @@
         '</div>';
     }
 
+    /* ====== debug helpers ====== */
+    window.debugGame = function() {
+      return {
+        phase: gameState.phase,
+        currentRound: gameState.currentRound,
+        lives: gameState.lives,
+        totalPairsMatched: gameState.totalPairsMatched,
+        totalWrongMatches: gameState.totalWrongMatches,
+        isActive: gameState.isActive,
+        isProcessing: gameState.isProcessing,
+        gameEnded: gameState.gameEnded,
+        finalTimeSeconds: gameState.finalTimeSeconds,
+        stars: gameState.stars
+      };
+    };
+    window.debugAudio = function() {
+      return {
+        feedbackManagerLoaded: typeof FeedbackManager !== 'undefined',
+        canPlay: (typeof FeedbackManager !== 'undefined' && FeedbackManager.canPlayAudio) ? FeedbackManager.canPlayAudio() : false
+      };
+    };
+    window.testAudio = function() {
+      try { FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_CORRECT }); } catch (e) {}
+    };
+    window.testPause = function() {
+      try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {}
+      try { if (timer) timer.pause({ fromVisibilityTracker: true }); } catch (e) {}
+    };
+    window.testResume = function() {
+      try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {}
+      try { if (timer) timer.resume({ fromVisibilityTracker: true }); } catch (e) {}
+    };
+
     /* ====== DOMContentLoaded — init sequence ====== */
     document.addEventListener('DOMContentLoaded', async function() {
       var packagesLoaded = false;
       try {
-        /* 1. await waitForPackages() — throws new Error() on timeout */
         packagesLoaded = await waitForPackages();
       } catch (e) {
         console.error('[init] ' + e.message);
@@ -1640,19 +1651,23 @@
 
       try {
         if (packagesLoaded) {
-          /* 2. await FeedbackManager.init() */
-          try { await FeedbackManager.init(); } catch (e) {
-            console.error('[init] FeedbackManager.init error:', e.message);
-          }
+          /* 1. FeedbackManager.init */
+          try { await FeedbackManager.init({ sound: { sounds: [] }, stream: { streams: [] } }); }
+          catch (e) { console.error('[init] FeedbackManager.init error:', e.message); }
 
-          /* 3. SignalCollector creation */
+          /* 2. SignalCollector */
           try {
-            signalCollector = new SignalCollector({ gameId: 'matching-doubles' });
+            if (typeof SignalCollector !== 'undefined') {
+              signalCollector = new SignalCollector({ gameId: 'matching-doubles' });
+            } else if (typeof MathAIHelpers !== 'undefined' && MathAIHelpers.SignalCollector) {
+              signalCollector = new MathAIHelpers.SignalCollector({ gameId: 'matching-doubles' });
+            }
+            window.signalCollector = signalCollector;
           } catch (e) {
             console.error('[init] SignalCollector error:', e.message);
           }
 
-          /* 4. ScreenLayout.inject — slots API, previewScreen MANDATORY per PART-039 */
+          /* 3. ScreenLayout.inject — previewScreen MANDATORY per PART-039 */
           try {
             ScreenLayout.inject('app', {
               slots: {
@@ -1665,21 +1680,21 @@
             console.error('[init] ScreenLayout.inject error:', e.message);
           }
 
-          /* 5. Inject timer container (for TimerComponent to mount into) */
+          /* 4. Timer container — mount as direct child of #mathai-preview-slot (positioned ancestor).
+             Kept OUT of the header's flex flow so absolute top-center positioning is stable
+             regardless of left/right slot widths. Same principle as PART-006 + canonical React
+             TimerComponent showInActionBar:true. */
           try {
-            var headerHost = document.getElementById('mathai-preview-slot')
+            var timerRoot = document.getElementById('mathai-preview-slot')
               || document.getElementById('app');
-            if (headerHost && !document.getElementById('timer-container')) {
+            if (timerRoot && !document.getElementById('timer-container')) {
               var tc = document.createElement('div');
               tc.id = 'timer-container';
-              tc.style.display = 'none';
-              headerHost.appendChild(tc);
+              timerRoot.appendChild(tc);
             }
           } catch (e) {}
 
-          /* 6. gameContent is created by ScreenLayout (slots mode) — no manual injection */
-
-          /* 7. TimerComponent creation (count-up, no time limit) */
+          /* 5. TimerComponent (count-up, no effective limit) */
           try {
             timer = new TimerComponent('timer-container', {
               timerType: 'increase',
@@ -1687,61 +1702,46 @@
               startTime: 0,
               endTime: 100000,
               autoStart: false,
-              onEnd: function() { /* count-up has no natural end */ }
+              onEnd: function() { /* never fires in this game; defensive no-op */ }
             });
+            window.timer = timer;
           } catch (e) {
             console.error('[init] TimerComponent error:', e.message);
           }
 
-          /* 8. InteractionManager creation */
-          try {
-            interactionManager = new InteractionManager({
-              selector: '#gameContent',
-              disableOnAudioFeedback: false,
-              disableOnEvaluation: false
-            });
-            window.interactionManager = interactionManager;
-          } catch (e) {
-            console.error('[init] InteractionManager error:', e.message);
-          }
-
-          /* 9. VisibilityTracker (CASE 14/15) — also wire preview pause/resume */
+          /* 6. VisibilityTracker — built-in PopupComponent renders the pause popup */
           try {
             visibilityTracker = new VisibilityTracker({
+              popupProps: {
+                title: 'Game Paused',
+                description: 'Tap Resume to continue.',
+                primaryText: 'Resume'
+              },
               onInactive: function() {
                 try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {}
+                try { if (timer) timer.pause({ fromVisibilityTracker: true }); } catch (e) {}
                 try { if (previewScreen) previewScreen.pause(); } catch (e) {}
-                try {
-                  if (timer && timer.isRunning && timer.pause) {
-                    timer.pause({ fromVisibilityTracker: true });
-                  }
-                } catch (e) {}
                 gameState.duration_data.inActiveTime.push({ start: Date.now() });
               },
               onResume: function() {
                 try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {}
+                try { if (timer) timer.resume({ fromVisibilityTracker: true }); } catch (e) {}
                 try { if (previewScreen) previewScreen.resume(); } catch (e) {}
-                try {
-                  if (timer && timer.isPaused && timer.resume) {
-                    timer.resume({ fromVisibilityTracker: true });
-                  }
-                } catch (e) {}
                 var last = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
                 if (last && !last.end) {
                   last.end = Date.now();
                   gameState.duration_data.totalInactiveTime += (last.end - last.start);
                 }
-              },
-              autoShowPopup: true
+              }
             });
           } catch (e) {
             console.error('[init] VisibilityTracker error:', e.message);
           }
 
-          /* 10. createProgressBar */
+          /* 7. Progress bar */
           createProgressBar();
 
-          /* 11. TransitionScreenComponent */
+          /* 8. Transition screen */
           try {
             transitionScreen = new TransitionScreenComponent({
               autoInject: true,
@@ -1752,7 +1752,7 @@
             console.error('[init] TransitionScreen error:', e.message);
           }
 
-          /* 12. PreviewScreenComponent */
+          /* 9. Preview screen */
           try {
             previewScreen = new PreviewScreenComponent({
               slotId: 'mathai-preview-slot'
@@ -1761,30 +1761,45 @@
             console.error('[init] PreviewScreen error:', e.message);
           }
 
-          /* 13. Audio preloading */
+          /* 10. Preload SFX */
           preloadAudio();
 
-          /* 14. Register handlePostMessage listener BEFORE game_ready */
+          /* 11. Wait for audio permission (once) */
+          try {
+            await new Promise(function(resolve) {
+              if (FeedbackManager.canPlayAudio && FeedbackManager.canPlayAudio()) return resolve();
+              var tick = setInterval(function() {
+                if (FeedbackManager.canPlayAudio && FeedbackManager.canPlayAudio()) {
+                  clearInterval(tick);
+                  resolve();
+                }
+              }, 200);
+              setTimeout(function() { clearInterval(tick); resolve(); }, 15000);
+            });
+          } catch (e) {}
+
+          /* 12. Register message listener BEFORE game_ready */
           window.addEventListener('message', handlePostMessage);
 
-          /* 15. Send game_ready postMessage */
+          /* 13. Send game_ready */
           try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
 
-          /* 16. setupGame — renders game DOM, then calls previewScreen.show() last */
+          /* 14. setupGame — renders DOM first, preview last */
           setupGame();
         } else {
-          /* Packages failed — build fallback layout */
+          /* Packages failed — fallback */
           buildFallbackLayout();
+          injectGameHTML();
           window.addEventListener('message', handlePostMessage);
           try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
         }
       } catch (e) {
-        console.error('[init] ' + e.message);
+        console.error('[init] outer error:', e && e.message);
       }
 
-      /* Standalone fallback — runs INDEPENDENTLY (not nested in waitForPackages) */
+      /* ===== Standalone setTimeout fallback — runs independently of waitForPackages ===== */
       setTimeout(function() {
-        /* Standalone-fallback gate: abort if a live preview is mounted */
+        /* PART-039 Standalone-fallback gate: abort if a live preview is mounted */
         if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
         if (!gameState.isActive && !gameState.gameEnded) {
           if (!document.getElementById('gameContent')) {
@@ -1797,56 +1812,11 @@
         }
       }, 2000);
 
-      /* Window exposures (MUST be here, at bottom of DOMContentLoaded) */
+      /* Window exposures (data-contract) */
       window.gameState = gameState;
       window.endGame = endGame;
-      window.restartGame = restartGame;
-      window.nextRound = nextRound;
-      window.startGame = startGame;
+      window.restartGame = restartToRound1;
       window.loadRound = renderRound;
-      window.signalCollector = signalCollector;
-      window.calcStars = calcStars;
-
-      /* Debug / test harness functions */
-      window.debugGame = function() {
-        return JSON.parse(JSON.stringify({
-          phase: gameState.phase,
-          currentRound: gameState.currentRound,
-          totalRounds: gameState.totalRounds,
-          score: gameState.score,
-          lives: gameState.lives,
-          totalLives: gameState.totalLives,
-          isActive: gameState.isActive,
-          isProcessing: gameState.isProcessing,
-          gameEnded: gameState.gameEnded,
-          attempts: gameState.attempts.length,
-          events: gameState.events.length,
-          pairsMatchedTotal: gameState.pairsMatchedTotal,
-          wrongMatchesTotal: gameState.wrongMatchesTotal,
-          selectedLeftIndex: gameState.selectedLeftIndex,
-          selectedRightIndex: gameState.selectedRightIndex,
-          stars: getStars()
-        }));
-      };
-      window.debugAudio = function() {
-        try {
-          return {
-            feedbackManagerReady: typeof FeedbackManager !== 'undefined',
-            initCalled: true
-          };
-        } catch (e) {
-          return { error: e.message };
-        }
-      };
-      window.testAudio = function() {
-        try { FeedbackManager.sound.play('tap_sound'); return true; } catch (e) { return false; }
-      };
-      window.testPause = function() {
-        try { FeedbackManager.sound.pause(); return true; } catch (e) { return false; }
-      };
-      window.testResume = function() {
-        try { FeedbackManager.sound.resume(); return true; } catch (e) { return false; }
-      };
     });
   </script>
 </body>

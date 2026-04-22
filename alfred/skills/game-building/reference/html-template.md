@@ -86,7 +86,7 @@ The exact document structure every game must follow. Do not deviate from the ele
         /* 2.  await FeedbackManager.init() -- do NOT call unlock() after */
         /* 3.  SignalCollector creation */
         /* 4.  ScreenLayout.inject('app', { slots: { previewScreen: true, transitionScreen: true }, sections: {...}, styles: {...} }) -- previewScreen slot is default; OMIT the previewScreen key when spec declares previewScreen: false */
-        /* 5.  Inject timer container into header slot */
+        /* 5.  Inject timer container as a direct child of #mathai-preview-slot (NOT inside .mathai-preview-header*). CSS absolute-centers it top-center. See PART-006 + code-patterns.md § Preview timer sync. */
         /* 6.  Build play area HTML into #gameContent */
         /* 7.  TimerComponent creation (autoStart: false) */
         /* 8.  InteractionManager creation */

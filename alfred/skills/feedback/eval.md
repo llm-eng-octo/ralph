@@ -252,9 +252,10 @@ Game is mid-round. Student switches tabs.
 - [ ] Timer pauses
 - [ ] `FeedbackManager.sound.pause()` called
 - [ ] `FeedbackManager.stream.pauseAll()` called
-- [ ] "Game Paused" overlay appears
-- [ ] On return: timer resumes, audio resumes, streams resume, overlay dismisses
+- [ ] `VisibilityTracker`'s built-in `PopupComponent` pause popup appears (default title "Resume Activity", or whatever `popupProps.title` overrides it to) — **no game-local pause overlay**
+- [ ] On return: timer resumes, audio resumes, streams resume, and the `VisibilityTracker` popup dismisses itself
 - [ ] Gameplay continues from exactly where it was
+- [ ] No bespoke `.*pause-overlay`/`#*PauseOverlay` div in game HTML (anti-pattern — duplicates `VisibilityTracker`)
 
 **Why:** Tests pause/resume behavior — audio must pause (not stop) so it can resume.
 

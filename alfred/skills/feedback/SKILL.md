@@ -131,11 +131,13 @@ All audio stopped (static + dynamic + streams). All state resets. Optional resta
 
 ### CASE 14: Visibility Hidden (Tab Switch / Screen Lock)
 
-Timer pauses. All static audio pauses. All streams pause. "Game Paused" overlay with "Resume" button.
+Timer pauses. All static audio pauses. All streams pause. The pause overlay is rendered by **`VisibilityTracker`'s built-in `PopupComponent`** (auto-shown via the `autoShowPopup: true` default — do **NOT** set it to `false`). Customize title / description / button text via `popupProps` if needed; do **NOT** roll a custom pause overlay in game DOM.
 
 ### CASE 15: Visibility Restored
 
-Timer resumes. All audio resumes. All streams resume. Pause overlay dismisses. Gameplay continues exactly where it was.
+Timer resumes. All audio resumes. All streams resume. `VisibilityTracker` dismisses its own popup automatically. Gameplay continues exactly where it was.
+
+**Anti-pattern:** Do not build a bespoke `<div class="…pause-overlay">` with manual `.visible` class toggling in `onInactive` / `onResume`. `VisibilityTracker` already renders, shows, and hides the popup; a custom overlay duplicates that and produces two stacked overlays (or a broken one if `autoShowPopup: false` was set to suppress the built-in).
 
 ### CASE 16: Audio Failure
 
@@ -150,6 +152,7 @@ When new round loads (new grid, tiles, cards), a soft "new cards" SFX plays — 
 ## Cross-Cutting Rules
 
 1. **Screen before audio** — results/game-over screen always renders before end-game audio starts
+0. **ProgressBar bump before round-complete audio** — `progressBar.update(currentRound, Math.max(0, lives))` fires **first** in the round-complete handler (before the awaited round-complete SFX, subtitle, VO, and before `nextRound`/`endGame`). Required so the bar fills in sync with the last answer's visual lock and so the final round paints `N/N` *before* victory renders. See PART-023 `update() semantics`.
 2. **PostMessage before audio** — `game_complete` sent to parent before end-game audio plays
 3. **CTA always stops audio** — any transition/results CTA, when tapped, stops all playing audio
 4. **Wrong answer = stay on round** — never auto-advance after wrong
@@ -158,6 +161,7 @@ When new round loads (new grid, tiles, cards), a soft "new cards" SFX plays — 
 7. **Dynamic TTS is stoppable** — if student interacts while TTS plays, it's interrupted
 8. **Sequential audio = await first, then second** — when two audios play back-to-back (SFX → VO, SFX → TTS), always `await` the first call before starting the second. Never fire both simultaneously. The second audio must NOT override/overlap the first.
 9. **CTA interrupts mid-sequence** — if CTA is tapped while a sequential audio pair is playing (even between the two calls), call `stopAll()` + `_stopCurrentDynamic()` and proceed immediately
+10. **Cleanup between rounds / end of game (CRITICAL)** — No leftover audio, subtitle, or sticker from the PREVIOUS round/phase may be visible or audible when the NEXT round or the end screen renders. FeedbackManager's overlay auto-clear fires ONLY when a new `playDynamicFeedback()` starts — it does NOT fire on silent `nextRound()` auto-advance, on `endGame()` entry (victory/game-over TransitionScreen), on `restartGame()`, on level-transition action callbacks, or on any skip/next button handler. Every such transition site MUST call `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` (or `.pauseAll()` for stream) BEFORE mutating `gameState` for the new phase. If the game also renders subtitle/sticker outside the FeedbackManager overlay (a custom `#feedback-area`, inline text panel, one-shot animation class), clear those manually in the same block (`textContent = ''`, remove `show`/`correct`/`incorrect`/`visible` classes). Do NOT `.remove()` cached DOM nodes — GEN-DOM-CACHE bans re-querying. Cleanup MUST happen BEFORE `gameState` mutation, never after — running it after mutation opens a 1–2 frame window where the new round paints while the previous round's sticker/subtitle is still visible. Rule 3 ("CTA always stops audio") covers the user-interrupt case; this rule extends the same guarantee to silent transitions where no CTA fires. Validator: `5e0-CLEANUP-BETWEEN-ROUNDS` (lib/validate-static.js) flags `nextRound` / `scheduleNextRound` / `endGame` / `restartGame` bodies that mutate state without a preceding stop call or equivalent auto-clear trigger.
 
 ---
 
@@ -221,3 +225,5 @@ When new round loads (new grid, tiles, cards), a soft "new cards" SFX plays — 
 10. Starting the second audio without `await`-ing the first — the second overrides/overlaps the first.
 11. Adding dynamic TTS to multi-step mid-round matches — kills pacing. Multi-step = SFX + sticker only.
 12. Skipping dynamic TTS on single-step correct/wrong — single-step games ALWAYS play SFX → TTS by default.
+13. Leftover audio/subtitle/sticker bleeding into the next round or the end screen — previous round's TTS still audible, subtitle still visible, sticker still animating when the new question paints. Assumption "FeedbackManager auto-clears" is wrong for silent `nextRound()`, `endGame()` (no CTA), `restartGame()`, and level-transition callbacks. Every transition site must explicitly `stopAll()` before advancing state. See Cross-Cutting Rule 10.
+14. Calling `stopAll()` AFTER mutating `gameState` for the new phase — creates a 1–2 frame window where the new round UI paints while the previous round's sticker/subtitle is still visible. Cleanup must be the FIRST statement in `nextRound()` / `endGame()` / `restartGame()`, before any `currentRound++` / `phase = ...` / `gameEnded = true` / `renderRound()` call.
