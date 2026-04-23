@@ -1,0 +1,1924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Number Sort</title>
+
+  <!-- Sentry helpers (pipeline-standard) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'number-sort@1.0.0' }));
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- CDN components (only approved set) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #8B5DDF;
+      --mathai-yellow: #F4C842;
+      --mathai-orange: #F28C42;
+      --mathai-pink: #E879AE;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-surface: #FAFAFB;
+      --mathai-success: #27AE60;
+      --mathai-success-bg: #D9F8D9;
+      --mathai-danger: #E35757;
+      --mathai-danger-bg: #FFD9D9;
+      --mathai-warning: #F4A022;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-radius-md: 14px;
+
+      /* Number Sort — per-zone tint colours (derived from semantic --mathai-* roots) */
+      --ns-zone-green-bg: #E2F7E6;
+      --ns-zone-green-border: #7DCB8E;
+      --ns-zone-purple-bg: #EDE1F7;
+      --ns-zone-purple-border: #B08DE0;
+      --ns-zone-amber-bg: #FCEFD4;
+      --ns-zone-amber-border: #E0B668;
+      --ns-zone-slate-bg: #E6EAEF;
+      --ns-zone-slate-border: #9AA5B4;
+      --ns-zone-pink-bg: #F9E0EE;
+      --ns-zone-pink-border: #E87BB0;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.4;
+    }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .hidden { display: none !important; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+      white-space: nowrap; border: 0;
+    }
+
+    /* ====== Gameplay wrapper ====== */
+    .ns-play {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 10px 12px 16px;
+      padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+      width: 100%;
+      animation: fadeIn 0.25s ease;
+    }
+
+    .ns-round-label {
+      font-size: 12px;
+      color: var(--mathai-gray);
+      margin-bottom: 6px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .ns-subtitle {
+      min-height: 18px;
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: var(--mathai-primary);
+      opacity: 0;
+      transition: opacity 180ms ease;
+      padding: 0 10px;
+    }
+    .ns-subtitle.visible { opacity: 1; }
+
+    /* ====== Bank ====== */
+    .ns-bank-label {
+      font-size: 12px;
+      color: var(--mathai-gray);
+      margin-bottom: 4px;
+      font-weight: 600;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .ns-bank {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      min-height: 72px;
+      padding: 6px 4px;
+      margin: 0 auto 10px;
+      background: var(--mathai-surface);
+      border: 2px dashed var(--mathai-border-gray);
+      border-radius: var(--mathai-radius-md);
+      transition: min-height 180ms ease, background 180ms ease;
+    }
+    .ns-bank.drag-over {
+      background: rgba(139, 93, 223, 0.10);
+    }
+    .ns-bank-empty-hint {
+      font-size: 12px;
+      color: var(--mathai-gray);
+      opacity: 0.55;
+      padding: 8px 4px;
+    }
+
+    /* ====== Zones ====== */
+    .ns-zones {
+      display: flex;
+      width: 100%;
+    }
+    .ns-zones--row {
+      flex-direction: row;
+      align-items: stretch;
+      justify-content: center;
+    }
+    .ns-zones--row .ns-zone {
+      flex: 1 1 0;
+      margin: 0 4px;
+    }
+    .ns-zones--row .ns-zone:first-child { margin-left: 0; }
+    .ns-zones--row .ns-zone:last-child { margin-right: 0; }
+
+    .ns-zones--col {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .ns-zones--col .ns-zone {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .ns-zones--col .ns-zone:last-child { margin-bottom: 0; }
+
+    .ns-zone {
+      background: var(--ns-zone-tint, var(--mathai-surface));
+      border: 2px solid transparent;
+      border-radius: var(--mathai-radius-md);
+      padding: 10px 8px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      min-height: 96px;
+      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, min-height 180ms ease;
+      position: relative;
+    }
+    .ns-zone--hover {
+      border-color: var(--mathai-purple);
+    }
+    .ns-zone--reject {
+      border-color: var(--mathai-danger);
+      background: var(--mathai-danger-bg);
+    }
+    .ns-zone--hint {
+      border-color: var(--mathai-warning);
+      box-shadow: 0 0 0 3px rgba(244, 160, 34, 0.45);
+    }
+    .ns-zone--correct-glow {
+      border-color: var(--mathai-success);
+      box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.32);
+    }
+
+    /* Zone tints (applied via data-zone-id) */
+    .ns-zone[data-zone-id="even"],
+    .ns-zone[data-zone-id="even_not3"] {
+      background: var(--ns-zone-green-bg);
+    }
+    .ns-zone[data-zone-id="odd"],
+    .ns-zone[data-zone-id="odd_not3"] {
+      background: var(--ns-zone-purple-bg);
+    }
+    .ns-zone[data-zone-id="mult5"] {
+      background: var(--ns-zone-amber-bg);
+    }
+    .ns-zone[data-zone-id="notmult5"] {
+      background: var(--ns-zone-slate-bg);
+    }
+    .ns-zone[data-zone-id="mult3"] {
+      background: var(--ns-zone-pink-bg);
+    }
+
+    .ns-zone-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      text-align: center;
+      margin-bottom: 6px;
+      letter-spacing: 0.2px;
+    }
+
+    .ns-zone-cluster {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      min-height: 56px;
+      flex: 1 1 auto;
+      transition: min-height 180ms ease;
+    }
+
+    .ns-zone-placeholder {
+      font-size: 12px;
+      color: var(--mathai-gray);
+      opacity: 0.45;
+      padding: 6px 4px;
+      font-style: italic;
+    }
+    .ns-zone-cluster:not(:empty) + .ns-zone-placeholder,
+    .ns-zone-cluster.has-pills .ns-zone-placeholder { display: none; }
+
+    /* ====== Pills ====== */
+    .ns-pill {
+      min-width: 48px;
+      min-height: 44px;
+      padding: 0 14px;
+      margin: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      border: 2px solid var(--mathai-border-gray);
+      border-radius: 22px;
+      font-size: 18px;
+      font-weight: 700;
+      font-family: var(--mathai-font-family);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+      cursor: grab;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+    }
+    .ns-pill:active,
+    .ns-pill--dragging {
+      cursor: grabbing;
+    }
+    .ns-pill--drag-origin {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .ns-pill--ghost {
+      position: fixed;
+      z-index: 9999;
+      pointer-events: none;
+      cursor: grabbing;
+      transform: scale(1.08);
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+      transition: none;
+    }
+    .ns-pill--bouncing {
+      transition: left 380ms cubic-bezier(0.3, 1.4, 0.5, 1),
+                  top 380ms cubic-bezier(0.3, 1.4, 0.5, 1),
+                  transform 380ms cubic-bezier(0.3, 1.4, 0.5, 1);
+    }
+    .ns-pill--snap {
+      animation: snapIn 300ms ease-out;
+    }
+    .ns-pill--shake {
+      animation: shakeWrong 300ms ease-in-out;
+    }
+
+    /* ====== Animations ====== */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shakeWrong {
+      0%   { transform: translateX(0); }
+      20%  { transform: translateX(-5px); }
+      40%  { transform: translateX(4px); }
+      60%  { transform: translateX(-3px); }
+      80%  { transform: translateX(2px); }
+      100% { transform: translateX(0); }
+    }
+    @keyframes snapIn {
+      0%   { transform: scale(1.14); box-shadow: 0 0 0 4px rgba(39, 174, 96, 0.45); }
+      60%  { transform: scale(0.96); }
+      100% { transform: scale(1); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06); }
+    }
+
+    .reduced-motion .ns-pill,
+    .reduced-motion .ns-zone {
+      animation-duration: 0ms !important;
+      transition-duration: 0ms !important;
+    }
+    .reduced-motion .ns-pill--bouncing { transition: none !important; }
+
+    /* ====== Landscape lock ====== */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white, #ffffff);
+        color: var(--mathai-primary, #270f36);
+        font-family: var(--mathai-font-family, system-ui, -apple-system, sans-serif);
+        font-size: 18px;
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    button, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    #results-screen {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 100;
+      display: none;
+    }
+
+    @media screen and (max-width: 360px) {
+      .ns-pill { font-size: 16px; padding: 0 10px; min-width: 44px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start" data-score="0" data-round="0" data-rounds-completed="0">
+    <button type="button" id="btn-start" data-testid="btn-start" class="hidden" aria-hidden="true" tabindex="-1">Start</button>
+  </div>
+  <div id="results-screen" class="hidden"></div>
+  <div id="ns-live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    /* ============================================================
+       1. gameState (gameId FIRST per GEN-GAMEID)
+       ============================================================ */
+    var gameState = {
+      gameId: 'number-sort',
+      phase: 'start',
+      currentRound: 0,
+      totalRounds: 5,
+      score: 0,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      content: null,
+      duration_data: { startTime: null, pausedTime: 0, lastPauseStart: null, attempts: [], preview: [] },
+      isProcessing: false,
+      gameEnded: false,
+      correctAnswer: null,
+      /* game-specific */
+      roundsCompleted: 0,
+      stars: 0,
+      roundStartTime: null,
+      round: null,
+      pillLocations: {},          /* tagId -> 'bank' | zoneId */
+      consecutiveWrongDropsByTag: {},
+      activeDrag: null,
+      isDragging: false,
+      previewResult: null,
+      visibilityPaused: false,
+      reducedMotion: false,
+      signalConfig: null,
+      contentSetId: null
+    };
+
+    /* ============================================================
+       2. expose to window
+       ============================================================ */
+    window.gameState = gameState;
+
+    /* ============================================================
+       3. fallbackContent — hard-coded from spec Content Samples
+       ============================================================ */
+    var ROUNDS = [
+      {
+        roundId: 1,
+        stage: 1,
+        dropZones: [
+          { zoneId: 'even', label: 'Even', rule: 'Number is divisible by 2' },
+          { zoneId: 'odd',  label: 'Odd',  rule: 'Number is not divisible by 2' }
+        ],
+        tags: [
+          { tagId: 't1', value: 4,  correctZone: 'even' },
+          { tagId: 't2', value: 7,  correctZone: 'odd'  },
+          { tagId: 't3', value: 10, correctZone: 'even' },
+          { tagId: 't4', value: 3,  correctZone: 'odd'  },
+          { tagId: 't5', value: 8,  correctZone: 'even' },
+          { tagId: 't6', value: 5,  correctZone: 'odd'  }
+        ],
+        previewInstruction: '<p>Drag each number into <b>Even</b> or <b>Odd</b>.</p>',
+        previewAudioText: 'Drag each number into the even or odd box. Even numbers end in 0, 2, 4, 6, or 8.',
+        expected_misconception: 'confuses_even_odd_by_digit'
+      },
+      {
+        roundId: 2,
+        stage: 1,
+        dropZones: [
+          { zoneId: 'even', label: 'Even', rule: 'Number is divisible by 2' },
+          { zoneId: 'odd',  label: 'Odd',  rule: 'Number is not divisible by 2' }
+        ],
+        tags: [
+          { tagId: 't1', value: 14, correctZone: 'even' },
+          { tagId: 't2', value: 19, correctZone: 'odd'  },
+          { tagId: 't3', value: 6,  correctZone: 'even' },
+          { tagId: 't4', value: 11, correctZone: 'odd'  },
+          { tagId: 't5', value: 20, correctZone: 'even' },
+          { tagId: 't6', value: 17, correctZone: 'odd'  }
+        ],
+        previewInstruction: '<p>More numbers! Sort each one into <b>Even</b> or <b>Odd</b>.</p>',
+        previewAudioText: 'More numbers. Sort each one into even or odd. The last digit tells you.',
+        expected_misconception: 'rule_reversal'
+      },
+      {
+        roundId: 3,
+        stage: 2,
+        dropZones: [
+          { zoneId: 'mult5',    label: 'Multiples of 5',     rule: 'Number is divisible by 5' },
+          { zoneId: 'notmult5', label: 'Not multiples of 5', rule: 'Number is not divisible by 5' }
+        ],
+        tags: [
+          { tagId: 't1', value: 5,  correctZone: 'mult5' },
+          { tagId: 't2', value: 7,  correctZone: 'notmult5' },
+          { tagId: 't3', value: 10, correctZone: 'mult5' },
+          { tagId: 't4', value: 12, correctZone: 'notmult5' },
+          { tagId: 't5', value: 15, correctZone: 'mult5' },
+          { tagId: 't6', value: 23, correctZone: 'notmult5' },
+          { tagId: 't7', value: 20, correctZone: 'mult5' },
+          { tagId: 't8', value: 31, correctZone: 'notmult5' }
+        ],
+        previewInstruction: '<p>Sort each number into <b>Multiples of 5</b> or <b>Not multiples of 5</b>.</p>',
+        previewAudioText: 'Sort each number. Multiples of 5 always end in 0 or 5.',
+        expected_misconception: 'ignores_rule'
+      },
+      {
+        roundId: 4,
+        stage: 2,
+        dropZones: [
+          { zoneId: 'mult5',    label: 'Multiples of 5',     rule: 'Number is divisible by 5' },
+          { zoneId: 'notmult5', label: 'Not multiples of 5', rule: 'Number is not divisible by 5' }
+        ],
+        tags: [
+          { tagId: 't1', value: 25, correctZone: 'mult5' },
+          { tagId: 't2', value: 8,  correctZone: 'notmult5' },
+          { tagId: 't3', value: 35, correctZone: 'mult5' },
+          { tagId: 't4', value: 14, correctZone: 'notmult5' },
+          { tagId: 't5', value: 40, correctZone: 'mult5' },
+          { tagId: 't6', value: 27, correctZone: 'notmult5' },
+          { tagId: 't7', value: 30, correctZone: 'mult5' },
+          { tagId: 't8', value: 19, correctZone: 'notmult5' }
+        ],
+        previewInstruction: '<p>Bigger numbers. Find the <b>Multiples of 5</b>!</p>',
+        previewAudioText: 'Bigger numbers now. Find the multiples of 5.',
+        expected_misconception: 'multiples_of_all'
+      },
+      {
+        roundId: 5,
+        stage: 3,
+        dropZones: [
+          { zoneId: 'mult3',     label: 'Multiples of 3', rule: 'Number is divisible by 3' },
+          { zoneId: 'even_not3', label: 'Even',            rule: 'Even, not a multiple of 3' },
+          { zoneId: 'odd_not3',  label: 'Odd',             rule: 'Odd, not a multiple of 3' }
+        ],
+        tags: [
+          { tagId: 't1', value: 9,  correctZone: 'mult3' },
+          { tagId: 't2', value: 12, correctZone: 'mult3' },
+          { tagId: 't3', value: 21, correctZone: 'mult3' },
+          { tagId: 't4', value: 4,  correctZone: 'even_not3' },
+          { tagId: 't5', value: 8,  correctZone: 'even_not3' },
+          { tagId: 't6', value: 20, correctZone: 'even_not3' },
+          { tagId: 't7', value: 5,  correctZone: 'odd_not3' },
+          { tagId: 't8', value: 11, correctZone: 'odd_not3' },
+          { tagId: 't9', value: 25, correctZone: 'odd_not3' }
+        ],
+        previewInstruction: '<p>The <b>final round</b>! Three boxes. Multiples of 3 first, then Even, then Odd.</p>',
+        previewAudioText: 'The final round. Three boxes. If the number is a multiple of 3, put it in the first box. Otherwise sort by even or odd.',
+        expected_misconception: 'multiples_of_all'
+      }
+    ];
+
+    var fallbackContent = {
+      previewInstruction: ROUNDS[0].previewInstruction,
+      previewAudioText: ROUNDS[0].previewAudioText,
+      previewAudio: null,
+      showGameOnPreview: false,
+      rounds: ROUNDS
+    };
+
+    /* ============================================================
+       4. Module-scope vars + sticker URLs
+       ============================================================ */
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var progressBar = null;
+
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_COMPLETE_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_COMPLETE_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_MOTIVATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    var hintTimers = [];
+
+    /* ============================================================
+       5. syncDOM / syncDOMState
+       ============================================================ */
+    function syncDOM() { syncDOMState(); }
+    function syncDOMState() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+      app.setAttribute('data-rounds-completed', gameState.roundsCompleted);
+    }
+
+    /* ============================================================
+       6. trackEvent
+       ============================================================ */
+    function trackEvent(eventName, data) {
+      gameState.events.push({ event: eventName, timestamp: Date.now(), data: data || {} });
+    }
+
+    /* ============================================================
+       7. recordAttempt — 12 required fields
+       ============================================================ */
+    function recordAttempt(roundIndex, userInput, correct, metadata) {
+      var rounds = getRounds();
+      var round = rounds[roundIndex] || {};
+      var md = metadata || {};
+      var tagId = (userInput && userInput.tagId) ? userInput.tagId : null;
+      var correctAnswer = null;
+      if (tagId && round.tags) {
+        for (var i = 0; i < round.tags.length; i++) {
+          if (round.tags[i].tagId === tagId) {
+            correctAnswer = round.tags[i].correctZone;
+            break;
+          }
+        }
+      }
+      var mcTag = null;
+      if (!correct) {
+        mcTag = md.misconception_tag;
+        if (mcTag === undefined || mcTag === null || mcTag === '' || mcTag === 'other' || mcTag === 'wrong') {
+          mcTag = round.expected_misconception || 'ignores_rule';
+        }
+      }
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? Date.now() - gameState.startTime : 0,
+        input_of_user: userInput || {},
+        correct: !!correct,
+        round_number: roundIndex + 1,
+        question_id: 'r' + (roundIndex + 1) + '_' + (tagId || 'x'),
+        correct_answer: correctAnswer,
+        response_time_ms: gameState.roundStartTime ? Date.now() - gameState.roundStartTime : 0,
+        misconception_tag: mcTag,
+        difficulty_level: round.stage || (roundIndex + 1),
+        is_retry: md.is_retry ? true : false,
+        metadata: md
+      };
+      gameState.attempts.push(attempt);
+      gameState.duration_data.attempts.push({ round: roundIndex + 1, timestamp: Date.now() });
+
+      if (signalCollector) {
+        try {
+          signalCollector.recordInputEvent('answer_attempt', {
+            input: userInput || {},
+            correct: !!correct,
+            round: roundIndex + 1,
+            misconception_tag: md.misconception_tag || null
+          });
+        } catch(e) {}
+      }
+      trackEvent('attempt', { round: roundIndex + 1, correct: !!correct, input: userInput || {}, misconception_tag: md.misconception_tag || null });
+    }
+
+    /* ============================================================
+       8. getStars (from roundsCompleted per spec)
+       ============================================================ */
+    function getStars() {
+      var rc = gameState.roundsCompleted;
+      if (rc >= 5) return 3;
+      if (rc >= 3) return 2;
+      if (rc >= 1) return 1;
+      return 0;
+    }
+
+    /* ============================================================
+       9. getRounds
+       ============================================================ */
+    function getRounds() {
+      if (gameState.content && gameState.content.rounds && gameState.content.rounds.length >= gameState.totalRounds) {
+        return gameState.content.rounds;
+      }
+      return fallbackContent.rounds;
+    }
+
+    /* ============================================================
+       10. waitForPackages
+       ============================================================ */
+    function waitForPackages() {
+      var timeout = 120000;
+      return new Promise(function(resolve, reject) {
+        var start = Date.now();
+        function check() {
+          if (typeof FeedbackManager !== 'undefined' &&
+              typeof VisibilityTracker !== 'undefined' &&
+              typeof SignalCollector !== 'undefined' &&
+              typeof ScreenLayout !== 'undefined' &&
+              typeof ProgressBarComponent !== 'undefined' &&
+              typeof TransitionScreenComponent !== 'undefined' &&
+              typeof PreviewScreenComponent !== 'undefined') {
+            resolve(true);
+          } else if (Date.now() - start > timeout) {
+            try { throw new Error('Packages failed to load within 120s'); }
+            catch (err) { reject(err); }
+          } else {
+            setTimeout(check, 50);
+          }
+        }
+        check();
+      });
+    }
+
+    /* ============================================================
+       11. handlePostMessage
+       ============================================================ */
+    function handlePostMessage(event) {
+      if (!event || !event.data) return;
+      var msg = event.data;
+      if (msg.type === 'game_init') {
+        /* CRITICAL: first line */
+        gameState.phase = 'preview';
+        syncDOMState();
+        var d = msg.data || {};
+        if (d.content) {
+          gameState.content = d.content;
+          if (d.content.rounds && d.content.rounds.length >= 1) {
+            gameState.totalRounds = d.content.rounds.length;
+          }
+        }
+        gameState.signalConfig = d.signalConfig || {};
+        var sc = gameState.signalConfig;
+        if (signalCollector && sc && sc.flushUrl) {
+          signalCollector.flushUrl = sc.flushUrl;
+          signalCollector.playId = sc.playId || null;
+          signalCollector.gameId = sc.gameId || signalCollector.gameId;
+          signalCollector.sessionId = sc.sessionId || signalCollector.sessionId;
+          signalCollector.contentSetId = sc.contentSetId || signalCollector.contentSetId;
+          signalCollector.studentId = sc.studentId || signalCollector.studentId || null;
+          try { signalCollector.startFlushing(); } catch(e) {}
+        }
+        setupGame();
+      }
+    }
+
+    /* ============================================================
+       12. Helpers
+       ============================================================ */
+    function escapeAttr(s) {
+      if (s === null || s === undefined) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function announce(text) {
+      var lr = document.getElementById('ns-live-region');
+      if (lr) { lr.textContent = ''; setTimeout(function(){ lr.textContent = text; }, 20); }
+    }
+
+    function getTagById(tagId) {
+      if (!gameState.round || !gameState.round.tags) return null;
+      for (var i = 0; i < gameState.round.tags.length; i++) {
+        if (gameState.round.tags[i].tagId === tagId) return gameState.round.tags[i];
+      }
+      return null;
+    }
+
+    function getZoneById(zoneId) {
+      if (!gameState.round || !gameState.round.dropZones) return null;
+      for (var i = 0; i < gameState.round.dropZones.length; i++) {
+        if (gameState.round.dropZones[i].zoneId === zoneId) return gameState.round.dropZones[i];
+      }
+      return null;
+    }
+
+    /* Rule application: does value `n` satisfy zone `zoneId`? */
+    function valueMatchesZone(value, zoneId) {
+      var n = value;
+      if (zoneId === 'even')       return n % 2 === 0;
+      if (zoneId === 'odd')        return n % 2 !== 0;
+      if (zoneId === 'mult5')      return n % 5 === 0;
+      if (zoneId === 'notmult5')   return n % 5 !== 0;
+      if (zoneId === 'mult3')      return n % 3 === 0;
+      if (zoneId === 'even_not3')  return n % 2 === 0 && n % 3 !== 0;
+      if (zoneId === 'odd_not3')   return n % 2 !== 0 && n % 3 !== 0;
+      return false;
+    }
+
+    /* ============================================================
+       13. startGame (contract function; actual render begins in setupGame)
+       ============================================================ */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.phase = 'playing';
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOMState();
+    }
+
+    /* ============================================================
+       14. setupGame (preview-first)
+       ============================================================ */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      /* Render game DOM FIRST so preview overlay sits on top of a populated game stack */
+      ensureGameContent();
+      renderRound(0);
+      if (previewScreen) {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          timerConfig: null,
+          timerInstance: null,
+          onComplete: function(previewData) { startGameAfterPreview(previewData); }
+        });
+      } else {
+        gameState.phase = 'playing';
+        syncDOMState();
+        showRoundIntro();
+      }
+    }
+
+    function ensureGameContent() {
+      var gc = document.getElementById('gameContent');
+      if (gc) return gc;
+      var appEl = document.getElementById('app');
+      if (!appEl) return null;
+      var wrap = document.createElement('div');
+      wrap.id = 'gameContent';
+      appEl.appendChild(wrap);
+      return wrap;
+    }
+
+    /* ============================================================
+       15. After preview ends
+       ============================================================ */
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData;
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      if (previewData) gameState.duration_data.preview.push({ duration: previewData.duration });
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.phase = 'playing';
+      syncDOMState();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      if (signalCollector) {
+        try { signalCollector.recordViewEvent('screen_transition', { screen: 'gameplay', metadata: { transition_from: 'preview' } }); } catch(e) {}
+      }
+      if (progressBar) {
+        try { progressBar.show(); progressBar.update(gameState.roundsCompleted, 0); } catch(e) {}
+      }
+      tagProgressSegmentsTestIds();
+      showRoundIntro();
+    }
+
+    function tagProgressSegmentsTestIds() {
+      setTimeout(function() {
+        var slot = document.getElementById('mathai-progress-slot');
+        if (!slot) return;
+        var segs = slot.querySelectorAll('[class*="segment"], [class*="seg"]');
+        if (!segs || segs.length === 0) {
+          segs = slot.querySelectorAll('div');
+        }
+        var tagged = 0;
+        for (var i = 0; i < segs.length && tagged < gameState.totalRounds; i++) {
+          var el = segs[i];
+          if (el.children && el.children.length > 0) continue;
+          if (!el.hasAttribute('data-testid')) {
+            el.setAttribute('data-testid', 'progress-seg-' + (tagged + 1));
+            tagged++;
+          }
+        }
+      }, 80);
+    }
+
+    /* ============================================================
+       16. Round intro (auto-advance)
+       ============================================================ */
+    async function showRoundIntro() {
+      var roundNum = gameState.currentRound + 1;
+      gameState.phase = 'round_intro';
+      syncDOMState();
+
+      /* Audio readiness gate on the first transition screen */
+      await new Promise(function(resolve) {
+        if (typeof FeedbackManager === 'undefined' || !FeedbackManager.canPlayAudio) return resolve();
+        if (FeedbackManager.canPlayAudio()) return resolve();
+        var tries = 0;
+        var interval = setInterval(function() {
+          tries++;
+          if (FeedbackManager.canPlayAudio()) { clearInterval(interval); resolve(); }
+          else if (tries * 200 >= 15000) { clearInterval(interval); resolve(); }
+        }, 200);
+      });
+
+      if (!transitionScreen) { beginRound(); return; }
+
+      if (signalCollector) {
+        try {
+          signalCollector.recordViewEvent('screen_transition', {
+            screen: 'transition',
+            content_snapshot: { round: roundNum },
+            metadata: { trigger: 'round_start' }
+          });
+        } catch(e) {}
+      }
+
+      announce('Round ' + roundNum);
+
+      try {
+        await transitionScreen.show({
+          title: 'Round ' + roundNum,
+          subtitle: roundNum === 1 ? 'Sort the numbers into the right boxes!' : '',
+          icons: ['\uD83E\uDDEE'],
+          onMounted: async function() {
+            try {
+              await FeedbackManager.sound.play('rounds_sound_effect', { sticker: STICKER_ROUND });
+            } catch(e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: 'Round ' + roundNum,
+                subtitle: 'Round ' + roundNum,
+                sticker: STICKER_ROUND
+              });
+            } catch(e) {}
+            try { transitionScreen.hide(); } catch(e) {}
+            beginRound();
+          }
+        });
+      } catch(e) {}
+    }
+
+    function beginRound() {
+      gameState.phase = 'playing';
+      syncDOMState();
+      renderRound(gameState.currentRound);
+      if (progressBar) { try { progressBar.update(gameState.roundsCompleted, 0); } catch(e) {} }
+      tagProgressSegmentsTestIds();
+      trackEvent('round_start', { round: gameState.currentRound + 1 });
+    }
+
+    /* ============================================================
+       17. renderRound — per-round reset + DOM rebuild
+       ============================================================ */
+    function renderRound(i) {
+      var rounds = getRounds();
+      var round = rounds[i];
+      if (!round) return;
+
+      /* clear any pending hint timers */
+      for (var h = 0; h < hintTimers.length; h++) { try { clearTimeout(hintTimers[h]); } catch(e) {} }
+      hintTimers = [];
+
+      gameState.round = round;
+      gameState.pillLocations = {};
+      for (var pi = 0; pi < round.tags.length; pi++) {
+        gameState.pillLocations[round.tags[pi].tagId] = 'bank';
+      }
+      gameState.consecutiveWrongDropsByTag = {};
+      gameState.roundStartTime = Date.now();
+      gameState.activeDrag = null;
+      gameState.isDragging = false;
+      gameState.isProcessing = false;
+      gameState.correctAnswer = buildCorrectAnswerMap(round);
+
+      var gameContent = ensureGameContent();
+      if (!gameContent) return;
+
+      var zonesLayoutClass = round.dropZones.length >= 3 ? 'ns-zones--col' : 'ns-zones--row';
+
+      var html = '<div class="ns-play" id="ns-play">';
+      html += '<div class="ns-round-label" id="ns-round-label">Round ' + (i + 1) + ' of ' + gameState.totalRounds + '</div>';
+      html += '<div class="ns-subtitle" id="ns-subtitle" aria-live="polite"></div>';
+
+      /* Bank */
+      html += '<div class="ns-bank-label">Numbers</div>';
+      html += '<div class="ns-bank" id="ns-bank" data-testid="bank" data-container="bank">';
+      for (var ti = 0; ti < round.tags.length; ti++) {
+        var t = round.tags[ti];
+        html += '<div class="ns-pill" data-tag-id="' + escapeAttr(t.tagId) + '" data-value="' + escapeAttr(t.value) + '" ';
+        html += 'data-testid="tag-' + escapeAttr(t.tagId) + '" ';
+        html += 'role="button" aria-label="number ' + escapeAttr(t.value) + '" tabindex="0">' + escapeAttr(t.value) + '</div>';
+      }
+      html += '</div>';
+
+      /* Zones container */
+      html += '<div class="ns-zones ' + zonesLayoutClass + '" data-zones-count="' + round.dropZones.length + '">';
+      for (var zi = 0; zi < round.dropZones.length; zi++) {
+        var z = round.dropZones[zi];
+        html += '<div class="ns-zone" data-zone-id="' + escapeAttr(z.zoneId) + '" ';
+        html += 'data-testid="zone-' + escapeAttr(z.zoneId) + '" data-container="' + escapeAttr(z.zoneId) + '">';
+        html += '<div class="ns-zone-label">' + escapeAttr(z.label) + '</div>';
+        html += '<div class="ns-zone-cluster" data-cluster-for="' + escapeAttr(z.zoneId) + '"></div>';
+        html += '<div class="ns-zone-placeholder">Drop numbers here</div>';
+        html += '</div>';
+      }
+      html += '</div>'; /* .ns-zones */
+
+      html += '</div>'; /* .ns-play */
+
+      gameContent.innerHTML = html;
+
+      /* Attach pointer handlers to every pill */
+      var pills = gameContent.querySelectorAll('.ns-pill');
+      for (var pIdx = 0; pIdx < pills.length; pIdx++) {
+        attachPillPointerHandlers(pills[pIdx]);
+      }
+
+      syncDOMState();
+
+      if (signalCollector) {
+        try {
+          signalCollector.recordViewEvent('content_render', {
+            screen: 'gameplay',
+            content_snapshot: {
+              round: i + 1,
+              stage: round.stage,
+              zones: round.dropZones.length,
+              tags: round.tags.length
+            },
+            metadata: { trigger: 'round_start' }
+          });
+        } catch(e) {}
+      }
+
+      try { FeedbackManager.sound.play('new_cards').catch(function(){}); } catch(e) {}
+    }
+
+    function buildCorrectAnswerMap(round) {
+      var map = {};
+      if (!round || !round.tags) return map;
+      for (var i = 0; i < round.tags.length; i++) {
+        map[round.tags[i].tagId] = round.tags[i].correctZone;
+      }
+      return map;
+    }
+
+    /* ============================================================
+       18. Pointer handlers (drag + drop)
+       ============================================================ */
+    function attachPillPointerHandlers(el) {
+      el.addEventListener('pointerdown', function(ev) { handlePillPointerDown(ev, el); });
+    }
+
+    function handlePillPointerDown(ev, el) {
+      if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+      if (gameState.visibilityPaused) return;
+      if (gameState.activeDrag) return;
+      if (ev.button !== undefined && ev.button !== 0) return;
+
+      var tagId = el.getAttribute('data-tag-id');
+      if (!tagId) return;
+      var tag = getTagById(tagId);
+      if (!tag) return;
+
+      var source = gameState.pillLocations[tagId] || 'bank';
+
+      ev.preventDefault();
+
+      var rect = el.getBoundingClientRect();
+      var grabOffsetX = ev.clientX - rect.left;
+      var grabOffsetY = ev.clientY - rect.top;
+
+      /* Create ghost clone */
+      var ghost = el.cloneNode(true);
+      ghost.classList.add('ns-pill--ghost');
+      ghost.removeAttribute('data-testid');
+      ghost.style.left = (ev.clientX - grabOffsetX) + 'px';
+      ghost.style.top = (ev.clientY - grabOffsetY) + 'px';
+      ghost.style.width = rect.width + 'px';
+      ghost.style.height = rect.height + 'px';
+      document.body.appendChild(ghost);
+
+      /* Hide original to preserve layout slot but reflow container */
+      el.classList.add('ns-pill--drag-origin');
+
+      gameState.activeDrag = {
+        tagId: tagId,
+        tag: tag,
+        pillEl: el,
+        ghostEl: ghost,
+        pointerId: ev.pointerId,
+        source: source,
+        grabOffsetX: grabOffsetX,
+        grabOffsetY: grabOffsetY,
+        width: rect.width,
+        height: rect.height,
+        originRect: rect,
+        startTime: Date.now()
+      };
+      gameState.isDragging = true;
+
+      try { el.setPointerCapture && el.setPointerCapture(ev.pointerId); } catch(e) {}
+
+      document.addEventListener('pointermove', handlePillPointerMove, { passive: false });
+      document.addEventListener('pointerup', handlePillPointerUp, { passive: false });
+      document.addEventListener('pointercancel', handlePillPointerCancel, { passive: false });
+
+      /* fire-and-forget pick-up SFX */
+      try { FeedbackManager.sound.play('sound_bubble_select').catch(function(){}); } catch(e) {}
+
+      trackEvent('drag_start', { round: gameState.currentRound + 1, tagId: tagId, source: source });
+    }
+
+    function handlePillPointerMove(ev) {
+      var ad = gameState.activeDrag;
+      if (!ad) return;
+      if (ev.pointerId !== undefined && ad.pointerId !== undefined && ev.pointerId !== ad.pointerId) return;
+      ev.preventDefault();
+      ad.ghostEl.style.left = (ev.clientX - ad.grabOffsetX) + 'px';
+      ad.ghostEl.style.top = (ev.clientY - ad.grabOffsetY) + 'px';
+      updateHoverHighlight(ev.clientX, ev.clientY);
+    }
+
+    function clearHoverHighlights() {
+      var hovered = document.querySelectorAll('.ns-zone--hover, .ns-bank.drag-over');
+      for (var i = 0; i < hovered.length; i++) {
+        hovered[i].classList.remove('ns-zone--hover');
+        hovered[i].classList.remove('drag-over');
+      }
+    }
+
+    function containerAtPoint(clientX, clientY) {
+      /* Ghost has pointer-events:none, so elementFromPoint will skip it */
+      var el = document.elementFromPoint(clientX, clientY);
+      if (!el) return null;
+      var zone = el.closest ? el.closest('.ns-zone') : null;
+      if (zone) return { type: 'zone', id: zone.getAttribute('data-zone-id'), el: zone };
+      var bank = el.closest ? el.closest('.ns-bank') : null;
+      if (bank) return { type: 'bank', id: 'bank', el: bank };
+      return null;
+    }
+
+    function updateHoverHighlight(clientX, clientY) {
+      clearHoverHighlights();
+      var target = containerAtPoint(clientX, clientY);
+      if (!target) return;
+      if (target.type === 'zone') {
+        target.el.classList.add('ns-zone--hover');
+      } else if (target.type === 'bank') {
+        target.el.classList.add('drag-over');
+      }
+    }
+
+    function handlePillPointerUp(ev) {
+      var ad = gameState.activeDrag;
+      if (!ad) return;
+      if (ev.pointerId !== undefined && ad.pointerId !== undefined && ev.pointerId !== ad.pointerId) return;
+      ev.preventDefault();
+      finalizeDrop(ev.clientX, ev.clientY, false);
+    }
+
+    function handlePillPointerCancel(ev) {
+      var ad = gameState.activeDrag;
+      if (!ad) return;
+      finalizeDrop((ev && ev.clientX) || 0, (ev && ev.clientY) || 0, true);
+    }
+
+    function detachDragListeners() {
+      document.removeEventListener('pointermove', handlePillPointerMove);
+      document.removeEventListener('pointerup', handlePillPointerUp);
+      document.removeEventListener('pointercancel', handlePillPointerCancel);
+    }
+
+    function finalizeDrop(clientX, clientY, canceled) {
+      var ad = gameState.activeDrag;
+      if (!ad) return;
+      gameState.activeDrag = null;
+      gameState.isDragging = false;
+      clearHoverHighlights();
+      detachDragListeners();
+
+      var el = ad.pillEl;
+      try { el.releasePointerCapture && el.releasePointerCapture(ad.pointerId); } catch(e) {}
+
+      if (canceled) {
+        cancelDrop(ad);
+        return;
+      }
+
+      var target = containerAtPoint(clientX, clientY);
+
+      if (!target) {
+        /* Drop outside any container — cancel silently */
+        cancelDrop(ad);
+        return;
+      }
+
+      if (target.type === 'bank') {
+        handleDropIntoBank(ad, target);
+        return;
+      }
+
+      /* target.type === 'zone' */
+      var zoneId = target.id;
+      var tag = ad.tag;
+
+      if (ad.source === zoneId) {
+        /* Dropped back into own current zone — no-op */
+        cancelDrop(ad);
+        return;
+      }
+
+      if (valueMatchesZone(tag.value, zoneId)) {
+        resolveValidDrop(ad, target);
+      } else {
+        resolveInvalidDrop(ad, target);
+      }
+    }
+
+    /* ============================================================
+       19. Cancel drop (no attempt)
+       ============================================================ */
+    function cancelDrop(ad) {
+      /* Restore original pill visibility; remove ghost. */
+      if (ad.ghostEl && ad.ghostEl.parentElement) {
+        ad.ghostEl.parentElement.removeChild(ad.ghostEl);
+      }
+      if (ad.pillEl) {
+        ad.pillEl.classList.remove('ns-pill--drag-origin');
+      }
+    }
+
+    function cancelDrag() {
+      /* Used by visibility handler to force-end an active drag. */
+      if (!gameState.activeDrag) return;
+      var ad = gameState.activeDrag;
+      gameState.activeDrag = null;
+      gameState.isDragging = false;
+      clearHoverHighlights();
+      detachDragListeners();
+      cancelDrop(ad);
+    }
+
+    /* ============================================================
+       20. Drop resolvers
+       ============================================================ */
+    function resolveValidDrop(ad, target) {
+      var tag = ad.tag;
+      var tagId = tag.tagId;
+      var zoneId = target.id;
+      var correctZone = tag.correctZone;
+
+      /* record attempt — correct */
+      recordAttempt(gameState.currentRound, { tagId: tagId, value: tag.value, droppedAt: zoneId }, true, {
+        is_retry: wasPreviouslyAttempted(tagId),
+        round: gameState.currentRound + 1,
+        droppedAt: zoneId,
+        misconception_tag: null
+      });
+
+      /* Move pill in state */
+      gameState.pillLocations[tagId] = zoneId;
+      gameState.consecutiveWrongDropsByTag[tagId] = 0;
+      syncDOMState();
+
+      /* fire-and-forget snap SFX */
+      try { FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_CELEBRATE }).catch(function(){}); } catch(e) {}
+
+      /* DOM move: append pill into zone's cluster */
+      var cluster = document.querySelector('.ns-zone-cluster[data-cluster-for="' + zoneId + '"]');
+      if (cluster) cluster.appendChild(ad.pillEl);
+
+      /* Remove ghost, restore pill */
+      if (ad.ghostEl && ad.ghostEl.parentElement) ad.ghostEl.parentElement.removeChild(ad.ghostEl);
+      ad.pillEl.classList.remove('ns-pill--drag-origin');
+      ad.pillEl.classList.add('ns-pill--snap');
+      setTimeout((function(p){ return function(){ p.classList.remove('ns-pill--snap'); }; })(ad.pillEl), 320);
+
+      /* Zone glow */
+      if (target.el) {
+        target.el.classList.add('ns-zone--correct-glow');
+        setTimeout((function(zEl){ return function(){ zEl.classList.remove('ns-zone--correct-glow'); }; })(target.el), 400);
+      }
+
+      announce(tag.value + ' placed in ' + (getZoneById(zoneId) ? getZoneById(zoneId).label : zoneId));
+      trackEvent('tag_placed_correct', { round: gameState.currentRound + 1, tagId: tagId, zoneId: zoneId });
+
+      /* Correctness for round-complete: pill must be in its correctZone, AND bank empty. */
+      if (zoneId === correctZone) {
+        checkRoundComplete();
+      }
+    }
+
+    function resolveInvalidDrop(ad, target) {
+      var tag = ad.tag;
+      var tagId = tag.tagId;
+      var zoneId = target.id;
+      var round = gameState.round;
+      var mcTag = (round && round.expected_misconception) || 'ignores_rule';
+
+      recordAttempt(gameState.currentRound, { tagId: tagId, value: tag.value, attemptedZone: zoneId }, false, {
+        is_retry: wasPreviouslyAttempted(tagId),
+        round: gameState.currentRound + 1,
+        attemptedZone: zoneId,
+        misconception_tag: mcTag
+      });
+
+      gameState.consecutiveWrongDropsByTag[tagId] = (gameState.consecutiveWrongDropsByTag[tagId] || 0) + 1;
+      syncDOMState();
+
+      /* fire-and-forget shake SFX */
+      try { FeedbackManager.sound.play('incorrect_sound_effect', { sticker: STICKER_SAD }).catch(function(){}); } catch(e) {}
+
+      /* Zone reject flash */
+      if (target.el) {
+        target.el.classList.add('ns-zone--reject');
+        setTimeout((function(zEl){ return function(){ zEl.classList.remove('ns-zone--reject'); }; })(target.el), 320);
+      }
+
+      /* Pill shake */
+      ad.pillEl.classList.add('ns-pill--shake');
+      setTimeout((function(p){ return function(){ p.classList.remove('ns-pill--shake'); }; })(ad.pillEl), 340);
+
+      /* Bounce ghost back to origin, then remove + restore original pill */
+      bounceGhostToOrigin(ad);
+
+      announce('Not quite. ' + tag.value + ' does not belong there.');
+      trackEvent('tag_placed_wrong', { round: gameState.currentRound + 1, tagId: tagId, zoneId: zoneId, misconception_tag: mcTag });
+
+      /* Hint escalation after 2 consecutive wrongs on same tag */
+      if (gameState.consecutiveWrongDropsByTag[tagId] >= 2) {
+        showValidZoneHint(tag);
+        gameState.consecutiveWrongDropsByTag[tagId] = 0;
+      }
+    }
+
+    function bounceGhostToOrigin(ad) {
+      var ghost = ad.ghostEl;
+      if (!ghost) {
+        if (ad.pillEl) ad.pillEl.classList.remove('ns-pill--drag-origin');
+        return;
+      }
+      var originRect = ad.originRect;
+      ghost.classList.add('ns-pill--bouncing');
+      ghost.style.left = originRect.left + 'px';
+      ghost.style.top = originRect.top + 'px';
+      ghost.style.transform = 'scale(1)';
+      var delay = gameState.reducedMotion ? 0 : 380;
+      setTimeout((function(g, pillEl){
+        return function(){
+          if (g && g.parentElement) g.parentElement.removeChild(g);
+          if (pillEl) pillEl.classList.remove('ns-pill--drag-origin');
+        };
+      })(ghost, ad.pillEl), delay);
+    }
+
+    function handleDropIntoBank(ad, target) {
+      var tag = ad.tag;
+      var tagId = tag.tagId;
+
+      if (ad.source === 'bank') {
+        /* Cancelled back into bank from bank — no-op */
+        cancelDrop(ad);
+        return;
+      }
+
+      /* From zone -> bank: move the pill, no attempt recorded */
+      gameState.pillLocations[tagId] = 'bank';
+      syncDOMState();
+
+      var bank = document.getElementById('ns-bank');
+      if (bank) bank.appendChild(ad.pillEl);
+
+      /* Soft settle SFX */
+      try { FeedbackManager.sound.play('sound_bubble_deselect').catch(function(){}); } catch(e) {}
+
+      /* Remove ghost, restore pill */
+      if (ad.ghostEl && ad.ghostEl.parentElement) ad.ghostEl.parentElement.removeChild(ad.ghostEl);
+      ad.pillEl.classList.remove('ns-pill--drag-origin');
+
+      announce(tag.value + ' back to numbers.');
+      trackEvent('tag_returned_to_bank', { round: gameState.currentRound + 1, tagId: tagId, from: ad.source });
+    }
+
+    function wasPreviouslyAttempted(tagId) {
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        var a = gameState.attempts[i];
+        if (a.round_number === (gameState.currentRound + 1) && a.input_of_user && a.input_of_user.tagId === tagId) return true;
+      }
+      return false;
+    }
+
+    function showValidZoneHint(tag) {
+      if (!tag || !tag.correctZone) return;
+      var zoneEl = document.querySelector('.ns-zone[data-zone-id="' + tag.correctZone + '"]');
+      if (!zoneEl) return;
+      zoneEl.classList.add('ns-zone--hint');
+      var t = setTimeout(function() {
+        zoneEl.classList.remove('ns-zone--hint');
+      }, 1500);
+      hintTimers.push(t);
+      trackEvent('hint_shown', { round: gameState.currentRound + 1, tagId: tag.tagId, correctZone: tag.correctZone });
+    }
+
+    /* ============================================================
+       21. Round-complete detection + handler
+       ============================================================ */
+    function checkRoundComplete() {
+      var round = gameState.round;
+      if (!round || !round.tags) return;
+      var allCorrect = true;
+      var bankEmpty = true;
+      for (var i = 0; i < round.tags.length; i++) {
+        var tag = round.tags[i];
+        var loc = gameState.pillLocations[tag.tagId];
+        if (loc === 'bank' || loc === undefined) { bankEmpty = false; allCorrect = false; break; }
+        if (loc !== tag.correctZone) { allCorrect = false; break; }
+      }
+      if (bankEmpty && allCorrect) onRoundComplete();
+    }
+
+    async function onRoundComplete() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      gameState.isProcessing = true;
+      gameState.roundsCompleted++;
+      gameState.score = gameState.roundsCompleted;
+      syncDOMState();
+      /* Progress-bar bump FIRST (cross-cutting rule 0) */
+      if (progressBar) { try { progressBar.update(gameState.roundsCompleted, 0); } catch(e) {} }
+
+      trackEvent('round_complete', { round: gameState.currentRound + 1, score: gameState.score });
+
+      /* Pulse all zones green briefly */
+      var zones = document.querySelectorAll('.ns-zone');
+      for (var i = 0; i < zones.length; i++) zones[i].classList.add('ns-zone--correct-glow');
+
+      /* Subtitle */
+      var subEl = document.getElementById('ns-subtitle');
+      if (subEl) {
+        subEl.textContent = 'Great sort!';
+        subEl.classList.add('visible');
+      }
+      announce('Great sort!');
+
+      /* Awaited celebration SFX + TTS */
+      try {
+        await Promise.all([
+          FeedbackManager.sound.play('all_correct', { sticker: STICKER_CELEBRATE }),
+          new Promise(function(r) { setTimeout(r, 1500); })
+        ]);
+      } catch(e) {}
+      try {
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: 'Great sort!',
+          subtitle: 'Great sort!',
+          sticker: STICKER_CELEBRATE
+        });
+      } catch(e) {}
+
+      for (var j = 0; j < zones.length; j++) zones[j].classList.remove('ns-zone--correct-glow');
+      if (subEl) { subEl.classList.remove('visible'); subEl.textContent = ''; }
+
+      gameState.isProcessing = false;
+
+      if (gameState.currentRound + 1 >= gameState.totalRounds) {
+        endGame(false); /* victory path */
+      } else {
+        gameState.currentRound++;
+        showRoundIntro();
+      }
+    }
+
+    /* ============================================================
+       22. endGame
+       ============================================================ */
+    function endGame(isGameOver) {
+      if (gameState.gameEnded) return;
+
+      /* Cleanup audio first (cross-cutting rule 10) */
+      try { FeedbackManager.sound.pause(); } catch(e) {}
+      try { FeedbackManager.stream.stopAll(); } catch(e) {}
+      try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = isGameOver ? 'game_over' : 'results';
+      syncDOMState();
+
+      var stars = getStars();
+      gameState.stars = stars;
+      trackEvent(isGameOver ? 'game_over' : 'game_complete', { score: gameState.score, stars: stars, roundsCompleted: gameState.roundsCompleted });
+      trackEvent('game_end', {
+        score: gameState.score,
+        lives: 0,
+        stars: stars,
+        rounds_played: gameState.roundsCompleted
+      });
+
+      var totalAttempts = gameState.attempts.length;
+      var correctAttempts = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) if (gameState.attempts[i].correct) correctAttempts++;
+      var accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
+      var totalTime = gameState.startTime ? Math.round((Date.now() - gameState.startTime) / 1000) : 0;
+
+      /* tries grouped by round */
+      var triesMap = {};
+      for (var j = 0; j < gameState.attempts.length; j++) {
+        var rn = gameState.attempts[j].round_number;
+        triesMap[rn] = (triesMap[rn] || 0) + 1;
+      }
+      var triesByRound = [];
+      var keys = Object.keys(triesMap);
+      for (var kk = 0; kk < keys.length; kk++) {
+        triesByRound.push({ round: parseInt(keys[kk], 10), tries: triesMap[keys[kk]] });
+      }
+
+      var signalEventCount = 0;
+      var signalMetadata = {};
+      if (signalCollector) {
+        try {
+          signalEventCount = signalCollector.getInputEvents().length;
+          signalMetadata = signalCollector.getMetadata();
+        } catch(e) {}
+      }
+
+      /* Render end screen FIRST */
+      if (isGameOver) {
+        showGameOver_stage1();
+      } else {
+        showVictory_stage1();
+      }
+
+      /* postMessage BEFORE end-game audio */
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: {
+              accuracy: accuracy,
+              time: totalTime,
+              stars: stars,
+              attempts: gameState.attempts,
+              duration_data: gameState.duration_data,
+              tries: triesByRound
+            },
+            previewResult: gameState.previewResult || null,
+            completedAt: Date.now(),
+            gameId: gameState.gameId,
+            score: gameState.score,
+            roundsCompleted: gameState.roundsCompleted,
+            totalRounds: gameState.totalRounds,
+            signal_event_count: signalEventCount,
+            signal_metadata: signalMetadata
+          }
+        }, '*');
+      } catch(e) {}
+
+      /* Destroy preview wrapper (CDN manages preview visibility — do not reach into private DOM) */
+      if (previewScreen) {
+        try { previewScreen.destroy(); } catch(e) {}
+        previewScreen = null;
+      }
+
+      /* Update results overlay for contract test hooks */
+      showResults();
+
+      /* Play end-game audio */
+      if (isGameOver) {
+        playGameOverAudio();
+      } else {
+        playVictoryAudio();
+      }
+    }
+
+    async function showVictory_stage1() {
+      if (!transitionScreen) return;
+      var stars = gameState.stars;
+      var buttons = [{
+        text: 'Play Again',
+        testId: 'play-again-btn',
+        type: 'primary',
+        action: function() {
+          try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+          try { FeedbackManager.sound.pause(); } catch(e) {}
+          try { transitionScreen.hide(); } catch(e) {}
+          restartGame();
+        }
+      }];
+
+      var subtitle;
+      if (stars === 3) subtitle = 'Perfect sorter!';
+      else if (stars === 2) subtitle = 'Great classification!';
+      else subtitle = 'Nice effort — keep sorting!';
+
+      try {
+        await transitionScreen.show({
+          stars: stars,
+          title: 'You did it!',
+          subtitle: subtitle,
+          buttons: buttons,
+          persist: true
+        });
+        /* Tag Play Again button with data-testid after render */
+        setTimeout(function() {
+          var btns = document.querySelectorAll('button');
+          for (var b = 0; b < btns.length; b++) {
+            if (btns[b].textContent && btns[b].textContent.indexOf('Play Again') !== -1) {
+              btns[b].setAttribute('data-testid', 'play-again-btn');
+            }
+          }
+        }, 50);
+      } catch(e) {}
+    }
+
+    async function playVictoryAudio() {
+      var stars = gameState.stars;
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var sticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_COMPLETE_2 : STICKER_COMPLETE_1);
+      var voText;
+      if (stars === 3) voText = 'Perfect sorter!';
+      else if (stars === 2) voText = 'Great classification!';
+      else voText = 'Nice effort — keep sorting!';
+      try { await FeedbackManager.sound.play(sfxId, { sticker: sticker }); } catch(e) {}
+      try { await FeedbackManager.playDynamicFeedback({ audio_content: voText, subtitle: voText, sticker: sticker }); } catch(e) {}
+    }
+
+    async function showGameOver_stage1() {
+      /* Not used — no lives — but kept for contract completeness */
+      if (!transitionScreen) return;
+      try {
+        await transitionScreen.show({
+          icons: ['\uD83D\uDE14'],
+          title: 'Game Over',
+          subtitle: 'Try the sort again!',
+          buttons: [{
+            text: 'Try Again',
+            action: function() {
+              try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+              try { transitionScreen.hide(); } catch(e) {}
+              restartGame();
+            }
+          }],
+          persist: true
+        });
+      } catch(e) {}
+    }
+
+    async function playGameOverAudio() {
+      try { await FeedbackManager.sound.play('game_over_sound_effect', { sticker: STICKER_SAD }); } catch(e) {}
+    }
+
+    /* ============================================================
+       23. Restart (skip preview)
+       ============================================================ */
+    function restartGame() {
+      /* Cleanup FIRST */
+      try { FeedbackManager.sound.pause(); } catch(e) {}
+      try { FeedbackManager.stream.stopAll(); } catch(e) {}
+      try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+
+      gameState.score = 0;
+      gameState.roundsCompleted = 0;
+      gameState.currentRound = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.stars = 0;
+      gameState.lives = 0;
+      gameState.startTime = Date.now();
+      gameState.gameEnded = false;
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      gameState.round = null;
+      gameState.pillLocations = {};
+      gameState.consecutiveWrongDropsByTag = {};
+      gameState.activeDrag = null;
+      gameState.isDragging = false;
+      gameState.phase = 'playing';
+      syncDOMState();
+      gameState.duration_data = {
+        startTime: new Date().toISOString(),
+        pausedTime: 0,
+        lastPauseStart: null,
+        attempts: [],
+        preview: gameState.duration_data.preview || []
+      };
+      if (signalCollector) { try { signalCollector.reset(); } catch(e) {} }
+      syncDOMState();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true });
+      if (progressBar) {
+        try { progressBar.show(); progressBar.update(0, 0); } catch(e) {}
+      }
+      tagProgressSegmentsTestIds();
+      /* DIRECT to first round intro — NO preview (preview is once per session) */
+      showRoundIntro();
+    }
+
+    /* ============================================================
+       24. Results / debug helpers
+       ============================================================ */
+    function showResults() {
+      syncDOMState();
+      var resultsScreen = document.getElementById('results-screen');
+      if (resultsScreen) {
+        resultsScreen.innerHTML = '<div data-testid="results" style="padding:24px;text-align:center;"><p id="rounds-completed">Rounds completed: ' + gameState.roundsCompleted + '/' + gameState.totalRounds + '</p></div>';
+      }
+    }
+
+    function debugGame() {
+      return {
+        gameState: gameState,
+        currentRound: gameState.currentRound,
+        score: gameState.score,
+        phase: gameState.phase,
+        attempts: gameState.attempts.length,
+        events: gameState.events.length,
+        roundsCompleted: gameState.roundsCompleted,
+        pillLocations: JSON.parse(JSON.stringify(gameState.pillLocations))
+      };
+    }
+    function debugAudio() {
+      return {
+        feedbackManagerAvailable: typeof FeedbackManager !== 'undefined',
+        canPlay: typeof FeedbackManager !== 'undefined' && FeedbackManager.canPlayAudio ? FeedbackManager.canPlayAudio() : false
+      };
+    }
+    function testAudio() {
+      try { FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_CELEBRATE }).catch(function(){}); } catch(e) {}
+    }
+    function testPause() {
+      try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch(e) {}
+    }
+    function testResume() {
+      try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch(e) {}
+    }
+
+    /* ============================================================
+       25. Visibility handlers
+       ============================================================ */
+    function onVisibilityHidden() {
+      gameState.visibilityPaused = true;
+      try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch(e) {}
+      try { if (previewScreen) previewScreen.pause(); } catch(e) {}
+      if (signalCollector) {
+        try { signalCollector.pause(); signalCollector.recordCustomEvent('visibility_hidden', {}); } catch(e) {}
+      }
+      if (gameState.activeDrag) {
+        try { cancelDrag(); } catch(e) {}
+      }
+    }
+    function onVisibilityRestored() {
+      gameState.visibilityPaused = false;
+      try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch(e) {}
+      try { if (previewScreen) previewScreen.resume(); } catch(e) {}
+      if (signalCollector) {
+        try { signalCollector.resume(); signalCollector.recordCustomEvent('visibility_visible', {}); } catch(e) {}
+      }
+    }
+
+    /* Suppress touchmove while dragging (mobile rule 22 — scoped to active drag only) */
+    document.addEventListener('touchmove', function(e) {
+      if (gameState.isDragging || gameState.activeDrag) e.preventDefault();
+    }, { passive: false });
+
+    /* ============================================================
+       26. DOMContentLoaded init
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', async function() {
+      try {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          gameState.reducedMotion = true;
+          var appEl = document.getElementById('app');
+          if (appEl) appEl.classList.add('reduced-motion');
+        }
+      } catch(e) {}
+
+      try {
+        await waitForPackages();
+        try { await FeedbackManager.init(); } catch(e) {}
+
+        try {
+          signalCollector = new SignalCollector({
+            sessionId: (window.gameVariableState && window.gameVariableState.sessionId) ? window.gameVariableState.sessionId : 'session_' + Date.now(),
+            studentId: (window.gameVariableState && window.gameVariableState.studentId) ? window.gameVariableState.studentId : null,
+            gameId: gameState.gameId || null,
+            contentSetId: gameState.contentSetId || null
+          });
+          window.signalCollector = signalCollector;
+        } catch(e) {}
+
+        try {
+          ScreenLayout.inject('app', {
+            slots: { previewScreen: true, progressBar: true, transitionScreen: true }
+          });
+        } catch(e) {}
+
+        visibilityTracker = new VisibilityTracker({
+          onInactive: function() {
+            try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch(e) {}
+            try { if (previewScreen) previewScreen.pause(); } catch(e) {}
+            if (signalCollector) { try { signalCollector.pause(); } catch(e) {} }
+            if (gameState.activeDrag) { try { cancelDrag(); } catch(e) {} }
+            onVisibilityHidden();
+          },
+          onResume: function() {
+            try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch(e) {}
+            try { if (previewScreen) previewScreen.resume(); } catch(e) {}
+            if (signalCollector) { try { signalCollector.resume(); } catch(e) {} }
+            onVisibilityRestored();
+          }
+        });
+
+        try {
+          progressBar = new ProgressBarComponent({
+            slotId: 'mathai-progress-slot',
+            totalRounds: gameState.totalRounds,
+            totalLives: gameState.totalRounds
+          });
+        } catch(e) {}
+
+        transitionScreen = new TransitionScreenComponent({
+          slotId: 'mathai-transition-slot'
+        });
+
+        previewScreen = new PreviewScreenComponent({
+          slotId: 'mathai-preview-slot'
+        });
+
+        try {
+          await FeedbackManager.sound.preload([
+            { id: 'correct_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+            { id: 'incorrect_sound_effect',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+            { id: 'sound_life_lost',           url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+            { id: 'rounds_sound_effect',       url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+            { id: 'sound_level_transition',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+            { id: 'victory_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+            { id: 'game_complete_sound_effect',url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+            { id: 'game_over_sound_effect',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+            { id: 'all_correct',               url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' },
+            { id: 'new_cards',                 url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' },
+            { id: 'sound_bubble_select',       url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+            { id: 'sound_bubble_deselect',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+            { id: 'tap_sound',                 url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+          ]);
+        } catch(e) {}
+
+        /* Register listener BEFORE game_ready */
+        window.addEventListener('message', handlePostMessage);
+        try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch(e) {}
+
+        setupGame();
+      } catch (e) {
+        /* Fallthrough to standalone fallback below */
+      }
+
+      /* Expose window.* contract functions */
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = startGame;
+      window.debugGame = debugGame;
+      window.debugAudio = debugAudio;
+      window.testAudio = testAudio;
+      window.testPause = testPause;
+      window.testResume = testResume;
+      window.loadRound = function(idx) {
+        var i = (typeof idx === 'number') ? idx : gameState.currentRound;
+        renderRound(i);
+      };
+      window.nextRound = function() {
+        if (gameState.currentRound + 1 >= gameState.totalRounds) {
+          endGame(false);
+        } else {
+          gameState.currentRound++;
+          showRoundIntro();
+        }
+      };
+      window.signalCollector = signalCollector;
+
+      var btnStartEl = document.getElementById('btn-start');
+      if (btnStartEl) {
+        btnStartEl.addEventListener('click', function() {
+          try { startGame(); } catch (e) {}
+        });
+      }
+    });
+
+    /* ============================================================
+       27. Standalone fallback — only if preview never mounted
+       ============================================================ */
+    setTimeout(function() {
+      if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      if (gameState.isActive || gameState.gameEnded) return;
+
+      ensureGameContent();
+      gameState.content = fallbackContent;
+      gameState.totalRounds = fallbackContent.rounds.length;
+      gameState.phase = 'playing';
+      syncDOMState();
+      startGame();
+      if (progressBar) { try { progressBar.show(); progressBar.update(0, 0); } catch(e) {} }
+      tagProgressSegmentsTestIds();
+      renderRound(0);
+    }, 2000);
+  </script>
+</body>
+</html>

@@ -46,6 +46,7 @@ Interaction code baked into the generated game. The builder reads this skill and
 | [p05-continuous-drag-path.md](reference/patterns/p05-continuous-drag-path.md) | Continuous Drag (Path) — draw path across grid |
 | [p06-drag-and-drop.md](reference/patterns/p06-drag-and-drop.md) | Drag-and-Drop — clone-based, eviction, edge-scroll, zone-to-zone |
 | [p07-text-input.md](reference/patterns/p07-text-input.md) | Text/Number Input — keyboard, Enter submit, visualViewport |
+| [p07-input-behaviors.md](reference/patterns/p07-input-behaviors.md) | **P7 required behaviors** — auto-focus + scroll-into-view, auto-growing width (MANDATORY for every P7 game) |
 | [p13-directional-drag.md](reference/patterns/p13-directional-drag.md) | Directional Drag (Constrained Axis) — Rush Hour style |
 | [p17-voice-input.md](reference/patterns/p17-voice-input.md) | Voice Input — speak or type answer via VoiceInput CDN package |
 | [modifier-observe-phase.md](reference/patterns/modifier-observe-phase.md) | Observe-then-Respond phase wrapper |

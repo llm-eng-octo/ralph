@@ -4,6 +4,15 @@
 
 Student types an answer and submits via Enter key or Submit button.
 
+### Mandatory companion reading
+
+**Every P7 game must also implement the behaviors in [p07-input-behaviors.md](./p07-input-behaviors.md):**
+
+1. **Auto-focus + scroll-into-view** on click and on round transitions (with virtual-keyboard avoidance)
+2. **Auto-growing input width** — starts at `MIN_W` (72px), grows with content, caps at `MAX_W` (300px), shrinks on delete
+
+These are required, not optional. The base pattern below covers Enter/Submit and audio wiring; `p07-input-behaviors.md` covers the interactive UX.
+
 ### Identification
 
 - "type your answer", "enter the number", "fill in the blank"
