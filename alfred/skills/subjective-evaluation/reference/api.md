@@ -126,22 +126,30 @@ async function handleSubmitAnswer() {
     });
 
     if (result.feedback) {
-      btnText.textContent = 'Generating Audio...';   // State 3
-      try {
-        btnText.textContent = 'Playing Feedback...'; // State 4
-        await FeedbackManager.playDynamicFeedback({
-          audio_content: result.feedback,
-          subtitle: result.feedback
-        });
-      } catch (audioErr) {
+      btnText.textContent = 'Next question...';     // State 3 (advance label — TTS plays in the background)
+      // Fire-and-forget dynamic TTS. The submit handler MUST NOT gate UI on TTS completion —
+      // if the TTS network stalls, the user should still be able to move to the next question.
+      FeedbackManager.playDynamicFeedback({
+        audio_content: result.feedback,
+        subtitle: result.feedback
+      }).catch(function(audioErr) {
         console.error('Feedback audio error:', audioErr);
-        // Non-blocking — continue
-      }
+        // Non-blocking — user has already moved on.
+      });
     }
   } catch (error) {
     console.error('Submission error:', error);
   } finally {
-    submitBtn.disabled = false;                      // State 5
+    // NOTE: Subjective-evaluation lives in "free-form Q&A" games that often have NO next-round
+    // transition — the same question stays on screen for refinement, or the user taps a "Next"
+    // CTA manually. In that shape, the submit button is re-enabled here in `finally` so the
+    // user can resubmit / continue.
+    //
+    // For games that DO have automatic round transitions (single-step pattern), DO NOT re-enable
+    // inputs here — delete this `finally` block and let `renderRound()` / `loadRound()` be the
+    // single source of truth for re-enabling inputs (isProcessing=false, button.disabled=false,
+    // voiceInput.enable(), etc.). Re-enabling after TTS blocks the next round on audio completion.
+    submitBtn.disabled = false;                      // State 5 (subjective-eval only; see note above)
     btnText.textContent = 'Submit Answer';
   }
 }

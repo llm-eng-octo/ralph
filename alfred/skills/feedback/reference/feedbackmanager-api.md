@@ -72,12 +72,24 @@ await FeedbackManager.sound.play('correct_sound_effect', {
 Generates text-to-speech on the fly. Used for content-specific narration that can't be pre-recorded.
 
 ```javascript
+// Transition-screen / end-game context: awaited is OK (CTA visible, user can interrupt)
 await FeedbackManager.playDynamicFeedback({
   audio_content: 'Make 90',
   subtitle: 'Make 90',
   sticker: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif'
 });
+
+// Submit/answer handler context: FIRE-AND-FORGET. Next-round advance MUST NOT block on TTS.
+FeedbackManager.playDynamicFeedback({
+  audio_content: 'Great! 5 in the thousands place gives 5000',
+  subtitle: 'Great! 5 in the thousands place gives 5000',
+  sticker: CORRECT_STICKER
+}).catch(function(e) { console.error('TTS error:', e.message); });
 ```
+
+**When to await vs fire-and-forget:**
+- **Await (transition-screen VO, end-game VO):** CTA is visible, user can interrupt via `_stopCurrentDynamic()`. Screen lifecycle is tied to audio pacing by design.
+- **Fire-and-forget (submit/answer handlers):** Next-round transition MUST NOT block on TTS. Use `.catch()` only, never `await`. Re-enabling inputs is handled by `renderRound()` / `loadRound()` — the single source of truth.
 
 **Parameters:**
 - `audio_content` (string, required) — text to speak

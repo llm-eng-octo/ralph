@@ -55,9 +55,9 @@ Every tap interaction uses a common vocabulary of visual states. The LLM chooses
 
 | Step type | SFX | TTS | Input blocking |
 |-----------|-----|-----|----------------|
-| **Single-step** (1 tap = round over) | Awaited | Awaited after SFX | Block all input during entire SFX→TTS sequence |
+| **Single-step** (1 tap = round over) | Awaited (~1.5s) | Fire-and-forget (L-VI-002) | Block input during SFX dwell; `isProcessing = false` in `loadRound()`, NOT after TTS |
 | **Multi-step** per-tap | Fire-and-forget | None | Do not block input (or block only briefly during animation) |
-| **Multi-step** round-complete / puzzle-solved | Awaited | Awaited after SFX | Block all input during entire sequence |
+| **Multi-step** round-complete / puzzle-solved | Awaited (~1.5s) | Fire-and-forget (L-VI-002) | Block input during SFX dwell; `isProcessing = false` in `loadRound()` / `renderRound()`, NOT after TTS |
 
 ### 1.6  Post-Evaluation Actions
 
@@ -86,7 +86,7 @@ After every evaluation, the game must:
 2. On tap: disable all options immediately (prevent double-tap).
 3. Highlight the chosen option as correct or wrong.
 4. If wrong: also reveal the correct answer visually.
-5. Awaited SFX → awaited TTS before advancing.
+5. Awaited SFX (~1.5s) → fire-and-forget TTS. Advance to next round after SFX dwell; do NOT block round advance on TTS completion (L-VI-002).
 6. If correct (or no-lives mode): advance to next round after feedback.
 7. If wrong + lives mode: lose a life. If lives = 0 → game over. Otherwise stay on same round or advance (game-dependent).
 
@@ -116,7 +116,7 @@ READY → tap → EVALUATING (blocked) → feedback done → READY (next round)
 
 1. Each tap toggles a cell between filled and empty (or cycles through N states).
 2. After every toggle: run constraint validation and highlight any violations visually.
-3. If zero violations AND win condition is met → puzzle solved (awaited SFX → TTS).
+3. If zero violations AND win condition is met → puzzle solved (awaited SFX + fire-and-forget TTS — L-VI-002).
 4. Locked/pre-filled cells must not be interactive.
 5. No per-toggle audio. Audio only on puzzle-solve.
 
@@ -134,7 +134,7 @@ PLAYING
 
 1. Edges are clickable elements between dots/nodes on a grid. Tapping an edge toggles a line segment on/off.
 2. After every toggle: run constraint checks (each clue-number must match its adjacent active segments). Highlight violations.
-3. If all constraints satisfied AND a valid closed loop is formed → puzzle solved (awaited SFX → TTS).
+3. If all constraints satisfied AND a valid closed loop is formed → puzzle solved (awaited SFX + fire-and-forget TTS — L-VI-002).
 4. Fire-and-forget tap SFX per toggle.
 5. Edge hit area must be 44px minimum even if the visual line is thin.
 
@@ -211,7 +211,7 @@ SELECTING
 4. Correct: mark both items as matched (non-interactive). Fire-and-forget SFX.
 5. Wrong: flash group B item as wrong (300–600 ms). Fire-and-forget wrong SFX. Life lost.
 6. After evaluation: clear selection, disable group B until next group A selection.
-7. All pairs matched → round complete (awaited SFX → TTS).
+7. All pairs matched → round complete (awaited SFX + fire-and-forget TTS — L-VI-002).
 
 **Variant — Memory Match (Card Flip):**
 - Items are face-down cards in a single grid (no separate groups).
@@ -240,7 +240,7 @@ NO_SELECTION
 4. Valid pair (e.g., sum = target): mark both as matched/removed. Fire-and-forget SFX.
 5. Invalid pair: flash second item as wrong (300–600 ms). Fire-and-forget wrong SFX. Life lost.
 6. Clear selection after every evaluation.
-7. All pairs found → round complete (awaited SFX → TTS).
+7. All pairs found → round complete (awaited SFX + fire-and-forget TTS — L-VI-002).
 
 **State:**
 
@@ -282,7 +282,7 @@ NO_SELECTION
 5. Wrong tap: **entire chain resets**. Flash all chain tiles + wrong tile as wrong (~600 ms). Life lost. Fire-and-forget wrong SFX.
 6. Chain complete: mark all chain tiles as completed (non-interactive).
 7. Multiple chains may exist per round. After one completes, next begins.
-8. All chains found → round complete (awaited SFX → TTS).
+8. All chains found → round complete (awaited SFX + fire-and-forget TTS — L-VI-002).
 
 **State:**
 
@@ -307,7 +307,7 @@ CHAIN_DONE
 3. Each tap is validated immediately against the expected position.
 4. Correct tap: brief highlight, fire-and-forget SFX, advance step.
 5. Wrong tap: flash wrong, wrong SFX, life lost. If lives remain: replay the sequence. If no lives: game over.
-6. All taps correct → sequence complete (awaited SFX → TTS). Next round adds one more element to the sequence.
+6. All taps correct → sequence complete (awaited SFX + fire-and-forget TTS — L-VI-002). Next round adds one more element to the sequence.
 
 **Additional guard:** Reject all taps when phase is "observing".
 
@@ -373,7 +373,7 @@ TOOL_ACTIVE
 4. Tapping outside both the grid and picker → dismiss picker, deselect cell.
 5. Locked/pre-filled cells are non-interactive.
 6. After each placement: check constraints (row/column uniqueness, sum constraints, inequality constraints). Highlight violations.
-7. If grid is fully filled with zero violations → puzzle solved (awaited SFX → TTS). Or: a Check button triggers validation.
+7. If grid is fully filled with zero violations → puzzle solved (awaited SFX + fire-and-forget TTS — L-VI-002). Or: a Check button triggers validation.
 
 **State:**
 
@@ -408,7 +408,7 @@ CELL_SELECTED
 2. If values are linked (e.g., A + B = constant), adjusting A inversely adjusts B.
 3. +/− buttons respect min/max bounds. Disable at limits.
 4. A text input + Submit/Check button triggers evaluation (or Enter key).
-5. On submit: awaited SFX → TTS. Correct → next round. Wrong → life lost, retry.
+5. On submit: awaited SFX + fire-and-forget TTS (L-VI-002). Correct → next round advances on SFX dwell (do NOT await TTS). Wrong → life lost, retry.
 6. CSS: `min-height: 44px; min-width: 44px; touch-action: manipulation; border-radius: 50%` for +/− buttons.
 
 **State:**

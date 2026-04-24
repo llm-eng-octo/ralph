@@ -108,12 +108,12 @@
     CSS_INJECTED = true;
     var style = document.createElement("style");
     style.textContent = [
-      /* textarea */
+      /* textarea — content-box to match React default (width 300 + 8px padding + borders) */
       ".vi-textarea {",
       "  overflow: hidden; border-radius: 0; border: 0.5px solid #4F4F4F;",
       "  padding: 8px; resize: none; width: 300px; min-height: 100px;",
       "  font-family: inherit; font-size: 14px; background: #F9F8F8;",
-      "  outline: none; box-sizing: border-box; display: block;",
+      "  outline: none; display: block;",
       "}",
       ".vi-textarea:focus { border-color: #FFDE49; border-bottom-color: #4F4F4F; }",
       ".vi-textarea.vi-focused { border-color: #FFDE49; border-bottom-color: #4F4F4F; }",
@@ -122,17 +122,18 @@
       ".vi-textarea.vi-bg-wrong { background: #FFD9D9; }",
       ".vi-textarea.vi-bg-neutral { background: #F9F8F8; }",
       ".vi-textarea.vi-disabled { opacity: 0.5; pointer-events: none; }",
+      ".vi-wrapper.vi-disabled { pointer-events: none; opacity: 0.6; }",
+      ".vi-wrapper.vi-disabled .vi-drawer, .vi-wrapper.vi-disabled .vi-toolbar, .vi-wrapper.vi-disabled .vi-mic-toggle { pointer-events: none; }",
 
-      /* toolbar */
+      /* toolbar — content-box + default button padding to match React's browser-default button width */
       ".vi-toolbar {",
       "  background-color: #F5F5F5; border: 0.5px solid #4F4F4F;",
       "  width: 300px; height: 40px; padding-inline: 4px;",
       "  display: flex; flex-direction: row; gap: 8px;",
-      "  box-sizing: border-box; align-items: center;",
       "}",
       ".vi-toolbar button {",
       "  background: none; border: none; cursor: pointer;",
-      "  padding: 0; height: 100%; display: flex; align-items: center;",
+      "  height: 100%;",
       "}",
       ".vi-toolbar .vi-tool-reset { order: 2; margin-left: auto; }",
 
@@ -146,15 +147,16 @@
       "}",
       ".vi-outer { display: flex; width: 100%; justify-content: center; }",
 
-      /* bottom drawer */
+      /* bottom drawer — mobile-frame width in mathai, capped + centered when */
+      /* embedded in a wider viewport (matches the vanilla package's original cap). */
       ".vi-drawer {",
       "  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);",
       "  z-index: 999; display: flex; flex-direction: column; align-items: center;",
-      "  justify-content: center; width: 100%; max-width: 500px;",
-      "  background: #fff; padding-bottom: 16px; padding-top: 48px;",
-      "",
+      "  justify-content: center; width: 100%; max-width: 500px; height: max-content;",
+      "  background: #fff; padding-bottom: 16px; padding-top: 32px;",
       "}",
       ".vi-drawer.vi-hidden { display: none; }",
+      ".vi-drawer.vi-behind { z-index: 1; }",
       ".vi-drawer-label {",
       "  margin-top: -32px; font-size: 12px; line-height: 150%;",
       "  text-align: center;",
@@ -320,6 +322,27 @@
     this._placeholder = opts.placeholder || "type here..";
     this._disabled = false;
 
+    // Subtitle / audio copy — match React defaults, overridable via opts
+    this._loadingAudio = opts.loadingAudio || STT_LOADING_SOUND;
+    this._loadingSubtitle =
+      opts.loadingSubtitle || "wait a sec, converting your speech to text";
+    this._errorSubtitle =
+      opts.errorSubtitle ||
+      "oops, failed to understand your speech, please try again";
+    this._timeoutSubtitle =
+      opts.timeoutSubtitle ||
+      "oh no, something went wrong. Please try speaking again or you can type also.";
+    // Permission-denied popup — exact mathai copy
+    this._permissionDeniedIcon =
+      opts.permissionDeniedIcon ||
+      "https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/animations/microphone-permission.json";
+    this._permissionDeniedTitle =
+      opts.permissionDeniedTitle || "Permission to record your audio";
+    this._permissionDeniedMessage =
+      opts.permissionDeniedMessage ||
+      "Please click on site settings and allow microphone";
+    this._permissionDeniedPrimary = opts.permissionDeniedPrimary || "Okay!";
+
     // State
     this._input = "";
     this._isFocused = false;
@@ -330,7 +353,9 @@
     this._recorder = null;
     this._skipAppend = false;
     this._background = "1"; // "1"=neutral, "2"=correct, "3"=wrong
-    this._loadingAudio = null;
+    this._loadingSound = null;
+    this._popupOpen = false;
+    this._refocusTimer = null;
 
     // Event listeners
     this._listeners = {};
@@ -454,6 +479,46 @@
   };
 
   /* ============================================================
+     PERMISSION POPUP — delegates to window.PopupComponent
+     (same package mathai's Container.tsx renders via <PopupLayout/>).
+     Exact params mirror mathai: icon/title/description/primaryText.
+     ============================================================ */
+  VoiceInput.prototype._openPermissionPopup = function () {
+    var self = this;
+    this._popupOpen = true;
+    // Drop drawer behind the popup backdrop so it doesn't cover the bottom sheet
+    if (this._drawerEl) this._drawerEl.classList.add("vi-behind");
+    this._emit("show_record_permission");
+
+    if (window.PopupComponent && typeof window.PopupComponent.show === "function") {
+      window.PopupComponent.show({
+        icon: self._permissionDeniedIcon,
+        title: self._permissionDeniedTitle,
+        description: self._permissionDeniedMessage,
+        hasSecondary: false,
+        primaryText: self._permissionDeniedPrimary,
+        primaryClick: function () {
+          self._closePermissionPopup();
+        },
+      });
+    } else {
+      console.warn(
+        "[VoiceInput] PopupComponent is not loaded. Include " +
+          "https://storage.googleapis.com/test-dynamic-assets/packages/popup-layout/index.js"
+      );
+    }
+  };
+
+  VoiceInput.prototype._closePermissionPopup = function () {
+    this._popupOpen = false;
+    if (this._drawerEl) this._drawerEl.classList.remove("vi-behind");
+    if (window.PopupComponent && typeof window.PopupComponent.hide === "function") {
+      window.PopupComponent.hide();
+    }
+    this._emit("hide_record_permission");
+  };
+
+  /* ============================================================
      EVENT BINDING
      ============================================================ */
   VoiceInput.prototype._bindEvents = function () {
@@ -496,6 +561,8 @@
      TOOL CLICK HANDLERS
      ============================================================ */
   VoiceInput.prototype._onToolClick = function (tool) {
+    // Refuse tool clicks while disabled
+    if (this._disabled) return;
     // Set focused + activeOption directly (not via _setFocused which may override activeOption)
     this._isFocused = true;
     this._toolClicked = true; // flag to prevent outsideClickHandler from overriding
@@ -523,9 +590,9 @@
      MIC TOGGLE (big drawer button)
      ============================================================ */
   VoiceInput.prototype._onMicToggleClick = function () {
-    var self = this;
-    console.log("[VoiceInput][_onMicToggleClick] Mic toggle clicked. isRecording:", this._isRecording, "isLoading:", this._isLoading, "_isPermitted:", this._isPermitted);
+    console.log("[VoiceInput][_onMicToggleClick] Mic toggle clicked. isRecording:", this._isRecording, "isLoading:", this._isLoading, "_isPermitted:", this._isPermitted, "_disabled:", this._disabled);
     if (this._isLoading) return;
+    if (this._disabled) return;
 
     if (this._isRecording) {
       // Stop recording
@@ -536,7 +603,11 @@
       playSound(MIC_OFF_SOUND);
       this._syncUI();
     } else {
-      // Start recording
+      // React: if (!isPermitted) { setPopupOpen(true); return; }
+      if (!this._isPermitted) {
+        this._openPermissionPopup();
+        return;
+      }
       this._startRecording();
     }
   };
@@ -604,6 +675,8 @@
         self._isPermitted = false;
         self._emit("permission_change", { permitted: false });
         self._emit("error", { type: "permission_denied", message: "Microphone permission denied" });
+        // React mirror: setPopupOpen(true) inside recordAudio catch
+        self._openPermissionPopup();
       } else {
         self._emit("error", { type: "mic_error", message: err.message });
       }
@@ -632,7 +705,8 @@
     var self = this;
     self._isLoading = true;
     self._textareaEl.placeholder = "Converting to text";
-    self._loadingAudio = playSound(STT_LOADING_SOUND);
+    self._loadingSound = playSound(self._loadingAudio);
+    self._showSubtitle(self._loadingSubtitle, 5);
     self._syncUI();
 
     var key = "speech-" + uuid() + ".wav";
@@ -662,17 +736,18 @@
       })
       .then(function (sttResp) {
         self._stopLoadingAudio();
+        self._hideSubtitle();
         self._isLoading = false;
         self._textareaEl.placeholder = self._placeholder;
+        self._emit("sound_end");
 
         if (!sttResp.transcription) {
-          playSound(STT_FAILED_SOUND);
+          self._playErrorFeedback();
           self._emit("error", { type: "transcription_empty", message: "No transcription returned" });
           self._syncUI();
           return;
         }
 
-        // Append transcription
         if (!self._skipAppend) {
           var newVal = self._input ? self._input + " " + sttResp.transcription : sttResp.transcription;
           self._input = newVal;
@@ -686,23 +761,70 @@
       })
       .catch(function (err) {
         self._stopLoadingAudio();
+        self._hideSubtitle();
         self._isLoading = false;
         self._textareaEl.placeholder = self._placeholder;
         if (err.message === "Request timeout") {
-          playSound(STT_TIMEOUT_SOUND);
+          self._playTimeoutFeedback();
           self._emit("error", { type: "timeout", message: "Transcription timed out" });
         } else {
-          playSound(STT_FAILED_SOUND);
+          self._playErrorFeedback();
           self._emit("error", { type: "transcription_failed", message: err.message });
         }
         self._syncUI();
       });
   };
 
+  /* ============================================================
+     ERROR / TIMEOUT FEEDBACK — match React setIsFocused(false),
+     play sound + subtitle, then re-focus after 5s.
+     ============================================================ */
+  VoiceInput.prototype._playErrorFeedback = function () {
+    this._setFocused(false);
+    playSound(STT_FAILED_SOUND);
+    this._showSubtitle(this._errorSubtitle, 5);
+    this._scheduleRefocus();
+  };
+
+  VoiceInput.prototype._playTimeoutFeedback = function () {
+    this._setFocused(false);
+    playSound(STT_TIMEOUT_SOUND);
+    this._showSubtitle(this._timeoutSubtitle, 5);
+    this._scheduleRefocus();
+  };
+
+  VoiceInput.prototype._scheduleRefocus = function () {
+    var self = this;
+    if (self._refocusTimer) clearTimeout(self._refocusTimer);
+    self._refocusTimer = setTimeout(function () {
+      self._refocusTimer = null;
+      if (!self._disabled) self._setFocused(true);
+    }, 5000);
+  };
+
+  VoiceInput.prototype._showSubtitle = function (text, duration) {
+    // Emit for any listener wiring (FeedbackManager bridge, etc.)
+    this._emit("feedback_play", { feedback: { text: text, duration: duration } });
+    // Direct SubtitleComponent integration — same surface React's FeedbackManager uses
+    try {
+      if (window.SubtitleComponent && typeof window.SubtitleComponent.show === "function") {
+        window.SubtitleComponent.show({ text: text, duration: duration });
+      }
+    } catch (e) {}
+  };
+
+  VoiceInput.prototype._hideSubtitle = function () {
+    try {
+      if (window.SubtitleComponent && typeof window.SubtitleComponent.hide === "function") {
+        window.SubtitleComponent.hide();
+      }
+    } catch (e) {}
+  };
+
   VoiceInput.prototype._stopLoadingAudio = function () {
-    if (this._loadingAudio) {
-      try { this._loadingAudio.pause(); } catch (e) {}
-      this._loadingAudio = null;
+    if (this._loadingSound) {
+      try { this._loadingSound.pause(); } catch (e) {}
+      this._loadingSound = null;
     }
   };
 
@@ -775,11 +897,15 @@
       ta.placeholder = "";
     }
 
-    // Disabled
+    // Disabled — apply to textarea AND wrapper so mic toggle / toolbar / drawer
+    // are all blocked from pointer events. (Individual handlers also guard on
+    // this._disabled as a defense-in-depth measure.)
     if (this._disabled) {
       ta.classList.add("vi-disabled");
+      if (this._wrapperEl) this._wrapperEl.classList.add("vi-disabled");
     } else {
       ta.classList.remove("vi-disabled");
+      if (this._wrapperEl) this._wrapperEl.classList.remove("vi-disabled");
     }
 
     // Toolbar icon colors
@@ -805,7 +931,7 @@
       this._micToggleEl.classList.remove("vi-recording");
       this._micToggleEl.innerHTML = icon(MIC_ICON, "#fff");
     }
-    this._micToggleEl.disabled = this._isLoading;
+    this._micToggleEl.disabled = this._isLoading || this._disabled;
 
     // Drawer label
     if (this._isLoading) {
@@ -855,6 +981,11 @@
     this._syncUI();
   };
 
+  /** Cancel an in-flight recording from outside (mirrors React's "cancelRecording" event). */
+  VoiceInput.prototype.cancelRecording = function () {
+    this._cancelRecording();
+  };
+
   /** Disable all interaction */
   VoiceInput.prototype.disable = function () {
     this._disabled = true;
@@ -881,6 +1012,8 @@
   /** Destroy instance and clean up */
   VoiceInput.prototype.destroy = function () {
     if (this._isRecording) this._cancelRecording();
+    if (this._refocusTimer) { clearTimeout(this._refocusTimer); this._refocusTimer = null; }
+    if (this._popupOpen) this._closePermissionPopup();
     if (this._drawerEl && this._drawerEl.parentNode) {
       this._drawerEl.parentNode.removeChild(this._drawerEl);
     }

@@ -332,16 +332,20 @@ await audioRace(FeedbackManager.sound.play('correct_sound_effect', { sticker }))
 **Correct:**
 
 ```javascript
-// RIGHT — full audio plays before transition
+// RIGHT — SFX awaited (short, predictable ~1s), dynamic TTS fire-and-forget
+// (game flow MUST NOT depend on TTS completion; if the network stalls, the next round still loads).
 try {
   await FeedbackManager.sound.play('correct_sound_effect', { sticker });
-  await FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker });
 } catch (e) {
   /* non-blocking — see feedback SKILL Rule 8 */
 }
+FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker })
+  .catch(function(e) { /* non-blocking — TTS error must not freeze the game */ });
 ```
 
-"Non-blocking" means `try/catch`, not `Promise.race`. Validator rule: `5e0-FEEDBACK-RACE-FORBIDDEN`.
+"Non-blocking" means `try/catch` around SFX and `.catch()` on fire-and-forget TTS — never `Promise.race`. Validator rule: `5e0-FEEDBACK-RACE-FORBIDDEN`.
+
+**Do NOT re-enable inputs after the audio block.** The next `renderRound()` / `loadRound()` is the single source of truth for re-enabling inputs (`isProcessing = false`, `voiceInput.enable()`, `btn.disabled = false`, etc.). Re-enabling after TTS blocks the next-round transition on audio completion.
 
 ## Verification
 

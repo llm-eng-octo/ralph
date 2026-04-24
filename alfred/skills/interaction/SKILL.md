@@ -238,7 +238,7 @@ Some games use Tap-Select (Single) — P1 — multiple times within a single rou
 **Game type:** Single-step.
 **Selection:** No persistent selection. Tap = immediate evaluation.
 **Guards:** `isProcessing`, `isActive`, `gameEnded`.
-**Feedback:** SFX (awaited) → dynamic TTS (awaited). Input blocked during both.
+**Feedback:** SFX (awaited, ~1.5s) → dynamic TTS (fire-and-forget). Input blocked for SFX dwell only; re-enabled in `loadRound()`, NOT after TTS (L-VI-002).
 **Used by:** MCQ Quiz, Rapid Challenge, True/False, One Digit Doubles, Position Maximizer, Number Pattern, Face Memory (response phase), Associations (response phase), Keep Track, Two-Player Race.
 
 ### Pattern 2: Tap-Select (Sequential Chain)
@@ -433,11 +433,15 @@ if (gameState.gameEnded) return;
 
 No exceptions. Missing guards cause double-fire, corruption, and test failures.
 
-### 2. `isProcessing` blocks input during feedback
+### 2. `isProcessing` blocks input during feedback — applies to EVERY input modality
 
-- **Single-step patterns (P1, P7):** `isProcessing = true` before audio, `false` after all audio completes.
-- **Multi-step patterns (all others):** `isProcessing` used briefly during animations/evaluations, NOT during fire-and-forget SFX.
-- **Exception:** Round-complete, puzzle-complete, and submit-evaluation moments in multi-step games DO block via `isProcessing` (awaited SFX).
+**Universal rule:** When awaited feedback audio is playing, ALL gameplay interactions are disabled — tap, click, drag (continuous path P5, DnD P6, directional P13), text/number input (P7), AND voice input (P17). No exceptions. One flag (`gameState.isProcessing`) blocks every input channel uniformly.
+
+- **Single-step patterns (P1, P7, P17):** `isProcessing = true` before audio, `false` after all audio completes. For P17, also call `voiceInput.disable()` / `enable()` around the same window so the microphone cannot start recording. For P6 submit-variants, also toggle a `.dnd-disabled` CSS class (`pointer-events: none` on draggables) for visual affordance.
+- **Multi-step patterns (all others):** `isProcessing` used briefly during animations/evaluations, NOT during fire-and-forget SFX. Student continues interacting through per-match / per-drop / per-move micro-SFX.
+- **Exception (really, a rule):** Round-complete, puzzle-complete, submit-evaluation, level/round transition, and end-game moments DO block via `isProcessing` — these audio sequences are awaited and interaction must stop.
+
+**Why it matters:** Without `isProcessing` on a drag or voice handler, the student can mutate the answer that was just evaluated while the feedback audio is still playing — `recordAttempt` captured one answer, `gameState` now holds another, scoring drifts from telemetry.
 
 ### 3. Event type follows the touch decision tree
 
@@ -503,7 +507,8 @@ Attach `pointermove`, `pointerup`, and `pointercancel` to `document`, not to the
 ## Constraints
 
 1. **CRITICAL — Use the correct event type.** Drag/swipe = pointer events. Everything else = click. Never mix. Never use raw touch events.
-2. **CRITICAL — Every handler has guards.** `isActive`, `isProcessing`, `gameEnded`. Missing guards = double-fire, state corruption.
+2. **CRITICAL — Every handler has guards.** `isActive`, `isProcessing`, `gameEnded`. Missing guards = double-fire, state corruption, **answer mutates during awaited feedback audio**.
+2a. **CRITICAL — ALL gameplay interactions disabled during awaited feedback.** The `isProcessing` guard applies to every input modality: tap, click, drag (P5/P6/P13), text input (P7), voice (P17). For P17, also bracket the awaited audio with `voiceInput.disable()` / `enable()`. For P6 submit-variants, also toggle `.dnd-disabled` (`pointer-events: none`) on the board. One flag, every channel.
 3. **CRITICAL — `preventDefault` on pointer events for drag/swipe.** Without it, the page scrolls during drag on mobile.
 4. **CRITICAL — `touch-action: none` on draggable elements.** Without it, the browser intercepts touch gestures.
 5. **CRITICAL — Document-level listeners for drag.** `pointermove`/`pointerup` on `document`, not on the grid.
@@ -523,7 +528,7 @@ Attach `pointermove`, `pointerup`, and `pointercancel` to `document`, not to the
 1. **Using `touchstart`/`touchmove`/`touchend` instead of pointer events.**
 2. **Attaching `pointermove` to the grid instead of `document`.**
 3. **Using `e.target` during `pointermove` for hit detection.**
-4. **Missing `isProcessing` guard.**
+4. **Missing `isProcessing` guard.** (Especially on drag `pointerdown`/`dragstart`, voice input, and P7 submit — not just on tap handlers. Any input channel without this guard lets the student mutate the answer while awaited feedback audio plays.)
 5. **Missing `preventDefault` on `pointerdown` for drag games.**
 6. **Missing `touch-action: none` on draggable elements.**
 7. **Auto-focusing input on round transition.**
@@ -551,7 +556,11 @@ Attach `pointermove`, `pointerup`, and `pointercancel` to `document`, not to the
 - [ ] `visualViewport` resize listener for keyboard (input patterns)
 - [ ] Undo mechanism present for puzzle patterns
 - [ ] `isProcessing` blocks during awaited audio only, not during fire-and-forget
-- [ ] Feedback type matches single-step (awaited SFX→TTS) or multi-step (fire-and-forget SFX)
+- [ ] **ALL gameplay input channels** (tap, drag dragstart/pointerdown, text input submit, voice input) check `isProcessing` as the first guard — not just tap handlers
+- [ ] For P17 (Voice Input): `voiceInput.disable()` called before the first awaited `FeedbackManager.sound.play(...)`, `voiceInput.enable()` called after the last awaited audio resolves
+- [ ] For P6 (Drag-and-Drop): `.dnd-disabled` class (or equivalent `pointer-events: none`) applied to the board while `gameState.isProcessing === true`
+- [ ] For P5 / P13 (drag patterns): `pointermove` and `pointerup` re-check `isProcessing` / `gameEnded` so an in-flight drag aborts cleanly if awaited feedback starts mid-drag
+- [ ] Feedback type matches single-step (awaited SFX + fire-and-forget TTS — L-VI-002) or multi-step (fire-and-forget SFX)
 - [ ] Observe phase blocks all interaction (P16, memorize games)
 - [ ] Drag axis constrained for P13 (Directional Drag)
 - [ ] Edge/segment hit areas padded to 44px minimum (P14)

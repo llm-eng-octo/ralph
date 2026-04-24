@@ -64,7 +64,7 @@ Every feedback moment uses a combination of these 5 types:
 
 | Game type | How to identify | Correct answer feedback | Wrong answer feedback |
 |-----------|----------------|----------------------|---------------------|
-| **Single-step** | 1 interaction completes the round (MCQ, tap correct option, type answer, select one) | SFX (awaited) → dynamic TTS with subtitle + sticker (awaited) | SFX (awaited) → dynamic TTS with subtitle + sticker (awaited) |
+| **Single-step** | 1 interaction completes the round (MCQ, tap correct option, type answer, select one) | SFX awaited (~1s) → dynamic TTS **fire-and-forget** (`.catch()`, NEVER awaited) with subtitle + sticker | SFX awaited (~1s) → dynamic TTS **fire-and-forget** (`.catch()`, NEVER awaited) with subtitle + sticker |
 | **Multi-step** | Multiple interactions to complete the round (matching pairs, chains, sorting, drag multiple items) | SFX + sticker only — **fire-and-forget, no dynamic TTS, no subtitle** | SFX + sticker only — **fire-and-forget, no dynamic TTS, no subtitle** |
 
 **Why:** Single-step games have one moment per round to give rich feedback — the student benefits from hearing an explanation. Multi-step games need flow — adding dynamic TTS after every match/action would kill the pacing.
@@ -89,7 +89,7 @@ Play area renders. Timer starts/resumes. In some games, dynamic TTS reads the qu
 
 ### CASE 4: Correct Answer (Single-step games)
 
-Input blocked immediately. Correct element turns green. **By default, two sequential audios play:** correct SFX with celebration sticker (awaited), then dynamic TTS with subtitle and sticker (awaited). The TTS speaks a context-aware explanation using actual numbers/values from the round — e.g., "Great! Placing 5 in the thousands place gives 5000". Sequence is always: SFX (awaited) → then TTS (awaited). After both audios finish, input unblocks. Game auto-advances to next round.
+Input blocked immediately (set `isProcessing = true`, disable voice input / buttons) BEFORE any await. Correct element turns green. **By default, two audios play:** correct SFX with celebration sticker (awaited — short, predictable ~1s), then dynamic TTS with subtitle and sticker (**fire-and-forget** with `.catch(...)` — never awaited; TTS completion MUST NOT gate next-round advance). The TTS speaks a context-aware explanation using actual numbers/values from the round — e.g., "Great! Placing 5 in the thousands place gives 5000". Sequence: SFX awaited → TTS fire-and-forget → game advances to next round. **Do NOT re-enable inputs in the submit handler.** `renderRound()` / `loadRound()` is the single source of truth for re-enabling inputs (sets `isProcessing=false`, calls `voiceInput.enable()`, resets button states).
 
 ### CASE 5: Correct Match (Multi-step, within same round)
 
@@ -101,7 +101,7 @@ Matched elements turn green. Correct SFX plays with sticker — **fire-and-forge
 
 ### CASE 7: Wrong Answer (Lives Remaining)
 
-**Single-step games:** Input blocked immediately. Wrong element flashes red (~600ms). Life lost — progress bar updates immediately. **By default, two sequential audios play:** wrong SFX with sad sticker (awaited), then dynamic TTS with subtitle and sticker (awaited). The TTS speaks a context-aware explanation using actual numbers/values from the round — e.g., "Not quite! 5 contributes only 50 from this position". Sequence: SFX (awaited) → then TTS (awaited). Red flash clears. After both audios finish, input unblocks. **Student stays on the same round** — retries. Wrong option is either deselected or permanently disabled.
+**Single-step games:** Input blocked immediately (set `isProcessing = true`, disable voice input / buttons) BEFORE any await. Wrong element flashes red (~600ms). Life lost — progress bar updates immediately. **By default, two audios play:** wrong SFX with sad sticker (awaited — short, predictable ~1s), then dynamic TTS with subtitle and sticker (**fire-and-forget** with `.catch(...)` — never awaited; TTS completion MUST NOT gate the retry). The TTS speaks a context-aware explanation using actual numbers/values from the round — e.g., "Not quite! 5 contributes only 50 from this position". Sequence: SFX awaited → TTS fire-and-forget → red flash clears → student retries same round. Wrong option is either deselected or permanently disabled. **Do NOT re-enable inputs after the audio block** — the next `renderRound()` (or the retry-reset path) re-enables inputs. Exception: API-failure path (LLM timeout/error, cannot advance) DOES re-enable inputs in-handler so the user can retry.
 
 **Multi-step games:** Wrong element flashes red (~600ms). Wrong SFX plays with sad sticker — **fire-and-forget, no dynamic TTS, no subtitle**. Life lost if applicable. Student continues interacting immediately.
 
@@ -158,6 +158,7 @@ When new round loads (new grid, tiles, cards), a soft "new cards" SFX plays — 
 4. **Wrong answer = stay on round** — never auto-advance after wrong
 5. **Fire-and-forget for mid-round feedback** — correct matches in multi-step rounds don't block input
 6. **Await for terminal feedback** — round-complete, level transitions, end-game audio are awaited
+6a. **ALL gameplay interactions disabled during the submit-handler / feedback window** — from the moment a submit/answer handler fires (single-step correct/wrong), every input channel in the game must reject input: tap, click, drag (P5 continuous path, P6 DnD, P13 directional), text/number input (P7) submit, and voice input (P17). The single gatekeeper is `gameState.isProcessing = true` set **BEFORE any await** (LLM eval, SFX play). SFX is awaited (~1s, short and predictable); dynamic TTS is fire-and-forget (`.catch()`, NEVER awaited). `isProcessing = false` is cleared in the next `renderRound()` / `loadRound()` — NEVER in the submit handler. Tying re-enable to TTS completion freezes the game if the TTS network stalls. Every interaction handler checks `isProcessing` as its first guard. For P17, additionally call `voiceInput.disable()` BEFORE any await and `voiceInput.enable()` in `loadRound()`. For P6 submit-variants, additionally toggle `.dnd-disabled` (removed in `renderRound()`). Optional defense-in-depth: toggle `.is-processing` on `#gameContent` (cleared in `renderRound()`) styled as `pointer-events: none` on voice-input / action-row / submit-btn — works around the CDN VoiceInput bug where `.disable()` only blocks the textarea, not the mic toggle. **Why:** if the student can still interact while feedback is in flight, they mutate the answer that was just evaluated — `recordAttempt` captured one answer, `gameState` now reflects another, scoring drifts from telemetry. Exceptions to "don't re-enable in handler": API-failure path (LLM timeout / error, can't advance) re-enables in-handler so user can retry; terminal game-over path re-enables before `endGame()`. This extends rule #5 (fire-and-forget SFX does NOT block) with its counterpart: submit-handler SFX DOES block briefly; submit-handler TTS does NOT block.
 7. **Dynamic TTS is stoppable** — if student interacts while TTS plays, it's interrupted
 8. **Sequential audio = await first, then second** — when two audios play back-to-back (SFX → VO, SFX → TTS), always `await` the first call before starting the second. Never fire both simultaneously. The second audio must NOT override/overlap the first.
 9. **CTA interrupts mid-sequence** — if CTA is tapped while a sequential audio pair is playing (even between the two calls), call `stopAll()` + `_stopCurrentDynamic()` and proceed immediately
@@ -187,10 +188,12 @@ When new round loads (new grid, tiles, cards), a soft "new cards" SFX plays — 
 | Round transition (auto-advance) | **Yes** (sequential) | SFX → VO awaited in order; audio IS the pacing |
 | Round transition (with CTA) | **Yes** (sequential, CTA interrupts) | SFX → VO awaited in order; CTA stops all |
 | Round start TTS | No | Student should interact immediately |
-| Correct SFX → TTS (single-step) | **Yes** (sequential) | SFX awaited, then dynamic TTS awaited; block input during both |
+| Correct SFX (single-step) | **Yes** (awaited) | SFX awaited ~1s; blocks handler so visual flash lands |
+| Correct TTS (single-step) | **No — fire-and-forget** | Dynamic TTS MUST NOT be awaited in a submit handler — next-round advance must not depend on TTS |
 | Correct SFX (multi-step) | No | SFX + sticker only, fire-and-forget; don't interrupt flow |
 | Round complete SFX | **Yes** | Gate before next round |
-| Wrong SFX → TTS (single-step) | **Yes** (sequential) | SFX awaited, then dynamic TTS awaited; block input during both |
+| Wrong SFX (single-step) | **Yes** (awaited) | SFX awaited ~1s; blocks handler so visual flash lands |
+| Wrong TTS (single-step) | **No — fire-and-forget** | Dynamic TTS MUST NOT be awaited in a submit handler — retry must not depend on TTS |
 | Wrong SFX (multi-step) | No | SFX + sticker only, fire-and-forget |
 | Tile select/deselect | No | Pure ambient |
 | Partial progress SFX + VO | No | Don't interrupt flow |
@@ -208,8 +211,8 @@ When new round loads (new grid, tiles, cards), a soft "new cards" SFX plays — 
 5. **CRITICAL — recordAttempt before audio.** Attempt data is captured before FeedbackManager plays.
 6. **STANDARD — Subtitle under 60 characters.** FeedbackManager renders in a small area.
 7. **STANDARD — Never use "wrong" in student-facing text.** Use "Not quite," "Close," "Almost."
-8. **STANDARD — Audio failure is non-blocking.** Game continues if audio fails. *"Non-blocking" means `try { await FeedbackManager.sound.play(...) } catch (e) {}`* — NOT `Promise.race`. FeedbackManager already bounds every call internally (`sound.play` → audio-duration + 1.5s guard; `playDynamicFeedback` → 60s streaming / 3s TTS API timeout), so a plain `await` is guaranteed to resolve. Wrapping calls in `Promise.race([...setTimeout...])` or defining an `audioRace` helper truncates normal TTS (1–3s) and advances phase/round transitions before audio ends — validator rule `5e0-FEEDBACK-RACE-FORBIDDEN` blocks this at build time. See PART-026 Anti-Pattern 32.
-9. **CRITICAL — Sequential audio must await in order.** When two audios play back-to-back (SFX → VO, SFX → TTS), `await` the first call fully before starting the second. Never fire both simultaneously. Use `audioStopped` flag to prevent second audio from starting if CTA was tapped during first.
+8. **STANDARD — Audio failure is non-blocking.** Game continues if audio fails. For awaited SFX / transition-screen VO: `try { await FeedbackManager.sound.play(...) } catch (e) {}`. For fire-and-forget submit-handler TTS: `FeedbackManager.playDynamicFeedback({...}).catch(function(e){})`. NEVER `Promise.race`. FeedbackManager already bounds every call internally (`sound.play` → audio-duration + 1.5s guard; `playDynamicFeedback` → 60s streaming / 3s TTS API timeout). Wrapping calls in `Promise.race([...setTimeout...])` or defining an `audioRace` helper truncates normal TTS (1–3s) and advances phase/round transitions before audio ends — validator rule `5e0-FEEDBACK-RACE-FORBIDDEN` blocks this at build time. See PART-026 Anti-Pattern 32.
+9. **CRITICAL — Sequential audio must await in order ON TRANSITION SCREENS.** On level / round / end-game transition screens (CTA visible), when two audios play back-to-back (SFX → VO), `await` the first call fully before starting the second. Never fire both simultaneously. Use `audioStopped` flag to prevent second audio from starting if CTA was tapped during first. **Submit/answer handlers are different:** SFX is awaited, then TTS is fire-and-forget (no second await). This sequential rule applies to screen-level VO sequences, not to submit-handler TTS.
 
 ## Anti-patterns
 

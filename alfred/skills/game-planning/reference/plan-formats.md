@@ -130,28 +130,27 @@ List every distinct round type.
 1. **Round starts** -- [what renders]
 2. **Student sees** -- [question preview content, instruction if applicable]
 3. **Student acts** -- [tap option / type number / drag item / click cell]
-4. **Correct path (single-step — SFX + dynamic TTS by default):**
+4. **Correct path (single-step — SFX awaited + dynamic TTS fire-and-forget):**
    a. Selected option gets `.selected-correct` styling
-   b. `gameState.isProcessing = true` blocks input
-   c. `await FeedbackManager.sound.play('correct_sound_effect', {sticker})` — awaited
-   d. `await FeedbackManager.playDynamicFeedback({audio_content: '[context-aware explanation]', subtitle: '[same text]', sticker})` — awaited after SFX
+   b. `gameState.isProcessing = true` blocks input (set BEFORE any await; also disable voice/buttons)
+   c. `await FeedbackManager.sound.play('correct_sound_effect', {sticker})` — awaited (short ~1s)
+   d. `FeedbackManager.playDynamicFeedback({audio_content: '[context-aware explanation]', subtitle: '[same text]', sticker}).catch(function(e){})` — FIRE-AND-FORGET, never awaited; next-round transition MUST NOT block on TTS
    e. Score increments, score display bounces (scoreBounce 400ms)
-   f. `gameState.isProcessing = false`, input unblocks, auto-advance to next round
+   f. Auto-advance to next round via `renderRound()` / `loadRound()` — which is the single source of truth for re-enabling inputs (`isProcessing = false`, `voiceInput.enable()`, etc.). DO NOT re-enable in the handler.
 4alt. **Correct path (multi-step — SFX + sticker only):**
    a. Matched elements get `.selected-correct` styling
    b. `FeedbackManager.sound.play('correct_sound_effect', {sticker}).catch(...)` — fire-and-forget, NO dynamic TTS
    c. Student continues interacting immediately — NO input blocking
-5. **Wrong path (single-step — SFX + dynamic TTS by default):**
+5. **Wrong path (single-step — SFX awaited + dynamic TTS fire-and-forget):**
    a. Selected option gets `.selected-wrong` styling
    b. Correct option gets `.selected-correct` styling
    c. `.correct-reveal` shows "Answer: [correct answer]"
-   d. `gameState.isProcessing = true` blocks input
-   e. `await FeedbackManager.sound.play('incorrect_sound_effect', {sticker})` — awaited
-   f. `await FeedbackManager.playDynamicFeedback({audio_content: '[context-aware explanation]', subtitle: '[same text]', sticker})` — awaited after SFX
+   d. `gameState.isProcessing = true` blocks input (set BEFORE any await; also disable voice/buttons)
+   e. `await FeedbackManager.sound.play('incorrect_sound_effect', {sticker})` — awaited (short ~1s)
+   f. `FeedbackManager.playDynamicFeedback({audio_content: '[context-aware explanation]', subtitle: '[same text]', sticker}).catch(function(e){})` — FIRE-AND-FORGET, never awaited; retry MUST NOT block on TTS
    g. [If lives game: life decremented, progress bar updated, heart-break animation 600ms]
    h. [If lives = 0: ALWAYS play wrong SFX (awaited, Promise.all 1500ms min) BEFORE proceeding to game_over (feedback/SKILL.md Case 8) — never skip]
-   i. `gameState.isProcessing = false`, input unblocks
-   j. Student stays on same round — retries
+   i. Student stays on same round — retries via `renderRound()` / `loadRound()` which re-enables inputs (single source of truth). DO NOT re-enable in the handler. Exception: API-failure path re-enables in-handler so user can retry.
 5alt. **Wrong path (multi-step — SFX + sticker only):**
    a. Wrong element flashes `.selected-wrong`
    b. `FeedbackManager.sound.play('incorrect_sound_effect', {sticker}).catch(...)` — fire-and-forget, NO dynamic TTS

@@ -54,11 +54,6 @@
       evaluationArea: (config && config.evaluationArea) || null,
       onShow: (config && config.onShow) || null,
       onHide: (config && config.onHide) || null,
-      position: {
-        bottom: (config && config.position && config.position.bottom) || "60px",
-        maxWidth:
-          (config && config.position && config.position.maxWidth) || "280px",
-      },
     };
 
     this.container = null;
@@ -75,35 +70,42 @@
     // Create container
     this.container = document.createElement("div");
     this.container.className = "subtitle-component-container";
-    this.container.style.cssText = `
-      display: none;
-      position: fixed;
-      bottom: ${this.config.position.bottom};
-      width: 100%;
-      max-width: ${this.config.position.maxWidth};
-      left: 50%;
-      transform: translateX(-50%);
-      justify-content: center;
-      z-index: 999;
-      pointer-events: none;
-      margin: 0 8px;
-    `;
+    this.container.setAttribute(
+      "style",
+      "display: none !important;" +
+        "position: fixed !important;" +
+        "bottom: 60px !important;" +
+        "width: 100% !important;" +
+        "max-width: 250px !important;" +
+        "left: 50% !important;" +
+        "transform: translateX(-50%) !important;" +
+        "justify-content: center !important;" +
+        "z-index: 999 !important;" +
+        "pointer-events: none !important;" +
+        "margin: 0 8px !important;"
+    );
 
     // Create feedback box
     this.feedbackBox = document.createElement("div");
     this.feedbackBox.className = "subtitle-feedback-box";
-    this.feedbackBox.style.cssText = `
-      padding: 10px;
-      background: rgba(242, 242, 242, 0.80);
-      border-radius: 0px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
-      color: #000;
-      text-align: center;
-      word-wrap: break-word;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    `;
+    this.feedbackBox.setAttribute(
+      "style",
+      "width: 100% !important;" +
+        "max-width: 250px !important;" +
+        "box-sizing: border-box !important;" +
+        "padding: 10px !important;" +
+        "background: rgba(242, 242, 242, 0.80) !important;" +
+        "border-radius: 0px !important;" +
+        "font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;" +
+        "font-size: 14px !important;" +
+        "line-height: 1.5 !important;" +
+        "color: #000 !important;" +
+        "text-align: center !important;" +
+        "word-wrap: break-word !important;" +
+        "overflow-wrap: anywhere !important;" +
+        "white-space: normal !important;" +
+        "box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;"
+    );
 
     this.container.appendChild(this.feedbackBox);
     document.body.appendChild(this.container);
@@ -189,7 +191,7 @@
       this.feedbackBox.innerHTML = html;
 
       // Show container
-      this.container.style.display = "flex";
+      this.container.style.setProperty("display", "flex", "important");
       this.isVisible = true;
       this.timeStart = Date.now();
 
@@ -225,7 +227,7 @@
     }
 
     // Hide container
-    this.container.style.display = "none";
+    this.container.style.setProperty("display", "none", "important");
     this.isVisible = false;
 
     // Call onHide callback
@@ -376,10 +378,12 @@
     },
 
     configure: function (config) {
+      var sanitized = config ? Object.assign({}, config) : {};
+      delete sanitized.position;
       if (globalInstance) {
-        globalInstance.config = Object.assign(globalInstance.config, config);
+        globalInstance.config = Object.assign(globalInstance.config, sanitized);
       } else {
-        globalInstance = new SubtitleComponent(config);
+        globalInstance = new SubtitleComponent(sanitized);
       }
       return globalInstance;
     },

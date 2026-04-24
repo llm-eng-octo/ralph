@@ -18,6 +18,8 @@ function attachDragListeners() {
   var grid = document.getElementById('game-grid');
 
   grid.addEventListener('pointerdown', function(e) {
+    // Universal guards — a drag is a gameplay interaction, so ALL three must pass
+    if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
     e.preventDefault();
     var cell = e.target.closest('.grid-cell');
     if (!cell) return;
@@ -28,6 +30,13 @@ function attachDragListeners() {
 
   document.addEventListener('pointermove', function(e) {
     if (!gameState.isDragging) return;
+    // Re-check isProcessing/gameEnded — awaited feedback may have started mid-drag
+    // (e.g. handlePuzzleComplete sets isProcessing=true before the awaited SFX; TTS is fire-and-forget — L-VI-002).
+    // Cancel the drag in-flight so the student can't keep drawing while the win audio plays.
+    if (gameState.isProcessing || gameState.gameEnded) {
+      gameState.isDragging = false;
+      return;
+    }
     e.preventDefault();
     var el = document.elementFromPoint(e.clientX, e.clientY);
     if (!el) return;
@@ -48,7 +57,8 @@ function attachDragListeners() {
 }
 
 function handleDragStart(row, col) {
-  if (!gameState.isActive || gameState.isProcessing) return;
+  // Universal guards — ALL three, not just isActive/isProcessing
+  if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
 
   if (gameState.path.length === 0) {
     // Must start on start cell
@@ -65,7 +75,7 @@ function handleDragStart(row, col) {
 }
 
 function handleDragMove(row, col) {
-  if (!gameState.isDragging || gameState.isProcessing) return;
+  if (!gameState.isDragging || gameState.isProcessing || gameState.gameEnded) return;
   var head = gameState.path[gameState.path.length - 1];
   if (row === head.row && col === head.col) return; // Same cell
 
@@ -133,6 +143,10 @@ function removeFromPath() {
   }
 }
 ```
+
+### Input Blocking During Awaited Feedback
+
+The awaited feedback sequence in P5 fires on puzzle-complete (awaited SFX + fire-and-forget dynamic TTS — L-VI-002). `handlePuzzleComplete` must set `gameState.isProcessing = true` before the first `await FeedbackManager.sound.play(...)` and clear it after the SFX resolves; TTS is launched without `await` and runs in the background (puzzle/round advance must not block on TTS completion). The three guards above (on `pointerdown`, `pointermove`, and inside `handleDragMove`) are what turn that flag into real input blocking — without them, the student can keep dragging across cells while the puzzle-complete audio is playing, which invalidates the "solved" state the audio is celebrating. Per-tile tap SFX inside `handleDragMove` is also fire-and-forget, so it intentionally does not block further drag input while it plays.
 
 ### Reset (Costs Life)
 

@@ -57,13 +57,14 @@ Student selects: Isosceles (correct)
 
 **Expect:**
 
-- [ ] `gameState.isProcessing = true` set immediately
+- [ ] `gameState.isProcessing = true` set BEFORE any await (disable voice / buttons at the same point)
 - [ ] Correct option gets green CSS class (`.correct` / `.selected-correct`)
 - [ ] `recordAttempt({...correct: true})` called BEFORE audio
 - [ ] `progressBar.update(round, lives)` called
 - [ ] `FeedbackManager.sound.play('correct_sound_effect', { sticker: {..., duration: 2, type: 'IMAGE_GIF'} })` awaited
-- [ ] After audio resolves: `gameState.isProcessing = false`, then advance to next round
-- [ ] [LLM] No setTimeout used for timing — audio duration IS the timing
+- [ ] `FeedbackManager.playDynamicFeedback({...})` is FIRE-AND-FORGET (`.catch()`, NEVER awaited) — next-round advance MUST NOT depend on TTS completion
+- [ ] Advance to next round via `renderRound()` / `loadRound()` — which clears `gameState.isProcessing = false` and re-enables inputs (single source of truth). Submit handler does NOT clear `isProcessing` itself
+- [ ] [LLM] No setTimeout used for timing — SFX duration IS the timing
 
 **Why:** Tests the core correct-answer flow with proper await pattern and production API.
 
@@ -87,14 +88,15 @@ Student answers incorrectly. Lives: 3 → 2.
 
 **Expect:**
 
-- [ ] `gameState.isProcessing = true` set immediately
+- [ ] `gameState.isProcessing = true` set BEFORE any await (disable voice / buttons at the same point)
 - [ ] Wrong option gets red CSS class (`.wrong` / `.incorrect`)
 - [ ] Life decremented: `gameState.lives--`
 - [ ] `progressBar.update(round, lives)` called immediately (student sees lost heart)
 - [ ] `recordAttempt({...correct: false})` called BEFORE audio
 - [ ] `FeedbackManager.sound.play('incorrect_sound_effect', { sticker: {..., duration: 2} })` awaited
+- [ ] `FeedbackManager.playDynamicFeedback({...})` is FIRE-AND-FORGET (`.catch()`, NEVER awaited) — retry MUST NOT depend on TTS completion
 - [ ] Red flash clears after ~600ms
-- [ ] After audio resolves: `gameState.isProcessing = false`
+- [ ] Retry path: `renderRound()` / `loadRound()` clears `gameState.isProcessing = false` and re-enables inputs (single source of truth). Submit handler does NOT clear `isProcessing` itself
 - [ ] **Student stays on the same round** — not auto-advanced
 - [ ] [LLM] Wrong option is either deselected (retry freely) or permanently disabled
 

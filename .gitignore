@@ -19,3 +19,5 @@ repo/
 test-results/
 .claude/settings.json
 worksheet*
+scripts/
+games/

@@ -89,6 +89,11 @@ async function handleSubmit() {
 
   gameState.isProcessing = true;
   voiceInput.disable(); // Block interaction during evaluation
+  // Defense-in-depth: CDN disable() sets internal _disabled=true but does
+  // NOT reliably set textarea.disabled=true on the rendered textarea, so
+  // keyboard input still works. Always set it explicitly.
+  var viTa = document.querySelector('.voice-input-wrapper textarea, #voice-input-area textarea');
+  if (viTa) { viTa.disabled = true; viTa.readOnly = true; viTa.blur(); }
 
   var round = getRounds()[gameState.currentRound];
   var isCorrect = checkAnswer(answer, round.answer);
@@ -109,37 +114,34 @@ async function handleSubmit() {
   recordAttempt({ /* 12 fields */ });
   trackEvent('answer_submitted', { round: gameState.currentRound, isCorrect: isCorrect });
 
-  // Audio feedback (SFX + TTS)
+  // Audio feedback: SFX awaited (short, predictable), TTS fire-and-forget.
+  // Game flow MUST NOT depend on TTS completion — if network stalls, the next round still loads.
   try {
     if (isCorrect) {
       await FeedbackManager.sound.play('correct_sound_effect', { sticker: CORRECT_STICKER });
-      await FeedbackManager.playDynamicFeedback({
+      FeedbackManager.playDynamicFeedback({
         audio_content: round.feedbackCorrect,
         subtitle: round.feedbackCorrect,
         sticker: CORRECT_STICKER
-      });
+      }).catch(function(e) { console.error('TTS error:', e.message); });
     } else {
       if (gameState.totalLives > 0 && gameState.lives <= 0) {
+        // Game-over is a terminal state, not a round transition — handles its own re-enable.
         gameState.isProcessing = false;
         endGame('game_over');
         return;
       }
       await FeedbackManager.sound.play('incorrect_sound_effect', { sticker: INCORRECT_STICKER });
-      await FeedbackManager.playDynamicFeedback({
+      FeedbackManager.playDynamicFeedback({
         audio_content: round.feedbackWrong || 'The correct answer is ' + round.answer,
         subtitle: round.feedbackWrong || 'The correct answer is ' + round.answer,
         sticker: INCORRECT_STICKER
-      });
+      }).catch(function(e) { console.error('TTS error:', e.message); });
     }
   } catch (e) {}
 
-  gameState.isProcessing = false;
-
-  // Reset for next round
-  voiceInput.clearMark();
-  voiceInput.clear();
-  voiceInput.enable();
-
+  // Inputs stay disabled until loadRound() re-enables them for the next round.
+  // loadRound() is the single source of truth: isProcessing=false, voiceInput.enable(), clearMark(), clear().
   gameState.currentRound++;
   if (gameState.currentRound >= gameState.totalRounds) {
     endGame('victory');
@@ -277,10 +279,16 @@ function loadRound() {
   var round = getRounds()[gameState.currentRound];
   document.getElementById('question-text').textContent = round.question;
 
-  // Reset voice input for new round
+  // Single source of truth for re-enabling inputs after a correct/wrong answer.
+  // Never re-enable inputs in the submit handler after TTS — only here.
+  gameState.isProcessing = false;
   voiceInput.clearMark();
   voiceInput.clear();
   voiceInput.enable();
+  // Defense-in-depth: CDN enable() doesn't always clear disabled/readOnly
+  // on the textarea. Do it explicitly to match the disable() path.
+  var ta = document.querySelector('.voice-input-wrapper textarea, #voice-input-area textarea');
+  if (ta) { ta.disabled = false; ta.readOnly = false; }
 }
 
 // In endGame():
@@ -309,7 +317,7 @@ Multiple VoiceInput instances on the same page share a single global permission 
 
 2. **Never call `getUserMedia` yourself.** VoiceInput manages all microphone access. Calling it separately will conflict with VoiceInput's permission state.
 
-3. **Always call `disable()` during answer evaluation.** Without this, the student can start a new recording while feedback audio is playing — causes audio conflicts.
+3. **Always call `disable()` during answer evaluation AND explicitly set `textarea.disabled=true`.** `voiceInput.disable()` alone does not reliably block keyboard input — the current CDN sets the internal `_disabled` flag but leaves the textarea typeable. Add `var ta = document.querySelector('.voice-input-wrapper textarea, #voice-input-area textarea'); if (ta) { ta.disabled = true; ta.readOnly = true; ta.blur(); }` right after `voiceInput.disable()` in every submit / end-game handler, and the matching re-enable (`ta.disabled = false; ta.readOnly = false;`) right after `voiceInput.enable()` in `loadRound()`. Without this, the student can keep typing while feedback audio is playing and cause audio/evaluation conflicts.
 
 4. **Always call `destroy()` if removing the input from the page.** VoiceInput appends the drawer to `document.body` and adds a global click listener. Without `destroy()`, these leak.
 
@@ -342,3 +350,4 @@ Multiple VoiceInput instances on the same page share a single global permission 
 | Put HTML inside the container div | VoiceInput clears `innerHTML` on construction | Put sibling elements outside the container |
 | Forget to call `destroy()` when removing the component | Leaks drawer DOM + global click listener | Always call `destroy()` in cleanup |
 | Skip `disable()` during feedback playback | Student can record during TTS → audio collision | Always `disable()` before feedback, `enable()` after |
+| Rely on `voiceInput.disable()` alone to block typing | CDN disable() sets `_disabled` flag but leaves textarea typeable — student can keep typing during processing | Pair every `disable()` with `textarea.disabled = true; textarea.readOnly = true; textarea.blur()`. Pair every `enable()` with the matching clears |

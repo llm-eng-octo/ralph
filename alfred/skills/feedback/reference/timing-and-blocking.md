@@ -12,27 +12,37 @@ Production games do NOT use fixed setTimeout delays. They `await` the `FeedbackM
 | Round transition (auto-advance, no CTA) | **Yes** (sequential) | SFX awaited, then VO awaited; audio IS the pacing |
 | Round transition (with CTA) | **Yes** (sequential, CTA interrupts) | SFX awaited, then VO awaited; CTA stops all mid-sequence |
 | Round start dynamic TTS | No | Student should interact immediately |
-| Correct SFX → TTS (single-step) | **Yes** (sequential) | SFX awaited, then dynamic TTS awaited; block input during both |
+| Correct SFX (single-step) | **Yes** | SFX awaited (~1s, predictable); block input; then fire-and-forget TTS |
+| Correct TTS (single-step) | **No — fire-and-forget** | NEVER await dynamic TTS in a submit handler; next-round advance must not depend on TTS completion |
 | Correct SFX (multi-step, mid-round match) | No | SFX + sticker only, fire-and-forget; no dynamic TTS |
 | Round complete SFX | **Yes** | Gate before next round advances |
-| Wrong SFX → TTS (single-step) | **Yes** (sequential) | SFX awaited, then dynamic TTS awaited; block input during both |
+| Wrong SFX (single-step) | **Yes** | SFX awaited (~1s, predictable); block input; then fire-and-forget TTS |
+| Wrong TTS (single-step) | **No — fire-and-forget** | NEVER await dynamic TTS in a submit handler; retry must not depend on TTS completion |
 | Wrong SFX (multi-step) | No | SFX + sticker only, fire-and-forget; no dynamic TTS |
 | Tile select / deselect SFX | No | Pure ambient micro-interaction |
 | Partial progress SFX + VO (chains) | No | Don't interrupt — student starts next chain |
 | End-game SFX → VO (victory/game-over) | **Yes** (sequential) | But screen + CTA already visible, so student CAN interrupt |
 | New cards / content appearing SFX | No | Ambient |
 
-### Awaited Pattern (Single-step games — SFX → dynamic TTS, always)
+### Submit-handler Pattern (Single-step games — SFX awaited, dynamic TTS fire-and-forget)
 
 ```javascript
+// BEFORE any await: lock input so the game freezes, not the TTS pipeline
 gameState.isProcessing = true;
+// ... disable buttons / voiceInput.disable() here ...
 // ... visual feedback (CSS classes) ...
 // ... recordAttempt ...
 try {
   await FeedbackManager.sound.play('correct_sound_effect', { sticker: CORRECT_STICKER });
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'Great! 5 in the thousands place gives 5000', subtitle: 'Great! 5 in the thousands place gives 5000', sticker: CORRECT_STICKER });
 } catch(e) {}
-gameState.isProcessing = false;
+// Dynamic TTS is fire-and-forget — game flow MUST NOT depend on TTS completion.
+// If the TTS network stalls, the next round still loads.
+FeedbackManager.playDynamicFeedback({
+  audio_content: 'Great! 5 in the thousands place gives 5000',
+  subtitle: 'Great! 5 in the thousands place gives 5000',
+  sticker: CORRECT_STICKER
+}).catch(function(e) { console.error('TTS error:', e.message); });
+// Do NOT re-enable here. renderRound() / loadRound() re-enables inputs when the next round paints.
 // advance to next round
 ```
 
@@ -54,13 +64,15 @@ if (gameState.isProcessing) return;
 ```
 
 **When to set `isProcessing = true`:**
-- Immediately when a single-step correct/wrong answer is submitted
+- Immediately when a single-step correct/wrong answer is submitted — BEFORE any await (LLM eval, SFX play). Also disable modality-specific input (`voiceInput.disable()`, `btn.disabled = true`, `.dnd-disabled` class) at the same point.
 - Immediately when round-complete audio starts
 - During handleReset / path reset flows
 
 **When to set `isProcessing = false`:**
-- After the awaited `FeedbackManager.sound.play()` resolves
-- Before starting the next round (so input is ready when gameplay renders)
+- Submit/answer handler: NEVER here. Let `renderRound()` / `loadRound()` be the single source of truth — it clears `isProcessing`, re-enables voice/buttons, removes `.dnd-disabled`. Re-enabling in the handler ties game flow to TTS completion (anti-pattern).
+- Transition sequences (level / round / end-game with CTA): after the last awaited audio resolves, or when the CTA is tapped.
+- Exception A: API-failure path (LLM timeout / error, can't advance) re-enables in-handler so the user can retry.
+- Exception B: Terminal game-over path re-enables in-handler before calling `endGame()`.
 
 **When NOT to block input:**
 - Multi-step correct matches (fire-and-forget)
@@ -250,23 +262,43 @@ try {
 When an answer is submitted, execute in this exact order:
 
 ```
-1. gameState.isProcessing = true          — block input
+1. gameState.isProcessing = true          — block input (set BEFORE any await)
+   + disable voiceInput / buttons          — defense-in-depth; also BEFORE any await
 2. Apply visual CSS (.correct / .wrong)   — immediate visual feedback
 3. Update state (lives--, score++)        — update game state
 4. progressBar.update(round, lives)       — update UI immediately
 5. recordAttempt({...})                   — log attempt BEFORE audio
 6. signalCollector.recordViewEvent(...)   — record feedback event
-7a. await FeedbackManager.sound.play(...)  — play SFX with sticker
-7b. [Single-step only] await FeedbackManager.playDynamicFeedback(...)  — play dynamic TTS with subtitle + sticker
-8. gameState.isProcessing = false         — unblock input
-9. Advance (next round / game over)       — proceed
+7a. await FeedbackManager.sound.play(...)  — play SFX with sticker (awaited; ~1s predictable)
+7b. [Single-step only] FeedbackManager.playDynamicFeedback(...).catch(function(e){})
+    — dynamic TTS is FIRE-AND-FORGET, NEVER awaited; game flow MUST NOT block on TTS completion
+8. Advance (renderRound / loadRound / endGame)
+   — renderRound / loadRound is the single source of truth for re-enabling inputs
+   (it sets isProcessing = false, voiceInput.enable(), btn.disabled = false, etc.)
+   DO NOT set isProcessing = false in the submit handler.
+   Exception: API-failure path (LLM timeout / error, can't advance) re-enables in-handler
+   so the user can retry; terminal game-over also handles its own re-enable.
 ```
 
 **Why this order:**
 - `recordAttempt` fires BEFORE audio so the attempt captures pre-feedback state
 - `progressBar.update` fires BEFORE audio so student sees the heart/round change immediately
 - Visual CSS applies BEFORE audio so student sees green/red while audio plays
-- `isProcessing = false` fires AFTER audio so input is blocked for the full feedback duration
+- SFX is awaited (short, predictable ~1s) so the visual flash has time to land before advance
+- Dynamic TTS is fire-and-forget so a stalled TTS stream never freezes the game — the next round loads independently; TTS keeps playing through the transition
+- Inputs are re-enabled only by the next `renderRound()` / `loadRound()` — tying re-enable to audio completion would make TTS latency block gameplay
+
+### Defense-in-depth CSS (optional but recommended)
+
+Add `.is-processing` to `#gameContent` at the start of the submit handler; clear it in `renderRound()`. Style it as `pointer-events: none` on voice-input, action-row, submit-btn. The CDN VoiceInput has a known bug where `.disable()` only blocks the textarea but not the mic toggle — this CSS works around it.
+
+```css
+#gameContent.is-processing .voice-input,
+#gameContent.is-processing .action-row,
+#gameContent.is-processing #submit-btn {
+  pointer-events: none;
+}
+```
 
 ## End-Game Data Contract
 

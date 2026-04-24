@@ -203,7 +203,9 @@ Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
 - **Preload:** `await FeedbackManager.sound.preload([...])` with exact SFX URLs from `feedback/reference/feedbackmanager-api.md`
 - **Static SFX:** `await FeedbackManager.sound.play(id, {sticker: STICKER_URL})` — sticker is a string URL. Awaited for terminal moments, fire-and-forget for mid-round
 - **CRITICAL — Minimum Feedback Duration:** `sound.play()` can resolve BEFORE audio finishes. ALL answer-feedback calls (`sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_*`, `partial_correct_*`) MUST use `Promise.all` with a 1500ms floor: `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ]);` — guarantees audio fully plays before round advance / tile reset / game-over. Does NOT apply to VO or transition audio. Validator rule `5e0-FEEDBACK-MIN-DURATION`. See PART-026 Anti-Pattern 34.
-- **Dynamic VO:** `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — all VO is dynamic TTS, never preloaded
+- **Dynamic VO:** all VO is dynamic TTS, never preloaded. **Usage depends on context:**
+  - **Submit/answer handlers (correct/wrong answers):** fire-and-forget — `FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker}).catch(function(e){})`. NEVER `await`. Next-round transition MUST NOT block on TTS completion.
+  - **Transition screens (level/round/game-over) with CTA:** `await FeedbackManager.playDynamicFeedback(...)` is acceptable because the CTA is already visible and the user can interrupt.
 - **Sequential audio (transitions, end-game, SFX+TTS):** Always `await` first audio before starting second. Never fire both simultaneously. Use `audioStopped` flag to prevent second audio if CTA tapped during first:
   ```javascript
   var audioStopped = false;
@@ -217,7 +219,7 @@ Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
 - **Stop:** `FeedbackManager.sound.stopAll()` + `FeedbackManager._stopCurrentDynamic()` on CTA taps
 - **Pause/Resume:** `FeedbackManager.sound.pause()/resume()` + `FeedbackManager.stream.pauseAll()/resumeAll()` on visibility change
 - Subtitle under 60 chars. Never use "wrong" -- use "Not quite," "Close," "Almost."
-- **No `Promise.race` on FeedbackManager calls (CRITICAL).** Package already bounds resolution (`sound.play` → audio-duration + 1.5s guard; `playDynamicFeedback` → 60s streaming / 3s TTS API). Plain `await FeedbackManager.sound.play(...)` / `await FeedbackManager.playDynamicFeedback(...)` inside `try/catch` is the only correct pattern — "non-blocking" means `try/catch`, NOT `Promise.race`. A helper like `audioRace(p) => Promise.race([p, setTimeout(r, 800)])` truncates normal TTS (1–3s) and causes phase/round transitions to fire before audio ends. Validator rule `5e0-FEEDBACK-RACE-FORBIDDEN` blocks any such race. See PART-017 + PART-026 Anti-Pattern 32.
+- **No `Promise.race` on FeedbackManager calls (CRITICAL).** Package already bounds resolution (`sound.play` → audio-duration + 1.5s guard; `playDynamicFeedback` → 60s streaming / 3s TTS API). A helper like `audioRace(p) => Promise.race([p, setTimeout(r, 800)])` truncates normal TTS (1–3s) and causes phase/round transitions to fire before audio ends. Validator rule `5e0-FEEDBACK-RACE-FORBIDDEN` blocks any such race. "Non-blocking" means `try/catch` around awaited SFX / transition VO, or `.catch()` on fire-and-forget submit-handler TTS — NEVER `Promise.race`. See PART-017 + PART-026 Anti-Pattern 32.
 - See `skills/feedback/SKILL.md` for all 17 behavioral cases and `feedback/reference/feedbackmanager-api.md` for CDN URLs.
 
 ### ScreenLayout.inject
@@ -466,10 +468,10 @@ The core game loop MUST follow this order:
 5. Update score/lives, `syncDOM()`, AND **refresh the ActionBar header** via `previewScreen.setScore(gameState.score + '/' + gameState.totalRounds)`. Call `previewScreen.setQuestionLabel('Q' + (gameState.currentRound + 1))` on round advance. Use the direct methods — NEVER re-post `game_init`, because the game's own `handlePostMessage` listens on the same window and would re-run `setupGame()` with fallback content. See PART-040 "Updating header state from game code".
 6. Visual feedback (selected-wrong/selected-correct classes, correct-reveal)
 7. FeedbackManager audio (per `skills/feedback/SKILL.md`):
-   - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` ��� SFX wrapped in Promise.all for minimum duration, then dynamic TTS awaited sequentially. Dynamic TTS ALWAYS plays with context-aware explanation.
+   - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → then **fire-and-forget** `FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker}).catch(function(e){})`. SFX is awaited (short, predictable ~1.5s floor); dynamic TTS is fire-and-forget so next-round transition is NEVER blocked on TTS. Dynamic TTS still plays with context-aware explanation, but the flow advances independently.
    - **Multi-step mid-round match:** `FeedbackManager.sound.play(id, {sticker}).catch(...)` — fire-and-forget. NO dynamic TTS, NO subtitle. SFX + sticker only.
    - Last-life wrong: ALWAYS play wrong SFX (awaited, Promise.all 1500ms min) BEFORE endGame(false) — never skip
-8. `isProcessing = false`, `trackEvent('round_complete')`, check end conditions, advance round
+8. **Advance to next round** via `renderRound()` / `loadRound()` / `endGame()`. DO NOT set `isProcessing = false` here and DO NOT re-enable inputs in the handler after audio. `renderRound()` / `loadRound()` is the single source of truth: it sets `isProcessing = false`, re-enables inputs (buttons, voice input), clears marks, and resets state for the new round. Exception: API-failure path and terminal game-over are the only places the handler itself unblocks (so the user can retry or see the end screen).
 
 ### resetGame (restartGame)
 
