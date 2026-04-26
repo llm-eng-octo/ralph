@@ -86,7 +86,14 @@ ActionBar ALSO listens to `window.message` events for `{ type: 'game_init', data
 
 ## show_star payload contract
 
-The same `window.message` listener also handles `{ type: 'show_star', data?: { count?, variant?, silent? } }` — an **intra-frame** message dispatched by the game via `window.postMessage(...)` (NOT `window.parent.postMessage(...)`). It triggers the same star-award animation used in mathai-client: the star renders at the viewport top-left at its intrinsic image size and collapses toward the header's `#previewStar` via animated `transform-origin` + `scale` + `opacity` over 1 s, while an award chime plays. The static `#previewStar` itself is not modified — its `src` and visibility are untouched by the animation.
+`show_star` is an **intra-frame** message dispatched by the game via `window.postMessage(...)` (NOT `window.parent.postMessage(...)`). It triggers a 1 s flying-star animation that lands on the header star, upgrades `#previewStar` to the awarded tier, and — when a `score` is included — updates `#previewScore` at animation end.
+
+**Fire whenever a star is earned.** The animation IS how the user visually "receives" a star — no animation, no felt reward. Typical fire sites:
+- **Multi-round game, 1 star per correct round:** fire on each correct-answer handler. Pass `count: 1` and `score: gameState.score + '/' + gameState.totalRounds`.
+- **Standalone game, 1 round awards up to N stars:** fire once at end-of-game (after feedback audio) with `count: stars` and `score: stars + '/' + N`.
+- **End-of-game summary celebration** (optional, multi-round): fire inside the victory / stars-collected TransitionScreen's `onMounted` with the cumulative tier for a closing flourish.
+
+Each fire plays the animation and bumps the header atomically — sequence star-awarded moments after the round's SFX + sticker / TTS has finished awaiting so the celebration follows feedback rather than overlapping it.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|

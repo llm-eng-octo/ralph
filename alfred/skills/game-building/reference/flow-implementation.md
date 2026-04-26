@@ -20,7 +20,7 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 | Welcome | TransitionScreenComponent | `ts.show({ title, buttons:[{text:"I'm ready"}], onMounted: () => FeedbackManager.sound.play(vo, {sticker}) })` |
 | Round N intro | TransitionScreenComponent | `ts.show({ title:"Round N", onMounted: () => sound.play(round_n) })` — await sound, then `ts.hide()` |
 | Ready to improve your score? | TransitionScreenComponent | tap-dismiss, onMounted fires motivation VO |
-| Yay stars collected! | TransitionScreenComponent | auto-dismiss, onMounted fires stars sound + animation, await → hide |
+| Yay stars collected! | TransitionScreenComponent | persists until Next tap; onMounted awaits sound, fires show_star, schedules setMode('next'); FloatingButton 'next' handler hides the screen + destroys preview + posts game_exit |
 | Victory / Game Over | TransitionScreenComponent | with `stars` + `buttons` |
 | Submit / Retry / Next | FloatingButtonComponent | Define `isSubmittable()` over `gameState`; every input/state-change handler calls `floatingBtn.setSubmittable(isSubmittable())`. `floatingBtn.on('submit', async () => { await feedback; floatingBtn.setMode(correct ? 'next' : 'retry'); })`. Ctor: `new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' })`. Requires `slots.floatingButton: true` in `ScreenLayout.inject()`. See PART-050. |
 | Gameplay | bare DOM | inject into `.game-stack` |
@@ -30,9 +30,10 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 - **Preview body owns scrolling.** In preview-wrapper mode, `.mathai-preview-body` is the explicit vertical scroll container and root/page scrolling is locked to the viewport. Game CSS MUST NOT override this by restoring root scroll or by adding `overflow-y:auto` / `overflow:scroll` / fixed `height` on `.game-stack` or any of its descendants. Instruction body + `#gameContent` + `#mathai-transition-slot` share ONE scroll container: `.mathai-preview-body`. A game that introduces a second scroll surface breaks iOS momentum scrolling and causes gameplay surfaces to stop panning the page.
 
 - **CRITICAL: `show()` Promise resolves IMMEDIATELY** (next `requestAnimationFrame` after `onMounted` fires) — it does NOT block until a button is tapped, and it does NOT block for a `duration`. Code after `await transitionScreen.show(...)` runs before the student interacts. ALL game-flow continuation (phase changes, `showRoundIntro()`, `renderRound()`, `startGame()`, `restartGame()`) MUST go inside the button `action` callback, NEVER after `await show()`. If you put continuation code after `await show()`, the welcome / victory / game-over screen will flash for one frame then immediately get replaced by the next screen.
-- `duration` and `persist` are documented in the options table but the CDN `TransitionScreenComponent` does NOT implement either — `show()` never reads `config.duration` and never auto-hides. Always call `hide()` explicitly (from button `action` or after awaited audio).
+- `duration` and `persist` are documented in the options table but the CDN `TransitionScreenComponent` does NOT implement either — `show()` never reads `config.duration` and never auto-hides. Always call `hide()` explicitly (from button `action`, after awaited audio, or from the FloatingButton `next` handler — see Stars Collected exception below).
 - TransitionScreen does not own sound or sticker — always fire `FeedbackManager.sound.play(id, {sticker})` from the `onMounted` callback.
-- For auto-dismiss (round intro, yay stars), fire audio inside `onMounted`, and in the code after `await show()` call `ts.hide()` + then proceed. The `show()` resolves instantly, so audio and post-show code run concurrently — the `onMounted` audio starts, then `hide()` is called. To wait for audio to finish before hiding: move `await FeedbackManager.sound.play(...)` + `ts.hide()` into the `onMounted` callback (as an IIFE) and do NOT put continuation code after `await show()`.
+- For auto-dismiss (round intro), fire audio inside `onMounted`, and in the code after `await show()` call `ts.hide()` + then proceed. The `show()` resolves instantly, so audio and post-show code run concurrently — the `onMounted` audio starts, then `hide()` is called. To wait for audio to finish before hiding: move `await FeedbackManager.sound.play(...)` + `ts.hide()` into the `onMounted` callback (as an IIFE) and do NOT put continuation code after `await show()`.
+- **Stars Collected is an exception to the no-button auto-dismiss rule.** It is the terminal end-of-game surface and must stay visible while the star animation fires and the Next button appears. Its `onMounted` awaits the sound, fires `show_star`, and schedules `floatingBtn.setMode('next')` — but MUST NOT call `transitionScreen.hide()`. The FloatingButton `on('next', ...)` handler owns the eventual `transitionScreen.hide()` + `previewScreen.destroy()` + `window.parent.postMessage({ type: 'game_exit' }, '*')`. See `alfred/skills/game-planning/reference/default-transition-screens.md` § 4 for the canonical pattern.
 - For tap-dismiss (welcome, ready-to-improve, victory, game over), the button `action` callback drives `ts.hide()` AND all game-flow continuation (next phase, `showRoundIntro(1)`, `restartGame()`, etc.).
 
 ## Progress bar lifecycle
@@ -104,7 +105,17 @@ async function startGame() {
     if (verdict.correct) {
       state.progress++;                     // game-specific policy — swap the condition to match your metric
       progressBar.update(state.progress, state.livesLeft);
-      previewScreen.setScore(state.progress + '/' + totalRounds);  // header count tracks progress
+      // Fire show_star — the user VISIBLY earns a star. ActionBar plays the
+      // flying-star animation and applies `score` to #previewScore at the
+      // animation's end, atomically tying counter bump to the celebration.
+      window.postMessage({
+        type: 'show_star',
+        data: {
+          count: 1,
+          variant: 'yellow',
+          score: state.progress + '/' + totalRounds
+        }
+      }, '*');
     } else {
       state.livesLeft--;
       if (state.livesLeft === 0) return showGameOver();
@@ -118,21 +129,21 @@ async function startGame() {
 
 ## ActionBar header state updates — MANDATORY
 
-The header's `#previewScore` and `#previewQuestionLabel` text are state-driven — games MUST refresh them on every progression change. Mid-round updates use direct `previewScreen.setScore(...)` / `previewScreen.setQuestionLabel(...)` (no animation). The `show_star` flying-star animation is reserved for the ONE end-of-game celebration beat — firing it per round plays the animation 10 times in a row and spams the player (equivalent-ratio-quest regression).
+The header's `#previewScore` and `#previewQuestionLabel` text are state-driven — games MUST refresh them on every progression change. Star-earned moments fire `show_star` (animation + score bump together, the user-visible reward); non-award moments use direct `previewScreen.setScore(...)` / `previewScreen.setQuestionLabel(...)` (no animation, just a value update).
 
 | Moment | Call | Animation? |
 |---|---|---|
 | After `previewScreen` is instantiated (in `startGameAfterPreview`) | `previewScreen.setQuestionLabel('Q1')` + `previewScreen.setScore('0/' + totalRounds)` | No |
 | Round advance (new round begins, multi-round) | `previewScreen.setQuestionLabel('Q' + gameState.currentRound)` | No |
-| Correct answer evaluated mid-round (score bumps) | `previewScreen.setScore(gameState.score + '/' + totalRounds)` | No |
+| **Correct answer, star earned (mid-round, multi-round)** | `window.postMessage({type:'show_star', data:{count:1, variant:'yellow', score: gameState.score + '/' + totalRounds}}, '*')` — fires ONCE per correct answer | **Yes** |
+| **End-of-game celebration (standalone multi-star rating)** | `window.postMessage({type:'show_star', data:{count: stars, variant:'yellow', score: stars + '/' + N}}, '*')` | **Yes** |
 | Non-award score mutation (penalty, undo) | `previewScreen.setScore(gameState.score + '/' + totalRounds)` | No |
-| **End-of-game celebration (once per session)** | `window.postMessage({type:'show_star', data:{count, variant:'yellow', score: gameState.score + '/' + totalRounds}}, '*')` | **Yes** — the `score` is applied AFTER the 1 s flying-star animation |
 
-**Never fire `game_init` from game code to update these fields.** Games already have a `handlePostMessage` listener that processes `game_init` by calling `setupGame()` — a re-fire would reset state with fallback content. The direct methods + end-of-game show_star mutate header DOM in-process and bypass the message bus. See PART-040 "Updating header state from game code" and code-patterns.md "ActionBar header refresh".
+The animation IS how the user visually "receives" a star — if the counter bumps without an animation, the reward feels missing. Fire `show_star` whenever a star is earned.
 
-**Never fire `show_star` per round.** It is a one-time end-of-game celebration, not a per-correct-answer effect. If you need a per-round score bump, use `previewScreen.setScore(...)` directly.
+**Never fire `game_init` from game code to update these fields.** Games already have a `handlePostMessage` listener that processes `game_init` by calling `setupGame()` — a re-fire would reset state with fallback content. Use the show_star / direct-method APIs only; they mutate header DOM in-process and bypass the message bus.
 
-**Validator gate:** `GEN-HEADER-REFRESH` errors if a FloatingButton-using, PreviewScreen-using game never updates the header. A separate check flags show_star usage inside a per-round handler.
+**Validator gate:** `GEN-HEADER-REFRESH` errors if a FloatingButton-using, PreviewScreen-using game never updates the header.
 
 ## End-of-game star-award animation (`show_star`) — MANDATORY
 
@@ -145,7 +156,7 @@ Every game MUST fire `show_star` at the end-of-game moment so the ActionBar flie
 Fire location by shape:
 
 - **Standalone** (`totalRounds: 1`): INSIDE `endGame`, AFTER `postGameComplete()`. Then reveal Next via `setTimeout(function(){ floatingBtn.setMode('next'); }, 300)` — the setTimeout also satisfies `GEN-FLOATING-BUTTON-NEXT-TIMING` (Next must not appear synchronously with `game_complete`). No destroys here.
-- **Multi-round** (`N ≥ 2`): INSIDE `transitionScreen.onDismiss(...)`, immediately after `transitionScreen.hide()`. Then `floatingBtn.setMode('next')`. No destroys here.
+- **Multi-round** (`N ≥ 2`): Fire `show_star` INSIDE the Stars Collected `onMounted`, AFTER the awaited `sound.play(...)` — **while the Stars Collected screen is still visible** (NOT after its hide). Then `setTimeout → floatingBtn.setMode('next')` reveals Next on top of the still-visible Stars Collected. Stars Collected hides on the Next tap, NOT on audio end (exception to the no-button auto-dismiss rule). No destroys here — they move into the FloatingButton `next` handler.
 
 End-of-game sequencing — MANDATORY serial order:
 
@@ -155,7 +166,12 @@ Beat 2: render inline feedback panel + post game_complete (SYNC — never
         block on TTS for this, host harness relies on it)
 Beat 3: await dynamic TTS (if the game uses playDynamicFeedback)
 Beat 4: fire show_star (animation takes ~1 s; score applied at END)
-Beat 5: setTimeout(1100) → setMode('next')   ← Next appears AFTER animation
+        — for multi-round, this fires WHILE Stars Collected is still visible
+          (NOT after its hide); animation lands on the celebration screen
+Beat 5: setTimeout(1100) → setMode('next')   ← Next appears AFTER animation,
+        on top of the still-visible Stars Collected (multi-round). Stars
+        Collected hides on the Next tap, NOT on audio end (exception to the
+        no-button auto-dismiss rule).
 ```
 
 Do NOT overlap these. User-visible order: SFX → feedback panel renders → TTS audio → star animation → Next button. The GEN-FLOATING-BUTTON-NEXT-TIMING validator accepts `await` and `setTimeout(` as separators, so Beat 3's await and Beat 5's setTimeout both satisfy it.
