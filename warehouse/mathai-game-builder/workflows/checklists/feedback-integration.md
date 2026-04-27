@@ -122,7 +122,7 @@ async function playDynamicFeedback(message, stickerUrl = null, subtitleText = nu
 
 // Usage examples
 
-// Audio only
+// Audio only (TRANSITION / END-GAME context — a CTA is visible, user can interrupt)
 await playDynamicFeedback("You scored 95 points!");
 
 // Audio + Sticker
@@ -137,6 +137,11 @@ await playDynamicFeedback(
   "https://example.com/trophy.gif",   // Sticker
   "You scored 95 points!"             // Custom subtitle
 );
+
+// ⚠ IMPORTANT: In submit/answer handlers (correct/wrong reveal), DO NOT await this helper.
+// Fire-and-forget so the next-round transition is never blocked on TTS completion:
+//   playDynamicFeedback(message, stickerUrl, subtitleText); // no await
+// The next renderRound() / loadRound() is the single source of truth for re-enabling inputs.
 ```
 
 **What it does:**

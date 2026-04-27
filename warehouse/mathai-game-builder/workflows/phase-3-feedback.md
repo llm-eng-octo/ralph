@@ -659,6 +659,11 @@ await FeedbackManager.sound.play("correct", {
 });
 
 // 4. Play dynamic audio (simplified method handles everything)
+// NOTE: In submit/answer handlers, TTS MUST be fire-and-forget so next-round transitions
+// don't block on TTS completion:
+//   FeedbackManager.playDynamicFeedback({...}).catch(function(e){});
+// Awaiting is ONLY acceptable on transition screens (level/round/end-game) where a CTA
+// is visible and the user can interrupt. The example below is an end-game score reveal.
 await FeedbackManager.playDynamicFeedback({
   audio_content: `You scored ${score} points!`,
   subtitle: `You scored ${score} points!`,

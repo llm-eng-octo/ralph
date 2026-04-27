@@ -484,15 +484,20 @@ await audioRace(FeedbackManager.sound.play('correct_sound_effect', { sticker }))
 
 Symptom: rounds advance before feedback / VO finishes. Validator rule: `5e0-FEEDBACK-RACE-FORBIDDEN`.
 
-**Correct:** Plain `await` inside `try/catch`. FeedbackManager already bounds resolution internally (see PART-017) — `sound.play` resolves within audio-duration + 1.5s, `playDynamicFeedback` within 60s. Any template-level race is either redundant or bug-inducing.
+**Correct:** For awaited calls, plain `await` inside `try/catch`. For fire-and-forget, `.catch()` on the unawaited Promise. Any template-level race is either redundant or bug-inducing. FeedbackManager already bounds resolution internally (see PART-017) — `sound.play` resolves within audio-duration + 1.5s, `playDynamicFeedback` within 60s.
 
 ```javascript
-// RIGHT
+// RIGHT — submit-handler pattern: SFX awaited, TTS fire-and-forget
 try {
   await FeedbackManager.sound.play('correct_sound_effect', { sticker });
-  await FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker });
 } catch (e) { /* non-blocking per feedback SKILL Rule 8 */ }
+// Dynamic TTS is fire-and-forget — next-round transition MUST NOT block on TTS.
+FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker })
+  .catch(function(e) { /* non-blocking */ });
+// Do NOT re-enable inputs here. renderRound() / loadRound() is the single source of truth.
 ```
+
+On transition screens (level / round / game-over with CTA), both may be awaited sequentially since the CTA is visible for interrupt.
 
 ## Anti-Pattern 33: Custom Lives / Hearts Display Duplicating ProgressBar
 

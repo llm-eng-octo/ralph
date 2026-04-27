@@ -172,17 +172,17 @@ If `result.feedback` is non-empty and the game uses audio:
 
 ```javascript
 if (result.feedback) {
-  btnText.textContent = 'Playing Feedback...';
-  try {
-    await FeedbackManager.playDynamicFeedback({
-      audio_content: result.feedback,
-      subtitle: result.feedback
-    });
-  } catch (e) { /* non-blocking — feedback.md constraint 8 */ }
+  btnText.textContent = 'Next question...';
+  // Fire-and-forget dynamic TTS. The submit handler MUST NOT gate UI on TTS completion —
+  // if the TTS network stalls, the next round / user flow should not freeze.
+  FeedbackManager.playDynamicFeedback({
+    audio_content: result.feedback,
+    subtitle: result.feedback
+  }).catch(function(e) { /* non-blocking — feedback.md constraint 8 */ });
 }
 ```
 
-Follow `skills/feedback/SKILL.md` constraint 8: audio failure is non-blocking; wrap in plain try/catch, never `Promise.race`.
+Follow `skills/feedback/SKILL.md` constraint 8: audio failure is non-blocking; fire-and-forget with `.catch()`, never await and never `Promise.race`. For games with automatic round transitions, re-enable inputs in `renderRound()` / `loadRound()`, not in the submit handler.
 
 ### Step 9 — Verify
 

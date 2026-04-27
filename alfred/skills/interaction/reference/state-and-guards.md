@@ -19,8 +19,35 @@ function handleInteraction() {
 
 **Missing any guard causes:**
 - `isActive` missing → interactions before game starts or after game ends
-- `isProcessing` missing → double-tap, double-submit, double recordAttempt
+- `isProcessing` missing → double-tap, double-submit, double recordAttempt, **answer mutates during awaited feedback audio**
 - `gameEnded` missing → interactions after endGame triggers game_complete postMessage
+
+---
+
+## ALL Gameplay Interactions Disabled During Awaited Feedback
+
+**This rule applies to every input modality — no exceptions.** When feedback audio is being awaited, the student must not be able to change their answer via any interaction channel. This includes:
+
+| Modality | Pattern(s) | How it's blocked |
+|---------|-----------|------------------|
+| **Tap / click / select** | P1, P2, P3, P8, P9, P10, P11, P12, P14, P15, P16 | Handler's first line: `if (gameState.isProcessing) return;` |
+| **Continuous drag (path)** | P5 | Same guard on `pointerdown`; re-check on `pointermove` / `pointerup` so an in-flight drag aborts cleanly |
+| **Drag-and-drop (pick & place)** | P6 | Guard on `dragstart` + toggle `.dnd-disabled` class that sets `pointer-events: none` on draggables |
+| **Directional drag (constrained)** | P13 | Guard on `pointerdown`; re-check on `pointermove` / `pointerup` |
+| **Text / number input** | P7 | Guard on `keydown` (Enter) + `click` (Submit); input element retains focus but submit is rejected |
+| **Voice input** | P17 | `voiceInput.disable()` BEFORE first `await`; `voiceInput.enable()` in `loadRound()` / `renderRound()` (single source of truth), NOT in the submit handler |
+
+**The contract:**
+
+1. Before the first `await` in a submit/answer handler (LLM evaluation, SFX play) or in a transition sequence (round, level, end-game), set `gameState.isProcessing = true`. Also disable modality-specific input (`voiceInput.disable()`, `btn.disabled = true`, `.dnd-disabled` class) in the same pre-await block.
+2. For **transition sequences** (round / level / end-game with CTA), clear `gameState.isProcessing = false` after the last awaited audio resolves — the transition screen owns its own lifecycle.
+3. For **submit/answer handlers** (single-step correct/wrong), DO NOT clear `gameState.isProcessing` in the handler. The next `renderRound()` / `loadRound()` is the single source of truth — it clears `isProcessing`, re-enables voice/buttons, removes `.dnd-disabled`, etc. Dynamic TTS in submit handlers MUST be fire-and-forget (`.catch()`, no `await`) so the next-round transition never blocks on TTS completion. Exceptions: API-failure path (can't advance) and terminal game-over re-enable in-handler.
+4. Every interaction handler in the game checks `gameState.isProcessing` as a universal guard (tap, drag, voice, input) — the single flag blocks every input channel uniformly.
+5. For modalities that have their own disabled state (P17 `voiceInput.disable()` / `enable()`, P6 `.dnd-disabled` CSS class), wrap those toggles around the `isProcessing` window so the student also sees the disabled affordance. Optional defense-in-depth: add `.is-processing` to `#gameContent` in the submit handler (cleared in `renderRound()`) styled as `pointer-events: none` on voice-input, action-row, submit-btn — works around the CDN VoiceInput bug where `.disable()` only blocks the textarea, not the mic toggle.
+
+**Why this matters:** If the student can still interact (tap another option, drag a tag, speak an answer, type into the input) while the awaited audio is playing, they change the answer that was just evaluated. `recordAttempt` captured one answer, but `gameState` now reflects another — scoring drifts from telemetry, double-submits fire, and feedback audio contradicts the current screen.
+
+**Fire-and-forget is different:** Multi-step mid-round SFX (correct match on pair-game, per-cell tap SFX on drag-path, per-drop SFX on DnD, per-move SFX on directional drag) is NOT awaited, so `isProcessing` is NOT set. The student can and should continue interacting through these micro-feedback moments. See §`isProcessing` — When to Block below for the full per-pattern table.
 
 ---
 
@@ -32,18 +59,18 @@ function handleInteraction() {
 
 | Pattern | When `isProcessing = true` | When `isProcessing = false` | Duration |
 |---------|--------------------------|----------------------------|----------|
-| **Tap-Select (Single)** | Before evaluation + audio | After all audio completes | Full SFX + TTS duration (~2-4s) |
+| **Tap-Select (Single)** | Before evaluation + SFX (BEFORE any await) | In `renderRound()` / `loadRound()` for the next round | SFX duration (~1.5s); TTS fires in the background (fire-and-forget) |
 | **Sequential Chain** | During chain-complete celebration; during incorrect flash | After celebration audio; after wrong flash clears | 600ms (wrong) or SFX duration (complete) |
 | **Two-Phase Match** | During right-click evaluation | After evaluation + wrong flash | Brief (~100ms correct, 600ms wrong) |
 | ~~**Tap + Swipe**~~ **DEPRECATED** | — | — | Use P1 tap-only |
 | **Continuous Drag** | During puzzle-complete; during reset | After audio; after reset animation | SFX + TTS (complete) or 300ms (reset) |
 | **Drag-and-Drop** | During drop evaluation | After evaluation + snap-back | Brief (~100ms correct, 600ms wrong) |
-| **Text/Number Input** | Before evaluation + audio | After all audio completes | Full SFX + TTS duration (~2-4s) |
+| **Text/Number Input** | Before evaluation + SFX (BEFORE any await) | In `loadRound()` for the next round | SFX duration (~1.5s); TTS fires in the background (fire-and-forget) |
 | **Click-to-Toggle** | During puzzle-solved celebration | After audio completes | SFX + TTS duration |
 
 ### Key Rule
 
-**Single-step patterns (1, 7):** `isProcessing` blocks for the FULL audio duration (SFX + TTS, both awaited).
+**Single-step patterns (1, 7):** `isProcessing` is set BEFORE any await (LLM eval / SFX play). SFX is awaited (short, predictable ~1.5s). Dynamic TTS is fire-and-forget — the next-round transition MUST NOT block on TTS completion. `isProcessing = false` is cleared in `renderRound()` / `loadRound()`, NOT in the submit handler. Exceptions: API-failure / terminal game-over re-enable in-handler.
 
 **Multi-step patterns (2, 3, 4, 5, 6, 8):** `isProcessing` blocks only briefly during animations/evaluations, NOT during fire-and-forget SFX. The student must be able to interact immediately after the brief block.
 

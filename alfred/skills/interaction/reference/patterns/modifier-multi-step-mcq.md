@@ -26,7 +26,8 @@ async function handleStepAnswer(selected) {
   var step = round.steps[gameState.currentStep];
   var isCorrect = selected === step.answer;
 
-  // Visual feedback, recordAttempt, SFX → TTS (awaited)
+  // Visual feedback, recordAttempt, awaited SFX + fire-and-forget TTS (L-VI-002).
+  // Never await playDynamicFeedback — the step advance must not block on TTS.
   // ...
 
   gameState.isProcessing = false;

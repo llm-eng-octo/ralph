@@ -90,17 +90,23 @@ async function handleSubmitAnswer() {
       feedback: result.feedback
     });
 
-    // Optional: Play audio feedback with the AI's feedback text
+    // Optional: Play audio feedback with the AI's feedback text.
+    // FIRE-AND-FORGET — game flow MUST NOT depend on TTS completion. If the TTS network stalls,
+    // the submit flow should not freeze. Use `.catch()`, NEVER `await`.
     if (result.feedback) {
-      btnText.textContent = 'Playing Feedback...';
-      await FeedbackManager.playDynamicFeedback({
+      btnText.textContent = 'Next question...';
+      FeedbackManager.playDynamicFeedback({
         audio_content: result.feedback,
         subtitle: result.feedback
-      });
+      }).catch(function(e) { console.error('TTS error:', e.message); });
     }
   } catch (error) {
     console.error('Submission error:', JSON.stringify({ error: error.message }, null, 2));
   } finally {
+    // NOTE: Subjective-evaluation games often stay on the same question (no auto-advance).
+    // Re-enabling submit here is correct for that shape. For games with automatic round
+    // transitions (single-step pattern), DO NOT re-enable inputs here — delete this `finally`
+    // and let `renderRound()` / `loadRound()` be the single source of truth.
     submitBtn.disabled = false;
     btnText.textContent = 'Submit Answer';
   }

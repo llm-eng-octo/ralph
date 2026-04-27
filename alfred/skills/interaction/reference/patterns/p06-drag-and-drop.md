@@ -66,6 +66,18 @@ When a round transitions, the old DOM is replaced. Any DnD instances pointing to
 **Invariant:** The tag source tracking data (R2) must be re-initialized each round.
 **Failure if violated:** Stale instances cause silent failures — tags appear draggable but drops don't register. Or: leftover tracking data from the previous round causes incorrect swap/evict decisions.
 
+### R4. Drag-State Styling Cleanup On Every Drop Path
+
+While a drag is in flight, the implementation mutates the tag element — typically adding classes (e.g. `chip-dragging`, `chip-lift`) and setting inline styles (`position: fixed; left; top; width; height; transform; z-index`) so the tag tracks the pointer. These mutations must be undone on **every** path that ends the drag, not just the happy path.
+
+**Invariant:** Every terminal drop path — drop-on-empty-zone, drop-on-occupied-zone-evict, drop-on-occupied-zone-swap, zone-to-zone-transfer, zone-to-bank-return (V5), drop-outside-cancel (V6), same-zone-no-op (V7), and `pointercancel` — must clear all inline drag styles and remove all drag-state classes from the tag before (or as part of) reparenting it.
+
+**Invariant:** This applies whether the implementation uses @dnd-kit (which usually handles it for you) or a hand-rolled pointer-events sensor (which does not). If you wrote your own `pointerdown`/`pointermove`/`pointerup` handlers, you own the style cleanup — factor it into a single `resetDragStyling(el)` helper and call it from every drop path.
+
+**Failure if violated:** On the drop path that forgets to clean up, the tag stays visually frozen at the pointer-up screen coordinates (because `position: fixed; left: Xpx; top: Ypx` remains on the element). If the drag class sets `pointer-events: none` (a common pattern to let pointermove events reach the drop-zone under the tag), the tag is now both visually wrong AND un-pickable — the student cannot recover without restarting the round. This bug typically ships because the builder implemented style-reset correctly in `placeInZone()` and `cancelDrag()` but missed `returnToBank()` — a silent asymmetry between sibling functions.
+
+**Verification:** See V5/V6 in the verification matrix — after a seat-to-bank return, the tag must be pickable again. Any drop test that only exercises bank→zone and zone→zone will miss this; add a seat-to-bank-then-pick-up-again step.
+
 ---
 
 ## Required DnD Behaviours
@@ -121,6 +133,50 @@ Works flawlessly across desktop (mouse) and mobile (touch/swipe) without the scr
 - Use a pointer-based sensor with a small distance activation constraint (e.g. 3px) for both mouse and touch — **no delay constraint**. The `touch-action: none` on the draggable already prevents the browser from hijacking the touch for scrolling, so a hold-delay is unnecessary and makes the interaction feel sluggish.
 - Add a global `touchmove` handler with `{ passive: false }` that calls `preventDefault()` **only while a drag is active** (gate it with a flag set on drag start / cleared on drag end).
 
+### 9. Input Blocking During Awaited Feedback
+
+Drag-and-drop is a gameplay interaction. Like every other gameplay interaction, it MUST be disabled whenever awaited feedback audio is playing. Without this, a student can pick up a tag and drop it into a different zone while the round-complete / submit-evaluation awaited SFX (and any fire-and-forget TTS dwell before `loadRound()` re-enables) is still playing — mutating the answer that was just evaluated. TTS itself is fire-and-forget (L-VI-002); only SFX is awaited.
+
+**Invariant:** On `dragstart`, reject the drag if any of the three universal guards are true:
+
+```javascript
+manager.monitor.addEventListener('dragstart', function(event) {
+  if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) {
+    event.preventDefault(); // cancel the drag before it starts
+    return;
+  }
+  // ... proceed with drag setup (offset capture, isDragging flag, etc.)
+});
+```
+
+**Invariant:** Around every feedback sequence (submit evaluation, round-complete, puzzle-complete, end-game), set `gameState.isProcessing = true` BEFORE any `await` (SFX play or LLM evaluation) to lock input. Do NOT clear it at the end of the handler — the next `renderRound()` / `loadRound()` is the single source of truth for re-enabling (it sets `isProcessing = false`, removes `.dnd-disabled`, etc.). Re-enabling in the handler ties game flow to TTS completion, which is exactly the anti-pattern we're avoiding.
+
+**Invariant:** For submit-based variants (Math Crossword, Equation Grid, Kakuro), ALSO toggle the visual affordance so the student can see drag is disabled — add a class like `.dnd-disabled` to the board that sets `pointer-events: none` on draggable tags while `gameState.isProcessing === true`. Belt-and-suspenders: the guard blocks the logic, the CSS class blocks the native browser drag affordance (cursor change on hover).
+
+```javascript
+async function handleSubmit() {
+  if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
+  gameState.isProcessing = true;
+  boardEl.classList.add('dnd-disabled'); // visual affordance — cleared in renderRound()
+
+  // ... evaluate, update state, recordAttempt, progressBar.update ...
+
+  try {
+    // SFX is awaited — short, predictable ~1s, visual flash needs time to land
+    await FeedbackManager.sound.play(isCorrect ? 'correct_sound_effect' : 'incorrect_sound_effect', { sticker });
+  } catch (e) {}
+  // Dynamic TTS is FIRE-AND-FORGET — game flow MUST NOT block on TTS completion.
+  // If the TTS network stalls, the next round still loads.
+  FeedbackManager.playDynamicFeedback({ audio_content: msg, subtitle: msg, sticker })
+    .catch(function(e) { console.error('TTS error:', e.message); });
+
+  // Do NOT re-enable here. renderRound() / loadRound() clears isProcessing and removes .dnd-disabled.
+  // ... advance round via renderRound() / loadRound()
+}
+```
+
+**Failure if violated:** Student drops a tag into a new zone mid-feedback → answer silently changes → recordAttempt captured one answer but gameState now reflects another → scoring drifts from telemetry. Worst case: a second drop triggers a second submit evaluation while the first is still awaiting audio → double-scoring or inconsistent UI state.
+
 ---
 
 ## Verification Matrix
@@ -135,9 +191,9 @@ Every P6 game must pass all of these conditions. The builder should mentally tra
 | V2  | Bank → occupied zone (evict) | Tag A in zone 0, tag B in bank   | Drop B into zone 0        | Zone 0 contains B, A is back in its bank slot, A's bank slot is visible, location tracking has A = bank and B = zone 0                                         |
 | V3  | Zone → occupied zone (swap)  | Tag A in zone 0, tag B in zone 1 | Drop A into zone 1        | Zone 0 contains B, zone 1 contains A, both zones have occupied styling, location tracking has A = zone 1 and B = zone 0, value tracking updated for both zones |
 | V4  | Zone → empty zone (transfer) | Tag A in zone 0, zone 1 empty    | Drop A into zone 1        | Zone 1 contains A, zone 0 is empty (no tag, no occupied styling, value removed), location tracking has A = zone 1                                              |
-| V5  | Zone → bank (return)         | Tag A in zone 0                  | Drop A on bank            | A is in its bank slot, bank slot visible, zone 0 is empty, value tracking cleared for zone 0, location tracking has A = bank                                   |
-| V6  | Drop outside (cancel)        | Tag A in zone 0                  | Drop A outside any target | A returns to bank slot, zone 0 is empty, same state as V5                                                                                                      |
-| V7  | Same zone (no-op)            | Tag A in zone 0                  | Drop A into zone 0        | Zone 0 still contains A, no state change                                                                                                                       |
+| V5  | Zone → bank (return)         | Tag A in zone 0                  | Drop A on bank            | A is in its bank slot, bank slot visible, zone 0 is empty, value tracking cleared for zone 0, location tracking has A = bank. Tag has **no** drag classes (`chip-dragging`, `chip-lift`) and **no** inline drag styles (`position`, `left`, `top`, `width`, `height`). Tag is immediately pickable again — a subsequent drag onto an empty zone succeeds (R4) |
+| V6  | Drop outside (cancel)        | Tag A in zone 0                  | Drop A outside any target | A returns to bank slot, zone 0 is empty, same state as V5 (including drag-style cleanup — R4)                                                                  |
+| V7  | Same zone (no-op)            | Tag A in zone 0                  | Drop A into zone 0        | Zone 0 still contains A, no state change, drag classes and inline styles cleared (R4)                                                                          |
 
 ### Bank management
 
@@ -172,6 +228,15 @@ Every P6 game must pass all of these conditions. The builder should mentally tra
 | V19 | Game end                   | All DnD instances are destroyed                                                 |
 | V20 | DnD library not yet loaded | Game still renders; DnD setup defers until library loads                        |
 
+### Input Blocking During Awaited Feedback
+
+| #   | Condition                                                              | Expected                                                                                                                                   |
+| --- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| V21 | `dragstart` fires while `gameState.isProcessing === true`              | Drag is cancelled (`event.preventDefault()` or equivalent); no tag is lifted; no `dragend` fires; no state mutation                        |
+| V22 | Submit / round-complete / puzzle-complete awaited feedback in flight   | `gameState.isProcessing === true` for the full awaited-SFX duration (TTS is fire-and-forget — L-VI-002); board has `.dnd-disabled` class (or equivalent) applying `pointer-events: none` on draggables |
+| V23 | Awaited feedback resolves                                              | `gameState.isProcessing` flips back to `false`; `.dnd-disabled` class removed; drag handlers re-accept input                               |
+| V24 | Rapid drop during feedback (edge case)                                 | Second drop does not trigger a second submit; `gameState.attempts.length` increments by 1, not 2                                           |
+
 ---
 
 ## Failure Modes (from prior builds)
@@ -185,3 +250,5 @@ These are bugs that have occurred in generated P6 games. The LLM should understa
 | F3  | Tags don't work in standalone/Playwright      | DnD library loaded via ESM but the setup was nested inside `waitForPackages` which blocks for 180s without CDN | Wait for the ESM library independently from CDN packages                                          |
 | F4  | Evicted tag appears at wrong position in bank | Tags returned to a generic bank container instead of their dedicated placeholder slot                          | Each tag gets its own placeholder slot in the bank; return always targets the tag's specific slot |
 | F5  | Bank doesn't re-center after tag removal      | Bank slot stays visible (taking up space) after tag is placed in a zone                                        | Collapse empty bank slots (e.g. via a CSS class); restore on tag return                           |
+| F6  | Answer mutates during feedback audio          | `dragstart` handler has no `isProcessing` guard; student picks up and drops a tag while awaited SFX (+ fire-and-forget TTS) plays  | Add universal guards to `dragstart`; toggle `.dnd-disabled` on the board while `gameState.isProcessing === true` (see Behaviour 9) |
+| F7  | Tag freezes mid-air after zone→bank return and can't be picked up again | `returnToBank()` / `returnChipToPoolSlot()` reparented the tag but forgot to clear inline drag styles (`position: fixed; left; top`) and drag classes (`chip-dragging`, `chip-lift`). Sibling functions (`placeInZone`, `cancelDrag`) did clear them — a silent asymmetry. If the drag class also sets `pointer-events: none`, the tag is un-pickable. Most common with hand-rolled pointer-events sensors (not @dnd-kit). | R4: factor drag-style cleanup into a single `resetDragStyling(el)` helper and call it from EVERY drop path — including the return-to-bank path. Add a Playwright step that drags seat→bank and then tries to re-pick-up the tag (real CDP mouse events, not `solveRound()` helpers that bypass the pointer flow). |

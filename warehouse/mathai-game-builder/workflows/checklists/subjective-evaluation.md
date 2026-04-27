@@ -218,11 +218,12 @@ const { evaluation, feedback } = result.data[0];
 // 1. Color the answer box from evaluation label (see 2a)
 applyEvaluationColor(evaluation);
 
-// 2. Show feedback text AND speak it — same string for both
-await FeedbackManager.playDynamicFeedback({
+// 2. Show feedback text AND speak it — same string for both.
+// Fire-and-forget: game flow / next-question transition MUST NOT block on TTS completion.
+FeedbackManager.playDynamicFeedback({
   audio_content: feedback,  // TTS reads this
   subtitle: feedback,       // visible subtitle stays in sync
-});
+}).catch(function(e) { console.error('TTS error:', e.message); });
 ```
 
 #### 2c. Prompt QA checklist (per game)
@@ -329,23 +330,21 @@ const result = await MathAIHelpers.SubjectiveEvaluation.evaluate({
 const feedback = result.data[0].feedback;
 
 // 3. Update button state
-btnText.textContent = "Generating Audio...";
+btnText.textContent = "Next question...";
 
-// 4. Play dynamic feedback (handles both cached and streaming automatically)
-try {
-  await FeedbackManager.playDynamicFeedback({
-    audio_content: feedback,
-    subtitle: feedback, // Shows text synchronized with audio
-  });
+// 4. Play dynamic feedback — FIRE-AND-FORGET. Game flow MUST NOT block on TTS completion.
+// For games WITHOUT automatic round transitions (subjective-eval default), re-enable the submit
+// button synchronously so the user can continue while TTS plays in the background.
+FeedbackManager.playDynamicFeedback({
+  audio_content: feedback,
+  subtitle: feedback, // Shows text synchronized with audio
+}).catch(function(err) { console.error("Feedback error:", err); });
 
-  // 5. Re-enable button after feedback completes
-  submitBtn.disabled = false;
-  btnText.textContent = "Submit Answer";
-} catch (err) {
-  console.error("Feedback error:", err);
-  submitBtn.disabled = false;
-  btnText.textContent = "Submit Answer";
-}
+// 5. Re-enable button immediately (NOT tied to TTS completion).
+// For games WITH automatic round transitions, delete these two lines and let
+// renderRound() / loadRound() be the single source of truth for re-enabling.
+submitBtn.disabled = false;
+btnText.textContent = "Submit Answer";
 ```
 
 ### Phase 5: Error Handling
@@ -541,28 +540,20 @@ submitBtn.addEventListener("click", async function () {
     const feedback = result.data[0].feedback;
 
     if (feedback) {
-      // ✅ Audio feedback with loading states
-      btnText.textContent = "Generating Audio...";
-
-      try {
-        await FeedbackManager.playDynamicFeedback({
-          audio_content: feedback,
-          subtitle: feedback,
-        });
-
-        // ✅ Clean up and reset
-        submitBtn.disabled = false;
-        btnText.textContent = "Submit Answer";
-      } catch (err) {
-        console.error(err);
-        submitBtn.disabled = false;
-        btnText.textContent = "Submit Answer";
-      }
-    } else {
-      // ✅ No audio, just reset
-      submitBtn.disabled = false;
-      btnText.textContent = "Submit Answer";
+      // ✅ Fire-and-forget audio feedback — game flow MUST NOT block on TTS completion.
+      // TTS plays in the background; the user can continue immediately.
+      btnText.textContent = "Next question...";
+      FeedbackManager.playDynamicFeedback({
+        audio_content: feedback,
+        subtitle: feedback,
+      }).catch(function(err) { console.error(err); });
     }
+
+    // ✅ Re-enable button IMMEDIATELY (not tied to TTS completion).
+    // For games with automatic round transitions, delete these two lines and let
+    // renderRound() / loadRound() be the single source of truth for re-enabling.
+    submitBtn.disabled = false;
+    btnText.textContent = "Submit Answer";
   } catch (error) {
     // ✅ Error handling
     console.error("Evaluation error:", error);

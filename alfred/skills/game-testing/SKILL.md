@@ -95,6 +95,8 @@ Test the core game interaction -- both correct and wrong answer paths.
 | 2.5 | Fallback content loads | `browser_evaluate(() => window.gameState.content)` | If no `game_init` was sent, fallbackContent rounds are used and display correctly |
 | 2.6 | Game elements render | Screenshot during gameplay | All interactive elements (buttons, cards, grids, inputs) are visible and correctly sized |
 | 2.7 | FeedbackManager integration | `browser_evaluate(() => typeof FeedbackManager !== 'undefined' && typeof FeedbackManager.sound.play === 'function')` | FeedbackManager loaded and initialized; `sound.play` and `playDynamicFeedback` methods exist |
+| 2.8 | `isProcessing` blocks ALL inputs during awaited feedback | After clicking / dropping / submitting the round's answer, immediately poll `browser_evaluate(() => window.gameState.isProcessing)` while feedback audio is playing. Then attempt a second interaction via the game's active input channel (tap another option / start a new drag / submit again / trigger voice). Verify the second interaction is rejected: no new entry in `gameState.attempts`, no additional score change, no extra `answer_submitted` event. | `gameState.isProcessing === true` for the entire awaited SFX→TTS duration. Second interaction recorded 0 attempts. After audio resolves, `gameState.isProcessing === false` and input is accepted again. |
+| 2.9 | Input block covers the game's actual input modality | Identify the game's pattern from its code (tap / drag path / DnD / directional drag / text input / voice). Verify the block applies to THAT modality, not just tap. For P6: attempt `dragstart` on a placed tag during feedback → rejected. For P7: attempt Enter keypress on the input during feedback → rejected. For P17: `browser_evaluate(() => window.voiceInput.isRecording)` during feedback → `false`, and attempt to trigger mic recording → rejected. For P5/P13: attempt `pointerdown` during feedback → no drag starts. | The pattern-specific input channel rejects input during `gameState.isProcessing === true`. No state mutation from the blocked interaction. |
 
 **Procedure:**
 
@@ -103,6 +105,14 @@ Test the core game interaction -- both correct and wrong answer paths.
 3. On round 2, click a WRONG answer. Verify feedback, correct answer reveal, and life/score behavior. Screenshot.
 4. Continue playing. Observe whether content changes between rounds.
 5. After game ends, restart and verify fallback content is present without sending `game_init`.
+6. **Input-during-feedback test (checks 2.8 and 2.9):** After submitting a round's answer, within the feedback window (awaited SFX→TTS, typically 2–4s):
+   - Capture `attempts.length` immediately after the submit fires (call it N).
+   - Poll `gameState.isProcessing` — must be `true`.
+   - Trigger a second interaction via the game's pattern (tap another option / start a drag / press Enter / start mic).
+   - Wait for the feedback audio to finish, then verify `attempts.length === N` (not N+1) and `events` contains no extra `answer_submitted` between the two measurements.
+   - Verify `gameState.isProcessing === false` after audio resolves and a fresh interaction is now accepted.
+   - If the game uses P17 (voice): also verify `voiceInput.isRecording === false` during the feedback window.
+   - If the game uses P6 (DnD): also verify the board / draggable tags have `pointer-events: none` (either via `.dnd-disabled` class or direct style) during the feedback window.
 
 ---
 
