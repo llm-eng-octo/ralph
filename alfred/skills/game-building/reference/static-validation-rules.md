@@ -73,6 +73,8 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 |---------|-------|----------|--------------|--------|
 | 5b2-REGISTER | `sound.register()` forbidden (use `sound.preload`) | error | feedback | Covered |
 | PART-011-SOUND | `FeedbackManager.sound.playDynamicFeedback()` does not exist; use top-level | error | feedback | Covered |
+| GEN-FEEDBACK-TTS-AWAIT | `playDynamicFeedback(...)` not awaited in submit / finish-round / round-complete handlers — TTS bleeds into next round (equivalent-ratios regression). Carve-outs: `showRoundIntro`, `onMounted`, chain-progress, ambient | error | feedback | Implemented in lib/validate-static.js |
+| GEN-ROUND-BOUNDARY-STOP | Multi-round game with `playDynamicFeedback` but `showRoundIntro(n)` does not call `FeedbackManager.sound.stopAll()` + `stream.stopAll()` at entry — defensive cleanup against streaming timeouts | error | feedback | Implemented in lib/validate-static.js |
 
 ## TransitionScreen
 
@@ -94,7 +96,7 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | 5e0-HARDCODED | `previewScreen.show()` has hardcoded instruction string | warning | game-building (code-patterns) | Covered |
 | 5e0-DUP-INSTRUCTION | `#gameContent` includes a how-to-play / prompt banner: any element with class/id containing `instruction`, `help-text`, `prompt-text`, `task-text`, `directions`, `how-to-play`; OR a banner sentence starting with an imperative verb already said by the preview (`Find`, `Tap`, `Select`, `Choose`, `Click`, `Drag`, `Match`). Per-round *question* text (e.g. "What is 3 × 4?") is allowed — only restated how-to-play is forbidden | error | game-building (code-patterns) | Implemented in lib/validate-static.js |
 | 5e0-STARTAFTER | `startGameAfterPreview()` function not found | warning | game-building (code-patterns) | Covered |
-| 5e0-DESTROY | `endGame()` does not call `previewScreen.destroy()` | warning | game-building (code-patterns) | Advisory (not yet in validate-static.js) |
+| 5e0-DESTROY | FloatingButton `on('next', ...)` handler does not call `previewScreen.destroy()` (destroy must run on Next-tap teardown after `next_ended`, NOT in `endGame()` — calling destroy in `endGame()` synchronously kills the async `show_star` animation) | warning | game-building (code-patterns) | Advisory (not yet in validate-static.js) |
 | 5e0-HIDE | `previewScreen.hide()` present (method removed in current API) | error | game-building (code-patterns) | Advisory |
 | 5e0-ORDER | `previewScreen.show()` called before `#gameContent` populated in `setupGame()` (heuristic: `.show(` precedes `injectGameHTML`/`renderInitialState`) | warning | game-building (code-patterns) | Advisory |
 | 5e0-RESTART | `restartGame()` calls `setupGame()` or `previewScreen.show()` (preview is once per session) | warning | game-building (code-patterns) | Advisory |
@@ -103,8 +105,8 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | 5e0-CTOR | `PreviewScreenComponent` constructed with `autoInject`, `gameContentId`, `questionLabel`, `score`, or `showStar` (drifted API) | error | game-building (code-patterns) | Advisory |
 | 5e0-SLOT-HIDE | `mathai-preview-slot` styled with `display:none`, `visibility:hidden`, `.hidden` class, `hidden` attribute, or `style.display = 'none'` mutation (wrapper must stay visible) | error | game-building (code-patterns) | Advisory |
 | 5e0-REPARENT | `appendChild`, `insertBefore`, `replaceWith`, or `remove` targeting `#gameContent` outside `injectGameHTML` / `buildFallbackLayout` init (wrapper DOM must not move at runtime). Heuristic allowlist: these two function bodies | error | game-building (code-patterns) | Advisory |
-| 5e0-DESTROY-MISPLACED | `previewScreen.destroy()` appears anywhere other than `endGame()` — e.g. inside `showVictory`, `showGameOver`, `restartGame`, `resetGame`, or answer handler. `destroy()` token count > 1 anywhere in file | error | game-building (code-patterns) | Advisory |
-| 5e0-DESTROY-MISSING | `endGame()` function has no `previewScreen.destroy()` call | error | game-building (code-patterns) | Advisory |
+| 5e0-DESTROY-MISPLACED | `previewScreen.destroy()` appears anywhere other than the FloatingButton `on('next', ...)` handler — e.g. inside `endGame()`, `showVictory`, `showGameOver`, `restartGame`, `resetGame`, or answer handler. Calling destroy in `endGame()` synchronously kills the async `show_star` animation before it lands. `destroy()` token count > 1 anywhere in file | error | game-building (code-patterns) | Advisory |
+| 5e0-DESTROY-MISSING | FloatingButton `on('next', ...)` handler has no `previewScreen.destroy()` call (destroy must run on Next-tap teardown after `next_ended` is posted) | error | game-building (code-patterns) | Advisory |
 | 5e0-DUP-HEADER | `#gameContent` markup contains an element with class containing `header`, `score-display`, or `avatar` (duplicates preview header) | warning | game-building (html-template) | Advisory |
 | 5e0-NEW-AUDIO | `new Audio(` appears anywhere in generated game code — preview/game audio must route through `FeedbackManager.sound` | error | game-building (code-patterns) | Advisory |
 | 5e0-PREVIEWRESULT | `game_complete` postMessage payload does not reference `previewResult` field | warning | game-building (code-patterns) | Advisory |
@@ -155,7 +157,7 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 
 ## AnswerComponent
 
-All rules in this block auto-skip when the spec declares `answerComponent: false` (PART-051 opt-out). Same trust model as `floatingButton: false`.
+All rules in this block auto-skip when the spec declares `answerComponent: false` (PART-051 opt-out). **CREATOR-ONLY trust model:** unlike `floatingButton: false` / `previewScreen: false` (which the spec author may set when the spec describes a flow without that surface), `answerComponent: false` MUST come from the human creator's explicit prompt — quoted creator opt-out language must be present in the spec body. Spec-creation (step 1) MUST NOT auto-default `false`; spec-review (step 2) FAILs any spec missing the quoted justification (check H5); build (step 4) MUST NOT mutate spec.md to silence these rules.
 
 | Rule ID | Check | Severity | Alfred Skill | Status |
 |---------|-------|----------|--------------|--------|

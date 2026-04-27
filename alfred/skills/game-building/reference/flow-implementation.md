@@ -167,6 +167,46 @@ Beat 5: setTimeout(1100) → setMode('next')   ← Next appears AFTER animation,
 
 Do NOT overlap these. User-visible order: SFX → feedback panel renders → TTS audio → star animation → Next button. The GEN-FLOATING-BUTTON-NEXT-TIMING validator accepts `await` and `setTimeout(` as separators, so Beat 3's await and Beat 5's setTimeout both satisfy it.
 
+**STANDALONE only (`totalRounds: 1`):** `endGame()` is the SINGLE orchestrator — all 5 beats live inside it. The submit handler is one line: `await endGame(correct);`. Do NOT split the beats across multiple async helpers (`runFeedbackSequence`, `finalizeAfterDwell`, etc.) — that fires `game_complete` + Next while TTS is still playing (bodmas-blitz regression). TTS MUST be awaited BEFORE `endGame()` returns.
+
+**Multi-round (`totalRounds > 1`):** round-N feedback awaits SFX (~1.5 s floor) AND awaits dynamic TTS in the submit handler before advancing — the explanation must finish attached to the answer it explains. End-of-game audio lives in the Stars Collected `onMounted` callback (`sound_stars_collected` awaited → `show_star` → `setTimeout → setMode('next')`) — the round-N submit handler just transitions into Stars Collected after its own SFX + TTS complete. The 5-beat block below applies ONLY when there's no Stars Collected screen, i.e. standalone games.
+
+**Round-boundary audio cleanup — MANDATORY (multi-round, defensive).** With awaited TTS, the explanation normally finishes before `showRoundIntro(N+1)` runs, so there's no audio to bleed. But the cleanup remains mandatory as defense-in-depth: TTS streaming can hit its 60 s upper bound, the API can throw mid-stream (caught by the `try/catch`, advancing the flow), or a tail of `sound_round_n` from a previous transition can linger. The first lines of `showRoundIntro(n)` MUST still stop in-flight audio:
+
+```js
+async function showRoundIntro(n) {
+  // Round-boundary cleanup — defensive stop for any in-flight audio left
+  // over from the previous round (TTS is awaited per GEN-FEEDBACK-TTS-AWAIT,
+  // but a streaming timeout, swallowed try/catch rejection, or lingering
+  // sound_round_n tail can still leave audio playing).
+  try { FeedbackManager.sound.stopAll(); } catch (e) {}
+  try { FeedbackManager.stream.stopAll(); } catch (e) {}
+  try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+  // ... rest of intro (transitionScreen.show + sound_round_n) ...
+}
+```
+
+This is the "new transition screen appearing" rule from the feedback skill (timing-and-blocking.md row 89). Validator gate: `GEN-ROUND-BOUNDARY-STOP`.
+
+```js
+// ❌ WRONG — endGame() called after only SFX, TTS plays after game_complete + Next
+async function runFeedbackSequence(sfx, tts, ...) {
+  await playSfxMinDuration(sfx, 1500);
+  finalizeAfterDwell();           // calls endGame() → posts game_complete + Next
+  await playDynamicFeedback(tts); // TTS now plays AFTER game ended
+}
+
+// ✅ RIGHT — single endGame() owns all 5 beats end-to-end
+async function endGame(correct) {
+  await FeedbackManager.sound.play(sfxId, { sticker });    // Beat 1
+  renderInlineFeedbackPanel(correct);                       // Beat 2 (SYNC)
+  postGameComplete();                                       // Beat 2 (SYNC)
+  await FeedbackManager.playDynamicFeedback({...});         // Beat 3
+  if (correct) window.postMessage({ type: 'show_star', data: {...} }, '*');  // Beat 4
+  setTimeout(() => floatingBtn.setMode('next'), 1100);      // Beat 5
+}
+```
+
 Canonical snippet — standalone:
 
 ```js

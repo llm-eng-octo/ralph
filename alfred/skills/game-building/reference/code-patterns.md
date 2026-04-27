@@ -207,8 +207,10 @@ Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
 - **Static SFX:** `await FeedbackManager.sound.play(id, {sticker: STICKER_URL})` — sticker is a string URL. Awaited for terminal moments, fire-and-forget for mid-round
 - **CRITICAL — Minimum Feedback Duration:** `sound.play()` can resolve BEFORE audio finishes. ALL answer-feedback calls (`sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_*`, `partial_correct_*`) MUST use `Promise.all` with a 1500ms floor: `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ]);` — guarantees audio fully plays before round advance / tile reset / game-over. Does NOT apply to VO or transition audio. Validator rule `5e0-FEEDBACK-MIN-DURATION`. See PART-026 Anti-Pattern 34.
 - **Dynamic VO:** all VO is dynamic TTS, never preloaded. **Usage depends on context:**
-  - **Submit/answer handlers (correct/wrong answers):** fire-and-forget — `FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker}).catch(function(e){})`. NEVER `await`. Next-round transition MUST NOT block on TTS completion.
-  - **Transition screens (level/round/game-over) with CTA:** `await FeedbackManager.playDynamicFeedback(...)` is acceptable because the CTA is already visible and the user can interrupt.
+  - **Submit/answer handlers (correct/wrong, single-step) AND round-complete (multi-step):** AWAIT — `try { await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker}); } catch(e){}`. The explanation MUST finish BEFORE the round advances; without await, the TTS subtitle/audio paints on top of the next round's transition (equivalent-ratios regression). Package already bounds resolution (3 s TTS API / 60 s streaming) so the await can never freeze the game indefinitely. Validator: `GEN-FEEDBACK-TTS-AWAIT`.
+  - **Transition screens (level/round/game-over) with CTA:** `await FeedbackManager.playDynamicFeedback(...)` — same reason; CTA can interrupt at any time.
+  - **Round-start dynamic TTS (welcome / contextual intro after round mounts):** fire-and-forget — student should be able to interact immediately.
+  - **Partial progress / chain audio:** fire-and-forget — ambient acknowledgement, don't pause mid-chain.
 - **Sequential audio (transitions, end-game, SFX+TTS):** Always `await` first audio before starting second. Never fire both simultaneously. Use `audioStopped` flag to prevent second audio if CTA tapped during first:
   ```javascript
   var audioStopped = false;
@@ -222,7 +224,7 @@ Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
 - **Stop:** `FeedbackManager.sound.stopAll()` + `FeedbackManager._stopCurrentDynamic()` on CTA taps
 - **Pause/Resume:** `FeedbackManager.sound.pause()/resume()` + `FeedbackManager.stream.pauseAll()/resumeAll()` on visibility change
 - Subtitle under 60 chars. Never use "wrong" -- use "Not quite," "Close," "Almost."
-- **No `Promise.race` on FeedbackManager calls (CRITICAL).** Package already bounds resolution (`sound.play` → audio-duration + 1.5s guard; `playDynamicFeedback` → 60s streaming / 3s TTS API). A helper like `audioRace(p) => Promise.race([p, setTimeout(r, 800)])` truncates normal TTS (1–3s) and causes phase/round transitions to fire before audio ends. Validator rule `5e0-FEEDBACK-RACE-FORBIDDEN` blocks any such race. "Non-blocking" means `try/catch` around awaited SFX / transition VO, or `.catch()` on fire-and-forget submit-handler TTS — NEVER `Promise.race`. See PART-017 + PART-026 Anti-Pattern 32.
+- **No `Promise.race` on FeedbackManager calls (CRITICAL).** Package already bounds resolution (`sound.play` → audio-duration + 1.5s guard; `playDynamicFeedback` → 60s streaming / 3s TTS API). A helper like `audioRace(p) => Promise.race([p, setTimeout(r, 800)])` truncates normal TTS (1–3s) and causes phase/round transitions to fire before audio ends. Validator rule `5e0-FEEDBACK-RACE-FORBIDDEN` blocks any such race. "Non-blocking" means `try/catch` around awaited SFX / TTS, or `.catch()` on fire-and-forget round-start / chain TTS — NEVER `Promise.race`. See PART-017 + PART-026 Anti-Pattern 32.
 - See `skills/feedback/SKILL.md` for all 17 behavioral cases and `feedback/reference/feedbackmanager-api.md` for CDN URLs.
 
 ### ScreenLayout.inject
@@ -347,7 +349,7 @@ Per PART-050. Game-building rules:
   ```
   `RETRY_PRESERVES_INPUT` is a game-scope const set from `spec.retryPreservesInput` (default `false` = clear input). The retry handler MUST preserve `gameState.lives`, `gameState.attempts`, `gameState.score`, and `gameState.retryCount` — NEVER reset them. Validator rules: `GEN-FLOATING-BUTTON-RETRY-STANDALONE`, `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET`.
 - **No duplicate buttons — DELETE, don't rename.** When FloatingButton is instantiated, NO other `<button>` in the source may carry a Submit / Check / Done / Commit / Retry / Next / CTA word in its **id, class, data-testid, aria-label, OR inner text**. Validator `5e0-FLOATING-BUTTON-DUP` scans all 5 attributes. **Known evasion pattern (do NOT attempt):** renaming `id="bbSubmitBtn" class="bb-submit"` to `id="bbGoBtn" class="bb-go"` while keeping `data-testid="bb-submit-btn"` and inner text `Submit` — rule still fires and the build fails. The correct fix is to DELETE the hand-rolled button entirely and wire its handler via `floatingBtn.on('submit', ...)`. If tests reference a `data-testid`, point them at the FloatingButton DOM (`.mathai-fb-btn-primary`), or add a `data-testid` via the FloatingButton API — do not keep a parallel button to satisfy tests. Reset remains inline per PART-022 — FloatingButton does NOT absorb Reset.
-- **endGame:** call `floatingBtn.destroy()`.
+- **End-of-game teardown (Next-tap, NOT `endGame()`):** the `on('next', ...)` handler posts `next_ended`, then calls `previewScreen.destroy()` (and `answerComponent.destroy()` if applicable), then `floatingBtn.destroy()` last. `endGame()` MUST NOT call any `.destroy()` — destroys move into the Next handler so the header stays mounted while `show_star` lands.
 - **AnswerComponent integration (PART-051) overrides the Next-flow chain shown above.** When the game has not opted out of `answerComponent`, the Next button is gated by AnswerComponent reveal, NOT by a TransitionScreen dismiss. See the AnswerComponent section below for the corrected end-game patterns. The patterns above remain authoritative ONLY for games with `answerComponent: false` in the spec.
 - See `alfred/parts/PART-050.md` for the full API, dual-button variant, styling variables, and validator rule list.
 
@@ -477,7 +479,7 @@ Per PART-039. Game-building rules:
 - **Audio URL source hierarchy** (PART-039 layer order): `content.previewAudio` → `fallbackContent.previewAudio` → runtime TTS fallback using `previewAudioText` → 5s silent timer. The component handles the TTS fallback internally when `audioUrl` is null; you do NOT need to generate TTS yourself at runtime. Deploy step patches `fallbackContent.previewAudio` with a CDN URL from `previewAudioText` TTS.
 - **`previewScreen.isActive()`** returns `true` while the preview overlay is mounted (between `show()` and `switchToGame()`). Use this in any timed fallback (setTimeout, requestIdleCallback, race-guards) that might otherwise fire during a live preview. Preview does NOT mutate `gameState.phase`, so `phase === 'start_screen'` stays true for the entire preview — `isActive()` is the authoritative signal. See `html-template.md` rule 11 (standalone-fallback gate).
 - `onComplete` callback receives `previewData` and must call `startGameAfterPreview(previewData)` — see pattern below.
-- `endGame()` calls `previewScreen.destroy()`.
+- The FloatingButton `on('next', ...)` handler calls `previewScreen.destroy()` AFTER posting `next_ended`. `endGame()` MUST NOT call `destroy()` — synchronous teardown there kills the async `show_star` animation before it lands.
 - `restartGame()` must NOT call `previewScreen.show()` or `setupGame()` — preview is once per session.
 - `hide()` does NOT exist. Do not call it.
 - VisibilityTracker's `onInactive`/`onResume` must also invoke `previewScreen.pause()`/`previewScreen.resume()`. The pause popup itself is rendered by `VisibilityTracker`'s built-in `PopupComponent` — leave `autoShowPopup` at its default (`true`) and customize copy via `popupProps`. **Never** build a game-local pause overlay. Canonical wiring:
@@ -575,7 +577,7 @@ The core game loop MUST follow this order:
 5. Update score/lives, `syncDOM()`, AND **refresh the ActionBar header** via `previewScreen.setScore(gameState.score + '/' + gameState.totalRounds)`. Call `previewScreen.setQuestionLabel('Q' + (gameState.currentRound + 1))` on round advance. Use the direct methods — NEVER re-post `game_init`, because the game's own `handlePostMessage` listens on the same window and would re-run `setupGame()` with fallback content. See PART-040 "Updating header state from game code".
 6. Visual feedback (selected-wrong/selected-correct classes, correct-reveal)
 7. FeedbackManager audio (per `skills/feedback/SKILL.md`):
-   - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → then **fire-and-forget** `FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker}).catch(function(e){})`. SFX is awaited (short, predictable ~1.5s floor); dynamic TTS is fire-and-forget so next-round transition is NEVER blocked on TTS. Dynamic TTS still plays with context-aware explanation, but the flow advances independently.
+   - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → then **AWAIT** `try { await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker}); } catch(e){}`. SFX awaited (~1.5s floor) for predictable visual flash; TTS awaited so the explanation finishes BEFORE round advance — without await, the subtitle/audio paints over the next round's transition (equivalent-ratios regression). Package bounds TTS resolution at 3 s (API timeout) / 60 s (streaming) so it can never freeze the game indefinitely; `try/catch` swallows rejection so a network failure still advances. Validator: `GEN-FEEDBACK-TTS-AWAIT`.
    - **Multi-step mid-round match:** `FeedbackManager.sound.play(id, {sticker}).catch(...)` — fire-and-forget. NO dynamic TTS, NO subtitle. SFX + sticker only.
    - Last-life wrong: ALWAYS play wrong SFX (awaited, Promise.all 1500ms min) BEFORE endGame(false) — never skip
 8. **Advance to next round** via `renderRound()` / `loadRound()` / `endGame()`. DO NOT set `isProcessing = false` here and DO NOT re-enable inputs in the handler after audio. `renderRound()` / `loadRound()` is the single source of truth: it sets `isProcessing = false`, re-enables inputs (buttons, voice input), clears marks, and resets state for the new round. Exception: API-failure path and terminal game-over are the only places the handler itself unblocks (so the user can retry or see the end screen).
@@ -643,7 +645,7 @@ function restartGame() {
 }
 ```
 
-`endGame()` must call `previewScreen.destroy()` as part of cleanup.
+`previewScreen.destroy()` is called from the FloatingButton `on('next', ...)` handler (after `next_ended` is posted), NOT from `endGame()`. Destroying mid-`endGame()` synchronously tears down the ActionBar and `#previewStar` before the async `show_star` animation can land.
 
 ### Wrapper persistence — showVictory / showGameOver pattern (CRITICAL)
 
@@ -718,13 +720,16 @@ floatingBtn.on('next', function() {
 
 // Exception to the no-button auto-dismiss rule (which applies to roundIntro etc.) because Stars Collected is the terminal end-of-game surface.
 
-// ONE endGame — the only place destroy() fires.
+// endGame — does NOT call previewScreen.destroy(). Destroy lives in the
+// FloatingButton on('next', ...) handler (above) so the ActionBar header and
+// #previewStar stay mounted long enough for the async show_star animation to
+// land. Calling destroy() inside endGame() synchronously kills the animation.
 function endGame(won) {
   if (gameState.gameEnded) return;
   gameState.gameEnded = true;
   trackEvent('game_end', { won: won, score: gameState.score, stars: getStars() });
   postGameComplete(won);          // includes previewResult: gameState.previewResult || null
-  previewScreen.destroy();        // EXACTLY ONCE, HERE
+  // NO previewScreen.destroy() here — see floatingBtn.on('next', ...).
 }
 ```
 

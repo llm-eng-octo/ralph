@@ -6,7 +6,7 @@
 
 ---
 
-## Opt-out (`answerComponent: false`)
+## Opt-out (`answerComponent: false`) — CREATOR-ONLY
 
 When the spec declares a top-level `answerComponent: false`, this part **does not apply**:
 
@@ -15,11 +15,17 @@ When the spec declares a top-level `answerComponent: false`, this part **does no
 - The game ends at final feedback → celebration TransitionScreen(s) with no answer review surface.
 - All validator rules listed below (`GEN-ANSWER-COMPONENT-*`) are auto-skipped.
 
-Two valid reasons to opt out:
-1. **The game has no meaningful per-round answer to review** — pure exploration / sandbox / canvas-only flows where "correct answer" isn't a concept the player can re-read.
-2. **The spec author has a designed end-of-game flow that already shows the answer in another surface** (e.g. inline within the terminal TransitionScreen).
+**`answerComponent: false` is a CREATOR-ONLY decision.** Unlike most opt-outs in the pipeline, this flag MUST NOT be auto-filled by an LLM at any step. It only appears in `spec.md` when the human creator EXPLICITLY requests opt-out — quoted creator language must be present in the spec body or in the Warnings section.
 
-**Build-step rule:** step 4 (Build) MUST NOT write `answerComponent: false` into `spec.md` to silence validator rules. Same trust model as PART-039 / PART-050 — spec mutations during build are a visible scope violation in `git diff`.
+Two valid reasons the creator may request opt-out:
+1. **The game has no meaningful per-round answer to review** — pure exploration / sandbox / canvas-only flows where "correct answer" isn't a concept the player can re-read.
+2. **The creator deliberately wants the inline feedback panel to be the only answer surface** — and they say so explicitly.
+
+**Step 1 rule (spec-creation):** the spec-author LLM MUST NOT auto-default `answerComponent` to `false`. The default is silent `true`. Auto-filling `false` because the game is a one-question standalone, because an inline feedback panel exists, or because the creator was silent on answer review is a violation. See [`spec-creation/SKILL.md`](../skills/spec-creation/SKILL.md) § "answerComponent exception" for the full rule and banned reasoning.
+
+**Step 2 rule (spec-review):** the reviewer LLM MUST FAIL any spec containing `answerComponent: false` without quoted creator opt-out language. See [`spec-review/SKILL.md`](../skills/spec-review/SKILL.md) check H5.
+
+**Step 4 rule (build):** the build-time LLM MUST NOT write `answerComponent: false` into `spec.md` to silence validator rules. Same trust model as PART-039 / PART-050 — spec mutations during build are a visible scope violation in `git diff`.
 
 ---
 
@@ -267,22 +273,39 @@ floatingBtn.on('next', function () {
 });
 ```
 
-For standalone games (no TransitionScreen at all), the legacy chain still applies — feedback → inline panel → AnswerComponent + Next:
+For standalone games (no TransitionScreen at all), `endGame()` is the SINGLE 5-beat orchestrator (PART-050 standalone variant). AnswerComponent reveal slots in alongside `show_star`:
 
 ```javascript
 async function endGame(correct /* standalone */) {
-  await FeedbackManager.play(correct ? 'correct' : 'incorrect');
+  // Beat 1 — SFX + sticker (awaited, min 1500 ms).
+  await FeedbackManager.sound.play(correct ? 'correct_sound_effect' : 'incorrect_sound_effect', { sticker });
+
+  // Beat 2 — render inline feedback panel + post game_complete (SYNC).
   renderInlineFeedbackPanel(correct);
   postGameComplete();
-  answerComponent.show({
-    slides: buildAnswerSlides()
-  });
-  floatingBtn.setMode('next');
+
+  // Beat 3 — dynamic TTS AWAITED (standalone exception per feedback/SKILL.md).
+  try {
+    await FeedbackManager.playDynamicFeedback({ audio_content: ttsText, subtitle, sticker });
+  } catch (e) { /* TTS failures must not block the end sequence */ }
+
+  // Beat 4 — show_star + AnswerComponent reveal.
+  if (correct) {
+    window.postMessage({
+      type: 'show_star',
+      data: { count: gameState.stars || 1, variant: 'yellow', score: gameState.score + '/1' }
+    }, '*');
+  }
+  answerComponent.show({ slides: buildAnswerSlides() });
+
+  // Beat 5 — reveal Next AFTER the 1 s star animation.
+  setTimeout(function () { floatingBtn.setMode('next'); }, 1100);
 }
 
 floatingBtn.on('next', function () {
-  answerComponent.destroy();
   window.parent.postMessage({ type: 'next_ended' }, '*');
+  answerComponent.destroy();
+  if (previewScreen) previewScreen.destroy();   // destroy here, NOT in endGame()
   floatingBtn.destroy();
 });
 ```

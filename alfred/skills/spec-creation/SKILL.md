@@ -117,8 +117,23 @@ When absent or `true`, the generated game includes the PART-039 preview screen (
 
 When `previewScreen: false`, the three fields above are NOT required and SHOULD be omitted from `fallbackContent`.
 
-**Top-level spec field — `answerComponent` (optional, default `true`):**
-When absent or `true`, the generated game includes the PART-051 answer-component carousel that shows the correct answer(s) at end-of-game (one slide per round, or N slides for a standalone with N evaluated answers). When explicitly set to `false`, the pipeline generates a game with NO AnswerComponent: no `AnswerComponentComponent`, no `#mathai-answer-slot`, no per-round `answer` payload required. Only set `false` when the game has no meaningful per-round answer to review (pure exploration / sandbox / canvas-only flows).
+**Top-level spec field — `answerComponent` (default `true` — NEVER auto-default to `false`):**
+When absent or `true`, the generated game includes the PART-051 answer-component carousel that shows the correct answer(s) at end-of-game (one slide per round, or N slides for a standalone with N evaluated answers).
+
+**`answerComponent: false` is a CREATOR-ONLY decision — the spec author MUST NOT auto-fill it.** Setting `false` is reserved exclusively for cases where the creator's prompt EXPLICITLY says one of:
+- "no answer review", "no answers screen", "no correct-answers carousel", or equivalent direct opt-out language;
+- "this is an exploration / sandbox / canvas-only game with no graded answer";
+- "the inline feedback panel already shows the answer, skip the carousel" — and ONLY if the creator volunteered this themselves.
+
+If the creator's prompt does NOT mention the answer-review surface at all, `answerComponent` defaults to `true` and the carousel ships. **Do not infer `false` from any of these (all WRONG):**
+- ❌ "It's a one-question standalone, an inline panel can carry the answer" — NOT a creator decision; carousel still adds value (especially for multi-step worked examples). Default to `true`.
+- ❌ "Lives: 1 / Rounds: 1 means there's only one answer to show" — single-slide carousel is the canonical surface for that case. Default to `true`.
+- ❌ "The spec already has a worked-example feedback panel, the carousel would duplicate it" — they show the same content at different beats. Inline = mid-game feedback. Carousel = post-celebration review. Both ship. Default to `true`.
+- ❌ "The creator didn't mention answers, so I'll opt out" — silence means default. Default to `true`.
+
+If you (the spec author) genuinely think `false` is right for a game and the creator was silent, **ASK the creator before writing it** — don't auto-fill. Auto-filled `false` defeats the purpose of the carousel: every game ships it by default.
+
+**`Defaults Applied` rule:** the `Defaults Applied` section MUST NOT contain an `answerComponent` entry unless the creator EXPLICITLY requested the opt-out. The default-fill for `answerComponent` is always `true` and silent; only `false` is ever surfaced — and only when creator-requested, in which case it belongs in the spec body, not in Defaults Applied.
 
 **Per-round `answer` field (required when `answerComponent !== false`):**
 Each round in `rounds[]` MUST carry an `answer` payload that the AnswerComponent will render in its slide. The shape is **game-specific** — define it once in this spec section and use it consistently across every round. The component is dumb about types; the game's `renderAnswerForRound(round, container)` function maps the payload to the evaluated DOM (drop-zones in solved state, solved grid, correct chip highlighted, etc. — NOT the input affordances). Document the exact JSON shape under the round example, e.g. `answer: { queens: [{r,c}, ...] }` for a grid game, `answer: { 'zone-A': 'tile-3', ... }` for drag-drop, `answer: { correct: 2, explanation: '...' }` for MCQ-with-worked-example.
@@ -237,8 +252,11 @@ For EACH decision in the defaults table below, check whether the creator's input
 | Language | English | Look for language/Hindi keywords |
 | Accessibility | Touch-only, 44px targets, contrast only | No further unless specified |
 | Scaffolding | Show correct answer after wrong, auto-advance | Look for hint/retry keywords |
+| `answerComponent` | `true` (always, silently — NOT listed in Defaults Applied) | ONLY set `false` if the creator's prompt explicitly opts out; never auto-infer |
 
 **Critical rule:** If the creator explicitly specifies a value for any decision, ALWAYS use the creator's value, even if it conflicts with defaults or guidelines. Never silently override. If the creator's choice conflicts with a guideline, add a WARNING but keep the creator's choice.
+
+**`answerComponent` exception (PART-051):** unlike every other row in this table, `answerComponent` MUST default to `true` silently — DO NOT add it to `Defaults Applied`. The flag only appears in the spec body when the creator EXPLICITLY requests `answerComponent: false` (e.g. "no answer review", "no correct-answers carousel", "this is a sandbox / exploration game with no graded answer"). Auto-filling `false` for one-question standalones, "the inline feedback already shows the answer", or any other LLM-judgment reason is a violation of the trust model and was the bodmas-blitz regression that prompted this rule.
 
 ### Step 4: Check for guideline conflicts and generate warnings
 

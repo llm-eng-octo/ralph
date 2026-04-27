@@ -56,7 +56,7 @@ When gameState.lives > 0, the game MUST implement a `game_over` or `gameover` ph
 
 **game_complete metrics:** `accuracy`, `time`, `stars`, `attempts`, `duration_data`, `totalLives`, `tries`
 
-**Per-round optional `answer` field (PART-051):** every round in `content.rounds[i]` MAY carry a game-specific `answer` payload that the AnswerComponent renders into its slide. Standalone games with N evaluated answers use an `answers: [...]` array on the single round. Shape is per-spec — document it in `spec.md`'s content-schema section. Skipped when the spec declares `answerComponent: false`. See [postmessage-schema.md](schemas/postmessage-schema.md) § "Per-round answer field".
+**Per-round optional `answer` field (PART-051):** every round in `content.rounds[i]` MAY carry a game-specific `answer` payload that the AnswerComponent renders into its slide. Standalone games with N evaluated answers use an `answers: [...]` array on the single round. Shape is per-spec — document it in `spec.md`'s content-schema section. Skipped when the spec declares `answerComponent: false` (creator-only opt-out — no LLM step may auto-default this flag; see PART-051 § Opt-out). See [postmessage-schema.md](schemas/postmessage-schema.md) § "Per-round answer field".
 
 **syncDOM attributes:** `data-phase` (required), `data-score` (required), `data-lives` (conditional), `data-round` (recommended)
 

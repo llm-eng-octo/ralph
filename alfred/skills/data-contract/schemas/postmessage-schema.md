@@ -91,7 +91,7 @@ For a **standalone game with N evaluated answers** (`totalRounds: 1`, multiple a
 }
 ```
 
-When the spec declares `answerComponent: false`, the field is unused (and may be omitted) — validator rules in the `GEN-ANSWER-COMPONENT-*` group auto-skip.
+When the spec declares `answerComponent: false`, the field is unused (and may be omitted) — validator rules in the `GEN-ANSWER-COMPONENT-*` group auto-skip. **`answerComponent: false` is a CREATOR-ONLY opt-out per PART-051; no LLM step may auto-default it.** Spec-creation MUST default `answerComponent` to `true` silently; spec-review FAILs any spec setting `false` without quoted creator opt-out (check H5); build MUST NOT mutate spec.md to silence the validator.
 
 ### show_star (PART-040) — intra-frame star-award animation
 
