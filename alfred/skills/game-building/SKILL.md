@@ -23,7 +23,7 @@ When generating HTML from an approved spec + plan. The main generation step.
 - `reference/flow-implementation.md` -- screen→component mapping + progress bar lifecycle + round loop pattern -- **ALWAYS**
 - `alfred/skills/game-planning/reference/default-flow.md` -- canonical flow diagram -- **ALWAYS**
 - `alfred/parts/PART-050.md` -- CDN FloatingButtonComponent API (submit/retry/next lifecycle, submittable-predicate contract) -- **WHEN the game flow has a Submit CTA**
-- `alfred/parts/PART-051.md` -- CDN AnswerComponentComponent API (post-feedback Correct Answers carousel, end-game stack, slide render-callback contract) -- **UNLESS spec declares `answerComponent: false`**
+- `alfred/parts/PART-051.md` -- CDN AnswerComponentComponent API (post-feedback Correct Answers carousel, end-game stack, slide render-callback contract) -- **UNLESS spec declares `answerComponent: false`. NOTE: that flag is a CREATOR-ONLY opt-out — step 4 (Build) MUST NOT add it to spec.md to silence the validator, and the spec author at step 1 MUST NOT auto-default it. If a spec arrives at build with `answerComponent: false` lacking quoted creator opt-out language, the build is on a malformed spec and should be flagged, not patched.**
 
 ## Input
 
@@ -106,7 +106,7 @@ The `fallbackContent.rounds` array is the game's offline dataset. It must:
 
 ### Step 5: Implement the Answer Handler
 
-The answer handler is the core game loop. See the full pattern in [code-patterns.md](code-patterns.md) Section 17. It must follow the exact sequence: guard -> evaluate -> recordAttempt -> trackEvent -> update state -> syncDOM -> visual feedback -> FeedbackManager.sound.play (awaited for single-step, fire-and-forget for multi-step) -> optional playDynamicFeedback for content-specific explanation -> animations -> auto-advance. See `skills/feedback/SKILL.md` Cases 4-8 for exact behavior per answer type.
+The answer handler is the core game loop. See the full pattern in [code-patterns.md](code-patterns.md) Section 17. It must follow the exact sequence: guard -> evaluate -> recordAttempt -> trackEvent -> update state -> syncDOM -> visual feedback -> FeedbackManager.sound.play (awaited for single-step + multi-step round-complete, fire-and-forget for multi-step partial-match only) -> awaited playDynamicFeedback for content-specific explanation (validator: GEN-FEEDBACK-TTS-AWAIT) -> animations -> auto-advance. See `skills/feedback/SKILL.md` Cases 4-8 for exact behavior per answer type.
 
 ### Step 6: Implement Keyboard Handling (Input-Based Games)
 
@@ -136,7 +136,7 @@ Before outputting, verify against every check:
 - [ ] GEN-FLOATING-BUTTON-SLOT: `ScreenLayout.inject(...)` passes `slots.floatingButton: true` whenever `FloatingButtonComponent` is used
 - [ ] GEN-FLOATING-BUTTON-PREDICATE: At least one input / state-change handler calls `floatingBtn.setSubmittable(...)` (prevents the "show once, never hide" regression)
 - [ ] 5e0-FLOATING-BUTTON-DUP: No custom `<button>` anywhere in source whose **id / class / data-testid / aria-label / inner text** contains `submit / commit / retry / next / check / done / cta` when FloatingButton is used. Renaming id/class while keeping a telltale `data-testid` or inner text "Submit" still fires the rule — delete the button entirely.
-- [ ] End-of-game sequencing (PART-050 "Next flow" beats 1–5): SFX awaited → feedback panel + `game_complete` SYNC → TTS awaited (when `playDynamicFeedback` is used) → `show_star` postMessage → `setTimeout(() => setMode('next'), 1100)`. Do NOT fire `show_star` before dynamic TTS finishes — fire-and-forget TTS at end-of-game causes Next and the star animation to overlap with audio (bodmas-blitz 2026-04-24 regression). If `spec.autoShowStar === false`, shorten the final `setTimeout` to 300 ms.
+- [ ] End-of-game sequencing differs by shape. **Standalone (`totalRounds: 1`)**: PART-050 5-beat orchestrator inside a single `endGame()` — SFX awaited → feedback panel + `game_complete` SYNC → **TTS awaited** → `show_star` → `setTimeout(setMode('next'), 1100)`. The submit handler is one line: `await endGame(correct);`. Do NOT split into `runFeedbackSequence` / `finalizeAfterDwell` (bodmas-blitz regression — `game_complete` + Next fired after only SFX while TTS still played). **Multi-round (`totalRounds > 1`)**: round-N submit handler awaits SFX **AND** awaits dynamic TTS before advancing — same as every other round (validator: `GEN-FEEDBACK-TTS-AWAIT`). End-of-game audio is owned by Stars Collected `onMounted` (awaits `sound_stars_collected` → fires `show_star` → setTimeout → `setMode('next')`). Validator: `GEN-ENDGAME-AFTER-TTS` fires only on standalone games that define `function runFeedbackSequence` / `function finalizeAfterDwell`.
 - [ ] show_star `count` and `score` must agree: whatever number of stars the animation visually celebrates (`count`), the `score` string in the same payload must express the same quantity. `×2` animation with `/1` score = broken (solve-for-x-speed-round 2026-04-24 regression). For standalone games where one round awards up to N stars, use `count: Math.max(1,Math.min(N,stars))` + `score: stars + '/' + N`, not `gameState.score + '/' + gameState.totalRounds`. See code-patterns.md "show_star count ↔ score agreement" table.
 - [ ] `show_star` fires EXACTLY ONCE per game session, at the end-of-game celebration beat — NEVER inside a per-round correct handler. Per-round score bumps use `previewScreen.setScore(gameState.score + '/' + gameState.totalRounds)` directly (no animation). Firing `show_star` on each correct answer stacks the flying-star animation N times in a multi-round game (equivalent-ratio-quest + equivalent-ratios regressions). Validator: `GEN-SHOW-STAR-ONCE`.
 - [ ] GEN-HEADER-REFRESH (PART-040): Every game that uses `PreviewScreenComponent` MUST update the ActionBar header score as the game progresses. Three mandatory moments:
@@ -319,5 +319,5 @@ When the spec does not specify:
 11. No sending `game_ready` before listener registration -- register `message` listener first, then send `game_ready`
 12. No phase assignment after logic in `game_init` -- `gameState.phase = 'playing'` must be the FIRST LINE
 13. No victory-only `game_complete` guard -- `game_complete` postMessage fires on BOTH victory and game-over
-14. No skipping feedback -- always `await FeedbackManager.sound.play(...)` for terminal moments, fire-and-forget for mid-round
+14. No skipping feedback -- always `await FeedbackManager.sound.play(...)` AND `await FeedbackManager.playDynamicFeedback(...)` for terminal/round-complete moments; fire-and-forget only for multi-step mid-round partial-match SFX (no TTS there) and round-start / chain-progress audio
 15. No input during feedback -- `isProcessing` guard at top of every input handler
