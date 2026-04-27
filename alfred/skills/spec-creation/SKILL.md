@@ -17,6 +17,7 @@ When a creator provides a game description (1-10 sentences) and a new spec.md ne
 
 - `game-archetypes.md` — ALWAYS — 10 archetype profiles (structure + interaction + scoring + feedback combinations). Includes constraint #8 (FloatingButton is flow-driven and overrides the per-archetype PART flag list — any flow with a Submit / Check / Done / Commit CTA mandates PART-050).
 - `alfred/parts/PART-050.md` — WHEN the creator's description includes a Submit / Check / Done CTA — FloatingButton planning contract (slot, submittable predicate, submit handler, opt-out policy).
+- `alfred/parts/PART-051.md` — ALWAYS — AnswerComponent planning contract (per-round answer payload shape, opt-out via `answerComponent: false`). Drives the "Answer payload schema" subsection of the spec's content structure.
 - `pedagogy.md` — ON-DEMAND — Bloom level mapping, misconception design principles (load when assigning Bloom level or generating misconception tags)
 - `data-contract.md` — ON-DEMAND — recordAttempt schema, game_complete schema, required fields (load when building fallbackContent structure)
 - alfred/skills/game-planning/reference/default-flow.md -- canonical multi-round default; copy verbatim into spec's ## Flow when any rounds-based game is described -- ALWAYS
@@ -114,7 +115,15 @@ When absent or `true`, the generated game includes the PART-039 preview screen (
 - `previewAudioText` — plain-text narration used to generate preview TTS at deploy time (patched into `previewAudio` post-build).
 - `showGameOnPreview` — optional boolean, default `false`. Set `true` if the student should see the game state (covered by a blocking overlay) while the preview audio plays.
 
-When `previewScreen: false`, the three fields above are NOT required and SHOULD be omitted from `fallbackContent`.]
+When `previewScreen: false`, the three fields above are NOT required and SHOULD be omitted from `fallbackContent`.
+
+**Top-level spec field — `answerComponent` (optional, default `true`):**
+When absent or `true`, the generated game includes the PART-051 answer-component carousel that shows the correct answer(s) at end-of-game (one slide per round, or N slides for a standalone with N evaluated answers). When explicitly set to `false`, the pipeline generates a game with NO AnswerComponent: no `AnswerComponentComponent`, no `#mathai-answer-slot`, no per-round `answer` payload required. Only set `false` when the game has no meaningful per-round answer to review (pure exploration / sandbox / canvas-only flows).
+
+**Per-round `answer` field (required when `answerComponent !== false`):**
+Each round in `rounds[]` MUST carry an `answer` payload that the AnswerComponent will render in its slide. The shape is **game-specific** — define it once in this spec section and use it consistently across every round. The component is dumb about types; the game's `renderAnswerForRound(round, container)` function maps the payload to the evaluated DOM (drop-zones in solved state, solved grid, correct chip highlighted, etc. — NOT the input affordances). Document the exact JSON shape under the round example, e.g. `answer: { queens: [{r,c}, ...] }` for a grid game, `answer: { 'zone-A': 'tile-3', ... }` for drag-drop, `answer: { correct: 2, explanation: '...' }` for MCQ-with-worked-example.
+
+For a **standalone game with N evaluated answers** (`totalRounds: 1`), use an `answers: [...]` array on the single round instead of `answer:`.]
 
 Example:
 ```js
