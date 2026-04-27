@@ -89,63 +89,74 @@ Per PART-011. Game-building rules:
 
 ### ActionBar header refresh (score + question label) — MANDATORY
 
-The header's `#previewScore` text (e.g. `"1/10"`) and `#previewQuestionLabel` (e.g. `"Q3"`) reflect the game's progression. They update ONLY when the game tells them to. The canonical path is the `show_star` postMessage — it animates a flying star into the header AND updates the score text when the animation lands, so every star earned produces a visible celebration. Direct pass-through methods (`previewScreen.setScore` / `setQuestionLabel`) are reserved for no-animation moments (initial seed, round label change, non-award score mutations).
+The header's `#previewScore` text (e.g. `"1/10"`) and `#previewQuestionLabel` (e.g. `"Q3"`) reflect the game's progression. They update ONLY when the game tells them to, via ONE of two paths:
 
-**Path 1 — `show_star` payload (star-earned moments; the primary pattern).**
+**Path 1 — Direct pass-through methods (per-round / state-change moments).**
 
-Fire `show_star` whenever the player earns a star. This is the user-visible celebration AND the mechanism that bumps the header count in lockstep. In a multi-round game where each correct answer earns a star, this fires once per correct answer; in a standalone game where one round awards up to N stars, it fires once at end-of-game with `count: N`.
-
-```javascript
-// Correct-answer handler (or end-of-game for standalone multi-star rating).
-window.postMessage({
-  type: 'show_star',
-  data: {
-    count: gameState.stars || 1,         // tier of THIS award (1/2/3)
-    variant: 'yellow',
-    score: gameState.score + '/' + gameState.totalRounds
-  }
-}, '*');
-```
-
-ActionBar plays the 1 s flying-star animation, upgrades the static `#previewStar` to the awarded tier at animation end, and applies `score` to `#previewScore` at the same moment — so the counter bump visibly follows the celebration.
-
-**`count` and `score` must agree.** Whatever number your `count` visually communicates, the `score` text should express the same quantity as a fraction. If the player sees ×2 stars fly, the header should read `X+2/Y` not `X+1/Y`. Mis-matched games have been rejected in QA (solve-for-x-speed-round — ×2 animation, `/1` score).
-
-| Game shape | When to fire | `count` | `score` |
-|---|---|---|---|
-| Multi-round, 1 star per correct round | per correct answer | `1` (per award) | `gameState.score + '/' + gameState.totalRounds` |
-| Standalone, 1 round awards up to N stars | end-of-game | `Math.max(1, Math.min(N, stars))` | `stars + '/' + N` |
-| Cumulative star points (varying per-round) | per correct answer | stars earned this round | `(gameState.totalStars) + '/' + gameState.maxStars` |
-
-**Path 2 — Direct pass-through methods (non-award moments).**
+Use for everything EXCEPT the single end-of-game celebration. No animation, just a value bump.
 
 ```javascript
 // Initial seed — call once from startGameAfterPreview() after previewScreen exists.
 previewScreen.setQuestionLabel('Q1');
 previewScreen.setScore('0/' + gameState.totalRounds);
 
-// Round advance (multi-round games), independent of scoring.
+// Correct answer mid-round — immediate score bump, NO star-flying animation.
+previewScreen.setScore(gameState.score + '/' + gameState.totalRounds);
+
+// Round advance (new round begins — multi-round games).
 previewScreen.setQuestionLabel('Q' + (gameState.currentRound + 1));
 
-// Non-award score mutation (penalty, undo, partial credit without a star).
+// Any non-award score mutation (partial credit, penalty, undo).
 previewScreen.setScore(gameState.score + '/' + gameState.totalRounds);
 ```
 
-**Do NOT re-post `game_init` from the game.** The game's own `handlePostMessage` listener catches `game_init` and runs `setupGame()` — a re-fire with just `{data:{score:'1/10'}}` triggers `setupGame()` with fallback content and resets everything. Use the Path 1 / Path 2 APIs only; they mutate header DOM in-process and bypass the message bus entirely.
+**Path 2 — `show_star` payload (end-of-game celebration only).**
 
-**Validator gate:** `GEN-HEADER-REFRESH` errors if a FloatingButton-using, PreviewScreen-using game contains neither `previewScreen.setScore(` nor a show_star payload with a `score:` field — the header would stay frozen at its boot value.
+`show_star` fires the big flying-star animation into the header. It is a ONE-TIME celebration triggered at the end of the game — NOT per round. Firing it on every correct answer in a 10-round game plays 10 animations and spams the user.
+
+Fire `show_star` exactly ONCE per game session, at the end-of-game celebration beat:
+- **Standalone** (`totalRounds: 1`): inside `endGame` / feedback sequence, after all feedback audio completes.
+- **Multi-round** (`totalRounds > 1`): inside the victory / stars-collected TransitionScreen's `onMounted` (or `onDismiss`), after celebration audio — NOT inside the per-round correct handler.
+
+```javascript
+// End-of-game victory — the one place show_star belongs.
+window.postMessage({
+  type: 'show_star',
+  data: {
+    count: gameState.stars || 1,         // 1-3 stars earned overall
+    variant: 'yellow',
+    score: gameState.score + '/' + gameState.totalRounds
+  }
+}, '*');
+```
+
+**`count` and `score` must agree.** Whatever number your `count` visually communicates, the `score` text should express the same quantity as a fraction. If the player sees ×2 stars fly, the header should read `X+2/Y` not `X+1/Y`. Mis-matched games have been rejected in QA (solve-for-x-speed-round — ×2 animation, `/1` score).
+
+| Game shape | `count` source | `score` string to send |
+|---|---|---|
+| Multi-round, 1 star per correct round (cumulative rating) | `gameState.stars || 1` | `gameState.score + '/' + gameState.totalRounds` |
+| Standalone, 1 round awards up to N stars (e.g. lives-based rating) | `Math.max(1, Math.min(N, stars))` | `stars + '/' + N` |
+| Cumulative star points (multi-round, varying per-round awards) | stars awarded this game | `(gameState.totalStars) + '/' + gameState.maxStars` |
+
+**Do NOT fire `show_star` per round.** Regression caught twice (equivalent-ratio-quest, equivalent-ratios): mid-round correct handlers fired `show_star`, so players saw the flying-star animation ten times in a row. Use `previewScreen.setScore(...)` for per-round bumps; `show_star` is reserved for the one end-of-game celebration.
+
+**Do NOT re-post `game_init` from the game.** The game's own `handlePostMessage` listener catches `game_init` and runs `setupGame()` — a re-fire with just `{data:{score:'1/10'}}` triggers `setupGame()` with fallback content and resets everything. Use the direct methods / end-of-game show_star only; they mutate header DOM in-process and bypass the message bus entirely.
+
+**Validator gates:**
+- `GEN-HEADER-REFRESH` errors if a FloatingButton-using, PreviewScreen-using game contains neither `previewScreen.setScore(` nor a show_star payload with a `score:` field.
+- `GEN-SHOW-STAR-ONCE` errors if more than one literal `type: 'show_star'` postMessage is found.
 
 ### Star-award animation (`show_star`)
 Per PART-040 + PART-050. Intra-frame postMessage that animates a flying star into the ActionBar header, plays an award chime, upgrades the header's static star image to match the awarded tier, and updates the header score text at animation end.
 
 - **Target is `window`, NOT `window.parent`.** ActionBar listens in the same frame as the game. `window.parent.postMessage(...)` goes to the host and ActionBar never sees it.
-- **Fire whenever a star is earned.** Multi-round games (1 star per correct round): fire on each correct-answer handler. Standalone games (1 round awards up to N stars): fire once at end-of-game with `count: N`. The animation IS how the user visually "receives" a star — no animation, no felt reward. Spec opt-out: `spec.autoShowStar: false` suppresses the generator default.
-- **Sequencing around feedback audio.** `show_star` is a follow-on to feedback, not a parallel effect. The star animation should play AFTER the round's correct-answer SFX (and dynamic TTS, if any) has finished, not on top of it. Canonical ordering:
-  - **Beat 1: `await FeedbackManager.sound.play(...)`** — correct-answer SFX + sticker, min 1500 ms.
-  - **Beat 2 (end-of-game only):** render inline feedback panel + `postGameComplete()` — SYNC; never block on TTS.
-  - **Beat 3: `await FeedbackManager.playDynamicFeedback({...})`** — dynamic TTS, if the game uses it. AWAIT IT. Fire-and-forget here causes the star animation and any subsequent Next button to overlap with TTS audio (bodmas-blitz regression).
+- **Fire EXACTLY ONCE per game session, at the end-of-game celebration beat.** Per-round score bumps use `previewScreen.setScore(...)` directly — no animation. Mid-round `show_star` plays N stacked animations in a multi-round game and spams the player (regression caught twice in QA). Spec opt-out: `spec.autoShowStar: false` suppresses the generator default.
+- **Serial ordering (MANDATORY).** At end-of-game, fire `show_star` ONLY after ALL feedback audio (SFX + dynamic TTS) has finished awaiting. The flying star is a visual follow-on to the spoken feedback, not a parallel effect. User-visible order is SFX → feedback panel → TTS (awaited) → star animation → Next.
+  - **Beat 1: `await FeedbackManager.sound.play(...)`** — SFX + sticker, min 1500 ms.
+  - **Beat 2: render feedback panel + `postGameComplete()`** — SYNC; never block on TTS.
+  - **Beat 3: `await FeedbackManager.playDynamicFeedback({...})`** — dynamic TTS, if the game uses it. AWAIT IT; fire-and-forget here causes the star animation and Next button to overlap with TTS audio (bodmas-blitz regression).
   - **Beat 4: fire `show_star` postMessage** — animation plays ~1 s, score applied at animation end.
-  - **Beat 5 (end-of-game only): `setTimeout(function(){ floatingBtn.setMode('next'); }, 1100)`** — Next appears AFTER the animation finishes. Shorten to 300 ms only if `spec.autoShowStar === false`. Mid-round correct answers skip Beat 5 and just advance to the next round.
+  - **Beat 5: `setTimeout(function(){ floatingBtn.setMode('next'); }, 1100)`** — Next appears AFTER the animation finishes. Shorten to 300 ms only if `spec.autoShowStar === false`.
 - **Claim-Stars button (opt-in).** TransitionScreen has no knowledge of the star protocol — authors fire `show_star` from the button's own `action()`. Fully customizable; pair with `spec.autoShowStar: false` to avoid the generator-emitted default firing as well.
 - **Score bump is part of the celebration.** Pass `score: gameState.score + '/' + gameState.totalRounds` in the payload — ActionBar updates `#previewScore` AFTER the 1 s animation finishes, so the celebration visibly precedes the number change (matches mathai-client UX).
 - **Dedupe + queue.** ActionBar swallows identical payloads within 500 ms; distinct payloads in flight are queued (max 3). Over-firing identical payloads is safe.
@@ -335,7 +346,111 @@ Per PART-050. Game-building rules:
   `RETRY_PRESERVES_INPUT` is a game-scope const set from `spec.retryPreservesInput` (default `false` = clear input). The retry handler MUST preserve `gameState.lives`, `gameState.attempts`, `gameState.score`, and `gameState.retryCount` — NEVER reset them. Validator rules: `GEN-FLOATING-BUTTON-RETRY-STANDALONE`, `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET`.
 - **No duplicate buttons — DELETE, don't rename.** When FloatingButton is instantiated, NO other `<button>` in the source may carry a Submit / Check / Done / Commit / Retry / Next / CTA word in its **id, class, data-testid, aria-label, OR inner text**. Validator `5e0-FLOATING-BUTTON-DUP` scans all 5 attributes. **Known evasion pattern (do NOT attempt):** renaming `id="bbSubmitBtn" class="bb-submit"` to `id="bbGoBtn" class="bb-go"` while keeping `data-testid="bb-submit-btn"` and inner text `Submit` — rule still fires and the build fails. The correct fix is to DELETE the hand-rolled button entirely and wire its handler via `floatingBtn.on('submit', ...)`. If tests reference a `data-testid`, point them at the FloatingButton DOM (`.mathai-fb-btn-primary`), or add a `data-testid` via the FloatingButton API — do not keep a parallel button to satisfy tests. Reset remains inline per PART-022 — FloatingButton does NOT absorb Reset.
 - **endGame:** call `floatingBtn.destroy()`.
+- **AnswerComponent integration (PART-051) overrides the Next-flow chain shown above.** When the game has not opted out of `answerComponent`, the Next button is gated by AnswerComponent reveal, NOT by a TransitionScreen dismiss. See the AnswerComponent section below for the corrected end-game patterns. The patterns above remain authoritative ONLY for games with `answerComponent: false` in the spec.
 - See `alfred/parts/PART-050.md` for the full API, dual-button variant, styling variables, and validator rule list.
+
+### AnswerComponentComponent
+Per PART-051. Game-building rules:
+- **Required by default — opt-out via `answerComponent: false` in spec.md.** Mirrors PART-039 / PART-050 opt-out trust model. Step 4 (Build) MUST NOT write `answerComponent: false` into spec.md to silence the validator; the spec is the spec author's contract, not a build-time escape hatch.
+- **CDN:** include `https://storage.googleapis.com/test-dynamic-assets/packages/components/answer-component/index.js` OR the bundled `components/index.js` (which loads it automatically). Missing tag → `GEN-ANSWER-COMPONENT-CDN`.
+- **Slot:** `ScreenLayout.inject(...)` MUST include `slots: { answerComponent: true, ... }`. Missing slot → `GEN-ANSWER-COMPONENT-SLOT`. The slot is the last child of `.game-stack`, so the answer card visually appears below the play area and any inline feedback panel.
+- **Constructor:** `const answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' });` at DOMContentLoaded, alongside the other slot components.
+- **Visibility is game-state-driven, NOT interaction-driven.** Component starts hidden. Reveal is a single `answerComponent.show({ slides })` call inside the end-game path AFTER `await FeedbackManager.play(...)` completes. Never reveal during preview state, never reveal mid-round. Validator `GEN-ANSWER-COMPONENT-NOT-IN-PREVIEW` rejects `.show(...)` inside any `if (previewScreen.isActive())` / `state === 'preview'` true-branch.
+- **Slide payload — `render(container)` callbacks ONLY.** Each slide is `{ render(container) { /* mount evaluated answer view */ } }`. Validator `GEN-ANSWER-COMPONENT-SLIDE-SHAPE` rejects `html:` and `element:` keys. The component clears the container before each render — games can construct DOM from `gameState` / round data without leak concerns.
+- **Render only the EVALUATED elements.** For drag-drop questions the slide must show the drop-zones in their solved state, NOT the draggable bank. For grid questions, the solved grid. For tables, the rows in their correct state. Anything that is "input affordance" (drag bank, MCQ option chips, text input box) is NOT shown — only the parts that were graded.
+- **End-game multi-round chain (REQUIRED — supersedes the FloatingButton "Multi-round Next flow" pattern when AnswerComponent is in use):** the celebration beat (Stars Collected yay + `show_star` animation) plays FIRST, hands off to AnswerComponent via its `onMounted` setTimeout, and the floating Next is single-stage exit. `answerComponent.show(...)` MUST NOT appear inside `endGame()`.
+  ```js
+  async function endGame(/* called after the final round resolves */) {
+    await FeedbackManager.play(/* final round */);                          // 1. await feedback
+    window.parent.postMessage({ type: 'game_complete', data: {...} }, '*'); // 2. post game_complete
+    if (gameState.stars > 0) showVictory(); else showGameOver();            // 3. route to celebration / game-over
+  }
+
+  // Optional intermediate Victory transition (game-specific). When present,
+  // its sole job is to show stars + a "Claim Stars" button whose action calls
+  // showStarsCollected(). NEVER call answerComponent.show(...) from here.
+  async function showVictory() {
+    await transitionScreen.show({
+      title: 'Victory 🎉',
+      stars: gameState.stars,
+      buttons: [{
+        text: 'Claim Stars',
+        primary: true,
+        action: function () { transitionScreen.hide(); showStarsCollected(); }
+      }],
+      persist: true,
+      onMounted: function () { /* victory sound + dynamic VO */ }
+    });
+  }
+
+  // Stars Collected — the celebration beat. Plays the yay sound + show_star
+  // animation, then HANDS OFF to the answer carousel via setTimeout.
+  async function showStarsCollected() {
+    await transitionScreen.show({
+      title: 'Yay! Stars collected!',
+      stars: gameState.stars,
+      buttons: [],
+      persist: true,
+      onMounted: function () {
+        (async function () {
+          await FeedbackManager.sound.play('victory_sound_effect', { sticker: STICKER_CELEBRATE });
+          window.postMessage({
+            type: 'show_star',
+            data: { count: gameState.stars, variant: 'yellow', score: gameState.score + '/' + gameState.totalRounds }
+          }, '*');
+          // After the star animation lands, reveal the answer carousel.
+          // Stars Collected stays mounted (persist:true, no hide() here per
+          // default-transition-screens.md) — it is the celebration backdrop
+          // for the answer review. Both surfaces tear down together on Next.
+          setTimeout(function () {
+            showAnswerCarousel();
+          }, 1500);
+        })();
+      }
+    });
+  }
+
+  // The ONLY place answerComponent.show is called in a multi-round game.
+  function showAnswerCarousel() {
+    answerComponent.show({
+      slides: rounds.map(function (round) {
+        return { render: function (container) { renderAnswerForRound(round, container); } };
+      })
+    });
+    floatingBtn.setMode('next');                                            // Next appears once
+  }
+
+  // SINGLE-STAGE Next — by the time it's visible, all celebration screens have played.
+  floatingBtn.on('next', function () {
+    answerComponent.destroy();
+    window.parent.postMessage({ type: 'next_ended' }, '*');
+    if (previewScreen) previewScreen.destroy();
+    floatingBtn.destroy();
+  });
+  ```
+  Validator rules `GEN-ANSWER-COMPONENT-AFTER-CELEBRATION` and `GEN-ANSWER-COMPONENT-NEXT-SINGLE-STAGE` enforce both halves of this pattern. The legacy two-stage Next handler — first click hides AnswerComponent + shows yay + sets mode null, second click posts next_ended — is forbidden because by the time Next is visible the player has already seen the entire celebration sequence.
+- **End-game standalone chain:**
+  ```js
+  async function endGame(correct) {
+    await FeedbackManager.play(correct ? 'correct' : 'incorrect');           // 1. await feedback
+    renderInlineFeedbackPanel(correct);                                       // 2. inline panel in #gameContent
+    window.parent.postMessage({ type: 'game_complete', data: {...} }, '*');  // 3. post
+    answerComponent.show({                                                    // 4. reveal answers
+      slides: buildAnswerSlides()  // 1 slide if single answer, N if multiple
+    });
+    floatingBtn.setMode('next');                                              // 5. Next appears
+  }
+
+  floatingBtn.on('next', function () {
+    answerComponent.destroy();
+    window.parent.postMessage({ type: 'next_ended' }, '*');
+    floatingBtn.destroy();
+  });
+  ```
+- **Single-slide path (standalone with one answer).** When `slides.length === 1`, the component disables prev/next nav (opacity 0.3, `aria-disabled="true"`, no pointer events) and the counter shows `1/1`. Build the slide builder so it always returns at least one slide; never call `show({ slides: [] })`.
+- **BANNED pattern — `answerComponent.show(...)` inside `endGame()` for multi-round games.** This is the regression `GEN-ANSWER-COMPONENT-AFTER-CELEBRATION` catches. The multi-round end-game flow MUST be: `endGame()` posts `game_complete` and routes to `showVictory()` / `showStarsCollected()`. Stars Collected's `onMounted` plays the celebration, then via `setTimeout` calls a `showAnswerCarousel()`-style function. The Stars Collected TS stays mounted (NO `transitionScreen.hide()` in `onMounted` — see default-transition-screens.md). That function is the only place `answerComponent.show(...)` lives. Calling it directly from `endGame()` (or from a Victory `Claim Stars` action that bypasses Stars Collected) skips the celebration AND forces the multi-stage Next handler that `GEN-ANSWER-COMPONENT-NEXT-SINGLE-STAGE` also rejects.
+- **Restart safety.** If the game supports restart, call `answerComponent.destroy()` (or `hide()` + `update({ slides: [] })`) inside `restartGame()` so the carousel state from a prior round doesn't leak into the new run.
+- See `alfred/parts/PART-051.md` for the full API, lifecycle diagrams, invariants, and validator rule list.
 
 ### Debug Functions
 Per PART-012. See `parts/PART-012.md`.

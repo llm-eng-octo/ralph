@@ -88,12 +88,11 @@ ActionBar ALSO listens to `window.message` events for `{ type: 'game_init', data
 
 `show_star` is an **intra-frame** message dispatched by the game via `window.postMessage(...)` (NOT `window.parent.postMessage(...)`). It triggers a 1 s flying-star animation that lands on the header star, upgrades `#previewStar` to the awarded tier, and — when a `score` is included — updates `#previewScore` at animation end.
 
-**Fire whenever a star is earned.** The animation IS how the user visually "receives" a star — no animation, no felt reward. Typical fire sites:
-- **Multi-round game, 1 star per correct round:** fire on each correct-answer handler. Pass `count: 1` and `score: gameState.score + '/' + gameState.totalRounds`.
-- **Standalone game, 1 round awards up to N stars:** fire once at end-of-game (after feedback audio) with `count: stars` and `score: stars + '/' + N`.
-- **End-of-game summary celebration** (optional, multi-round): fire inside the victory / stars-collected TransitionScreen's `onMounted` with the cumulative tier for a closing flourish.
+**Scope — ONCE per game, at the end-of-game celebration only.** Do NOT fire `show_star` on every correct answer. It is the single-shot big-celebration beat, not a per-round effect. Per-round score bumps and question-label updates use `previewScreen.setScore(...)` / `previewScreen.setQuestionLabel(...)` directly (no animation). Firing `show_star` N times in a multi-round game plays N stacked animations and spams the player — regression caught twice in QA (equivalent-ratio-quest, equivalent-ratios).
 
-Each fire plays the animation and bumps the header atomically — sequence star-awarded moments after the round's SFX + sticker / TTS has finished awaiting so the celebration follows feedback rather than overlapping it.
+Fire locations:
+- **Standalone** (`totalRounds: 1`): inside `endGame` after all feedback audio completes, before setTimeout reveals Next.
+- **Multi-round** (`totalRounds > 1`): inside the victory / stars-collected TransitionScreen's `onMounted` (or `onDismiss`), after celebration audio completes. NOT inside the per-round correct handler.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|

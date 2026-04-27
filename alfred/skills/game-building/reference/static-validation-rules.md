@@ -153,6 +153,22 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | GEN-FLOATING-BUTTON-RETRY-STANDALONE | Spec has `totalRounds: 1` AND `totalLives > 1` AND FloatingButton is used, but no `on('retry', ...)` handler — standalone games with multiple lives MUST wire the Try Again flow per PART-050. Multi-round games use TransitionScreen retry buttons (unaffected). | error | game-archetypes (constraint #8 sub-rule), game-building (code-patterns, PART-050) | Covered |
 | GEN-FLOATING-BUTTON-RETRY-LIVES-RESET | `on('retry', ...)` handler body contains a lives reset (`gameState.lives = gameState.totalLives` or `gameState.lives = <literal>`) — Try Again MUST preserve the already-decremented lives; a reset defeats the lives mechanic. | error | game-building (code-patterns, PART-050) | Covered |
 
+## AnswerComponent
+
+All rules in this block auto-skip when the spec declares `answerComponent: false` (PART-051 opt-out). Same trust model as `floatingButton: false`.
+
+| Rule ID | Check | Severity | Alfred Skill | Status |
+|---------|-------|----------|--------------|--------|
+| GEN-ANSWER-COMPONENT-INSTANTIATE | Spec does NOT declare `answerComponent: false` but source never instantiates `new AnswerComponentComponent(...)`. Catches the "forgot to wire AnswerComponent" regression for new games. Skipped when no spec is found alongside the HTML (ad-hoc validator runs). | error | game-building (code-patterns, PART-051) | Covered |
+| GEN-ANSWER-COMPONENT-CDN | `new AnswerComponentComponent(` referenced but neither `answer-component/index.js` nor `components/index.js` script tag is present | error | game-building (code-patterns, PART-051) | Covered |
+| GEN-ANSWER-COMPONENT-SLOT | `new AnswerComponentComponent(` referenced but `ScreenLayout.inject(...)` does not pass `answerComponent: true` in its `slots` | error | game-building (code-patterns, PART-051) | Covered |
+| GEN-ANSWER-COMPONENT-SHOW-AFTER-FEEDBACK | AnswerComponent is instantiated but no `answerComponent.show({ slides })` call is found, OR all `.show(...)` calls appear in source BEFORE any `await FeedbackManager.play(...)`. Reveal must follow feedback completion. | error | game-building (code-patterns, PART-051) | Covered |
+| GEN-ANSWER-COMPONENT-AFTER-CELEBRATION | Multi-round games (`totalRounds > 1`) that use TransitionScreen call `answerComponent.show(...)` inside `endGame()`. The reveal must be reached only via the Stars Collected `onMounted` setTimeout calling a `showAnswerCarousel()`-style function — NOT directly from `endGame()` and NOT from a Victory `Claim Stars` action that skips Stars Collected. The Stars Collected TS stays mounted (no `transitionScreen.hide()` in `onMounted` — see default-transition-screens.md). Calling AnswerComponent.show earlier steals the celebration moment AND forces a multi-stage Next handler. | error | game-building (code-patterns, PART-051) | Covered |
+| GEN-ANSWER-COMPONENT-NEXT-SINGLE-STAGE | The `floatingBtn.on('next', ...)` handler is a two-stage exit — body invokes a celebration screen (`showStarsCollected(`, `transitionScreen.show(`) AND either hides the button mid-handler (`setMode(null)`) or branches on a flag (`if (!gameState.starsCollectedShown) {...}`). Next must be single-stage: destroy AnswerComponent + post `next_ended` + destroy floating button (and preview if applicable). | error | game-building (code-patterns, PART-051) | Covered |
+| GEN-ANSWER-COMPONENT-NOT-IN-PREVIEW | `answerComponent.show(...)` is called inside an `if (previewScreen.isActive())` / `state === 'preview'` true-branch. The component must never appear during preview state. | error | game-building (code-patterns, PART-051) | Covered |
+| GEN-ANSWER-COMPONENT-DESTROY | AnswerComponent is instantiated but `.destroy()` is never called. Wire it from `floatingBtn.on('next', ...)` (and from `restartGame()` if the game supports restart). | error | game-building (code-patterns, PART-051) | Covered |
+| GEN-ANSWER-COMPONENT-SLIDE-SHAPE | `answerComponent.show({ slides: [...] })` contains a slide entry with a `html:` or `element:` key. Slides MUST use the `render(container)` callback shape ONLY. | error | game-building (code-patterns, PART-051) | Covered |
+
 ## Timer
 
 | Rule ID | Check | Severity | Alfred Skill | Status |

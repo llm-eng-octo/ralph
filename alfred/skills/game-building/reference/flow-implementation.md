@@ -20,9 +20,10 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 | Welcome | TransitionScreenComponent | `ts.show({ title, buttons:[{text:"I'm ready"}], onMounted: () => FeedbackManager.sound.play(vo, {sticker}) })` |
 | Round N intro | TransitionScreenComponent | `ts.show({ title:"Round N", onMounted: () => sound.play(round_n) })` — await sound, then `ts.hide()` |
 | Ready to improve your score? | TransitionScreenComponent | tap-dismiss, onMounted fires motivation VO |
-| Yay stars collected! | TransitionScreenComponent | persists until Next tap; onMounted awaits sound, fires show_star, schedules setMode('next'); FloatingButton 'next' handler hides the screen + destroys preview + posts game_exit |
+| Yay stars collected! | TransitionScreenComponent | **Celebration backdrop — stays mounted, auto-hands-off to AnswerComponent (PART-051 default flow).** `buttons: []`, `persist: true`. `onMounted` awaits the yay sound, fires `show_star` (star animation), then via `setTimeout` (~1500 ms) calls `showAnswerCarousel()`. **Does NOT call `transitionScreen.hide()` in `onMounted`** (per default-transition-screens.md). AnswerComponent + FloatingButton('next') appear OVER the still-mounted celebration card. The Stars Collected screen is never user-dismissed; tapping Next on the FloatingButton tears down everything (AnswerComponent + TS + preview + floating) and posts `next_ended`. When `answerComponent: false`, the legacy chain applies — `onMounted` schedules `setMode('next')` directly, FloatingButton `next` handler hides the screen + destroys preview + posts `next_ended`. |
 | Victory / Game Over | TransitionScreenComponent | with `stars` + `buttons` |
 | Submit / Retry / Next | FloatingButtonComponent | Define `isSubmittable()` over `gameState`; every input/state-change handler calls `floatingBtn.setSubmittable(isSubmittable())`. `floatingBtn.on('submit', async () => { await feedback; floatingBtn.setMode(correct ? 'next' : 'retry'); })`. Ctor: `new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' })`. Requires `slots.floatingButton: true` in `ScreenLayout.inject()`. See PART-050. |
+| Correct Answers panel | AnswerComponentComponent | Multi-round: revealed by `showAnswerCarousel()` — called from inside the Stars Collected `onMounted` setTimeout. The Stars Collected TS stays mounted (NO `transitionScreen.hide()` in the hand-off); the answer card appears OVER the still-visible celebration backdrop. `showAnswerCarousel()` calls `answerComponent.show({ slides: rounds.map(r => ({ render: c => renderAnswerForRound(r, c) })) })` then `floatingBtn.setMode('next')`. **NEVER call `answerComponent.show(...)` from `endGame()` or from a Victory `Claim Stars` action — that skips the celebration and triggers the two-stage Next regression** (`GEN-ANSWER-COMPONENT-AFTER-CELEBRATION`, `GEN-ANSWER-COMPONENT-NEXT-SINGLE-STAGE`). The `next` handler is single-stage: destroy AnswerComponent + post `next_ended` + destroy preview + destroy floating button (the still-mounted Stars Collected TS tears down with the iframe). Standalone (`totalRounds: 1`): show + setMode('next') happens in `endGame()` directly (no TransitionScreen). Ctor: `new AnswerComponentComponent({ slotId: 'mathai-answer-slot' })`. Requires `slots.answerComponent: true` in `ScreenLayout.inject()`. Slides are render-callbacks only. Single-slide path disables nav. Skipped entirely when spec has `answerComponent: false`. See PART-051. |
 | Gameplay | bare DOM | inject into `.game-stack` |
 
 ## Component invariants
@@ -105,17 +106,7 @@ async function startGame() {
     if (verdict.correct) {
       state.progress++;                     // game-specific policy — swap the condition to match your metric
       progressBar.update(state.progress, state.livesLeft);
-      // Fire show_star — the user VISIBLY earns a star. ActionBar plays the
-      // flying-star animation and applies `score` to #previewScore at the
-      // animation's end, atomically tying counter bump to the celebration.
-      window.postMessage({
-        type: 'show_star',
-        data: {
-          count: 1,
-          variant: 'yellow',
-          score: state.progress + '/' + totalRounds
-        }
-      }, '*');
+      previewScreen.setScore(state.progress + '/' + totalRounds);  // header counter bumps, no animation
     } else {
       state.livesLeft--;
       if (state.livesLeft === 0) return showGameOver();
@@ -129,21 +120,21 @@ async function startGame() {
 
 ## ActionBar header state updates — MANDATORY
 
-The header's `#previewScore` and `#previewQuestionLabel` text are state-driven — games MUST refresh them on every progression change. Star-earned moments fire `show_star` (animation + score bump together, the user-visible reward); non-award moments use direct `previewScreen.setScore(...)` / `previewScreen.setQuestionLabel(...)` (no animation, just a value update).
+The header's `#previewScore` and `#previewQuestionLabel` text are state-driven — games MUST refresh them on every progression change. Mid-round updates use direct `previewScreen.setScore(...)` / `previewScreen.setQuestionLabel(...)` (no animation). The `show_star` flying-star animation is reserved for the ONE end-of-game celebration beat — firing it per round plays the animation N times in a row and spams the player (equivalent-ratio-quest + equivalent-ratios regressions).
 
 | Moment | Call | Animation? |
 |---|---|---|
 | After `previewScreen` is instantiated (in `startGameAfterPreview`) | `previewScreen.setQuestionLabel('Q1')` + `previewScreen.setScore('0/' + totalRounds)` | No |
 | Round advance (new round begins, multi-round) | `previewScreen.setQuestionLabel('Q' + gameState.currentRound)` | No |
-| **Correct answer, star earned (mid-round, multi-round)** | `window.postMessage({type:'show_star', data:{count:1, variant:'yellow', score: gameState.score + '/' + totalRounds}}, '*')` — fires ONCE per correct answer | **Yes** |
-| **End-of-game celebration (standalone multi-star rating)** | `window.postMessage({type:'show_star', data:{count: stars, variant:'yellow', score: stars + '/' + N}}, '*')` | **Yes** |
+| Correct answer evaluated mid-round (score bumps) | `previewScreen.setScore(gameState.score + '/' + totalRounds)` | No |
 | Non-award score mutation (penalty, undo) | `previewScreen.setScore(gameState.score + '/' + totalRounds)` | No |
+| **End-of-game celebration (once per session)** | `window.postMessage({type:'show_star', data:{count, variant:'yellow', score: gameState.score + '/' + totalRounds}}, '*')` | **Yes** — `score` applied AFTER the 1 s flying-star animation |
 
-The animation IS how the user visually "receives" a star — if the counter bumps without an animation, the reward feels missing. Fire `show_star` whenever a star is earned.
+**Never fire `game_init` from game code to update these fields.** Games already have a `handlePostMessage` listener that processes `game_init` by calling `setupGame()` — a re-fire would reset state with fallback content. The direct methods + end-of-game show_star mutate header DOM in-process and bypass the message bus.
 
-**Never fire `game_init` from game code to update these fields.** Games already have a `handlePostMessage` listener that processes `game_init` by calling `setupGame()` — a re-fire would reset state with fallback content. Use the show_star / direct-method APIs only; they mutate header DOM in-process and bypass the message bus.
+**Never fire `show_star` per round.** It is a one-time end-of-game celebration, not a per-correct-answer effect. If you need a per-round score bump, use `previewScreen.setScore(...)` directly.
 
-**Validator gate:** `GEN-HEADER-REFRESH` errors if a FloatingButton-using, PreviewScreen-using game never updates the header.
+**Validator gates:** `GEN-HEADER-REFRESH` errors if the header never updates. `GEN-SHOW-STAR-ONCE` errors if `show_star` is fired more than once.
 
 ## End-of-game star-award animation (`show_star`) — MANDATORY
 

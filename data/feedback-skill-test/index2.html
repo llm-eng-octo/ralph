@@ -976,13 +976,24 @@ async function handleIncorrect(tileIndex, tileValue, expectedValue) {
       } catch(e) {}
     }
 
+    // CASE 7/8 — wrong answer: ALWAYS play wrong SFX (even on last life)
+    try {
+      await Promise.all([
+        FeedbackManager.sound.play('incorrect_sound_effect', {
+          sticker: { image: STICKER_URLS.incorrect, duration: 2, type: 'IMAGE_GIF' },
+          subtitle: 'Not quite'
+        }),
+        new Promise(function(r) { setTimeout(r, 1500); })
+      ]);
+    } catch(e) {}
+    // Remove wrong class after audio
+    for (var j = 0; j < wrongTiles.length; j++) {
+      var t = document.querySelector('.grid-tile[data-index="' + wrongTiles[j] + '"]');
+      if (t) t.classList.remove('wrong');
+    }
+
     if (gameState.lives <= 0) {
-      // CASE 8 — last life, skip wrong SFX, go to game over
-      // Remove wrong class immediately
-      for (var j = 0; j < wrongTiles.length; j++) {
-        var t = document.querySelector('.grid-tile[data-index="' + wrongTiles[j] + '"]');
-        if (t) t.classList.remove('wrong');
-      }
+      // Last life lost: wrong SFX already played above, now go to game over
       gameState.pendingEndProblem = {
         id: 'round_' + (gameState.currentRound + 1),
         outcome: { correct: false, reason: 'lives_exhausted', chainsFound: gameState.chainsFound }
@@ -990,18 +1001,6 @@ async function handleIncorrect(tileIndex, tileValue, expectedValue) {
       gameState.isProcessing = false;
       await handleGameOver();
     } else {
-      // CASE 7 — wrong answer with lives remaining, awaited wrong SFX
-      try {
-        await FeedbackManager.sound.play('incorrect_sound_effect', {
-          sticker: { image: STICKER_URLS.incorrect, duration: 2, type: 'IMAGE_GIF' },
-          subtitle: 'Not quite'
-        });
-      } catch(e) {}
-      // Remove wrong class after audio
-      for (var j = 0; j < wrongTiles.length; j++) {
-        var t = document.querySelector('.grid-tile[data-index="' + wrongTiles[j] + '"]');
-        if (t) t.classList.remove('wrong');
-      }
       gameState.isProcessing = false;
     }
   } catch(e) {
