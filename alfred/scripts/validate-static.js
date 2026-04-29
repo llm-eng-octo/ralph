@@ -2871,7 +2871,8 @@ if (hasStartGame) {
   // Auto-skips for standalone games (totalRounds === 1) — those are barred
   // from TransitionScreen entirely by GEN-FLOATING-BUTTON-STANDALONE-TS-
   // FORBIDDEN, so there's no Victory TS to enforce.
-  if (!isStandalone) {
+  const isStandaloneEarly = specContext.totalRounds === 1;
+  if (!isStandaloneEarly) {
     const victoryShowPattern = /transitionScreen\s*\.\s*show\s*\(\s*\{[\s\S]{0,3000}?\}\s*\)/g;
     let vsm;
     while ((vsm = victoryShowPattern.exec(html)) !== null) {
