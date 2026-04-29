@@ -4749,3 +4749,77 @@ describe('GEN-ROUNDSETS-MIN-3 — fallbackContent.rounds must contain ≥ 3 dist
     );
   });
 });
+
+describe('ActionBar stars-immutable contract', () => {
+  it('fires GEN-ACTIONBAR-STARS-IMMUTABLE when game code calls .setScore(...)', () => {
+    const html = VALID_HTML.replace('</body>', `<script>previewScreen.setScore('1/3');</script></body>`);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-ACTIONBAR-STARS-IMMUTABLE'),
+      `Expected GEN-ACTIONBAR-STARS-IMMUTABLE. Output: ${output}`,
+    );
+  });
+
+  it('fires GEN-QUESTION-LABEL-IMMUTABLE when game code calls .setQuestionLabel(...)', () => {
+    const html = VALID_HTML.replace('</body>', `<script>previewScreen.setQuestionLabel('Q2');</script></body>`);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-QUESTION-LABEL-IMMUTABLE'),
+      `Expected GEN-QUESTION-LABEL-IMMUTABLE. Output: ${output}`,
+    );
+  });
+
+  it('fires GEN-QUESTION-LABEL-FORMAT on non-Q+N labels (e.g., L1)', () => {
+    const html = VALID_HTML.replace('</body>', `<script>var fallback = { questionLabel: 'L1' };</script></body>`);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-QUESTION-LABEL-FORMAT'),
+      `Expected GEN-QUESTION-LABEL-FORMAT. Output: ${output}`,
+    );
+  });
+
+  it('does NOT fire GEN-QUESTION-LABEL-FORMAT on canonical Q+N labels', () => {
+    const html = `<!DOCTYPE html><html><body>
+<script>
+  var fallback = { questionLabel: 'Q1' };
+  var seed = { questionLabel: 'Q42' };
+</script>
+</body></html>`;
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-QUESTION-LABEL-FORMAT'),
+      `Expected no GEN-QUESTION-LABEL-FORMAT. Output: ${output}`,
+    );
+  });
+
+  it('fires GEN-SHOW-STAR-REQUIRED for PreviewScreen+FloatingButton games without show_star', () => {
+    const html = `<!DOCTYPE html><html><body>
+<script>
+  var previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+  var floatingBtn = new FloatingButtonComponent({});
+  // No show_star postMessage anywhere.
+</script>
+</body></html>`;
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail. Output: ${output}`);
+    assert.ok(
+      output.includes('GEN-SHOW-STAR-REQUIRED'),
+      `Expected GEN-SHOW-STAR-REQUIRED. Output: ${output}`,
+    );
+  });
+
+  it('does NOT fire GEN-SHOW-STAR-REQUIRED when a show_star postMessage with count is present', () => {
+    const html = `<!DOCTYPE html><html><body>
+<script>
+  var previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+  var floatingBtn = new FloatingButtonComponent({});
+  window.postMessage({ type: 'show_star', data: { count: 3, variant: 'yellow' } }, '*');
+</script>
+</body></html>`;
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-SHOW-STAR-REQUIRED'),
+      `Expected no GEN-SHOW-STAR-REQUIRED. Output: ${output}`,
+    );
+  });
+});
