@@ -15,7 +15,7 @@ Sub-agents (spawned via the Agent tool) do NOT inherit MCP server configurations
 | Step 1: Draft Spec | SUB-AGENT | Text generation only |
 | Step 2: Validate Spec | SUB-AGENT | Checklist review only |
 | Step 3: Plan Game | SUB-AGENT | Text generation only |
-| Step 4: Build Game | SUB-AGENT | Code generation only |
+| Step 4: Build Game | SUB-AGENT *(MAIN CONTEXT if interaction pattern is in the override table — see below)* | Code generation only, unless the build needs live MCP doc lookups (e.g. context7 for `@dnd-kit/dom`) |
 | Step 5: Deterministic Validation | SUB-AGENT | Static checks, no browser needed |
 | Step 6: Test and Fix | **MAIN CONTEXT** | Requires Playwright for browser testing |
 | Step 7: Visual Review | **MAIN CONTEXT** | Requires Playwright for screenshots |
@@ -30,6 +30,22 @@ Sub-agents (spawned via the Agent tool) do NOT inherit MCP server configurations
 **MAIN CONTEXT steps:** Run directly in the orchestrator's context. Use Playwright MCP tools (browser_navigate, browser_screenshot, browser_click, etc.) if available, or fall back to Playwright via Bash (see pattern below).
 
 **Why this matters:** A sub-agent delegated for testing will silently fall back to static code analysis instead of real browser testing. This produces false confidence — tests "pass" without ever running in a browser.
+
+### Step 4 main-context override
+
+Before spawning the Step 4 sub-agent, inspect the approved spec's interaction pattern. If the pattern appears in the table below, run Step 4 **in the main orchestrator context** (write the HTML directly via the `Write` tool, calling `mcp__context7__query-docs` on demand for the library's live API surface). Sub-agents cannot reach context7 and will silently hand-roll a substitute (e.g. native `pointerdown` handlers instead of `@dnd-kit/dom`) that passes some validators but violates the interaction skill.
+
+| Pattern | Library | Trigger signal in spec |
+|---------|---------|------------------------|
+| P6 (drag-and-drop) | `@dnd-kit/dom@beta` (`https://esm.sh/@dnd-kit/dom@beta`) | `Input: Drag-and-drop`, `Pattern P6`, archetype Board Puzzle (#6) or Construction (#7) with drag mechanic |
+
+Add new rows here when a future pattern requires an MCP-fetched library at build time. This list is also mirrored in repo-root `CLAUDE.md` — keep them in sync.
+
+**How to run Step 4 in main context:**
+1. Read all the same skill / parts files Step 4's sub-agent prompt would have read.
+2. Call `mcp__context7__resolve-library-id` + `query-docs` for each library in the override table that applies to this build.
+3. Write `games/<gameId>/index.html` via the `Write` tool. Do NOT keep the full file content in subsequent context — re-read targeted slices only when validators or testing reveal issues.
+4. Proceed to Step 5 normally.
 
 ### Playwright Test Runner Pattern (Main Context)
 

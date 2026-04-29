@@ -49,6 +49,16 @@ Sub-agents (Agent tool) **do not inherit MCP server connections**. The orchestra
 - `[SUB-AGENT]` — text/code generation, can be delegated.
 - `[MAIN CONTEXT]` — Steps 6, 7, 8 require Playwright MCP and **must** run in the main orchestrator context. Delegating these to a sub-agent silently falls back to static code analysis (no real browser) and produces false confidence.
 
+### Step 4 execution mode override
+
+Step 4 (Build) defaults to `[SUB-AGENT]`, but if the spec's interaction pattern requires a CDN library whose live API docs the sub-agent cannot fetch (sub-agents do not inherit MCP servers like context7), Step 4 **must** run in `[MAIN CONTEXT]` so the orchestrator can call `mcp__context7__query-docs` on demand while writing the HTML.
+
+| Pattern | Library | Why main context |
+|---------|---------|------------------|
+| P6 (drag-and-drop) | `@dnd-kit/dom@beta` via `https://esm.sh/@dnd-kit/dom@beta` | API surface (DragDropManager / Draggable / Droppable / monitor / sensors) needs context7 lookups during build |
+
+Add new rows here when a future pattern requires an MCP-fetched library at build time. The orchestrator reads this table before Step 4 and routes accordingly. A sub-agent that doesn't have the docs will guess the API and silently hand-roll a substitute (e.g. native `pointerdown` instead of `@dnd-kit/dom`), which `validate-static.js` rule `GEN-DND-KIT` is meant to catch — but the routing rule prevents the mistake at the source.
+
 ## Prerequisites
 
 - Claude Code with the project opened at this repo root.

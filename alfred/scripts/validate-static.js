@@ -287,9 +287,17 @@ const nativeDragSignals = [
 ];
 const foundNativeDrag = nativeDragSignals.filter((s) => s.pattern.test(html));
 const hasDndKitImport = /esm\.sh\/@dnd-kit\/dom|from\s+["']@dnd-kit\/dom/i.test(html);
+// Hand-rolled pointer-event sensor: pointerdown/pointermove/pointerup wired to chip/slot/draggable
+// shaped attributes. Catches games that don't use the canonical drop-zone/drag-item class names but
+// still implement drag via custom pointer handlers (the loophole that let hexa-numbers pass).
+const hasHandRolledPointerSensor =
+  /addEventListener\(["']pointerdown["']/.test(html) &&
+  /\bdata-(chip|slot|drag|drop|tag|piece|tile)-id\b/i.test(html) &&
+  /addEventListener\(["']pointer(move|up)["']/.test(html);
 const looksLikeDragGame =
   foundNativeDrag.length > 0 ||
   hasDndKitImport ||
+  hasHandRolledPointerSensor ||
   /\bdnd-tag\b|\bdrop-zone\b|\bdrag-item\b|\bdrop-slot\b/.test(html) ||
   /\bDragDropManager\b|\bnew\s+Draggable\s*\(|\bnew\s+Droppable\s*\(/.test(html);
 
@@ -306,14 +314,25 @@ if (foundNativeDrag.length > 0) {
   }
 }
 
-if (looksLikeDragGame && !hasDndKitImport && foundNativeDrag.length === 0) {
-  // Game has drag-shaped class names / drop zones but no dnd-kit import and no native drag either —
-  // likely means the LLM rolled a custom pointer-event drag. Warn; contract validator + Playwright
-  // will catch behavioural gaps.
+if (hasHandRolledPointerSensor && !hasDndKitImport) {
+  // Hard error: a hand-rolled pointerdown/pointermove/pointerup sensor against chip/slot/drag/drop
+  // shaped data-attributes is a P6 implementation that bypasses @dnd-kit/dom. This is a CRITICAL
+  // skill violation — sub-agents that lack context7 access tend to invent this. Fail the build so
+  // the orchestrator knows to re-run Step 4 in main context per CLAUDE.md's Step 4 override.
+  errors.push(
+    'GEN-DND-KIT: Hand-rolled pointer-event drag sensor detected (pointerdown/pointermove/pointerup ' +
+      'on data-chip/slot/drag/drop-id elements) but no @dnd-kit/dom import found. ' +
+      'Per PART-043 and alfred/skills/interaction/SKILL.md, every P6 drag-and-drop game MUST use ' +
+      '@dnd-kit/dom from https://esm.sh/@dnd-kit/dom@beta — DragDropManager / Draggable / Droppable. ' +
+      'Hand-rolled pointer sensors are forbidden. ' +
+      'Re-run Step 4 in MAIN CONTEXT (see CLAUDE.md "Step 4 execution mode override") so the orchestrator ' +
+      'can call mcp__context7__query-docs for the @dnd-kit/dom API.',
+  );
+} else if (looksLikeDragGame && !hasDndKitImport && foundNativeDrag.length === 0) {
+  // Drag-shaped class names but no clear sensor — likely an in-progress build. Warn only.
   warnings.push(
     'WARNING: Drag-shaped HTML detected (drop-zone / drag-item / dnd-tag classes) but no @dnd-kit/dom import found. ' +
-      'Per PART-043, every drag-and-drop game MUST load @dnd-kit/dom from https://esm.sh/@dnd-kit/dom@beta. ' +
-      'Hand-rolled pointer-event drag implementations are not supported.',
+      'Per PART-043, every drag-and-drop game MUST load @dnd-kit/dom from https://esm.sh/@dnd-kit/dom@beta.',
   );
 }
 
