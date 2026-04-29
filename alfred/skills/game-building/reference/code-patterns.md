@@ -697,33 +697,110 @@ Victory, Game Over, Play Again, and Try Again render **inside** the preview wrap
 - **Victory** → `stars: gameState.stars`, title "Victory 🎉", per-game subtitle, buttons depend on stars: `Claim Stars` alone for 3★, `Play Again` + `Claim Stars` (horizontal) otherwise.
 - **Stars Collected** → no icons/stars/subtitle/buttons, two-line title via `styles: { title: { whiteSpace: 'pre-line' } }`, auto-dismiss via `duration: 2500`.
 
+**FloatingButton ownership (CRITICAL — see default-transition-screens.md "FloatingButton ownership per screen" table).** Victory / Game Over / Motivation render in-card buttons that own SEMANTIC end-game ACTIONS (`Play Again`, `Claim Stars`, `Try Again`, `I'm ready`). FloatingButton owns NAVIGATION VERBS (`Next`, `Continue`, `Done`, `Finish`) and is HIDDEN while these cards are visible. `setMode('next')` is reserved for AnswerComponent reveal (or, when `answerComponent: false`, Stars Collected `onMounted` after audio). Two regression patterns are now blocked by validator rules:
+
+1. ❌ **Putting `text: 'Next'` (or other navigation verb) inside a TS button** → `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN`. The Next CTA is FloatingButton's job.
+2. ❌ **Stripping Victory `buttons:` to `[]` and routing via `onDismiss`** → `GEN-VICTORY-BUTTONS-REQUIRED`. `Claim Stars` and `Play Again` are SEMANTIC ACTIONS, not navigation verbs — they are NOT in the reserved list and MUST stay on the Victory card. Victory dismisses via explicit button taps only, never tap-anywhere.
+3. ❌ **Calling `transitionScreen.show({title: 'Victory', ...})` without first calling `floatingBtn.setMode('hidden')`** → `GEN-FLOATING-BUTTON-LIFECYCLE`. A stale floating button competes with the in-card Claim Stars / Play Again buttons.
+
+### Canonical Victory snippet (multi-round, AnswerComponent enabled)
 ```javascript
 async function showVictory() {
   gameState.phase = 'results';
   gameState.isActive = false;
   syncDOM();
-  progressBar.update(totalRounds, gameState.livesLeft);
+  try { progressBar.update(gameState.currentRound, gameState.livesLeft || 0); } catch (e) {}
+  try { floatingBtn.setMode('hidden'); } catch (e) {}                  // ← required by GEN-FLOATING-BUTTON-LIFECYCLE
+  const stars = gameState.stars;
+  const buttons = stars === 3
+    ? [{ text: 'Claim Stars', type: 'primary', action: showStarsCollected }]
+    : [
+        { text: 'Play Again',  type: 'secondary', action: showMotivation },
+        { text: 'Claim Stars', type: 'primary',   action: showStarsCollected }
+      ];
   await transitionScreen.show({
-    title: /* from screens.md */ 'Victory!',
-    stars: getStars(),
-    // Buttons: copy verbatim from screens.md Elements table for the victory screen.
-    // Include conditional rules (e.g. "Play Again only if stars < 3") if screens.md states them.
-    buttons: [
-      // { text: '<exact label from screens.md>', type: 'primary', action: () => { transitionScreen.hide(); /* route per screens.md exit condition */ } }
-    ],
-    onMounted: () => FeedbackManager.sound.play('sound_game_victory', { sticker: STICKER_CELEBRATE })
+    stars,
+    title: 'Victory 🎉',
+    subtitle: getVictorySubtitle(),                                     // game-specific from screens.md
+    buttons,
+    persist: true,
+    onMounted: () => {
+      postGameComplete();                                               // BEFORE audio (data-contract)
+      FeedbackManager.sound.play('sound_game_victory', { sticker: STICKER_CELEBRATE });
+    }
   });
 }
+```
+
+### Canonical Stars Collected → AnswerComponent → next_ended chain
+```javascript
+async function showStarsCollected() {
+  gameState.phase = 'stars_collected';
+  syncDOM();
+  await transitionScreen.show({
+    title: "Yay!\nStars collected!",
+    buttons: [],
+    persist: true,
+    styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+    onMounted: async () => {
+      await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY });
+      window.postMessage({
+        type: 'show_star',
+        data: { count: gameState.stars, variant: 'yellow', score: gameState.score + '/' + gameState.totalRounds }
+      }, '*');
+      setTimeout(showAnswerCarousel, 1500);                             // hand off after star animation
+    }
+  });
+}
+
+function showAnswerCarousel() {
+  answerComponent.show({ slides: getReviewSlides() });
+  floatingBtn.setMode('next');                                          // ← only place navigation-verb Next lives
+  floatingBtn.on('next', () => {
+    window.parent.postMessage({ type: 'next_ended' }, '*');
+    answerComponent.destroy();
+    previewScreen.destroy();
+    floatingBtn.destroy();
+  });
+}
+```
+
+### Canonical Standalone end-flow (`totalRounds === 1`, no TransitionScreen)
+```javascript
+// TransitionScreen is FORBIDDEN in standalone games (GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN).
+// The end state lives inline in #gameContent — worked example, stars, message — and FloatingButton's
+// `next` mode is the ONLY navigation verb.
+async function endStandaloneGame(result) {
+  postGameComplete();                                                   // BEFORE audio
+  await safePlaySound(result.correct ? 'correct_sound_effect' : 'incorrect_sound_effect',
+                       { sticker: result.correct ? STICKER_CORRECT : STICKER_INCORRECT });
+  document.getElementById('gameContent').innerHTML = renderEndPanel(result);
+  floatingBtn.setMode('next');
+  floatingBtn.on('next', () => {
+    window.parent.postMessage({ type: 'next_ended' }, '*');
+    floatingBtn.destroy();
+  });
+}
+```
+
+```javascript
+// showVictory — see "Canonical Victory snippet" above for the full shape with
+// floatingBtn.setMode('hidden') + conditional buttons. The snippet above is
+// authoritative; copy from it rather than reconstructing from this skeleton.
 
 async function showGameOver() {
   gameState.phase = 'game_over';
   gameState.isActive = false;
   syncDOM();
+  try { floatingBtn.setMode('hidden'); } catch (e) {}                   // GEN-FLOATING-BUTTON-LIFECYCLE
   await transitionScreen.show({
     title: /* from screens.md */ 'Game Over',
+    icons: ['😔'],
+    subtitle: 'You ran out of lives!',
+    persist: true,
     // Buttons: copy verbatim from screens.md. Do NOT add an Exit/Cancel/Skip unless screens.md lists one.
     buttons: [
-      // { text: '<exact label from screens.md>', type: 'primary', action: () => { transitionScreen.hide(); /* route per screens.md exit condition */ } }
+      { text: 'Try Again', type: 'primary', action: showMotivation }
     ],
     onMounted: () => FeedbackManager.sound.play('sound_game_over', { sticker: STICKER_SAD })
   });
