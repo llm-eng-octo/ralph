@@ -5,7 +5,7 @@ analysis + manual observation from `docs/lessons-learned.md`.
 
 Use this as the **primary input for R&D slot selection**. Update after every build cycle.
 
-**Last updated:** 2026-03-22 (added Ranks 12–14 from RCA analysis of builds 450–515; added R&D recommendation #6 T1-after-fix)
+**Last updated:** 2026-04-28 (added Rank 15: waitForPackages fail-open via `||` ScreenLayout — preview never mounts on cold load)
 
 ---
 
@@ -38,6 +38,7 @@ Use this as the **primary input for R&D slot selection**. Update after every bui
 | 12 | **`endGame()` does not set `gameState.phase = 'game_over'` before postMessage** | game-flow | 7 builds (#453,457,463,471,473,487,514), 5 games | memory-flip, count-and-tap, light-up, one-digit-doubles, match-the-cards | `endGame()` sends postMessage but skips `gameState.phase = 'game_over'; syncDOMState()` — `#app[data-phase]` stays `'playing'`, `waitForPhase('gameover')` times out | open — no T1 check for endGame phase assignment; gen prompt rule 8 is too vague to prevent | — |
 | 13 | **postMessage returns null (game_complete not received by harness)** | contract | 4 builds (#465,479/480,509), 2 games | keep-track, disappearing-numbers | Three sub-causes: (A) async delay before postMessage fires, (B) wrong `type` field (e.g. `'game_over'`), (C) endGame() crashes before postMessage runs | open — fix loop cannot repair across 3 iterations; requires triage context improvement | — |
 | 14 | **Results/victory screen hidden after endGame** | game-flow | 5 builds (#479,480,483,503,513), 3 games | disappearing-numbers, keep-track, associations | `gameState.phase = 'game_complete'` not in syncDOMState normalization map → data-phase never becomes 'results' → results screen CSS never triggers | open — syncDOMState harness missing 'game_complete'→'results' mapping; gen prompt doesn't mandate 'results' phase | 68 |
+| 15 | **`waitForPackages` fail-open gate — preview never mounts on cold load** | CDN init | 3 of 3 audited games at fix time (sweep April 2026) | age-matters, spot-the-pairs, cross-logic | Two deviation modes from a stale skill template: (A) `(typeof PreviewScreenComponent !== 'undefined' \|\| typeof ScreenLayout !== 'undefined')` short-circuits as soon as `ScreenLayout` registers (which happens BEFORE `PreviewScreenComponent` in the same bundle's IIFE); (B) `if (typeof X !== 'undefined') new X(...)` silent-skip pattern with X never in waitForPackages at all. Both produce `previewScreen === null` on cold loads, masked by silent `try { ... } catch (e) {}` instantiation blocks. Invisible on warm reloads (bundle cached). | resolved — single source of truth at `alfred/skills/game-building/reference/mandatory-components.md`; validator rules `GEN-WAITFORPACKAGES-NO-OR` (5f3h), `GEN-WAITFORPACKAGES-MISSING` (5f3i), `GEN-SLOT-INSTANTIATION-MATCH` (5f3j) reject the bad shapes at T1; Step 6 Category 1.5 (cold-load init readiness) added as runtime backstop; standalone fallback now re-checks the gate and renders attributable error if any class is undefined; html-template + code-patterns + PART-003 templates rewritten with hard `&&` gate and attributable catches | L-INIT-001..005 |
 
 ---
 
