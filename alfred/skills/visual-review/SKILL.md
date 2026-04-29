@@ -159,7 +159,7 @@ Output the verdict block as specified in the Output section.
 
 5. **Static validation is a hard gate at ENTRY and EXIT of this skill — not only after fixes.**
 
-   - **ENTRY:** The FIRST action when invoking this skill is to run `node lib/validate-static.js <game-html-path>`. If exit ≠ 0, your first job is to fix the validator errors BEFORE conducting any visual review. The file may contain a boundary / contract violation committed by a previous visual-review invocation or by Step 6's test-and-fix loop — a re-run does not automatically make stale violations clean.
+   - **ENTRY:** The FIRST action when invoking this skill is to run `node alfred/scripts/validate-static.js <game-html-path>`. If exit ≠ 0, your first job is to fix the validator errors BEFORE conducting any visual review. The file may contain a boundary / contract violation committed by a previous visual-review invocation or by Step 6's test-and-fix loop — a re-run does not automatically make stale violations clean.
 
    - **EXIT:** Run the validator again immediately before emitting the APPROVED verdict, EVERY time, regardless of whether you applied any changes this run. Exit code MUST be 0.
 
@@ -217,7 +217,7 @@ When the spec does not mention visual design:
 6. **Never treat an existing anti-pattern as a passing checklist item on re-review.**
    - Negative: "Preview instruction hidden after skip — PASS (offsetHeight=0). VERDICT: APPROVED." ← This PASS is measuring the effect of a boundary violation that a previous run committed. The screenshot result looks fine; the code is illegal.
    - Negative: "Header shows 0/1 instead of CDN default 0/3 — PASS. Fixes from previous pass are stable. VERDICT: APPROVED." ← Same problem: the stability of a banned fix doesn't make it correct.
-   - Positive: On re-review entry, ran `node lib/validate-static.js` → exit 1 (`5e0-DOM-BOUNDARY`: getElementById('previewInstruction'), getElementById('previewScore')). Identified previous run's "fix" as a boundary violation. Reverted the hide code and the score-override code. Re-ran validator → exit 0. Re-screenshotted gameplay → instruction now visible in scroll area (by-design per PART-039), no layout break. VERDICT: APPROVED.
+   - Positive: On re-review entry, ran `node alfred/scripts/validate-static.js` → exit 1 (`5e0-DOM-BOUNDARY`: getElementById('previewInstruction'), getElementById('previewScore')). Identified previous run's "fix" as a boundary violation. Reverted the hide code and the score-override code. Re-ran validator → exit 0. Re-screenshotted gameplay → instruction now visible in scroll area (by-design per PART-039), no layout break. VERDICT: APPROVED.
 
 5. **Never hardcode thresholds that belong to mobile.md.**
    - Negative: "Buttons must be 44px minimum, spacing 8px, viewport 375x667, contrast 4.5:1..." (restating mobile.md)

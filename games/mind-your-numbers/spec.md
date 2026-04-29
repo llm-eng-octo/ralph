@@ -101,12 +101,21 @@ Mirrors the source-concept's Round 1 exactly.
 | 2 | sum of all four | 1,2,3,4 / **10** | 2,5,1,4 / **12** | 3,3,4,2 / **12** |
 | 3 | max − min | 9,3,2,7 / **7** | 10,4,6,2 / **8** | 9,5,1,6 / **8** |
 
+### Difficulty Axis
+
+Difficulty rises along **arithmetic-rule complexity** (canonical L4 "dimensional complexity"):
+- **Stage 1 (Round 1):** Single binary operation applied identically to two pairs (product-of-pairs). Two pair-confirmations of the same rule reduce ambiguity.
+- **Stage 2 (Round 2):** Single operation across all four outers (sum). Tests whether the student abandons R1's pairing assumption.
+- **Stage 3 (Round 3):** Compound rule requiring identification of extremes before subtraction (max − min). Two-step inference.
+
+Each stage = 1 target round. Three round-sets (A/B/C) provide parallel-difficulty rerolls of the same three stages — same rule per stage across sets, different outer numbers.
+
 ---
 
 ## Game Parameters
 
 - **Rounds:** 3 (one target cluster per round, hand-designed).
-- **Timer:** 60 seconds per round (starts on entering gameplay; round advance resets it). L4 content, but rounds are short — timer adds a pacing pressure without being punitive.
+- **Timer:** 60 seconds per round, implemented via PART-006 TimerComponent. All duration-derived logic must source from `timer.getTimeTaken()` / `timer.getElapsedTimes()`. Round advance calls `timer.reset()`; visibility-hidden calls `timer.pause()`; visibility-restored calls `timer.resume()`. L4 content, but rounds are short — timer adds a pacing pressure without being punitive.
 - **Lives:** 3 (standard hearts). Wrong CHECK → life −1; when lives hit 0 → game-over.
 - **Star rating** (tied to first-attempt solves):
   - **3 stars** = all 3 rounds solved on first CHECK
@@ -199,6 +208,8 @@ const fallbackContent = {
     // Target:    9,2,6,3 → 18 (9×2=18, 6×3=18)
     // ---------------------------------------------------------
     {
+      id: 'A_r1_product',
+      set: 'A',
       round: 1,
       rule: 'product-of-pairs',
       ruleHint: 'top-left × top-right = bottom-left × bottom-right = centre',
@@ -220,6 +231,8 @@ const fallbackContent = {
     // Target:    3,3,4,2 → 12
     // ---------------------------------------------------------
     {
+      id: 'A_r2_sum',
+      set: 'A',
       round: 2,
       rule: 'sum',
       ruleHint: 'sum of all four outer numbers',
@@ -241,6 +254,8 @@ const fallbackContent = {
     // Target:    9,5,1,6 → 8
     // ---------------------------------------------------------
     {
+      id: 'A_r3_range',
+      set: 'A',
       round: 3,
       rule: 'max-minus-min',
       ruleHint: 'largest outer − smallest outer',
@@ -250,6 +265,114 @@ const fallbackContent = {
         { label: 'Target',    colorScheme: 'pink',   outers: { tl: 9, tr: 5, bl: 1, br: 6 }, centre: null }
       ],
       answer: 8,
+      misconception_tags: {
+        'sum-not-range':     "Sums all four instead of taking max − min.",
+        'first-minus-second': "Subtracts top-right from top-left (tl − tr) instead of max − min."
+      }
+    },
+    // ============================================================
+    // SET B
+    // ============================================================
+    {
+      id: 'B_r1_product',
+      set: 'B',
+      round: 1,
+      rule: 'product-of-pairs',
+      ruleHint: 'top-left × top-right = bottom-left × bottom-right = centre',
+      clusters: [
+        { label: 'Example 1', colorScheme: 'yellow', outers: { tl: 2, tr: 5, bl: 2, br: 5 }, centre: 10 },
+        { label: 'Example 2', colorScheme: 'purple', outers: { tl: 3, tr: 4, bl: 2, br: 6 }, centre: 12 },
+        { label: 'Target',    colorScheme: 'pink',   outers: { tl: 4, tr: 5, bl: 2, br: 10 }, centre: null }
+      ],
+      answer: 20,
+      misconception_tags: {
+        'sum-not-product':  "Sums all four outer numbers instead of multiplying paired rows.",
+        'wrong-pairing':    "Pairs diagonally (tl×bl) or (tl×br) instead of top-row and bottom-row."
+      }
+    },
+    {
+      id: 'B_r2_sum',
+      set: 'B',
+      round: 2,
+      rule: 'sum',
+      ruleHint: 'sum of all four outer numbers',
+      clusters: [
+        { label: 'Example 1', colorScheme: 'yellow', outers: { tl: 2, tr: 2, bl: 3, br: 3 }, centre: 10 },
+        { label: 'Example 2', colorScheme: 'purple', outers: { tl: 4, tr: 1, bl: 5, br: 2 }, centre: 12 },
+        { label: 'Target',    colorScheme: 'pink',   outers: { tl: 5, tr: 3, bl: 2, br: 4 }, centre: null }
+      ],
+      answer: 14,
+      misconception_tags: {
+        'product-instead-of-sum': "Carries the product-of-pairs rule from Round 1.",
+        'sum-three-of-four':      "Omits one outer number while summing."
+      }
+    },
+    {
+      id: 'B_r3_range',
+      set: 'B',
+      round: 3,
+      rule: 'max-minus-min',
+      ruleHint: 'largest outer − smallest outer',
+      clusters: [
+        { label: 'Example 1', colorScheme: 'yellow', outers: { tl: 8, tr: 2, bl: 5, br: 3 }, centre: 6 },
+        { label: 'Example 2', colorScheme: 'purple', outers: { tl: 9, tr: 4, bl: 3, br: 7 }, centre: 6 },
+        { label: 'Target',    colorScheme: 'pink',   outers: { tl: 10, tr: 5, bl: 2, br: 7 }, centre: null }
+      ],
+      answer: 8,
+      misconception_tags: {
+        'sum-not-range':     "Sums all four instead of taking max − min.",
+        'first-minus-second': "Subtracts top-right from top-left (tl − tr) instead of max − min."
+      }
+    },
+    // ============================================================
+    // SET C
+    // ============================================================
+    {
+      id: 'C_r1_product',
+      set: 'C',
+      round: 1,
+      rule: 'product-of-pairs',
+      ruleHint: 'top-left × top-right = bottom-left × bottom-right = centre',
+      clusters: [
+        { label: 'Example 1', colorScheme: 'yellow', outers: { tl: 3, tr: 3, bl: 1, br: 9 }, centre: 9 },
+        { label: 'Example 2', colorScheme: 'purple', outers: { tl: 2, tr: 8, bl: 4, br: 4 }, centre: 16 },
+        { label: 'Target',    colorScheme: 'pink',   outers: { tl: 7, tr: 2, bl: 2, br: 7 }, centre: null }
+      ],
+      answer: 14,
+      misconception_tags: {
+        'sum-not-product':  "Sums all four outer numbers instead of multiplying paired rows.",
+        'wrong-pairing':    "Pairs diagonally (tl×bl) or (tl×br) instead of top-row and bottom-row."
+      }
+    },
+    {
+      id: 'C_r2_sum',
+      set: 'C',
+      round: 2,
+      rule: 'sum',
+      ruleHint: 'sum of all four outer numbers',
+      clusters: [
+        { label: 'Example 1', colorScheme: 'yellow', outers: { tl: 1, tr: 3, bl: 2, br: 4 }, centre: 10 },
+        { label: 'Example 2', colorScheme: 'purple', outers: { tl: 3, tr: 2, bl: 5, br: 3 }, centre: 13 },
+        { label: 'Target',    colorScheme: 'pink',   outers: { tl: 4, tr: 4, bl: 3, br: 2 }, centre: null }
+      ],
+      answer: 13,
+      misconception_tags: {
+        'product-instead-of-sum': "Carries the product-of-pairs rule from Round 1.",
+        'sum-three-of-four':      "Omits one outer number while summing."
+      }
+    },
+    {
+      id: 'C_r3_range',
+      set: 'C',
+      round: 3,
+      rule: 'max-minus-min',
+      ruleHint: 'largest outer − smallest outer',
+      clusters: [
+        { label: 'Example 1', colorScheme: 'yellow', outers: { tl: 7, tr: 3, bl: 4, br: 1 }, centre: 6 },
+        { label: 'Example 2', colorScheme: 'purple', outers: { tl: 8, tr: 5, bl: 2, br: 6 }, centre: 6 },
+        { label: 'Target',    colorScheme: 'pink',   outers: { tl: 9, tr: 4, bl: 2, br: 5 }, centre: null }
+      ],
+      answer: 7,
       misconception_tags: {
         'sum-not-range':     "Sums all four instead of taking max − min.",
         'first-minus-second': "Subtracts top-right from top-left (tl − tr) instead of max − min."
@@ -274,6 +397,7 @@ const fallbackContent = {
 - **Feedback style:** FeedbackManager playDynamicFeedback with STICKER_CORRECT/STICKER_WRONG on correct/wrong; TTS subtitle mirrors audio; fire-and-forget per PART-017.
 - **Scaffolding:** on wrong CHECK, reveal the correct numeric answer in a small label (no retry in same round).
 - **Preview screen:** included (default `previewScreen: true` — PART-039). Instruction text verbatim from source concept.
+- **Timer component:** PART-006 TimerComponent declared for the 60 s round timer.
 
 ---
 

@@ -1,6 +1,6 @@
 ### PART-024: TransitionScreen Component
 
-**Source of truth:** `warehouse/parts/PART-024-transition-screen.md`
+**Source of truth:** `alfred/parts/PART-024-transition-screen.md`
 
 **Purpose:** Welcome, round intro, level / section intro, motivation, victory, game over, stars collected — every between-phase screen except Preview.
 
@@ -25,4 +25,4 @@ Injects into `#mathai-transition-slot` (sibling of `#gameContent` inside `.game-
 
 **Default transition screens.** The 4 standard end-of-flow transitions (`game_over`, `motivation`, `victory`, `stars_collected`) have canonical templates in `alfred/skills/game-planning/reference/default-transition-screens.md`. Structure is fixed; strings come from `screens.md` (copied from the defaults unless the spec overrides).
 
-See `warehouse/parts/PART-024-transition-screen.md` for full detail.
+See `alfred/parts/PART-024-transition-screen.md` for full detail.

@@ -1,1 +1,0 @@
-../../../games/quadratic-formula-worked-example/spec.md

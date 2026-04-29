@@ -342,4 +342,4 @@ Skipped entirely when spec has `answerComponent: false`.
 - [ ] For a multi-round game, slide count equals round count and counter shows `1/N` … `N/N`.
 - [ ] For a `totalRounds: 1` standalone game with one answer, prev/next are disabled and counter shows `1/1`.
 - [ ] Slide payloads use `render(container)` only — no `html` / `element` keys.
-- [ ] `node lib/validate-static.js <game-html>` exits 0.
+- [ ] `node alfred/scripts/validate-static.js <game-html>` exits 0.

@@ -32,21 +32,21 @@ Students tap the correct double of a target number from a single horizontal row 
 
 ## Rounds & Progression
 
-### Stage / Level 1: "Easy doubles" (Rounds 1–5)
+### Stage / Level 1: "Easy doubles" (R1–R5)
 - Round type: A.
 - Target numbers N: small and round (6, 10, 11, 8, 12).
 - Distractors: near-miss `2N ± 2` + plausible wrong like `N + 10`.
 - Cognitive demand: Automatic recall from the 2× table.
 - Target first-attempt rate: 85–95%.
 
-### Stage / Level 2: "Medium doubles" (Rounds 6–10)
+### Stage / Level 2: "Medium doubles" (R6–R10)
 - Round type: A.
 - Target numbers N: mid-range (13, 14, 16, 17, 15).
 - Distractors: slightly tighter (`2N ± 4`, swap digits, operation-reversal like `N / 2 × 3`).
 - Cognitive demand: Recall where re-adding is tempting.
 - Target first-attempt rate: 70–85%.
 
-### Stage / Level 3: "Harder doubles" (Rounds 11–15)
+### Stage / Level 3: "Harder doubles" (R11–R15)
 - Round type: A.
 - Target numbers N: largest (18, 19, 22, 23, 25).
 - Distractors: tightest (`2N ± 2`, magnitude-error like `20 + N`).
@@ -65,7 +65,12 @@ Students tap the correct double of a target number from a single horizontal row 
 
 ## Game Parameters
 - **Rounds:** 15 (3 stages × 5 rounds each)
-- **Timer:** None (global). Per-answer response time is captured for star calculation; no visible countdown.
+- **Timer:** **PART-006 TimerComponent — REQUIRED (mandatory trigger).** Star grading depends on per-answer duration, so this game declares PART-006 per the spec-review checklist E3a rule: any spec with speed/duration/time-pressure concepts MUST use TimerComponent and source duration from `timer.getTimeTaken()` / `timer.getElapsedTimes()`. Hand-rolled `Date.now()` is forbidden in player-visible logic per PART-006 § "Forbidden patterns".
+  - **Mode:** count-up stopwatch, started at the first round-intro tap (or auto-start of Round 1) and reset+restarted at the start of each round so per-round elapsed = `timer.getTimeTaken()` at the moment of the option tap.
+  - **Visibility:** the TimerComponent IS mounted into the game header (`#timer-container` / `mathai-preview-header-center`) and IS visible — the player sees their per-round elapsed time. The component's standard 1-second tick is acceptable because the count-up display is informational only; star grading uses `timer.getElapsedTimes()` which returns the array of per-round elapsed values that the timer captures at each `timer.reset()`/`timer.stop()` boundary.
+  - **Star-band precision:** `timer.getElapsedTimes()` returns each round's elapsed seconds as a number (the CDN exposes a millisecond-precision boundary capture even though the visible tick is 1s). `getStars()` averages the elapsed values for rounds where `attempts[i].correct === true` and applies the `<2.0s` / `<3.5s` / else bands.
+  - **Telemetry:** `recordAttempt({ response_time_ms })` continues to fire per attempt, sourced from the same `timer.getTimeTaken()` value (multiplied to ms) — NOT from `Date.now()`. This keeps PART-009 analytics intact while the timer remains the single source of truth.
+  - **No countdown:** the timer is count-up only — there is no global game-end countdown. Lives (3) end the game on exhaustion; rounds (15) end the game on completion.
 - **Lives:** 3 (**DARK / BLACK hearts** — distinct from the red hearts in other games in this pack, per source concept).
 - **Star rating (by AVERAGE response time on CORRECT answers across all completed rounds):**
   - **3 stars** = average correct answer time **< 2.0 seconds**
@@ -122,8 +127,8 @@ Students tap the correct double of a target number from a single horizontal row 
 ## Feedback
 | Event | Behavior |
 |-------|----------|
-| Option tap (correct) | Button highlights **solid green** (white text) ~350ms; `recordAttempt({correct: true})` fires FIRST; `FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_CORRECT }).catch(...)` fire-and-forget (no 1500ms floor — speed game); progress bar bumps rounds-completed FIRST; auto-advance to next round intro within ~400ms. |
-| Option tap (wrong, lives > 0) | Tapped button flashes **red** for 400ms; correct button simultaneously highlights solid green; `recordAttempt({correct: false, misconception_tag})` fires BEFORE audio; lives -= 1; `progressBar.update(roundsCompleted, livesRemaining)` called FIRST; `await Promise.all([FeedbackManager.sound.play('incorrect_sound_effect', {sticker: STICKER_WRONG}), new Promise(r => setTimeout(r, 1500))])`; fire-and-forget TTS "Double of N is 2N" via `playDynamicFeedback`; auto-advance to next round intro. |
+| Option tap (correct) | Capture `elapsedSec = timer.getTimeTaken()`; button highlights **solid green** (white text) ~350ms; `recordAttempt({correct: true, response_time_ms: elapsedSec * 1000})` fires FIRST (response time sourced from TimerComponent — never `Date.now()`); `FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_CORRECT }).catch(...)` fire-and-forget (no 1500ms floor — speed game); progress bar bumps rounds-completed FIRST; `timer.reset()` then `timer.start()` for next round; auto-advance to next round intro within ~400ms. |
+| Option tap (wrong, lives > 0) | Capture `elapsedSec = timer.getTimeTaken()`; tapped button flashes **red** for 400ms; correct button simultaneously highlights solid green; `recordAttempt({correct: false, response_time_ms: elapsedSec * 1000, misconception_tag})` fires BEFORE audio (response time sourced from TimerComponent); lives -= 1; `progressBar.update(roundsCompleted, livesRemaining)` called FIRST; `await Promise.all([FeedbackManager.sound.play('incorrect_sound_effect', {sticker: STICKER_WRONG}), new Promise(r => setTimeout(r, 1500))])`; fire-and-forget TTS "Double of N is 2N" via `playDynamicFeedback`; `timer.reset()` then `timer.start()` for next round; auto-advance to next round intro. |
 | Option tap (wrong, last life) | Same wrong-SFX sequence (NEVER skip wrong SFX per feedback SKILL constraint 3) + correct answer reveal, THEN transition to Game Over. `game_complete` postMessage fires BEFORE game-over audio. |
 | Complete all 15 rounds | Compute stars from average correct response time; render Victory transition screen; `game_complete` postMessage BEFORE audio; play victory SFX + fire-and-forget TTS ("You averaged X.Xs — N stars!"). Buttons: `Play Again` (if stars < 3), `Claim Stars`. |
 | Stage 1 → Stage 2 (after Round 5) | TransitionScreen: title "Level 2 — Faster!"; subtitle "Average time: {X.X}s · Target: under 2s"; button "Continue" → Round 6 intro. `onMounted` plays `rounds_sound_effect`. |
@@ -140,7 +145,7 @@ const fallbackContent = {
   previewAudio: null,          // patched at deploy time by TTS pipeline
   showGameOnPreview: false,
   rounds: [
-    // ===== Stage 1: Easy doubles (Rounds 1-5) =====
+    // ===== Stage 1: Easy doubles (R1–R5) =====
     { round: 1,  stage: 1, type: 'A', n: 6,  options: [12, 10, 14], answer: 12,
       misconception_tags: { '10': 'off-by-2-under', '14': 'off-by-2-over' } },
     { round: 2,  stage: 1, type: 'A', n: 10, options: [22, 20, 18], answer: 20,
@@ -152,7 +157,7 @@ const fallbackContent = {
     { round: 5,  stage: 1, type: 'A', n: 12, options: [20, 28, 24], answer: 24,
       misconception_tags: { '20': 'off-by-4-under', '28': 'off-by-4-over' } },
 
-    // ===== Stage 2: Medium doubles (Rounds 6-10) =====
+    // ===== Stage 2: Medium doubles (R6–R10) =====
     { round: 6,  stage: 2, type: 'A', n: 13, options: [26, 22, 30], answer: 26,
       misconception_tags: { '22': 'off-by-4-under', '30': 'off-by-4-over' } },
     { round: 7,  stage: 2, type: 'A', n: 14, options: [24, 28, 26], answer: 28,
@@ -164,7 +169,7 @@ const fallbackContent = {
     { round: 10, stage: 2, type: 'A', n: 15, options: [30, 25, 35], answer: 30,
       misconception_tags: { '25': 'additive-reasoning-N+10', '35': 'off-by-5-over' } },
 
-    // ===== Stage 3: Harder doubles (Rounds 11-15) =====
+    // ===== Stage 3: Harder doubles (R11–R15) =====
     { round: 11, stage: 3, type: 'A', n: 18, options: [36, 34, 38], answer: 36,
       misconception_tags: { '34': 'off-by-2-under', '38': 'off-by-2-over' } },
     { round: 12, stage: 3, type: 'A', n: 19, options: [38, 36, 40], answer: 38,
@@ -193,10 +198,12 @@ const fallbackContent = {
 - **Archetype:** **Lives Challenge (#3)** with speed-game feedback timing (correct = instant advance, matching source concept "zero delay"). Rationale: 3 lives + MCQ + 15 rounds + speed-based star grading matches Lives Challenge most closely; Speed Blitz was rejected because there is no global countdown timer.
 - **Rounds:** 15 (spec-driven: 3 levels × 5 rounds).
 - **Lives:** 3 dark hearts (spec-driven; explicit call-out in source concept).
-- **Timer:** None globally. Per-answer response-time captured for star calculation.
+- **Timer:** **PART-006 TimerComponent declared and mounted.** Required by spec-review checklist rule E3a because star tiers and feedback depend on duration thresholds (speed-gate star bands `<2.0s` / `<3.5s`). Duration values for grading and telemetry source from `timer.getTimeTaken()` / `timer.getElapsedTimes()` only — hand-rolled `Date.now()` for player-visible logic is explicitly forbidden by PART-006. Count-up mode, per-round reset, visible in header. See Game Parameters § Timer for full integration details.
 - **Star thresholds:** defaulted to average-correct-response-time buckets `<2s / <3.5s / else` per source concept "<2s for 3 stars"; the 2-star band (<3.5s) was added to avoid the known UX issue from the One Digit Doubles audit (UI-ODD-006) where 2-star thresholds must appear in-game.
 - **Feedback style:** FeedbackManager with speed-game correct-side override (fire-and-forget, no 1500ms dwell) — justified because source concept explicitly requires "zero delay / instant transition". Wrong side follows the standard awaited 1500ms dwell per PART-017 `5e0-FEEDBACK-MIN-DURATION`.
 - **Preview screen:** enabled (default `previewScreen: true` per PART-039).
+- **FloatingButton:** PART-050 included strictly for end-of-game `Next` mode (the harness needs the `next_ended` postMessage). The Submit / Retry modes are NOT used — gameplay auto-evaluates on tap, and a wrong tap with lives remaining auto-advances to the next round (no Try Again on individual rounds in this multi-round game; lives = 0 → Game Over → Try Again button on the TransitionScreen). `setSubmittable(false)` is called at startup so the button stays hidden through all 15 rounds; `setMode('next')` is called only inside the Stars Collected / Game Over `onMounted` handoff after the celebration animation.
+- **AnswerComponent:** PART-051 enabled (default). One slide per round (15 slides total), each rendering the prompt "Double of N" plus the correct doubled value, revealed AFTER Stars Collected celebration.
 
 ## Warnings
 - **WARNING — Correct-answer SFX is fire-and-forget (deviates from standard 1500ms dwell).** Source concept explicitly requires "zero delay; game immediately transitions". Correct SFX plays in the background as the next round renders. Wrong SFX still uses the standard awaited `Promise.all([..., 1500ms])` dwell per PART-017. Validator rule `5e0-FEEDBACK-MIN-DURATION` applies only to wrong-side and end-game SFX in this game; the correct-side deviation is documented here and must match the planner's feedback table. If the validator flags correct-side fire-and-forget as a violation, the plan overrides — speed game takes precedence.

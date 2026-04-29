@@ -26,9 +26,9 @@ Deletion trigger: retire when `MathAIHelpers.SubjectiveEvaluation` is replaced b
 
 ## Reads
 
-- `warehouse/parts/PART-015-validation-llm.md` — canonical PART spec (code + verification) — **ALWAYS**
-- `warehouse/packages/helpers/subjective-evaluation/usage.html` — working reference implementation — **ON-DEMAND**
-- `warehouse/mathai-game-builder/workflows/checklists/subjective-evaluation.md` — full integration checklist (deep reference) — **ON-DEMAND**
+- `alfred/parts/PART-015-validation-llm.md` — canonical PART spec (code + verification) — **ALWAYS**
+- `alfred/skills/subjective-evaluation/reference/usage.html` — working reference implementation — **ON-DEMAND**
+- `alfred/skills/subjective-evaluation/reference/integration-checklist.md` — full integration checklist (deep reference) — **ON-DEMAND**
 - `skills/feedback/SKILL.md` — audio feedback integration for evaluation results — **ALWAYS** (if feedback_prompt is used)
 - `skills/interaction/SKILL.md` — P7 textarea pattern — **ON-DEMAND**
 - `skills/data-contract/SKILL.md` — `recordAttempt` shape for LLM validation — **ALWAYS**
@@ -186,7 +186,7 @@ Follow `skills/feedback/SKILL.md` constraint 8: audio failure is non-blocking; f
 
 ### Step 9 — Verify
 
-Run the checklist in `warehouse/parts/PART-015-validation-llm.md` § Verification. Every item must pass before the game is considered complete.
+Run the checklist in `alfred/parts/PART-015-validation-llm.md` § Verification. Every item must pass before the game is considered complete.
 
 ---
 

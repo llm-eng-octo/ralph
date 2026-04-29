@@ -1,1 +1,0 @@
-../../../games/which-ratio/spec.md

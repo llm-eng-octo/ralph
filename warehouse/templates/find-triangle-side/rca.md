@@ -1,1 +1,0 @@
-../../../games/find-triangle-side/rca.md

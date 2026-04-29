@@ -1,0 +1,747 @@
+# PART-026: Anti-Patterns (Common Mistakes)
+
+**Category:** REFERENCE | **Condition:** Always loaded as verification checklist (not a code-generating part) | **Dependencies:** PART-002, PART-003
+
+---
+
+## Purpose
+
+Critical mistakes that LLMs commonly make when generating game HTML. Avoid ALL of these.
+
+## Anti-Pattern 1: Manual Timer Implementation
+
+```javascript
+// WRONG - Do NOT create custom timers
+let seconds = 60;
+setInterval(() => {
+  seconds--;
+  document.getElementById("timer").textContent = seconds;
+}, 1000);
+```
+
+**Correct:** Use `TimerComponent` from PART-006.
+
+## Anti-Pattern 2: Direct Audio Creation
+
+```javascript
+// WRONG - Do NOT use new Audio()
+const sound = new Audio("correct.mp3");
+sound.play();
+```
+
+**Correct:** Use `FeedbackManager.sound.play()` from PART-017.
+
+## Anti-Pattern 0: Hallucinated or Relative Script URLs
+
+```html
+<!-- WRONG: Relative paths — these files do NOT exist on disk -->
+<script src="../../../warehouse/packages/timer-component.js"></script>
+<script src="../../../warehouse/packages/progress-bar-component.js"></script>
+<script src="../../../warehouse/packages/signal-collector.js"></script>
+
+<!-- WRONG: Invented CDN domains — none of these exist -->
+<script src="https://cdn.homeworkapp.ai/packages/FeedbackManager.js"></script>
+<script src="https://cdn.homeworkapp.ai/packages/Components.js"></script>
+<script src="https://cdn.homeworkapp.ai/packages/Helpers.js"></script>
+<script src="https://cdn.homeworkapp.ai/sentry/helpers/sentry/index.js"></script>
+<script src="https://cdn.homeworkapp.ai/packages/mathai-widgets/latest/MathAIWidgets.js"></script>
+```
+
+**The game has exactly 4 script URLs. Copy them verbatim — never invent alternatives:**
+
+| What it loads | Exact URL |
+|---------------|-----------|
+| SentryConfig | `https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js` |
+| FeedbackManager | `https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js` |
+| Components | `https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js` |
+| Helpers | `https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js` |
+
+**These 3 bundles expose ALL game classes.** There are no separate script files per class:
+
+| Class | Comes from |
+|-------|-----------|
+| `FeedbackManager` | `feedback-manager/index.js` |
+| `TimerComponent` | `components/index.js` |
+| `ProgressBarComponent` | `components/index.js` |
+| `TransitionScreenComponent` | `components/index.js` |
+| `ScreenLayout` | `components/index.js` |
+| `VisibilityTracker` | `helpers/index.js` |
+| `SignalCollector` | `helpers/index.js` |
+
+## Anti-Pattern 3: Wrong Package Loading Order
+
+```html
+<!-- WRONG ORDER -->
+<script src=".../components/index.js"></script>
+<script src=".../feedback-manager/index.js"></script>
+```
+
+**Correct:** FeedbackManager FIRST, then Components, then Helpers (PART-002).
+
+## Anti-Pattern 4: Missing waitForPackages
+
+```javascript
+// WRONG - Packages may not be loaded yet
+window.addEventListener("DOMContentLoaded", async () => {
+  await FeedbackManager.init(); // May throw "FeedbackManager is not defined"
+});
+```
+
+**Correct:** Always call `waitForPackages()` first (PART-003).
+
+## Anti-Pattern 5: Using SubtitleComponent.show() Directly
+
+```javascript
+// WRONG - SubtitleComponent is internal to FeedbackManager
+SubtitleComponent.show({ text: "Great job!" });
+```
+
+**Correct:** Pass subtitle as prop to `FeedbackManager.sound.play(id, { subtitle: '...' })`.
+
+## Anti-Pattern 6: No Timeout on Package Loading
+
+```javascript
+// WRONG - Hangs forever if CDN is down
+async function waitForPackages() {
+  while (typeof FeedbackManager === "undefined") {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+```
+
+**Correct:** Always include 10-second timeout (PART-003).
+
+## Anti-Pattern 7: Hardcoded Colors
+
+```css
+/* WRONG - Hardcoded values */
+.correct {
+  background: #219653;
+}
+.incorrect {
+  background: #e35757;
+}
+```
+
+**Correct:** Use CSS variables: `var(--mathai-green)`, `var(--mathai-red)` (PART-020).
+
+## Anti-Pattern 8: Non-Global onclick Handlers
+
+```javascript
+// WRONG - Function defined inside DOMContentLoaded
+window.addEventListener("DOMContentLoaded", () => {
+  function handleClick() {
+    /* ... */
+  } // Not accessible from HTML onclick
+});
+```
+
+**Correct:** Define functions at global scope (RULE-001).
+
+## Anti-Pattern 9: Missing VisibilityTracker
+
+```javascript
+// WRONG - Timer keeps running when tab is hidden
+const timer = new TimerComponent(...);
+timer.start();
+// No VisibilityTracker = timer never pauses
+```
+
+**Correct:** Always create VisibilityTracker with onInactive/onResume (PART-005).
+
+## Anti-Pattern 10: Raw Object Logging
+
+```javascript
+// WRONG - Objects don't display properly in some environments
+console.log("State:", gameState);
+```
+
+**Correct:** `console.log('State:', JSON.stringify(gameState, null, 2))` (RULE-004).
+
+## Anti-Pattern 11: Multiple Script/Style Blocks
+
+```html
+<!-- WRONG - Multiple blocks -->
+<style>
+  /* block 1 */
+</style>
+<style>
+  /* block 2 */
+</style>
+<script>
+  /* block 1 */
+</script>
+<script>
+  /* block 2 */
+</script>
+```
+
+**Correct:** Single `<style>` in `<head>`, single `<script>` in `<body>` (RULE-007).
+
+## Anti-Pattern 12: Using 100vh Instead of 100dvh
+
+```css
+/* WRONG - Doesn't account for mobile safe areas */
+.page-center {
+  min-height: 100vh;
+}
+```
+
+**Correct:** Use `100dvh` for mobile safe-area awareness (PART-021).
+
+## Anti-Pattern 13: Game HTML Outside ScreenLayout
+
+```html
+<!-- WRONG - Game content as sibling of #app, outside the layout wrapper -->
+<div id="app"></div>
+<div id="game-screen">
+  <div class="game-grid">...</div>
+</div>
+```
+
+**Correct:** Use `<template>` + cloneNode into `#gameContent` after `ScreenLayout.inject()` (PART-025).
+
+## Anti-Pattern 14: Grid Without Pixel Max-Width
+
+```css
+/* WRONG - Grid expands to full viewport width on desktop */
+.game-grid {
+  max-width: 100%;
+}
+```
+
+**Correct:** Always set a pixel cap: `max-width: 360px; margin: 0 auto;` (PART-027).
+
+## Anti-Pattern 15: Wrong API for Dynamic Audio (TTS)
+
+```javascript
+// WRONG - 'dynamic' is not a registered sound ID, causes permission popup with no audio
+await FeedbackManager.sound.play("dynamic", { text: "Great job!" });
+```
+
+**Correct:** `await FeedbackManager.playDynamicFeedback({ audio_content: '...', subtitle: '...' })` (PART-017).
+
+## Anti-Pattern 16: ProgressBar update() with Current Round Instead of Completed
+
+```javascript
+// WRONG - On a totalRounds=1 game, this shows "1/1" = 100% at game start
+progressBar.update(gameState.currentRound, lives); // currentRound starts at 1
+```
+
+**Correct:** Pass rounds COMPLETED (0 at start): `progressBar.update(0, lives)` (PART-023).
+
+## Anti-Pattern 17: Grid Cells Without overflow:hidden
+
+```css
+/* WRONG - Pseudo-elements (diagonal lines, badges) escape cell boundaries */
+.grid-cell {
+  /* no overflow rule */
+}
+```
+
+**Correct:** Always add `overflow: hidden` to grid cells that use `::before`/`::after` pseudo-elements.
+
+## Anti-Pattern 18: Using `sound.register()` Instead of `sound.preload()`
+
+```javascript
+// WRONG - register() does not exist on FeedbackManager.sound
+await FeedbackManager.sound.register('correct_tap', 'https://cdn.mathai.ai/.../audio.mp3');
+await FeedbackManager.sound.register('wrong_tap', 'https://cdn.mathai.ai/.../audio.mp3');
+```
+
+**Correct:** Use `preload()` with an array of `{id, url}` objects — a single batch call:
+```javascript
+await FeedbackManager.sound.preload([
+  { id: 'correct_tap', url: 'https://cdn.mathai.ai/.../audio.mp3' },
+  { id: 'wrong_tap', url: 'https://cdn.mathai.ai/.../audio.mp3' }
+]);
+```
+
+## Anti-Pattern 19: Using `sound.stopAll()` in VisibilityTracker
+
+```javascript
+// WRONG - stopAll() destroys audio state, resume() has nothing to work with
+onInactive: () => {
+  FeedbackManager.sound.stopAll();
+}
+```
+
+**Correct:** Use `sound.pause()` / `sound.resume()` to preserve audio state across tab switches (PART-005).
+
+## Anti-Pattern 20: Inline Stub/Polyfill for CDN Packages
+
+```html
+<!-- WRONG - Defining a stub class prevents the real CDN package from loading -->
+<script>
+  window.SignalCollector =
+    window.SignalCollector ||
+    class SignalCollector {
+      constructor(opts) {
+        this.opts = opts;
+      }
+      startProblem() {}
+      endProblem() {}
+      // ... stub methods
+    };
+</script>
+```
+
+The real CDN script checks `if (window.SignalCollector)` and skips initialization if it already exists. A stub will shadow the real package permanently.
+
+**Correct:** Never define inline stubs, polyfills, or fallback classes for CDN packages (FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector, ProgressBarComponent, TransitionScreenComponent, ScreenLayout). These are loaded via `<script>` tags (PART-002) and awaited by `waitForPackages()` (PART-003). If a package isn't available, `waitForPackages()` will timeout after 10s — that's the correct error path.
+
+## Anti-Pattern 21: Self-Recursive window.loadRound
+
+```javascript
+// WRONG — Infinite recursion → "Maximum call stack size exceeded"
+// In sloppy mode, unqualified loadRound() resolves to window.loadRound (the wrapper itself)
+window.loadRound = function(n) {
+  gameState.currentRound = n - 1;
+  loadRound();  // ← calls window.loadRound → calls itself → stack overflow
+};
+```
+
+**Correct:** Call the game's render function directly — never call `loadRound()` from inside `window.loadRound`:
+```javascript
+// RIGHT — calls renderRound (or renderQuestion, displayRound, etc.)
+window.loadRound = function(n) {
+  gameState.currentRound = n - 1;
+  gameState.gameEnded = false;
+  gameState.isProcessing = false;
+  renderRound();  // ← the actual render function, NOT loadRound
+};
+```
+
+Also never call `nextRound()` from `window.loadRound` — `nextRound` increments `currentRound` before rendering, causing a double-increment.
+
+## Anti-Pattern 22: Setting gameState.startTime Before Preview Ends
+
+```javascript
+// WRONG — startTime set during init, before preview screen finishes
+function setupGame() {
+  gameState.startTime = Date.now();  // Too early! Preview hasn't ended yet
+  gameState.isActive = true;
+  showPreviewScreen();
+}
+```
+
+**Correct:** Set `startTime` in `startGameAfterPreview()`, AFTER preview completes:
+```javascript
+function startGameAfterPreview(previewData) {
+  gameState.startTime = Date.now();  // Correct — preview is done
+  gameState.isActive = true;
+  renderRound();
+}
+```
+
+## Anti-Pattern 23: Using new Audio() for Preview Audio
+
+```javascript
+// WRONG — preview audio bypasses FeedbackManager
+const previewAudio = new Audio(content.previewAudio);
+previewAudio.play();
+```
+
+**Correct:** Use `FeedbackManager.sound.preload()` and `FeedbackManager.sound.play()` for all audio including preview.
+
+## Anti-Pattern 24: Not Tracking Preview Duration
+
+```javascript
+// WRONG — preview duration not recorded
+previewScreen.show({ onComplete: function() { startGame(); } });
+```
+
+**Correct:** Record preview duration in `duration_data.preview[]`:
+```javascript
+previewScreen.show({
+  onComplete: function(previewData) {
+    gameState.duration_data.preview = gameState.duration_data.preview || [];
+    gameState.duration_data.preview.push({ duration: previewData.duration });
+    startGameAfterPreview(previewData);
+  }
+});
+```
+
+## Anti-Pattern 25: Video Without Controls
+
+```html
+<!-- WRONG — user cannot play the video -->
+<video src="instruction.mp4" playsinline></video>
+```
+
+**Correct:** Always include `controls` + `playsinline` + `controlsList="nofullscreen"`:
+```html
+<video src="instruction.mp4" controls playsinline webkit-playsinline
+       preload="auto" controlsList="nofullscreen"></video>
+```
+
+## Anti-Pattern 26: Autoplay Video
+
+```html
+<!-- WRONG — autoplay is blocked by browser policies, fails silently -->
+<video src="instruction.mp4" autoplay controls playsinline></video>
+```
+
+**Correct:** User must explicitly tap play:
+```html
+<video src="instruction.mp4" controls playsinline controlsList="nofullscreen"></video>
+```
+
+## Anti-Pattern 27: Black Video Background
+
+```css
+/* WRONG — dark background clashes with app theme, hides dark video content */
+.video-container { background: #000; }
+```
+
+**Correct:** White background per production `VideoPart.tsx` pattern:
+```css
+.video-wrapper { background: white; border-radius: 12px; overflow: hidden; }
+```
+
+## Anti-Pattern 28: Forced Aspect Ratio on Video
+
+```css
+/* WRONG — forces video into unnatural proportions, causes black bars */
+.video-container { aspect-ratio: 9 / 16; width: 100%; height: 400px; }
+.video-container video { object-fit: contain; }
+```
+
+**Correct:** Let video determine its own natural dimensions:
+```css
+.video-wrapper { width: 100%; }
+.video-wrapper video { width: 100%; display: block; }
+```
+
+## Anti-Pattern 29: Video in Play Area
+
+```html
+<!-- WRONG — video inside interactive click/tap zone -->
+<div id="gameContent">
+  <div class="game-play-area">
+    <video src="instruction.mp4" controls></video>
+    <div class="options-container"><!-- clickable options --></div>
+  </div>
+</div>
+```
+
+**Correct:** Video in instruction area, interaction elements in play area:
+```html
+<div id="gameContent">
+  <div class="instruction-area">
+    <p class="instruction-text">Watch the pattern</p>
+    <div class="video-wrapper">
+      <video src="instruction.mp4" controls playsinline controlsList="nofullscreen"></video>
+    </div>
+  </div>
+  <div class="game-play-area">
+    <div class="options-container"><!-- clickable options --></div>
+  </div>
+</div>
+```
+
+## Anti-Pattern 30: new Audio() for Content Audio
+
+```javascript
+// WRONG — new Audio() violates RULE-006 and cannot be tracked in DOM
+var audio = new Audio('instruction.mp3');
+audio.play();
+```
+
+**Correct:** Use `<audio>` element in DOM with custom UI (PART-041):
+```html
+<audio id="gameAudio" preload="auto"><source src="instruction.mp3" type="audio/mpeg"></audio>
+```
+```javascript
+document.getElementById('gameAudio').play();
+```
+
+## Anti-Pattern 31: Native Controls on Content Audio
+
+```html
+<!-- WRONG — native controls look different per browser, don't match app design -->
+<audio src="instruction.mp3" controls></audio>
+```
+
+**Correct:** Hidden `<audio>` with custom play/pause icon + progress bar matching `RenderAudioBlock.tsx`:
+```html
+<div class="audio-player">
+  <img class="audio-play-btn" src=".../play-icon-yellow.svg" onclick="toggleAudioPlayback()" />
+  <div class="audio-progress-track"><div class="audio-progress-fill"></div></div>
+  <audio id="gameAudio" preload="auto"><source src="instruction.mp3"></audio>
+</div>
+```
+
+## Anti-Pattern 32: Promise.race Around FeedbackManager Calls
+
+```javascript
+// WRONG — 800ms ceiling wins over normal 1–3s TTS; round advances while audio still plays
+function audioRace(p) {
+  return Promise.race([ p, new Promise(r => setTimeout(r, 800)) ]);
+}
+await audioRace(FeedbackManager.sound.play('correct_sound_effect', { sticker }));
+```
+
+Symptom: rounds advance before feedback / VO finishes. Validator rule: `5e0-FEEDBACK-RACE-FORBIDDEN`.
+
+**Correct:** For awaited calls (submit-handler SFX, submit-handler TTS, round-complete SFX/TTS, transition-screen SFX/VO), plain `await` inside `try/catch`. For fire-and-forget calls (round-start TTS, chain-progress SFX, ambient SFX), `.catch()` on the unawaited Promise. Any template-level race is either redundant or bug-inducing. FeedbackManager already bounds resolution internally (see PART-017) — `sound.play` resolves within audio-duration + 1.5s, `playDynamicFeedback` within 60s.
+
+```javascript
+// RIGHT — submit-handler pattern: SFX awaited, TTS awaited (validator: GEN-FEEDBACK-TTS-AWAIT)
+try {
+  await FeedbackManager.sound.play('correct_sound_effect', { sticker });
+} catch (e) { /* non-blocking per feedback SKILL Rule 8 */ }
+// Dynamic TTS is AWAITED — explanation must finish before round advance, else
+// the subtitle/audio paints over the next round (equivalent-ratios regression).
+// Package bounds at 3 s API / 60 s streaming; try/catch swallows rejection.
+try {
+  await FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker });
+} catch (e) { /* non-blocking */ }
+// Do NOT re-enable inputs here. renderRound() / loadRound() is the single source of truth.
+```
+
+On transition screens (level / round / game-over with CTA), both may be awaited sequentially since the CTA is visible for interrupt.
+
+## Anti-Pattern 33: Custom Lives / Hearts Display Duplicating ProgressBar
+
+```javascript
+// WRONG — custom hearts strip inside #gameContent renders a second row of hearts
+// on top of the ProgressBarComponent's built-in lives strip
+injectGameHTML('<div class="lives-row" id="lives-row" data-testid="lives-row"></div>' + ...);
+function renderLivesRow() {
+  var row = document.getElementById('lives-row');
+  var html = '';
+  for (var i = 0; i < gameState.totalLives; i++) {
+    var lost = i >= gameState.lives;
+    html += '<span class="heart' + (lost ? ' lost' : '') + '">\u2764\uFE0F</span>';
+  }
+  row.innerHTML = html;
+}
+renderLivesRow();                                        // paints custom hearts
+progressBar.update(gameState.roundsCompleted, gameState.lives);  // paints CDN hearts
+```
+
+Symptom: two rows of hearts visible on-screen (one in the ProgressBar header, one inside `#gameContent`). Validator rule: `5e0-LIVES-DUP-FORBIDDEN`.
+
+**Root cause:** `ProgressBarComponent` constructor with `totalLives >= 1` already renders a hearts strip in `#mathai-progress-slot` and updates it on every `progressBar.update(round, lives)` call. Any additional game-owned element with a class/id matching `lives-*` / `hearts-*` / `heart` or any custom `renderLives*` / `updateLives*` / `renderHearts*` function paints a second, redundant hearts row.
+
+**Correct:** Do NOT inject a custom lives container, do NOT define a custom hearts renderer, do NOT emit `<span class="heart">` glyph elements in game HTML. The authoritative path is `progressBar.update(roundsCompleted, Math.max(0, gameState.lives))` — it owns the entire lives strip.
+
+```javascript
+// RIGHT — no custom hearts DOM; ProgressBar owns the lives strip
+progressBar.update(gameState.roundsCompleted, Math.max(0, gameState.lives));
+```
+
+If your spec needs a dramatic heart-break animation on wrong answer, target the CDN ProgressBar's rendered hearts (`.mathai-progress-heart` or similar — consult `warehouse/packages/components/progress-bar/index.js`) with a one-shot CSS class; do NOT replicate the hearts in your own DOM.
+
+**Source incident:** `scale-it-up-ratios` (2026-04-17) — injected `#lives-row` with a per-heart `<span class="heart">` loop and a `renderLivesRow()` function, producing a duplicate hearts row above the question alongside the ProgressBar's header strip.
+
+## Anti-Pattern 34: Bare `await` on Answer-Feedback `sound.play()` Without Minimum Duration
+
+```javascript
+// WRONG — sound.play() can resolve BEFORE the audio finishes playing;
+// round advances / tiles reset / game-over check runs while audio still audible
+try {
+  await FeedbackManager.sound.play('sound_life_lost', { sticker });
+} catch (e) { /* ... */ }
+// This line runs while life_lost audio may still be playing
+gameState.selectedTiles = [];
+gameState.isProcessing = false;
+```
+
+Symptom: incorrect/correct feedback audio gets cut short — next round starts, tiles reset, or game-over screen appears while the previous feedback sound is still playing. Previously `Promise.race` was banned (Anti-Pattern 32), but plain `await` has the same problem: `sound.play()` resolves early.
+
+Validator rule: `5e0-FEEDBACK-MIN-DURATION`.
+
+**Correct:** Wrap answer-feedback `sound.play()` in `Promise.all` with a 1500ms minimum delay floor. This guarantees the audio/sticker has at least 1.5 seconds to play AND waits for the sound promise, whichever is longer.
+
+```javascript
+// RIGHT — minimum 1500ms AND full audio duration, whichever is longer
+try {
+  await Promise.all([
+    FeedbackManager.sound.play('sound_life_lost', { sticker }),
+    new Promise(function(r) { setTimeout(r, 1500); })
+  ]);
+} catch (e) { /* ... */ }
+// Audio has fully played — safe to proceed
+```
+
+**Applies to these feedback sound IDs:** `sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_attempt1`, `all_incorrect_last_attempt`, `partial_correct_attempt1`, `partial_correct_last_attempt`.
+
+**Does NOT apply to:** VO audio (`vo_game_start`, `vo_level_start_*`, `vo_victory_stars_*`) or transition audio (`sound_game_complete`, `sound_game_over`, `sound_game_victory`) — these play during transition screens where no immediate state change follows.
+
+**Source incident:** `make-x` (2026-04-17) — `sound_life_lost` and `sound_correct` both resolved early, causing rounds to advance while feedback audio was still playing.
+
+## Anti-Pattern 35: Game HTML accessing PreviewScreenComponent private DOM
+
+```javascript
+// WRONG — game code reaches into a DOM node owned by PreviewScreenComponent.
+// The CDN component manages visibility via switchToGame()/destroy(); any reach-in
+// from game code is a boundary violation.
+function startGameAfterPreview() {
+  // ... game state init ...
+  var _pi = document.getElementById('previewInstruction');   // ← banned
+  if (_pi) _pi.style.display = 'none';
+}
+
+function restartGame() {
+  // ... reset ...
+  var _pi2 = document.getElementById('previewInstruction');  // ← banned
+  if (_pi2) _pi2.style.display = 'none';
+}
+```
+
+Symptom: game HTML toggles, hides, or re-parents DOM nodes that are owned by PreviewScreenComponent. The component already hides its overlay at `switchToGame()` time; a reach-in from game code competes with the component's own lifecycle and leaves the game tightly coupled to private implementation details. Validator rule: `5e0-DOM-BOUNDARY`.
+
+**Banned IDs (PreviewScreenComponent owns these — game code MUST NOT reference):**
+`previewInstruction`, `previewProgressBar`, `previewTimerText`, `previewQuestionLabel`, `previewScore`, `previewStar`, `previewSkipBtn`, `previewBackBtn`, `previewAvatarSpeaking`, `previewAvatarSilent`, `previewGameContainer`, `popup-backdrop`.
+
+**Banned class prefix:** `.mathai-preview-*` (via `querySelector`, `querySelectorAll`, or `classList.add/remove/toggle/contains`).
+
+**Public contract (game code MAY reference):** `#gameContent` and its children, `.game-stack`, `.game-block`, `.game-wrapper`, `.page-center`, and `#mathai-preview-slot` (the slot container, a legitimate fallback host — distinct from `.mathai-preview-*` class selectors).
+
+```javascript
+// RIGHT — game code operates only within #gameContent. No reach-ins.
+function startGameAfterPreview() {
+  // CDN has already called switchToGame(); the preview overlay is hidden by the component itself.
+  gameState.isActive = true;
+  gameState.startTime = Date.now();
+  syncDOM();
+  showRoundIntro();
+}
+
+function restartGame() {
+  // Reset state, repaint #gameContent. Preview is NOT re-shown — nothing to hide.
+  resetGameState();
+  if (!document.getElementById('matchBoard')) injectGameHTML();
+  showRoundIntro();
+}
+```
+
+If you need to fully remove the preview at end-of-game, call `previewScreen.destroy()` inside the FloatingButton `on('next', ...)` handler AFTER `next_ended` is posted — NOT in `endGame()`, because the header must stay mounted while the end-screen `show_star` animation plays. Never reach into preview DOM directly.
+
+**Why the instruction is intentionally persistent (read this before "fixing" the layout):** `switchToGame()` deliberately does NOT clear or hide `#previewInstruction`. After the transition, the instruction HTML remains above `#gameContent` in the same scroll container. This is a product requirement — students must be able to scroll up and re-read the instruction at any point during gameplay. The stacked `instruction + game UI` layout is the expected end state, not a bug.
+
+Common LLM misfire: reading the layout as "cluttered" and writing defensive code to hide `#previewInstruction`, `.mathai-preview-header`, or `#mathai-preview-slot` after `switchToGame()`. Every such variant is banned:
+
+```javascript
+// ALL of these are 5e0-DOM-BOUNDARY violations:
+document.getElementById('previewInstruction').style.display = 'none';
+document.querySelector('#mathai-preview-slot .mathai-preview-header').style.display = 'none';
+document.querySelectorAll('.mathai-preview-header').forEach(h => h.style.display = 'none');
+document.getElementById('mathai-preview-slot').classList.add('my-preview-hidden');  // plus a CSS rule targeting .mathai-preview-*
+```
+
+If the stacked layout feels too tall in your specific game, solve it INSIDE `#gameContent`: tighten the game UI, use `content.showGameOnPreview: true` so the student sees the game under the overlay during preview, or shorten the `fallbackContent.previewInstruction` / spec `previewInstruction` text. Never reach up into preview-owned DOM.
+
+**Source incidents:**
+- `word-problem-workshop` build #1 (2026-04) — emitted `getElementById('previewInstruction').style.display = 'none'` in `startGameAfterPreview`, lifted via in-context examples from `games/matching-doubles/index.html` (since cleaned).
+- `match-up-ratios` (2026-04) — bypassed the ID-based ban with a compound selector `querySelectorAll('#mathai-preview-slot .mathai-preview-header')` and a classList toggle on `#mathai-preview-slot` that a game-defined CSS rule used to hide `.mathai-preview-*` descendants. Validator regex was subsequently tightened to catch compound selectors containing `.mathai-preview-*` anywhere in the string.
+
+Cross-reference: validator rule `5e0-DOM-BOUNDARY`, PART-039 component boundary invariant.
+
+## Anti-Pattern 36: Fire-and-forget `playDynamicFeedback` in submit / round-complete handlers
+
+```javascript
+// WRONG — TTS is fire-and-forget; it streams in 200–800 ms after this line,
+// by which time showRoundIntro(N+1) has already painted. The explanation's
+// subtitle/audio bleed into the next round's transition and gameplay.
+function finishRoundCorrect(round) {
+  Promise.all([
+    FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_HAPPY }),
+    new Promise(function (r) { setTimeout(r, 1500); })
+  ]).then(function () {
+    FeedbackManager.playDynamicFeedback({
+      audio_content: 'Yes! Both ratios scale by ×3.',
+      subtitle: 'Yes! Both ratios scale by ×3.',
+      sticker: STICKER_HAPPY
+    }).catch(function () {});                     // ← banned
+    showRoundIntro(round.round + 1);              // paints next round before TTS lands
+  });
+}
+```
+
+Symptom: in multi-round games, the player hears the previous round's explanation playing on top of the current round's `sound_round_n` and gameplay. Subtitle + sticker overlay also paint over the wrong screen. SFX feedback appears to "play in the next round."
+
+**Why it happens:** `playDynamicFeedback` is async — it has to hit the streaming TTS endpoint, decode, mount the subtitle/sticker overlay, and start audio. That's 200–800 ms of network + decode latency. Fire-and-forget gives it zero time to render before the next-round transition replaces the UI. Older docs (pre-2026-04) said "NEVER await dynamic TTS in a submit handler" because of a stalled-network worry, but the package already bounds resolution at 3 s (TTS API) / 60 s (streaming), so the network can't actually freeze the game indefinitely.
+
+**Fix — wrap each `playDynamicFeedback` call in `try { await ... } catch(e){}`:**
+
+```javascript
+// RIGHT — TTS awaited; explanation finishes BEFORE round advance.
+async function finishRoundCorrect(round) {
+  try {
+    await Promise.all([
+      FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_HAPPY }),
+      new Promise(function (r) { setTimeout(r, 1500); })
+    ]);
+  } catch (e) {}
+  try {
+    await FeedbackManager.playDynamicFeedback({
+      audio_content: 'Yes! Both ratios scale by ×3.',
+      subtitle: 'Yes! Both ratios scale by ×3.',
+      sticker: STICKER_HAPPY
+    });
+  } catch (e) {}                                  // try/catch swallows rejection
+  if (round.round >= gameState.totalRounds) endGame(true);
+  else showRoundIntro(round.round + 1);
+}
+```
+
+**Scope.** Applies to: single-step correct/wrong submit handlers; multi-step round-complete handlers; any explanatory TTS (Bloom L2+) where `audio_content` carries a *why*, not just an ack. **Carve-outs that may stay fire-and-forget:** round-start TTS (inside `showRoundIntro` / `onMounted` — student should interact immediately), chain-progress / partial-match audio (don't pause mid-chain), tile-select / ambient SFX.
+
+Validator: `GEN-FEEDBACK-TTS-AWAIT` ([alfred/scripts/validate-static.js](../../alfred/scripts/validate-static.js)) flags any `FeedbackManager.playDynamicFeedback(...)` call that is not preceded by `await`, when the enclosing function name (or surrounding scope) signals submit / finish-round / round-complete context.
+
+**Source incidents:**
+- `equivalent-ratios` (2026-04) — `finishRoundCorrect` / `finishRoundWrong` / `finishRoundWrongTypeB` all fire-and-forget; round 1's "Yes! Both ratios scale by ×3" plays on top of round 2's `sound_round_n`.
+- `queens` (2026-04) — `handleAttackingPlacement` (wrong-answer terminal) + `handlePuzzleSolved` (round-complete) both fire-and-forget.
+
+Cross-reference: validator rule `GEN-FEEDBACK-TTS-AWAIT`, feedback/SKILL.md "Default Feedback by Game Type", timing-and-blocking.md submit-handler pattern, code-patterns.md "Dynamic VO".
+
+## Verification
+
+- [ ] All 4 script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` — no relative paths, no `cdn.homeworkapp.ai`, no invented domains
+- [ ] No `new Audio()` anywhere
+- [ ] No `setInterval` for timer purposes
+- [ ] No `SubtitleComponent.show()` calls
+- [ ] No hardcoded color hex values for game feedback
+- [ ] Package loading order is correct
+- [ ] `waitForPackages()` has timeout
+- [ ] All onclick handlers reference global functions
+- [ ] VisibilityTracker present when timer or audio used
+- [ ] VisibilityTracker `onInactive` uses `sound.pause()` NOT `sound.stopAll()`
+- [ ] VisibilityTracker timer calls pass `{ fromVisibilityTracker: true }` flag
+- [ ] Audio preloading uses `sound.preload([{id, url}])` NOT `sound.register(id, url)`
+- [ ] Single style/script block only
+- [ ] Uses `100dvh` not `100vh`
+- [ ] All game HTML inside `#gameContent` (not sibling of `#app`) when using ScreenLayout
+- [ ] Grids have pixel max-width (e.g. 360px), not just `max-width: 100%`
+- [ ] Dynamic audio uses `playDynamicFeedback()`, not `sound.play('dynamic', ...)`
+- [ ] `progressBar.update()` first param is rounds COMPLETED (0 at start), not current round
+- [ ] Grid cells with pseudo-elements have `overflow: hidden`
+- [ ] Count-up timers (`timerType: 'increase'`) without a time limit use a large `endTime` (e.g. `100000`), never `0` or omitted
+- [ ] `gameState` declared as `window.gameState = {...}`, NOT `const gameState = {...}`
+- [ ] `testPause`/`testResume` use `visibilityTracker.triggerInactive()`/`triggerResume()` — NOT `simulatePause()` (doesn't exist)
+- [ ] Progress bar slot uses `position: absolute; top: 0` to sit at y=0 (no gap above it)
+- [ ] `restartGame()` recreates `timer` and `visibilityTracker` (they were nulled by `endGame()`)
+- [ ] Transition screens use either `duration` OR `buttons` — never both together
+- [ ] No inline stub/polyfill/fallback classes for CDN packages (SignalCollector, FeedbackManager, TimerComponent, etc.)
+- [ ] **Every end condition has a code path to `endGame()`** — no dead-end game states where the player is stuck
+- [ ] **`setupGame()` sets `gameState.startTime = Date.now()` and `gameState.isActive = true`** — without these, attempts produce NaN and endGame exits immediately
+- [ ] **`setupGame()` calls `timer.start()`** when timer exists — without this, timer stays at 00:00
+- [ ] **`setupGame()` calls `trackEvent('game_start', 'game')`**
+- [ ] VisibilityTracker `onInactive`/`onResume` fire `trackEvent('game_paused'/'game_resumed')`
+- [ ] CSS variables use `--mathai-*` prefix consistently — not `--game-*` or `--stack-*`
+- [ ] If using ScreenLayout (PART-025), do NOT also write manual HTML from PART-021 (double-nested layout)
+- [ ] `window.parent.postMessage({ type: 'game_ready' }, '*')` sent AFTER `window.addEventListener('message', handlePostMessage)` — parent harness waits for this before sending content
+- [ ] If `<video>` present: has `controls`, `playsinline`, `controlsList="nofullscreen"` — no `autoplay`
+- [ ] If `<video>` present: wrapper has `background: white` (not black), no forced `aspect-ratio`
+- [ ] No custom lives / hearts DOM or custom heart renderer when `ProgressBarComponent` has `totalLives >= 1` — ProgressBar owns the lives strip (validator rule `5e0-LIVES-DUP-FORBIDDEN`; PART-023; PART-026 Anti-Pattern 33)
+- [ ] If `<video>` present: video is in instruction/question area, NOT inside interactive play area
+- [ ] If `<audio>` present: NO `autoplay`, NO native `controls` (use custom UI per PART-041)
+- [ ] If `<audio>` present: custom play/pause icon + progress bar with CDN SVGs
+- [ ] If `<audio>` present: audio player in instruction/question area, NOT inside interactive play area
+- [ ] No `new Audio()` anywhere (RULE-006)
+- [ ] No `Promise.race` wrapping `FeedbackManager.sound.play` / `playDynamicFeedback` / `audioRace` helper (PART-017 Anti-Pattern 32, validator rule `5e0-FEEDBACK-RACE-FORBIDDEN`)
+- [ ] Answer-feedback `sound.play()` calls (`sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_*`, `partial_correct_*`) wrapped in `Promise.all` with 1500ms minimum delay (Anti-Pattern 34, validator rule `5e0-FEEDBACK-MIN-DURATION`)
+- [ ] No game-code reach-ins to PreviewScreenComponent private DOM (no `getElementById`/`querySelector` on `#previewInstruction`, `#previewProgressBar`, `#previewTimerText`, `#previewQuestionLabel`, `#previewScore`, `#previewStar`, `#previewSkipBtn`, `#previewBackBtn`, `#previewAvatarSpeaking`, `#previewAvatarSilent`, `#previewGameContainer`, `#popup-backdrop`; no `.mathai-preview-*` class selectors or `classList` toggles) — Anti-Pattern 35, validator rule `5e0-DOM-BOUNDARY`, PART-039

@@ -112,7 +112,7 @@ Assess production-readiness during the Playwright playthrough.
 
 ### Step 4: Static validation gate (HARD)
 
-Before scoring, run `node lib/validate-static.js <game-html-path>`. If exit code ≠ 0:
+Before scoring, run `node alfred/scripts/validate-static.js <game-html-path>`. If exit code ≠ 0:
 
 - The game is **REJECTED** regardless of any other signal.
 - Emit each error line from the validator as its own `ISSUE: [critical]` entry.
@@ -131,7 +131,7 @@ Scoring formula:
 - Round to nearest integer.
 
 Verdict:
-- **APPROVED** if SCORE >= 90% AND zero critical issues AND `node lib/validate-static.js` exited 0.
+- **APPROVED** if SCORE >= 90% AND zero critical issues AND `node alfred/scripts/validate-static.js` exited 0.
 - **REJECTED** if SCORE < 90% OR any critical issue OR static validation failed.
 
 Emit the output in the exact format specified in the Output section.
@@ -144,7 +144,7 @@ If REJECTED, the pipeline runs a fix-then-re-review loop (up to 2 attempts).
 1. Pipeline sends the rejection reasons and issue list to the builder agent.
 2. Builder reads the game HTML, fixes every issue (critical first, then warnings).
 3. Builder verifies fixes using Playwright -- opens game, tests flagged areas, screenshots, checks console.
-4. Builder verifies fixes using `node lib/validate-static.js <game-html-path>` -- exit code must be 0.
+4. Builder verifies fixes using `node alfred/scripts/validate-static.js <game-html-path>` -- exit code must be 0.
 5. Builder reports what changed and confirms each issue is addressed.
 6. Pipeline sends the fixed game back to this skill for **re-review**.
 
@@ -153,7 +153,7 @@ If REJECTED, the pipeline runs a fix-then-re-review loop (up to 2 attempts).
 2. Verify every previously-reported issue is now resolved.
 3. Check for regressions -- new issues introduced by the fixes.
 4. Re-run spec compliance checks.
-5. Re-run `node lib/validate-static.js` -- exit 0 required to proceed to APPROVED.
+5. Re-run `node alfred/scripts/validate-static.js` -- exit 0 required to proceed to APPROVED.
 6. Emit SCORE, ISSUE lines, and VERDICT in the same format.
 
 **After 2 failed attempts:** Pipeline stops. Game remains REJECTED. All issues are logged for diagnosis.
@@ -175,10 +175,10 @@ If REJECTED, the pipeline runs a fix-then-re-review loop (up to 2 attempts).
    **Bad:** Reading index.html, seeing a results div exists, marking F1 as PASS.
    **Good:** Opening in Playwright, clicking Start, answering rounds, reaching results screen, marking F1 as PASS.
 
-4. **CRITICAL -- Always run `node lib/validate-static.js` before APPROVED.** Playwright catches runtime bugs; the static validator catches contract and boundary violations that runtime may not surface (preview-private DOM reach-ins, drifted show() options, duplicate lives UI, etc.). A passing Playwright run plus exit-1 static validation = REJECTED.
+4. **CRITICAL -- Always run `node alfred/scripts/validate-static.js` before APPROVED.** Playwright catches runtime bugs; the static validator catches contract and boundary violations that runtime may not surface (preview-private DOM reach-ins, drifted show() options, duplicate lives UI, etc.). A passing Playwright run plus exit-1 static validation = REJECTED.
 
    **Bad:** "Full playthrough works, 95% spec compliance, VERDICT: APPROVED" — without ever running the static validator.
-   **Good:** "Playwright playthrough complete. `node lib/validate-static.js games/my-game/index.html` → exit 0. SCORE 95%. VERDICT: APPROVED."
+   **Good:** "Playwright playthrough complete. `node alfred/scripts/validate-static.js games/my-game/index.html` → exit 0. SCORE 95%. VERDICT: APPROVED."
 
 4. **CRITICAL -- Never APPROVE if a spec requirement is missing from the game.** If the spec says "3 stages with increasing difficulty" and the game has flat difficulty, that is a critical issue even if the game otherwise works perfectly.
 

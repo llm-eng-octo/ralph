@@ -1,1 +1,0 @@
-../../../games/name-the-sides/rca.md

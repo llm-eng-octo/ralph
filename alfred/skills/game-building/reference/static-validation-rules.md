@@ -73,8 +73,8 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 |---------|-------|----------|--------------|--------|
 | 5b2-REGISTER | `sound.register()` forbidden (use `sound.preload`) | error | feedback | Covered |
 | PART-011-SOUND | `FeedbackManager.sound.playDynamicFeedback()` does not exist; use top-level | error | feedback | Covered |
-| GEN-FEEDBACK-TTS-AWAIT | `playDynamicFeedback(...)` not awaited in submit / finish-round / round-complete handlers — TTS bleeds into next round (equivalent-ratios regression). Carve-outs: `showRoundIntro`, `onMounted`, chain-progress, ambient | error | feedback | Implemented in lib/validate-static.js |
-| GEN-ROUND-BOUNDARY-STOP | Multi-round game with `playDynamicFeedback` but `showRoundIntro(n)` does not call `FeedbackManager.sound.stopAll()` + `stream.stopAll()` at entry — defensive cleanup against streaming timeouts | error | feedback | Implemented in lib/validate-static.js |
+| GEN-FEEDBACK-TTS-AWAIT | `playDynamicFeedback(...)` not awaited in submit / finish-round / round-complete handlers — TTS bleeds into next round (equivalent-ratios regression). Carve-outs: `showRoundIntro`, `onMounted`, chain-progress, ambient | error | feedback | Implemented in alfred/scripts/validate-static.js |
+| GEN-ROUND-BOUNDARY-STOP | Multi-round game with `playDynamicFeedback` but `showRoundIntro(n)` does not call `FeedbackManager.sound.stopAll()` + `stream.stopAll()` at entry — defensive cleanup against streaming timeouts | error | feedback | Implemented in alfred/scripts/validate-static.js |
 
 ## TransitionScreen
 
@@ -93,11 +93,11 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | Rule ID | Check | Severity | Alfred Skill | Status |
 |---------|-------|----------|--------------|--------|
 | 5e0-SLOT | PreviewScreenComponent used but `previewScreen: true` not in ScreenLayout slots | error | game-building (html-template) | Covered |
-| 5e0-SCROLL-OWNER | Preview-wrapper game lacks the compatibility CSS that makes `.mathai-preview-body` the vertical scroll owner | error | game-building (html-template), PART-039, mobile | Implemented in lib/validate-static.js |
+| 5e0-SCROLL-OWNER | Preview-wrapper game lacks the compatibility CSS that makes `.mathai-preview-body` the vertical scroll owner | error | game-building (html-template), PART-039, mobile | Implemented in alfred/scripts/validate-static.js |
 | 5e0-SHOW | PreviewScreenComponent instantiated but `previewScreen.show()` not called | warning | game-building (code-patterns) | Covered |
 | 5e0-AUDIOURL | `previewScreen.show()` missing `audioUrl` parameter | warning | game-building (code-patterns) | Covered |
 | 5e0-HARDCODED | `previewScreen.show()` has hardcoded instruction string | warning | game-building (code-patterns) | Covered |
-| 5e0-DUP-INSTRUCTION | `#gameContent` includes a how-to-play / prompt banner: any element with class/id containing `instruction`, `help-text`, `prompt-text`, `task-text`, `directions`, `how-to-play`; OR a banner sentence starting with an imperative verb already said by the preview (`Find`, `Tap`, `Select`, `Choose`, `Click`, `Drag`, `Match`). Per-round *question* text (e.g. "What is 3 × 4?") is allowed — only restated how-to-play is forbidden | error | game-building (code-patterns) | Implemented in lib/validate-static.js |
+| 5e0-DUP-INSTRUCTION | `#gameContent` includes a how-to-play / prompt banner: any element with class/id containing `instruction`, `help-text`, `prompt-text`, `task-text`, `directions`, `how-to-play`; OR a banner sentence starting with an imperative verb already said by the preview (`Find`, `Tap`, `Select`, `Choose`, `Click`, `Drag`, `Match`). Per-round *question* text (e.g. "What is 3 × 4?") is allowed — only restated how-to-play is forbidden | error | game-building (code-patterns) | Implemented in alfred/scripts/validate-static.js |
 | 5e0-STARTAFTER | `startGameAfterPreview()` function not found | warning | game-building (code-patterns) | Covered |
 | 5e0-DESTROY | FloatingButton `on('next', ...)` handler does not call `previewScreen.destroy()` (destroy must run on Next-tap teardown after `next_ended`, NOT in `endGame()` — calling destroy in `endGame()` synchronously kills the async `show_star` animation) | warning | game-building (code-patterns) | Advisory (not yet in validate-static.js) |
 | 5e0-HIDE | `previewScreen.hide()` present (method removed in current API) | error | game-building (code-patterns) | Advisory |
@@ -113,8 +113,8 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | 5e0-DUP-HEADER | `#gameContent` markup contains an element with class containing `header`, `score-display`, or `avatar` (duplicates preview header) | warning | game-building (html-template) | Advisory |
 | 5e0-NEW-AUDIO | `new Audio(` appears anywhere in generated game code — preview/game audio must route through `FeedbackManager.sound` | error | game-building (code-patterns) | Advisory |
 | 5e0-PREVIEWRESULT | `game_complete` postMessage payload does not reference `previewResult` field | warning | game-building (code-patterns) | Advisory |
-| 5e0-DOM-BOUNDARY | Game code calling getElementById/querySelector on preview/action-bar-owned IDs (#previewInstruction, #previewProgressBar, #previewTimerText, #previewQuestionLabel, #previewScore, #previewStar, #previewSkipBtn, #previewBackBtn, #previewAvatarSpeaking, #previewAvatarSilent, #previewGameContainer, #popup-backdrop) or .mathai-preview-* class selectors / classList toggles — boundary violation (component owns its DOM). Gate: fires when either `PreviewScreenComponent` or `ActionBarComponent` is present. See PART-039, PART-040, PART-026 AP-35. | error | game-building (code-patterns) | Implemented in lib/validate-static.js |
-| 5e0-DRIFTED-OPTIONS | `previewScreen.show(...)` passes `timerInstance:` or `timerConfig:`. Neither option exists on the component. | error | game-building (code-patterns) | Implemented in lib/validate-static.js |
+| 5e0-DOM-BOUNDARY | Game code calling getElementById/querySelector on preview/action-bar-owned IDs (#previewInstruction, #previewProgressBar, #previewTimerText, #previewQuestionLabel, #previewScore, #previewStar, #previewSkipBtn, #previewBackBtn, #previewAvatarSpeaking, #previewAvatarSilent, #previewGameContainer, #popup-backdrop) or .mathai-preview-* class selectors / classList toggles — boundary violation (component owns its DOM). Gate: fires when either `PreviewScreenComponent` or `ActionBarComponent` is present. See PART-039, PART-040, PART-026 AP-35. | error | game-building (code-patterns) | Implemented in alfred/scripts/validate-static.js |
+| 5e0-DRIFTED-OPTIONS | `previewScreen.show(...)` passes `timerInstance:` or `timerConfig:`. Neither option exists on the component. | error | game-building (code-patterns) | Implemented in alfred/scripts/validate-static.js |
 
 ## ScreenLayout
 
@@ -231,6 +231,7 @@ All rules in this block auto-skip when the spec declares `answerComponent: false
 | 5d2-LOADROUND | `window.loadRound` not exposed for multi-round CDN games | warning | game-building (code-patterns) | Covered |
 | GEN-ROUND-INDEX | `rounds[currentRound - 1]` (0-based index off by one) | error | game-building (code-patterns) | Added |
 | GEN-ROUND-INDEX-DBL | `loadRound()` calls `nextRound()` (double-increment) | error | game-building (code-patterns) | Added |
+| GEN-LOADROUND-SHADOW | top-level `function loadRound(...)` declaration coexists with `window.loadRound = ...` harness assignment — auto-attach + overwrite causes internal `loadRound(n)` calls to recurse via the harness helper, hammering the TTS API. Rename the internal function to `renderRound`. | error | game-building (code-patterns) | Added |
 | 8-STARS | No star scoring pattern found (0.8/0.5 thresholds or calcStars) | error | data-contract | Covered |
 | 12-GUARD | Click handlers without isActive/isProcessing guard | warning | game-building (code-patterns) | Covered |
 | 12-GUARD-INIT | `gameState.isActive` used in handlers but not initialized | warning | game-building (code-patterns) | Covered |

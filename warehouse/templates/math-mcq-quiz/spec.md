@@ -1,1 +1,0 @@
-../../../games/math-mcq-quiz/spec.md

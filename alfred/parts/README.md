@@ -1,7 +1,7 @@
 # PART Index — Alfred Quick Lookup
 
 > Each PART lives in its own file. Skills load only the PARTs they need.
-> For full code and deep details, see `warehouse/parts/PART-NNN-*.md`.
+> Each PART file in this folder is the canonical, self-contained reference. Files named `PART-NNN.md` are distilled summaries; the corresponding full specs (where they exist) are at `PART-NNN-<short-name>.md` (e.g. `PART-039.md` summary → `PART-039-preview-screen.md` full spec).
 
 | PART | Name | Purpose | Mandatory? |
 |------|------|---------|------------|

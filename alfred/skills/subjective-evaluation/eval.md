@@ -13,7 +13,7 @@ Context files that must be loaded before running:
 - `skills/subjective-evaluation/reference/prompts.md`
 - `skills/feedback/SKILL.md` (audio feedback integration)
 - `skills/data-contract/SKILL.md` (`recordAttempt` shape + `validationType: 'llm'`)
-- `warehouse/parts/PART-015-validation-llm.md` (canonical PART)
+- `alfred/parts/PART-015-validation-llm.md` (canonical PART)
 
 ## Success Criteria
 

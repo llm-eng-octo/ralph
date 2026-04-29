@@ -1,7 +1,7 @@
 ### PART-039: Preview Screen
 
 **Category:** CONDITIONAL (default ON) | **Dependencies:** PART-002, PART-017, PART-025
-**Source of truth:** `warehouse/parts/PART-039-preview-screen.md`
+**Source of truth:** `alfred/parts/PART-039-preview-screen.md`
 
 **Scope:** This part applies only when `spec.previewScreen !== false` (i.e. the flag is absent or `true`). When the spec sets `previewScreen: false`, skip this part entirely — do NOT instantiate `PreviewScreenComponent`, do NOT pass `slots.previewScreen` to `ScreenLayout.inject()`, and let `DOMContentLoaded` call the first TransitionScreen directly.
 
@@ -46,4 +46,4 @@ const previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot'
 
 **Methods:** `show`, `pause`, `resume`, `skip`, `setPreviewData`, `getState`, `isActive`, `destroy`, `setStar(visible)` — show/hide the header star at runtime.
 
-See `warehouse/parts/PART-039-preview-screen.md` and `warehouse/parts/PART-040-action-bar.md` for full detail (audio layers, reliability rules R1–R10, verification checklist).
+See `alfred/parts/PART-039-preview-screen.md` and `alfred/parts/PART-040-action-bar.md` for full detail (audio layers, reliability rules R1–R10, verification checklist).

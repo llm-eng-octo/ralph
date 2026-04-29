@@ -1,6 +1,6 @@
 ### PART-023: ProgressBar Component
 
-**Source of truth:** `warehouse/parts/PART-023-progress-bar.md`
+**Source of truth:** `alfred/parts/PART-023-progress-bar.md`
 
 **Purpose:** Round counter + lives display, rendered inside the game body under the preview header.
 
@@ -57,7 +57,7 @@ function createProgressBar() {
 - Standalone (`totalRounds: 1`): call `progressBar.hide()` (bar hidden for entire session).
 - Multi-round (`N ≥ 2`) / Sectioned: `show()` + visible on every screen except Preview.
 
-See `warehouse/parts/PART-023-progress-bar.md` for full detail.
+See `alfred/parts/PART-023-progress-bar.md` for full detail.
 
 ## Verification Checklist
 

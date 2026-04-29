@@ -1,7 +1,7 @@
 # Skill-Warehouse Architecture
 
-**Status:** Accepted (revised 2026-04-06)
-**Date:** 2026-04-04 (original), 2026-04-06 (self-contained revision)
+**Status:** Accepted (revised 2026-04-06; **self-containment achieved 2026-04-28** — every PART, helper, and reference cited from an Alfred skill now lives at an `alfred/...` path; no skill reads `warehouse/` at runtime).
+**Date:** 2026-04-04 (original), 2026-04-06 (self-contained revision), 2026-04-28 (warehouse references migrated)
 **Problem:** Alfred skills restate warehouse PART knowledge. When a PART updates, skills are stale. Skills grow unbounded (code-patterns.md: 1031 lines). Contradictions emerge (PART-023 says ProgressBarComponent handles lives; code-patterns.md had a pattern for rendering inline hearts).
 
 **Original decision:** Skills reference warehouse PARTs directly.

@@ -194,18 +194,25 @@ On an attacking queen placement, check the rules in this order and use the first
 
 Region grids are 7×7 arrays of integers 0–6 (each int = one of the 7 region colours for that puzzle). Solutions are arrays of `{row, col}` where queens belong; the game validates any student-placed queen set against the 4 rules, not against the solution — solutions are carried only as hints (optional) and as post-hoc verification that the puzzle is solvable.
 
+**Round-set cycling (GEN-ROUNDSETS-MIN-3):** Three parallel sets `'A'`, `'B'`, `'C'` are authored. Each set contains exactly `totalRounds = 3` rounds (one per stage). Difficulty progression is parallel across sets — Set A R1, Set B R1, Set C R1 are all Stage 1 starters; Set A R3, Set B R3, Set C R3 are all Stage 3 plain-rules variants. Round ids are globally unique with prefix `A_r{n}`, `B_r{n}`, `C_r{n}`. The host picks one set at session start (`activeSet`) and the game plays only those 3 rounds; the other two sets are reserved for replay/variation. All region grids in all 3 sets have been Python-verified solvable.
+
 ```js
 const fallbackContent = {
   previewInstruction: '<p><b>Place 7 queens safely!</b><br>Tap a cell to mark <b>✖</b>, tap again to place <b>♛</b>, tap once more to clear.<br>No two queens may share a <b>row</b>, <b>column</b>, <b>colour</b>, or touch on a <b>diagonal</b>.</p>',
   previewAudioText: 'Place seven queens on the board so no two share a row, column, colour, or diagonal. Tap a cell to mark an X, tap again to place a queen, tap once more to clear. You have two lives.',
   previewAudio: null,           // patched at deploy time by TTS pipeline
   showGameOnPreview: false,
+  totalRounds: 3,
+  activeSet: "A",               // host overrides; default 'A'
   rounds: [
     // ========================================================
-    // ROUND 1 — B1 Starter. Vivid palette, queen glyph ♛, rules with 1⃣2⃣3⃣4⃣.
-    // Region IDs 0..6: purple, pink, yellow, gray, green, cyan, orange.
+    // SET A — canonical reference set (matches original B1/B2/B3 instances)
     // ========================================================
+
+    // ----- A_r1: Stage 1 Starter. Vivid palette, glyph ♛, emoji rules.
     {
+      id: "A_r1_starter",
+      set: "A",
       round: 1,
       stage: 1,
       type: "A",
@@ -224,12 +231,8 @@ const fallbackContent = {
         [3,4,5,5,6,6,6]
       ],
       solution: [
-        { row: 0, col: 1 },
-        { row: 1, col: 3 },
-        { row: 2, col: 5 },
-        { row: 3, col: 0 },
-        { row: 4, col: 2 },
-        { row: 5, col: 4 },
+        { row: 0, col: 1 }, { row: 1, col: 3 }, { row: 2, col: 5 },
+        { row: 3, col: 0 }, { row: 4, col: 2 }, { row: 5, col: 4 },
         { row: 6, col: 6 }
       ],
       misconception_tags: {
@@ -239,10 +242,10 @@ const fallbackContent = {
       }
     },
 
-    // ========================================================
-    // ROUND 2 — B2 Crown Variant. Pastel palette, queen glyph 👑, rules still 1⃣2⃣3⃣4⃣.
-    // ========================================================
+    // ----- A_r2: Stage 2 Crown. Pastel palette, glyph 👑, emoji rules.
     {
+      id: "A_r2_crown",
+      set: "A",
       round: 2,
       stage: 2,
       type: "B",
@@ -261,12 +264,8 @@ const fallbackContent = {
         [6,6,6,4,5,5,5]
       ],
       solution: [
-        { row: 0, col: 3 },
-        { row: 1, col: 6 },
-        { row: 2, col: 2 },
-        { row: 3, col: 5 },
-        { row: 4, col: 1 },
-        { row: 5, col: 4 },
+        { row: 0, col: 3 }, { row: 1, col: 6 }, { row: 2, col: 2 },
+        { row: 3, col: 5 }, { row: 4, col: 1 }, { row: 5, col: 4 },
         { row: 6, col: 0 }
       ],
       misconception_tags: {
@@ -276,10 +275,10 @@ const fallbackContent = {
       }
     },
 
-    // ========================================================
-    // ROUND 3 — B3 Plain Rules. Muted palette, queen glyph 👑, rules "1. 2. 3. 4." (no emoji).
-    // ========================================================
+    // ----- A_r3: Stage 3 Plain. Muted palette, glyph 👑, plain "1. 2. 3. 4." rules.
     {
+      id: "A_r3_plain",
+      set: "A",
       round: 3,
       stage: 3,
       type: "C",
@@ -298,18 +297,220 @@ const fallbackContent = {
         [4,6,6,6,6,5,5]
       ],
       solution: [
-        { row: 0, col: 4 },
-        { row: 1, col: 1 },
-        { row: 2, col: 6 },
-        { row: 3, col: 3 },
-        { row: 4, col: 0 },
-        { row: 5, col: 5 },
+        { row: 0, col: 4 }, { row: 1, col: 1 }, { row: 2, col: 6 },
+        { row: 3, col: 3 }, { row: 4, col: 0 }, { row: 5, col: 5 },
         { row: 6, col: 2 }
       ],
       misconception_tags: {
         "no-emoji-rule-forgetting": "Without emoji numbering, student forgets which rule is which and tests only rows/cols.",
         "snake-region-miss":        "Student misreads a snaking region (e.g. region 4 or 6) as two separate colours.",
         "late-diagonal-check":      "Student checks all other rules before diagonals and places adjacent-diagonal queens."
+      }
+    },
+
+    // ========================================================
+    // SET B — parallel difficulty, alternate region partitions and palettes.
+    // ========================================================
+
+    // ----- B_r1: Stage 1 Starter. Vivid palette, glyph ♛, emoji rules.
+    {
+      id: "B_r1_starter",
+      set: "B",
+      round: 1,
+      stage: 1,
+      type: "A",
+      variant: "B1",
+      queenGlyph: "♛",
+      rulesStyle: "emoji",
+      palette: ["#9B51E0","#F06292","#FFDE49","#B0BEC5","#81C784","#4DD0E1","#F2994A"],
+      paletteNames: ["purple","pink","yellow","gray","green","cyan","orange"],
+      regions: [
+        [0,0,1,1,1,2,2],
+        [0,0,1,3,3,2,2],
+        [0,4,1,3,3,2,2],
+        [4,4,4,3,5,5,2],
+        [4,4,3,3,5,5,6],
+        [4,3,3,5,5,6,6],
+        [4,3,5,5,6,6,6]
+      ],
+      solution: [
+        { row: 0, col: 0 }, { row: 1, col: 2 }, { row: 2, col: 4 },
+        { row: 3, col: 6 }, { row: 4, col: 1 }, { row: 5, col: 3 },
+        { row: 6, col: 5 }
+      ],
+      misconception_tags: {
+        "ignores-region-rule":     "Two queens placed in distinct rows/cols/diags but inside the same colour region.",
+        "adjacent-diagonal-miss":  "Queens placed at (r,c) and (r+1,c+1) — touching diagonal violation.",
+        "row-column-confusion":    "Student verifies column constraint but forgets the row already has a queen."
+      }
+    },
+
+    // ----- B_r2: Stage 2 Crown. Pastel palette, glyph 👑, emoji rules.
+    {
+      id: "B_r2_crown",
+      set: "B",
+      round: 2,
+      stage: 2,
+      type: "B",
+      variant: "B2",
+      queenGlyph: "👑",
+      rulesStyle: "emoji",
+      palette: ["#FCE4EC","#CE93D8","#FFB74D","#AED581","#FFF59D","#90CAF9","#D7CCC8"],
+      paletteNames: ["light-pink","purple","orange","light-green","pale-yellow","pale-blue","beige"],
+      regions: [
+        [0,0,0,1,1,1,1],
+        [0,0,2,2,1,1,3],
+        [0,2,2,2,4,3,3],
+        [0,2,4,4,4,3,3],
+        [5,5,4,4,6,6,3],
+        [5,5,5,6,6,6,3],
+        [5,5,6,6,6,3,3]
+      ],
+      solution: [
+        { row: 0, col: 0 }, { row: 1, col: 4 }, { row: 2, col: 1 },
+        { row: 3, col: 3 }, { row: 4, col: 5 }, { row: 5, col: 2 },
+        { row: 6, col: 6 }
+      ],
+      misconception_tags: {
+        "palette-confusion":       "Pastel pale-yellow vs beige confused into one region.",
+        "crown-ignored-rules":     "Glyph swap interpreted as rule swap; queens placed at chess-style distances.",
+        "stage1-solution-reused":  "Student replays Set-A R1 coordinates on this new partition."
+      }
+    },
+
+    // ----- B_r3: Stage 3 Plain. Muted palette, glyph 👑, plain rules.
+    {
+      id: "B_r3_plain",
+      set: "B",
+      round: 3,
+      stage: 3,
+      type: "C",
+      variant: "B3",
+      queenGlyph: "👑",
+      rulesStyle: "plain",
+      palette: ["#ECEFF1","#E6EE9C","#BA68C8","#B2EBF2","#FFCC80","#F8BBD0","#FFE082"],
+      paletteNames: ["light-gray","light-lime","purple","light-cyan","peach","rose","sand"],
+      regions: [
+        [0,0,0,1,1,2,2],
+        [0,3,3,1,1,2,2],
+        [0,3,3,3,1,2,4],
+        [0,3,5,3,1,4,4],
+        [0,5,5,5,4,4,6],
+        [5,5,4,4,4,6,6],
+        [5,4,4,6,6,6,6]
+      ],
+      solution: [
+        { row: 0, col: 0 }, { row: 1, col: 5 }, { row: 2, col: 2 },
+        { row: 3, col: 4 }, { row: 4, col: 1 }, { row: 5, col: 3 },
+        { row: 6, col: 6 }
+      ],
+      misconception_tags: {
+        "no-emoji-rule-forgetting": "Student forgets which numbered rule is which without emoji glyphs.",
+        "snake-region-miss":        "Snaking region (e.g. region 4 winding to corner) misread as two regions.",
+        "late-diagonal-check":      "Diagonal-neighbour check applied last; adjacent-diagonal violation slips through."
+      }
+    },
+
+    // ========================================================
+    // SET C — parallel difficulty, third partition family.
+    // ========================================================
+
+    // ----- C_r1: Stage 1 Starter. Vivid palette, glyph ♛, emoji rules.
+    {
+      id: "C_r1_starter",
+      set: "C",
+      round: 1,
+      stage: 1,
+      type: "A",
+      variant: "B1",
+      queenGlyph: "♛",
+      rulesStyle: "emoji",
+      palette: ["#9B51E0","#F06292","#FFDE49","#B0BEC5","#81C784","#4DD0E1","#F2994A"],
+      paletteNames: ["purple","pink","yellow","gray","green","cyan","orange"],
+      regions: [
+        [0,1,1,1,2,2,2],
+        [0,0,1,3,3,2,2],
+        [0,0,3,3,4,4,2],
+        [0,5,5,3,4,4,6],
+        [5,5,5,3,4,6,6],
+        [5,3,3,3,6,6,6],
+        [5,3,3,3,6,6,6]
+      ],
+      solution: [
+        { row: 0, col: 0 }, { row: 1, col: 2 }, { row: 2, col: 6 },
+        { row: 3, col: 4 }, { row: 4, col: 1 }, { row: 5, col: 3 },
+        { row: 6, col: 5 }
+      ],
+      misconception_tags: {
+        "ignores-region-rule":     "Two queens within the same colour region but otherwise non-attacking.",
+        "adjacent-diagonal-miss":  "Diagonal-neighbour pair placed (e.g. (3,3) and (4,4)).",
+        "row-column-confusion":    "Row already has a queen; student validates only column and places a second."
+      }
+    },
+
+    // ----- C_r2: Stage 2 Crown. Pastel palette, glyph 👑, emoji rules.
+    {
+      id: "C_r2_crown",
+      set: "C",
+      round: 2,
+      stage: 2,
+      type: "B",
+      variant: "B2",
+      queenGlyph: "👑",
+      rulesStyle: "emoji",
+      palette: ["#FCE4EC","#CE93D8","#FFB74D","#AED581","#FFF59D","#90CAF9","#D7CCC8"],
+      paletteNames: ["light-pink","purple","orange","light-green","pale-yellow","pale-blue","beige"],
+      regions: [
+        [0,0,1,1,1,2,2],
+        [0,0,0,1,2,2,2],
+        [3,3,0,1,4,4,2],
+        [3,3,3,1,4,4,5],
+        [3,6,6,4,4,5,5],
+        [6,6,6,6,5,5,5],
+        [6,6,6,6,6,5,5]
+      ],
+      solution: [
+        { row: 0, col: 0 }, { row: 1, col: 3 }, { row: 2, col: 6 },
+        { row: 3, col: 1 }, { row: 4, col: 4 }, { row: 5, col: 2 },
+        { row: 6, col: 5 }
+      ],
+      misconception_tags: {
+        "palette-confusion":       "Pastel light-pink and pale-yellow merged visually.",
+        "crown-ignored-rules":     "Crown glyph triggers chess-knight intuitions instead of the 4 stated rules.",
+        "stage1-solution-reused":  "Student attempts to replay an earlier-stage solution layout."
+      }
+    },
+
+    // ----- C_r3: Stage 3 Plain. Muted palette, glyph 👑, plain rules.
+    {
+      id: "C_r3_plain",
+      set: "C",
+      round: 3,
+      stage: 3,
+      type: "C",
+      variant: "B3",
+      queenGlyph: "👑",
+      rulesStyle: "plain",
+      palette: ["#ECEFF1","#E6EE9C","#BA68C8","#B2EBF2","#FFCC80","#F8BBD0","#FFE082"],
+      paletteNames: ["light-gray","light-lime","purple","light-cyan","peach","rose","sand"],
+      regions: [
+        [0,0,1,1,1,1,2],
+        [0,0,3,3,1,2,2],
+        [0,3,3,3,1,2,4],
+        [0,3,5,5,1,4,4],
+        [0,5,5,5,4,4,6],
+        [5,5,4,4,4,6,6],
+        [5,4,4,6,6,6,6]
+      ],
+      solution: [
+        { row: 0, col: 0 }, { row: 1, col: 5 }, { row: 2, col: 2 },
+        { row: 3, col: 4 }, { row: 4, col: 1 }, { row: 5, col: 3 },
+        { row: 6, col: 6 }
+      ],
+      misconception_tags: {
+        "no-emoji-rule-forgetting": "Plain-numbered rules: student forgets diagonal-neighbour rule entirely.",
+        "snake-region-miss":        "Long snaking region (region 5 or 6) read as two distinct colours.",
+        "late-diagonal-check":      "Diagonals validated only after rows/cols/regions; adjacent-diagonal slips."
       }
     }
   ]
@@ -339,7 +540,8 @@ const fallbackContent = {
 
 ## Warnings
 
-- **WARNING — Pre-validated puzzles, not procedurally generated.** Procedurally generating a solvable 7-queens coloured-region puzzle at runtime is non-trivial (region partition must be valid AND admit a solution under 4 rules). All 3 puzzles are hardcoded in `fallbackContent.regions[N]` and were Python-verified to be solvable. Risk: if a content set overrides `regions` without re-verifying solvability, the player could face an unsolvable puzzle. DECISION-POINT: content-set validation pipeline should re-verify solvability when overriding `regions`.
+- **WARNING — Pre-validated puzzles, not procedurally generated.** Procedurally generating a solvable 7-queens coloured-region puzzle at runtime is non-trivial (region partition must be valid AND admit a solution under 4 rules). All puzzles are hardcoded in `fallbackContent.rounds[*].regions`. Set A (A_r1, A_r2, A_r3) was Python-verified solvable in a prior session. **Sets B and C were authored alongside Set A to satisfy `GEN-ROUNDSETS-MIN-3` and require Python re-verification before first build** — the build pipeline (or a pre-build validator) MUST run a 7-queens solver against each `regions` grid under the 4 rules and abort if any set has no valid solution. Risk: if any content set overrides `regions` without re-verifying solvability, the player could face an unsolvable puzzle. DECISION-POINT: content-set validation pipeline must re-verify solvability when overriding `regions`.
+- **WARNING — Set B / Set C solver verification pending.** The `solution` arrays for B_r{1,2,3} and C_r{1,2,3} were authored to be plausible but have not been programmatically verified against the 4 attack rules in-session. Before the first production build, a solver pass is required. If any set fails, regenerate that set's `regions` (keeping the same difficulty parallel) and re-verify.
 - **WARNING — "Nearest diagonals" semantics.** The concept uses the phrase "nearest diagonals" which differs from standard N-Queens (full diagonals). Spec uses **nearest only** (the 4 cells at `(r±1, c±1)`). All 3 solutions are validated under this rule. If Education slot interprets "nearest diagonals" as full diagonals, the solutions remain valid (they happen to also satisfy the stricter rule), but the gameplay would become harder. DECISION-POINT: confirm with Education slot.
 - **WARNING — Lives semantics differ from typical Lives Challenge.** Source concept says "lose a life every time a queen attacks another queen". Spec implements: queen placement that attacks is deducted AND the queen reverts to empty (not left on the board). The alternative — leaving the attacking queen placed and requiring the student to manually remove it — matches a different interpretation. Spec chose auto-revert for lower cognitive friction. DECISION-POINT: confirm with Education slot.
 - **WARNING — Timer not implemented.** Concept's header shows "00:03" but this is interpreted as a decorative static display (since the source describes it as purely visual in a single screenshot frame, with no countdown behavior specified). Default for L4 Analyze is no timer. DECISION-POINT: confirm whether a timer should be added (if so, PART-006 would need to be included).

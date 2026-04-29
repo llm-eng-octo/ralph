@@ -149,7 +149,7 @@ Read alfred/skills/game-building.md
 Read alfred/skills/data-contract.md
 Read alfred/skills/mobile/SKILL.md
 Read alfred/skills/feedback/SKILL.md
-Read warehouse/parts/PART-039-preview-screen.md  (authoritative PreviewScreen spec — MANDATORY in every game)
+Read alfred/parts/PART-039-preview-screen.md  (authoritative PreviewScreen spec — MANDATORY in every game)
 Read alfred/parts/PART-051.md  (authoritative AnswerComponent spec — MANDATORY unless spec declares `answerComponent: false`. NOTE: `answerComponent: false` is a CREATOR-ONLY opt-out — no LLM step may auto-default it. If a spec arrives at step 4 with `answerComponent: false` lacking quoted creator opt-out, send it back to step 2.)
 
 Using the approved spec and plan, generate the complete game as a single index.html file.
@@ -172,7 +172,7 @@ Run BOTH deterministic checks against the generated HTML:
    Covers: gameState, recordAttempt, postMessage (game_ready/game_init/game_complete),
    syncDOM attributes.
 
-2. Static validation — run `node lib/validate-static.js <game-html-path>` and
+2. Static validation — run `node alfred/scripts/validate-static.js <game-html-path>` and
    resolve every error it prints. This script enforces 5e0-* and GEN-* rules
    (component boundary violations, drifted options, preview-screen invariants,
    duplicate lives UI, etc.) — see static-validation-rules.md for the full rule
@@ -180,7 +180,7 @@ Run BOTH deterministic checks against the generated HTML:
 
 If any check fails, fix the HTML immediately and re-run until both pass.
 Report: number of issues found and fixed per check, and confirm exit code 0 from
-`node lib/validate-static.js`.
+`node alfred/scripts/validate-static.js`.
 
 STEP 6 — Test and Fix [MAIN CONTEXT — requires Playwright]
 Read alfred/skills/game-testing.md
@@ -212,7 +212,7 @@ Show me the test results summary with per-category pass/total counts.
 STEP 7 — Visual Review [MAIN CONTEXT — requires Playwright]
 Read alfred/skills/visual-review.md
 Read alfred/skills/game-building/reference/static-validation-rules.md
-Read warehouse/parts/PART-026-anti-patterns.md (specifically Anti-Pattern 35 — preview private DOM)
+Read alfred/parts/PART-026-anti-patterns.md (specifically Anti-Pattern 35 — preview private DOM)
 
 DO NOT delegate this step to a sub-agent. Sub-agents cannot access Playwright MCP.
 Run this step directly in the main orchestrator context.
@@ -250,7 +250,7 @@ and validator rule `5e0-DOM-BOUNDARY`.
 **VALIDATOR GATE — at ENTRY and EXIT of Step 7, no exceptions.**
 
 1. **ENTRY (FIRST action of Step 7, before any Playwright work).** Run
-   `node lib/validate-static.js <game-html-path>`. If exit ≠ 0, Step 7's
+   `node alfred/scripts/validate-static.js <game-html-path>`. If exit ≠ 0, Step 7's
    first job is to FIX the validator errors. A previous invocation (or Step 6's
    test-fix loop) may have committed code that violates a rule — this gate
    catches lingering violations the previous run approved.
@@ -291,7 +291,7 @@ Perform a final comprehensive review comparing the game against the original spe
 
 Fix any final issues found.
 
-**Hard gate — before declaring APPROVED:** run `node lib/validate-static.js <game-html-path>`.
+**Hard gate — before declaring APPROVED:** run `node alfred/scripts/validate-static.js <game-html-path>`.
 If exit code ≠ 0, treat as REJECTED regardless of other review signals and enter
 the rejection fix loop. Any fix you apply in the loop must re-pass the validator
 (exit 0) before the next APPROVED verdict attempt. This gate catches any
@@ -299,11 +299,11 @@ boundary / contract violation introduced by Step 6's test-and-fix loop or Step 7
 visual-review fixes after Step 5's original validation pass.
 
 Report: spec compliance score (%), issues found, verdict (APPROVED / REJECTED),
-confirmation that `node lib/validate-static.js` exits 0.
+confirmation that `node alfred/scripts/validate-static.js` exits 0.
 
 If REJECTED: enter the rejection fix loop (up to 2 attempts):
   1. Fix all rejection reasons and flagged issues (CRITICAL first, then warnings)
-  2. Verify each fix with Playwright AND with `node lib/validate-static.js`
+  2. Verify each fix with Playwright AND with `node alfred/scripts/validate-static.js`
   3. Re-review the game
   4. Repeat if still REJECTED (max 2 fix attempts)
 

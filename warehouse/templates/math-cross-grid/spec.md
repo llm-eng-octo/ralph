@@ -1,1 +1,0 @@
-../../../games/math-cross-grid/spec.md

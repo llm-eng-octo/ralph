@@ -414,8 +414,8 @@ The following components from the current architecture become unnecessary:
 
 | Component | Why it survives |
 |-----------|----------------|
-| lib/validate-static.js | Lint rules documented in `skills/game-building/reference/static-validation-rules.md` |
-| lib/validate-contract.js | Contract checks documented in `skills/data-contract/schemas/validation-rules.md` |
+| alfred/scripts/validate-static.js | Lint rules documented in `skills/game-building/reference/static-validation-rules.md` |
+| alfred/scripts/validate-contract.js | Contract checks documented in `skills/data-contract/schemas/validation-rules.md` |
 | parts/ (PART-NNN.md files, indexed by README.md) | These become the source material for skills |
 | games/ (specs, HTML, content) | Game artifacts still live on disk |
 | skills-taxonomy.md | The master knowledge base that skills are derived from |

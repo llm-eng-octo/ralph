@@ -1,6 +1,6 @@
 ### PART-025: ScreenLayout Component
 
-**Source of truth:** `warehouse/parts/PART-025-screen-layout-component.md`
+**Source of truth:** `alfred/parts/PART-025-screen-layout-component.md`
 
 **Purpose:** Auto-generates the game page structure (preview wrapper, game stack, transition slot, progress slot) given a `slots` config.
 
@@ -44,4 +44,4 @@ ScreenLayout.inject('app', {
 
 The 4-section API (`sections: { header, questionText, progressBar, playArea, transitionScreen }`) exists only for games built before the preview wrapper was introduced (pre-PART-039). New games MUST NOT use it — static validator rejects `sections:` in `ScreenLayout.inject`.
 
-See `warehouse/parts/PART-025-screen-layout-component.md` for full DOM detail and migration notes.
+See `alfred/parts/PART-025-screen-layout-component.md` for full DOM detail and migration notes.

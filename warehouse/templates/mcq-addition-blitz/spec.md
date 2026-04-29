@@ -1,1 +1,0 @@
-../../../games/mcq-addition-blitz/spec.md

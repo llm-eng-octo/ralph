@@ -29,17 +29,17 @@ Tap a subset of cards from a staggered 3-4-2 grid whose values (plain numbers an
 
 ## Rounds & Progression
 
-### Stage 1: Warm-up (Rounds 1-3)
+### Stage 1: Warm-up (Round 1, Round 2, Round 3)
 - Round type: A.
 - Difficulty parameters: Target is a multiple of 10 between 300-310. At least one card is an expression that evaluates directly to a round "tens" number. The canonical 2-card solution exists (e.g., two expression cards whose sum hits the target), and a mixed 3-card solution also exists.
 - Contexts/themes: Pure numbers — no story wrapping.
 
-### Stage 2: Build (Rounds 4-6)
+### Stage 2: Build (Round 4, Round 5, Round 6)
 - Round type: A.
 - Difficulty parameters: Target sums in the 320-330 range. Pools mix expression cards and plain numbers; the canonical solution uses 3-4 cards. Multiple valid subsets exist, forcing student to try combinations.
 - Contexts/themes: Pure numbers.
 
-### Stage 3: Stretch (Rounds 7-9)
+### Stage 3: Stretch (Round 7, Round 8, Round 9)
 - Round type: A.
 - Difficulty parameters: Target sums 330-340. Pools include a distractor number that cannot be part of any valid subset close to target. Canonical solutions still 3-4 cards but non-obvious.
 - Contexts/themes: Pure numbers.
@@ -54,11 +54,12 @@ Tap a subset of cards from a staggered 3-4-2 grid whose values (plain numbers an
 
 ## Game Parameters
 - **Rounds:** 9
-- **Timer:** None (per-round time is measured internally for the speed star only — no countdown displayed; timer display shows elapsed round time "00:03" style as a non-blocking header readout)
+- **Timer:** PART-006 TimerComponent in count-up mode. Mounted in the status header (no countdown, no hard cap). Resets per round. `timer.getTimeTaken()` is called at each correct submit and accumulated; the average across rounds feeds the 3★ "avg < 3s" condition. The header shows elapsed round time as `mm:ss` ("00:03" style) — non-blocking, advisory readout.
 - **Lives:** 3 (hearts)
 - **Star rating:** 3 stars = complete all 9 rounds AND average round time < 3 seconds AND solve ≥ 8 of 9 on first check; 2 stars = complete all 9 rounds AND solve ≥ 6 of 9 on first check; 1 star = complete at least 1 round on first check; 0 stars = otherwise.
 - **Input:** Multi-tap select/deselect cards + "Next Round" submit button.
 - **Feedback:** `FeedbackManager.sound.play()` + fire-and-forget `playDynamicFeedback()` per single-step submit. Select/deselect micro-SFX fire-and-forget. All via PART-017.
+- **PARTs Used:** PART-006 (TimerComponent, count-up, header), PART-017 (FeedbackManager — sound + TTS), PART-039 (PreviewScreen), PART-051 (AnswerComponent — answer carousel after victory), VisibilityTracker (pause overlay on tab switch). Standard lives + progress UI per archetype skeleton.
 
 ## Scoring
 - Points: +1 per round solved on first check (counted in `gameState.firstCheckSolves`). Also maintained: `gameState.score` = firstCheckSolves for test harness.

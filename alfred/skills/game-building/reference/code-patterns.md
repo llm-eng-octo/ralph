@@ -506,7 +506,7 @@ Per PART-039. Game-building rules:
   ```
 - **Header star runtime toggle.** `previewScreen.setStar(visible: boolean)` hides or shows the header star at runtime (use-case: clear the star indicator after a wrong answer, re-show on next round).
 - **Instruction persists in game state — do NOT hide it.** After `switchToGame()`, `#previewInstruction` stays rendered above `#gameContent` in the shared scroll container. This is a product requirement: students must be able to scroll up to re-read the instruction at any time. Do not write code that toggles `#previewInstruction`, `.mathai-preview-header`, `#mathai-preview-slot` visibility, or any `.mathai-preview-*` class. If the stacked preview-text + game layout feels cramped in your game, fix it inside `#gameContent` (tighter game UI, shorter `fallbackContent.previewInstruction`) — never by reaching into preview DOM. Validator rule `5e0-DOM-BOUNDARY` enforces the ban.
-- See `parts/PART-039.md` for full API and `warehouse/parts/PART-039-preview-screen.md` for the authoritative spec.
+- See `alfred/parts/PART-039.md` (distilled summary) and `alfred/parts/PART-039-preview-screen.md` for the authoritative full spec.
 
 ---
 
@@ -893,9 +893,26 @@ window.endGame = endGame;           // test harness calls this
 window.restartGame = resetGame;     // replay tests
 window.startGame = startGame;       // test harness triggers start
 window.nextRound = nextRound;       // test harness advances rounds (GEN-WINDOW-NEXTROUNDEXPOSED)
+window.loadRound = function(n) {    // harness jumpToRound(n) — multi-round games
+  if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+    gameState.currentRound = n;
+    renderRound(n);
+  }
+};
 ```
 
-All five MUST be assigned (GEN-WINDOW-EXPOSE).
+All assignments MUST appear (GEN-WINDOW-EXPOSE).
+
+**CRITICAL — never name the internal round-render function `loadRound`** (rule
+`GEN-LOADROUND-SHADOW`). A top-level `function loadRound(n)` declaration
+auto-attaches to `window.loadRound`, which the harness assignment then
+overwrites. Every internal call site that says `loadRound(n)` — including ones
+inside `showRoundIntro`'s `onMounted` callback — silently resolves to the
+harness helper. If that helper calls back into `showRoundIntro(n)` (the common
+pattern), you get unbounded recursion: 40,000+ `/generate-audio` calls per
+30 seconds and the game never reaches gameplay. Use `function renderRound(n)`
+for the internal function and reference it from `window.loadRound` as shown
+above. Caught and fixed in target-sum-game (2026-04-28).
 
 ### getRounds with Fallback
 

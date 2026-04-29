@@ -52,7 +52,7 @@ Step 4 runs in one of two modes. Pick the right one before starting; picking wro
 
 1. Delete the existing `games/<gameId>/index.html` (the sub-agent cannot reason about "what changed" from a diff; it only reads what's in front of it).
 2. Generate the HTML from scratch off the current skill docs. Every MANDATORY block in flow-implementation.md / code-patterns.md / PART files gets emitted, because there is no existing code for the sub-agent to "preserve".
-3. Run Step 5 (`node lib/validate-static.js`). All GEN-* rules green.
+3. Run Step 5 (`node alfred/scripts/validate-static.js`). All GEN-* rules green.
 
 **Use fresh mode whenever:**
 - A new MANDATORY rule / checklist item was added to this SKILL.md or any reference doc.

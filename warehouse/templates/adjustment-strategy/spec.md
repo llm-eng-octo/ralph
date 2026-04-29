@@ -1,1 +1,0 @@
-../../../games/adjustment-strategy/spec.md

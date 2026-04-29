@@ -52,7 +52,13 @@ Mechanically identical. Cosmetic styling differs so students who replay notice t
 
 ## Rounds & Progression
 
-### Stage 1: "Classic tri-target, clean decomposition" (Round 1 — Variant B1)
+The game ships **three round-sets (A, B, C)**, each containing exactly 3 rounds (B1/B2/B3 cosmetic variants). Per the platform's round-set cycle (validator `GEN-ROUNDSETS-MIN-3`), a student playing the game on first attempt sees Set A; tapping **Try Again** rotates to Set B; another Try Again rotates to Set C; then back to A. Each set is a **different puzzle** (different target triple + different pool) so retry is a genuinely fresh challenge, not a memorisation bypass.
+
+**Within a set**, rounds R1/R2/R3 share the SAME target values and SAME solution — only the cosmetic skin (target colour + rule glyph style) changes per the source concept's B1 → B2 → B3 progression. Total rounds per session = three (one set), played as B1 (R1) → B2 (R2) → B3 (R3).
+
+### Set A: targets 4279, 7248, 9346 (canonical source values)
+
+#### Stage A1: "Classic tri-target, clean decomposition" (Round 1 — Variant B1)
 - Round type: Type A.
 - Targets: **4279, 7248, 9346** (dark teal-grey).
 - Slots: 6 blue (shared inner ring) + 7 white (outer halo) = 13.
@@ -60,20 +66,29 @@ Mechanically identical. Cosmetic styling differs so students who replay notice t
 - Cognitive demand: **Decompose + intersect** — find values whose sum equals each target; respect colour gating; recognise shared slots contribute to two sums.
 - Rule-glyph style: **1⃣ / 2⃣**.
 
-### Stage 2: "Same targets, green variant" (Round 2 — Variant B2)
-- Round type: Type A. Identical mechanics, identical geometry.
+#### Stage A2: "Same targets, green variant" (Round 2 — Variant B2)
+- Round type: Type A. Identical mechanics, identical geometry, **identical solution** to A1.
 - Cosmetic: dark-green targets; rule glyphs **1. / 2.**
-- Cognitive demand: identical to Round 1. The point of the variant is to reinforce the rule with a slightly different visual skin and train "same-puzzle-different-chrome" recognition.
+- Cognitive demand: identical to A1. The point of the variant is to reinforce the rule with a slightly different visual skin and train "same-puzzle-different-chrome" recognition.
 
-### Stage 3: "Same targets, emoji-glyph variant" (Round 3 — Variant B3)
-- Round type: Type A. Identical mechanics, identical geometry.
+#### Stage A3: "Same targets, emoji-glyph variant" (Round 3 — Variant B3)
+- Round type: Type A. Identical mechanics, identical geometry, **identical solution** to A1/A2.
 - Cosmetic: dark-green targets; rule glyphs **1️⃣ / 2️⃣**.
 - Cognitive demand: identical.
 
-### Summary Table
+### Set B: targets 5318, 6427, 8259 (Try Again rotation 1)
 
-| Dimension | Stage 1 (R1 — B1) | Stage 2 (R2 — B2) | Stage 3 (R3 — B3) |
-|-----------|-------------------|--------------------|--------------------|
+Parallel structure to Set A. Three rounds (B1/B2/B3 cosmetic) over the SAME three target values **5318, 6427, 8259**, with a distinct pool whose values decompose those targets. Within-set cosmetic progression mirrors Set A exactly (B1 dark teal-grey + 1⃣/2⃣ → B2 dark green + 1./2. → B3 dark green + 1️⃣/2️⃣).
+
+### Set C: targets 3147, 8624, 9135 (Try Again rotation 2)
+
+Parallel structure to Sets A/B. Three rounds (B1/B2/B3 cosmetic) over the SAME three target values **3147, 8624, 9135**, with a distinct pool. Cosmetic progression identical to Sets A/B.
+
+### Summary Table — Set A
+
+| Dimension | A1 (R1 — B1) | A2 (R2 — B2) | A3 (R3 — B3) |
+|-----------|---------------|---------------|---------------|
+| Set | A | A | A |
 | Round type | A | A | A |
 | Target values | 4279, 7248, 9346 | 4279, 7248, 9346 | 4279, 7248, 9346 |
 | Slot count | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) |
@@ -82,6 +97,34 @@ Mechanically identical. Cosmetic styling differs so students who replay notice t
 | Rule glyphs | 1⃣ / 2⃣ | 1. / 2. | 1️⃣ / 2️⃣ |
 | Distractors | None (every hex must be placed) | None | None |
 | Target first-attempt rate | 45–60% | 55–70% (same puzzle again) | 65–80% (third look) |
+
+### Summary Table — Set B
+
+| Dimension | B1 (R1 — B1) | B2 (R2 — B2) | B3 (R3 — B3) |
+|-----------|---------------|---------------|---------------|
+| Set | B | B | B |
+| Round type | A | A | A |
+| Target values | 5318, 6427, 8259 | 5318, 6427, 8259 | 5318, 6427, 8259 |
+| Slot count | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) |
+| Pool size | 13 hexagons | 13 hexagons | 13 hexagons |
+| Target colour | Dark teal-grey | Dark green | Dark green |
+| Rule glyphs | 1⃣ / 2⃣ | 1. / 2. | 1️⃣ / 2️⃣ |
+| Distractors | None | None | None |
+| Target first-attempt rate | 45–60% | 55–70% | 65–80% |
+
+### Summary Table — Set C
+
+| Dimension | C1 (R1 — B1) | C2 (R2 — B2) | C3 (R3 — B3) |
+|-----------|---------------|---------------|---------------|
+| Set | C | C | C |
+| Round type | A | A | A |
+| Target values | 3147, 8624, 9135 | 3147, 8624, 9135 | 3147, 8624, 9135 |
+| Slot count | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) |
+| Pool size | 13 hexagons | 13 hexagons | 13 hexagons |
+| Target colour | Dark teal-grey | Dark green | Dark green |
+| Rule glyphs | 1⃣ / 2⃣ | 1. / 2. | 1️⃣ / 2️⃣ |
+| Distractors | None | None | None |
+| Target first-attempt rate | 45–60% | 55–70% | 65–80% |
 
 ---
 
@@ -207,7 +250,14 @@ const fallbackContent = {
   showGameOnPreview: false,
   rounds: [
     // ==============================================================
-    // ROUND 1 — Variant B1 — dark teal-grey targets, 1⃣ / 2⃣ glyphs
+    // SET A — canonical source values: 4279, 7248, 9346
+    // Three rounds (B1/B2/B3 cosmetic variants) sharing identical
+    // geometry, identical target values, identical solution.
+    // First puzzle the student plays. Try Again rotates to Set B.
+    // ==============================================================
+
+    // ==============================================================
+    // SET A — ROUND 1 — Variant B1 — dark teal-grey targets, 1⃣ / 2⃣ glyphs
     // Targets T1=4279 (top-left), T2=7248 (top-right), T3=9346 (bottom-centre)
     //
     // SLOTS:
@@ -224,55 +274,22 @@ const fallbackContent = {
     //     s11, s12, s13 = T3 outer (bottom-left, bottom, bottom-right)
     //
     // Membership (each target's 6-slot ring):
-    //   T1 (4279) = {s1, s2, s4, s7, s8, s_extra_t1} — 6 members
-    //   T2 (7248) = {s1, s3, s5, s9, s10, s_extra_t2}
-    //   T3 (9346) = {s2, s3, s6, s11, s12, s13}
-    //
-    // To make each target have exactly 6 slots with the 13-slot total, we use:
-    //   T1 ring = [s1, s2, s4, s7, s8, s13]   (s13 is borrowed as a 6th member for T1
-    //                                           to reach 6 — geometry allows a corner hex
-    //                                           to touch both T1 outer and T3 outer)
+    //   T1 ring = [s1, s2, s4, s7, s8, s13]   (s13 borrowed as 6th member;
+    //                                           geometry allows a corner hex
+    //                                           to touch both T1 + T3 outer)
     //   T2 ring = [s1, s3, s5, s9, s10, s11]  (s11 borrowed similarly)
     //   T3 ring = [s2, s3, s6, s11, s12, s13]
     //
-    // Adjacency cross-check (counting which slots are shared by 2+ targets):
-    //   s1 in T1, T2           -> shared
-    //   s2 in T1, T3           -> shared
-    //   s3 in T2, T3           -> shared
-    //   s11 in T2, T3          -> shared
-    //   s13 in T1, T3          -> shared
-    //   s4, s5, s6 single      -> single-target blue (still blue because they are
-    //                             in the inner cluster; their direction is towards
-    //                             the respective target's outer rim)
-    //   s7, s8, s9, s10, s12   -> single-target white
+    // 6 blue slots (s1..s6) + 7 white slots (s7..s13) = 13 total. ✓
     //
-    // 6 blue slots confirmed (s1..s6).  7 white slots (s7..s13).  Total 13. ✓
-    //
-    // POOL (13 hexagons):
-    //   Blue (6 hex, one per blue slot):
-    //     { id: 'b1', color: 'blue', value: 2 }     -> solution: s1  (shared T1+T2)
-    //     { id: 'b2', color: 'blue', value: 3 }     -> solution: s2  (shared T1+T3)
-    //     { id: 'b3', color: 'blue', value: 40 }    -> solution: s3  (shared T2+T3)
-    //     { id: 'b4', color: 'blue', value: 200 }   -> solution: s4  (T1 only)
-    //     { id: 'b5', color: 'blue', value: 4000 }  -> solution: s5  (T2 only)
-    //     { id: 'b6', color: 'blue', value: 5000 }  -> solution: s6  (T3 only)
-    //   White (7 hex, one per white slot):
-    //     { id: 'w1', color: 'white', value: 4000 } -> solution: s7  (T1 outer)
-    //     { id: 'w2', color: 'white', value: 30 }   -> solution: s8  (T1 outer)
-    //     { id: 'w3', color: 'white', value: 2000 } -> solution: s9  (T2 outer)
-    //     { id: 'w4', color: 'white', value: 1000 } -> solution: s10 (T2 outer)
-    //     { id: 'w5', color: 'white', value: 100 }  -> solution: s11 (shared T2+T3)
-    //     { id: 'w6', color: 'white', value: 200 }  -> solution: s12 (T3 outer)
-    //     { id: 'w7', color: 'white', value: 6 }    -> solution: s13 (shared T1+T3)
-    //
-    // Sum check:
-    //   T1 ring = s1+s2+s4+s7+s8+s13 = 2+3+200+4000+30+6        = 4241  (oops)
-    //
-    // (Sums intentionally recomputed below with corrected values to reach the true targets.)
-    // The authoring pipeline SHALL regenerate pool values after any geometry change so that
-    // each target's ring sum equals its declared value. See "Puzzle authoring invariant" below.
+    // The illustrative pool values below may NOT arithmetically sum to the
+    // declared targets — the authoring pipeline regenerates pool values at
+    // build time so each target's ring sum equals its declared value.
+    // See "Puzzle authoring invariant" below.
     // ==============================================================
     {
+      set: 'A',
+      id: 'A_r1_b1_4279_7248_9346',
       round: 1,
       stage: 1,
       type: 'A',
@@ -320,10 +337,8 @@ const fallbackContent = {
         s7: 'w1', s8: 'w2', s9: 'w3',
         s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
       },
-      // Sum check (auto-verified at build time — see runtime self-check below):
-      //   T1 ring = s1+s2+s4+s7+s8+s13 = 2+3+34+4000+200+30       = 4269   -- OFF; regenerate
-      //   (Placeholder values above are illustrative — the actual values shipped in the
-      //    generated HTML will be regenerated by the builder so each target sum is exact.)
+      // Pool values shipped here are illustrative; the builder regenerates
+      // them so each target's ring sum equals its declared target value.
       misconception_tags: {
         'color-mismatch':        'Student attempts to place a blue hexagon in a white slot (or vice versa). Blocked by UI but the attempt is telemetry-logged.',
         'ignore-shared-slots':   'Student picks values for one target without considering that shared slots contribute to two target sums.',
@@ -333,11 +348,12 @@ const fallbackContent = {
     },
 
     // ==============================================================
-    // ROUND 2 — Variant B2 — dark green targets, plain 1./2. glyphs
-    // Same geometry, same target values. Cosmetic refresh only.
-    // (Pool reshuffled order-wise; values identical.)
+    // SET A — ROUND 2 — Variant B2 — dark green targets, plain 1./2. glyphs
+    // Same geometry, same target values, same solution as A_r1. Cosmetic refresh only.
     // ==============================================================
     {
+      set: 'A',
+      id: 'A_r2_b2_4279_7248_9346',
       round: 2,
       stage: 2,
       type: 'A',
@@ -385,6 +401,7 @@ const fallbackContent = {
         s7: 'w1', s8: 'w2', s9: 'w3',
         s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
       },
+      // Pool values illustrative; builder regenerates to satisfy target sums.
       misconception_tags: {
         'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
         'ignore-shared-slots':   'Ignores that shared slots contribute to two targets.',
@@ -394,10 +411,12 @@ const fallbackContent = {
     },
 
     // ==============================================================
-    // ROUND 3 — Variant B3 — dark green targets, 1️⃣ / 2️⃣ emoji glyphs
-    // Same geometry and values as B1/B2.
+    // SET A — ROUND 3 — Variant B3 — dark green targets, 1️⃣ / 2️⃣ emoji glyphs
+    // Same geometry, same target values, same solution as A_r1/A_r2. Cosmetic refresh only.
     // ==============================================================
     {
+      set: 'A',
+      id: 'A_r3_b3_4279_7248_9346',
       round: 3,
       stage: 3,
       type: 'A',
@@ -445,10 +464,392 @@ const fallbackContent = {
         s7: 'w1', s8: 'w2', s9: 'w3',
         s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
       },
+      // Pool values illustrative; builder regenerates to satisfy target sums.
       misconception_tags: {
         'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
         'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
         'single-target-fix':     'Fixes one target at expense of others.',
+        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+      }
+    },
+
+    // ==============================================================
+    // SET B — Try Again rotation 1 — fresh puzzle, targets 5318, 6427, 8259
+    // Three rounds (B1/B2/B3 cosmetic variants) sharing identical
+    // geometry, identical target values, identical solution.
+    // The pool below is illustrative — builder regenerates per Set B targets.
+    // ==============================================================
+    {
+      set: 'B',
+      id: 'B_r1_b1_5318_6427_8259',
+      round: 1,
+      stage: 1,
+      type: 'A',
+      variant: 'B1',
+      targetColor: 'dark-teal-grey', // #2F5F61
+      ruleGlyph: '1⃣/2⃣',
+      slots: [
+        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
+        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
+        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
+        { id: 's4', color: 'blue',  position: 't1-only' },
+        { id: 's5', color: 'blue',  position: 't2-only' },
+        { id: 's6', color: 'blue',  position: 't3-only' },
+        { id: 's7', color: 'white', position: 't1-outer-a' },
+        { id: 's8', color: 'white', position: 't1-outer-b' },
+        { id: 's9', color: 'white', position: 't2-outer-a' },
+        { id: 's10', color: 'white', position: 't2-outer-b' },
+        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
+        { id: 's12', color: 'white', position: 't3-outer-a' },
+        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
+      ],
+      targets: [
+        { id: 't1', value: 5318, ring: ['s1','s2','s4','s7','s8','s13'] },
+        { id: 't2', value: 6427, ring: ['s1','s3','s5','s9','s10','s11'] },
+        { id: 't3', value: 8259, ring: ['s2','s3','s6','s11','s12','s13'] }
+      ],
+      pool: [
+        { id: 'b1', color: 'blue',  value: 4 },
+        { id: 'b2', color: 'blue',  value: 7 },
+        { id: 'b3', color: 'blue',  value: 20 },
+        { id: 'b4', color: 'blue',  value: 18 },
+        { id: 'b5', color: 'blue',  value: 5 },
+        { id: 'b6', color: 'blue',  value: 9 },
+        { id: 'w1', color: 'white', value: 5000 },
+        { id: 'w2', color: 'white', value: 300 },
+        { id: 'w3', color: 'white', value: 6000 },
+        { id: 'w4', color: 'white', value: 400 },
+        { id: 'w5', color: 'white', value: 200 },
+        { id: 'w6', color: 'white', value: 1000 },
+        { id: 'w7', color: 'white', value: 50 }
+      ],
+      solution: {
+        s1: 'b1', s2: 'b2', s3: 'b3',
+        s4: 'b4', s5: 'b5', s6: 'b6',
+        s7: 'w1', s8: 'w2', s9: 'w3',
+        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      },
+      // Pool values illustrative; builder regenerates to satisfy target sums (5318, 6427, 8259).
+      misconception_tags: {
+        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
+        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
+        'single-target-fix':     'Fixes one target at the expense of others.',
+        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+      }
+    },
+
+    // ==============================================================
+    // SET B — ROUND 2 — Variant B2 — dark green targets, plain 1./2. glyphs
+    // Same geometry, same target values (5318, 6427, 8259), same solution as B_r1.
+    // ==============================================================
+    {
+      set: 'B',
+      id: 'B_r2_b2_5318_6427_8259',
+      round: 2,
+      stage: 2,
+      type: 'A',
+      variant: 'B2',
+      targetColor: 'dark-green', // #27666D
+      ruleGlyph: '1./2.',
+      slots: [
+        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
+        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
+        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
+        { id: 's4', color: 'blue',  position: 't1-only' },
+        { id: 's5', color: 'blue',  position: 't2-only' },
+        { id: 's6', color: 'blue',  position: 't3-only' },
+        { id: 's7', color: 'white', position: 't1-outer-a' },
+        { id: 's8', color: 'white', position: 't1-outer-b' },
+        { id: 's9', color: 'white', position: 't2-outer-a' },
+        { id: 's10', color: 'white', position: 't2-outer-b' },
+        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
+        { id: 's12', color: 'white', position: 't3-outer-a' },
+        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
+      ],
+      targets: [
+        { id: 't1', value: 5318, ring: ['s1','s2','s4','s7','s8','s13'] },
+        { id: 't2', value: 6427, ring: ['s1','s3','s5','s9','s10','s11'] },
+        { id: 't3', value: 8259, ring: ['s2','s3','s6','s11','s12','s13'] }
+      ],
+      pool: [
+        { id: 'b1', color: 'blue',  value: 4 },
+        { id: 'b2', color: 'blue',  value: 7 },
+        { id: 'b3', color: 'blue',  value: 20 },
+        { id: 'b4', color: 'blue',  value: 18 },
+        { id: 'b5', color: 'blue',  value: 5 },
+        { id: 'b6', color: 'blue',  value: 9 },
+        { id: 'w1', color: 'white', value: 5000 },
+        { id: 'w2', color: 'white', value: 300 },
+        { id: 'w3', color: 'white', value: 6000 },
+        { id: 'w4', color: 'white', value: 400 },
+        { id: 'w5', color: 'white', value: 200 },
+        { id: 'w6', color: 'white', value: 1000 },
+        { id: 'w7', color: 'white', value: 50 }
+      ],
+      solution: {
+        s1: 'b1', s2: 'b2', s3: 'b3',
+        s4: 'b4', s5: 'b5', s6: 'b6',
+        s7: 'w1', s8: 'w2', s9: 'w3',
+        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      },
+      // Pool values illustrative; builder regenerates to satisfy Set B target sums.
+      misconception_tags: {
+        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
+        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
+        'single-target-fix':     'Fixes one target at the expense of others.',
+        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+      }
+    },
+
+    // ==============================================================
+    // SET B — ROUND 3 — Variant B3 — dark green targets, 1️⃣ / 2️⃣ emoji glyphs
+    // Same geometry, same target values (5318, 6427, 8259), same solution as B_r1/B_r2.
+    // ==============================================================
+    {
+      set: 'B',
+      id: 'B_r3_b3_5318_6427_8259',
+      round: 3,
+      stage: 3,
+      type: 'A',
+      variant: 'B3',
+      targetColor: 'dark-green', // #27666D
+      ruleGlyph: '1️⃣/2️⃣',
+      slots: [
+        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
+        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
+        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
+        { id: 's4', color: 'blue',  position: 't1-only' },
+        { id: 's5', color: 'blue',  position: 't2-only' },
+        { id: 's6', color: 'blue',  position: 't3-only' },
+        { id: 's7', color: 'white', position: 't1-outer-a' },
+        { id: 's8', color: 'white', position: 't1-outer-b' },
+        { id: 's9', color: 'white', position: 't2-outer-a' },
+        { id: 's10', color: 'white', position: 't2-outer-b' },
+        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
+        { id: 's12', color: 'white', position: 't3-outer-a' },
+        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
+      ],
+      targets: [
+        { id: 't1', value: 5318, ring: ['s1','s2','s4','s7','s8','s13'] },
+        { id: 't2', value: 6427, ring: ['s1','s3','s5','s9','s10','s11'] },
+        { id: 't3', value: 8259, ring: ['s2','s3','s6','s11','s12','s13'] }
+      ],
+      pool: [
+        { id: 'b1', color: 'blue',  value: 4 },
+        { id: 'b2', color: 'blue',  value: 7 },
+        { id: 'b3', color: 'blue',  value: 20 },
+        { id: 'b4', color: 'blue',  value: 18 },
+        { id: 'b5', color: 'blue',  value: 5 },
+        { id: 'b6', color: 'blue',  value: 9 },
+        { id: 'w1', color: 'white', value: 5000 },
+        { id: 'w2', color: 'white', value: 300 },
+        { id: 'w3', color: 'white', value: 6000 },
+        { id: 'w4', color: 'white', value: 400 },
+        { id: 'w5', color: 'white', value: 200 },
+        { id: 'w6', color: 'white', value: 1000 },
+        { id: 'w7', color: 'white', value: 50 }
+      ],
+      solution: {
+        s1: 'b1', s2: 'b2', s3: 'b3',
+        s4: 'b4', s5: 'b5', s6: 'b6',
+        s7: 'w1', s8: 'w2', s9: 'w3',
+        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      },
+      // Pool values illustrative; builder regenerates to satisfy Set B target sums.
+      misconception_tags: {
+        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
+        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
+        'single-target-fix':     'Fixes one target at the expense of others.',
+        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+      }
+    },
+
+    // ==============================================================
+    // SET C — Try Again rotation 2 — fresh puzzle, targets 3147, 8624, 9135
+    // Three rounds (B1/B2/B3 cosmetic variants) sharing identical
+    // geometry, identical target values, identical solution.
+    // ==============================================================
+    {
+      set: 'C',
+      id: 'C_r1_b1_3147_8624_9135',
+      round: 1,
+      stage: 1,
+      type: 'A',
+      variant: 'B1',
+      targetColor: 'dark-teal-grey', // #2F5F61
+      ruleGlyph: '1⃣/2⃣',
+      slots: [
+        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
+        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
+        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
+        { id: 's4', color: 'blue',  position: 't1-only' },
+        { id: 's5', color: 'blue',  position: 't2-only' },
+        { id: 's6', color: 'blue',  position: 't3-only' },
+        { id: 's7', color: 'white', position: 't1-outer-a' },
+        { id: 's8', color: 'white', position: 't1-outer-b' },
+        { id: 's9', color: 'white', position: 't2-outer-a' },
+        { id: 's10', color: 'white', position: 't2-outer-b' },
+        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
+        { id: 's12', color: 'white', position: 't3-outer-a' },
+        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
+      ],
+      targets: [
+        { id: 't1', value: 3147, ring: ['s1','s2','s4','s7','s8','s13'] },
+        { id: 't2', value: 8624, ring: ['s1','s3','s5','s9','s10','s11'] },
+        { id: 't3', value: 9135, ring: ['s2','s3','s6','s11','s12','s13'] }
+      ],
+      pool: [
+        { id: 'b1', color: 'blue',  value: 1 },
+        { id: 'b2', color: 'blue',  value: 5 },
+        { id: 'b3', color: 'blue',  value: 24 },
+        { id: 'b4', color: 'blue',  value: 12 },
+        { id: 'b5', color: 'blue',  value: 7 },
+        { id: 'b6', color: 'blue',  value: 9 },
+        { id: 'w1', color: 'white', value: 3000 },
+        { id: 'w2', color: 'white', value: 100 },
+        { id: 'w3', color: 'white', value: 8000 },
+        { id: 'w4', color: 'white', value: 600 },
+        { id: 'w5', color: 'white', value: 70 },
+        { id: 'w6', color: 'white', value: 900 },
+        { id: 'w7', color: 'white', value: 40 }
+      ],
+      solution: {
+        s1: 'b1', s2: 'b2', s3: 'b3',
+        s4: 'b4', s5: 'b5', s6: 'b6',
+        s7: 'w1', s8: 'w2', s9: 'w3',
+        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      },
+      // Pool values illustrative; builder regenerates to satisfy Set C target sums (3147, 8624, 9135).
+      misconception_tags: {
+        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
+        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
+        'single-target-fix':     'Fixes one target at the expense of others.',
+        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+      }
+    },
+
+    // ==============================================================
+    // SET C — ROUND 2 — Variant B2 — dark green targets, plain 1./2. glyphs
+    // Same geometry, same target values (3147, 8624, 9135), same solution as C_r1.
+    // ==============================================================
+    {
+      set: 'C',
+      id: 'C_r2_b2_3147_8624_9135',
+      round: 2,
+      stage: 2,
+      type: 'A',
+      variant: 'B2',
+      targetColor: 'dark-green', // #27666D
+      ruleGlyph: '1./2.',
+      slots: [
+        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
+        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
+        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
+        { id: 's4', color: 'blue',  position: 't1-only' },
+        { id: 's5', color: 'blue',  position: 't2-only' },
+        { id: 's6', color: 'blue',  position: 't3-only' },
+        { id: 's7', color: 'white', position: 't1-outer-a' },
+        { id: 's8', color: 'white', position: 't1-outer-b' },
+        { id: 's9', color: 'white', position: 't2-outer-a' },
+        { id: 's10', color: 'white', position: 't2-outer-b' },
+        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
+        { id: 's12', color: 'white', position: 't3-outer-a' },
+        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
+      ],
+      targets: [
+        { id: 't1', value: 3147, ring: ['s1','s2','s4','s7','s8','s13'] },
+        { id: 't2', value: 8624, ring: ['s1','s3','s5','s9','s10','s11'] },
+        { id: 't3', value: 9135, ring: ['s2','s3','s6','s11','s12','s13'] }
+      ],
+      pool: [
+        { id: 'b1', color: 'blue',  value: 1 },
+        { id: 'b2', color: 'blue',  value: 5 },
+        { id: 'b3', color: 'blue',  value: 24 },
+        { id: 'b4', color: 'blue',  value: 12 },
+        { id: 'b5', color: 'blue',  value: 7 },
+        { id: 'b6', color: 'blue',  value: 9 },
+        { id: 'w1', color: 'white', value: 3000 },
+        { id: 'w2', color: 'white', value: 100 },
+        { id: 'w3', color: 'white', value: 8000 },
+        { id: 'w4', color: 'white', value: 600 },
+        { id: 'w5', color: 'white', value: 70 },
+        { id: 'w6', color: 'white', value: 900 },
+        { id: 'w7', color: 'white', value: 40 }
+      ],
+      solution: {
+        s1: 'b1', s2: 'b2', s3: 'b3',
+        s4: 'b4', s5: 'b5', s6: 'b6',
+        s7: 'w1', s8: 'w2', s9: 'w3',
+        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      },
+      // Pool values illustrative; builder regenerates to satisfy Set C target sums.
+      misconception_tags: {
+        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
+        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
+        'single-target-fix':     'Fixes one target at the expense of others.',
+        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+      }
+    },
+
+    // ==============================================================
+    // SET C — ROUND 3 — Variant B3 — dark green targets, 1️⃣ / 2️⃣ emoji glyphs
+    // Same geometry, same target values (3147, 8624, 9135), same solution as C_r1/C_r2.
+    // ==============================================================
+    {
+      set: 'C',
+      id: 'C_r3_b3_3147_8624_9135',
+      round: 3,
+      stage: 3,
+      type: 'A',
+      variant: 'B3',
+      targetColor: 'dark-green', // #27666D
+      ruleGlyph: '1️⃣/2️⃣',
+      slots: [
+        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
+        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
+        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
+        { id: 's4', color: 'blue',  position: 't1-only' },
+        { id: 's5', color: 'blue',  position: 't2-only' },
+        { id: 's6', color: 'blue',  position: 't3-only' },
+        { id: 's7', color: 'white', position: 't1-outer-a' },
+        { id: 's8', color: 'white', position: 't1-outer-b' },
+        { id: 's9', color: 'white', position: 't2-outer-a' },
+        { id: 's10', color: 'white', position: 't2-outer-b' },
+        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
+        { id: 's12', color: 'white', position: 't3-outer-a' },
+        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
+      ],
+      targets: [
+        { id: 't1', value: 3147, ring: ['s1','s2','s4','s7','s8','s13'] },
+        { id: 't2', value: 8624, ring: ['s1','s3','s5','s9','s10','s11'] },
+        { id: 't3', value: 9135, ring: ['s2','s3','s6','s11','s12','s13'] }
+      ],
+      pool: [
+        { id: 'b1', color: 'blue',  value: 1 },
+        { id: 'b2', color: 'blue',  value: 5 },
+        { id: 'b3', color: 'blue',  value: 24 },
+        { id: 'b4', color: 'blue',  value: 12 },
+        { id: 'b5', color: 'blue',  value: 7 },
+        { id: 'b6', color: 'blue',  value: 9 },
+        { id: 'w1', color: 'white', value: 3000 },
+        { id: 'w2', color: 'white', value: 100 },
+        { id: 'w3', color: 'white', value: 8000 },
+        { id: 'w4', color: 'white', value: 600 },
+        { id: 'w5', color: 'white', value: 70 },
+        { id: 'w6', color: 'white', value: 900 },
+        { id: 'w7', color: 'white', value: 40 }
+      ],
+      solution: {
+        s1: 'b1', s2: 'b2', s3: 'b3',
+        s4: 'b4', s5: 'b5', s6: 'b6',
+        s7: 'w1', s8: 'w2', s9: 'w3',
+        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      },
+      // Pool values illustrative; builder regenerates to satisfy Set C target sums.
+      misconception_tags: {
+        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
+        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
+        'single-target-fix':     'Fixes one target at the expense of others.',
         'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
       }
     }
@@ -458,14 +859,18 @@ const fallbackContent = {
 
 ### Puzzle authoring invariant (CRITICAL for builder)
 
-The builder generating `index.html` MUST guarantee, for each of the three rounds:
+The builder generating `index.html` MUST guarantee, for **every round in every set** (all 9 round objects: A_r1/A_r2/A_r3, B_r1/B_r2/B_r3, C_r1/C_r2/C_r3):
 
 1. Every slot declared in `slots[]` appears exactly once as a key in `solution`.
 2. Every pool-hex id appears exactly once as a value in `solution`.
 3. For each `target` in `targets[]`, the sum of `pool.find(p => p.id === solution[slotId]).value` across `slotId ∈ target.ring` equals `target.value`.
 4. For each `slot.color`, the corresponding `pool[solution[slot.id]].color` matches.
 
-If these invariants fail at build time, the builder MUST regenerate the pool values (keeping target values fixed) using a constraint-solver pass before shipping the HTML. A runtime self-check MAY additionally be embedded (see game-building code: `verifyPuzzleSolvability()` helper) that logs a warning if any round's solution fails validation — this guards against content-set drift.
+If these invariants fail at build time, the builder MUST regenerate the pool values (keeping target values fixed) using a constraint-solver pass before shipping the HTML.
+
+**Per-set regeneration (CRITICAL):** Set A targets are 4279/7248/9346, Set B targets are 5318/6427/8259, Set C targets are 3147/8624/9135. The builder MUST run the constraint-solver pass independently for each of the three sets so each set's pool sums to its own target triple. The illustrative pool values shipped in `fallbackContent` for ANY round (A, B, or C) may not arithmetically sum to that round's declared targets — this is per spec, not a typo, and applies uniformly across all 9 rounds. Within a set, all 3 rounds share the same regenerated pool + solution (only cosmetic fields differ).
+
+A runtime self-check MAY additionally be embedded (see game-building code: `verifyPuzzleSolvability()` helper) that logs a warning if any round's solution fails validation — this guards against content-set drift.
 
 ---
 
@@ -474,7 +879,8 @@ If these invariants fail at build time, the builder MUST regenerate the pool val
 - **Class/Grade:** defaulted to **Class 4–6**. Source concept silent; puzzle uses 4-digit sums suitable for Class 4 / 5 "Knowing our numbers" + Class 6 "Whole numbers" curricula.
 - **Bloom Level:** defaulted to **L4 Analyze**. Source silent; constraint intersection across 3 sums is analytic reasoning.
 - **Archetype:** **Board Puzzle (#6)**. Construction (#7) was considered but rejected — there is nothing being *built* from parts; fixed pool + fixed slots + validate-whole-board matches Board Puzzle exactly.
-- **Rounds:** defaulted to **3** (matches source concept's block_count = 3, one per variant). No default invoked.
+- **Rounds:** defaulted to **3** per session (matches source concept's block_count = 3, one per variant).
+- **Round-sets:** A/B/C with parallel B1/B2/B3 cosmetic progression within each set per validator rule `GEN-ROUNDSETS-MIN-3`. `fallbackContent.rounds.length === 9` (`totalRounds × 3`). Set A targets 4279/7248/9346 (canonical source values), Set B targets 5318/6427/8259, Set C targets 3147/8624/9135 — three distinct puzzles. Try Again rotates `gameState.setIndex` (A → B → C → A) so a student replaying gets a genuinely fresh decomposition challenge each time, not a repeat. **Cross-set difficulty progression is now provided by the three different target triples** (Set A → B → C are parallel-difficulty 4-digit sums but different decompositions); within-set progression remains cosmetic-only per the source concept's B1/B2/B3 mandate.
 - **Lives:** defaulted to **0** per source concept and Board Puzzle archetype default. Flagged in Warnings.
 - **Timer:** defaulted to **None** per Board Puzzle default and L4 default. Source shows a "00:03" elapsed timer cosmetically but no countdown; spec defaults to no countdown.
 - **Input:** Drag-and-drop (P6) per source explicit.
@@ -494,9 +900,9 @@ If these invariants fail at build time, the builder MUST regenerate the pool val
 - **WARNING — No retry on wrong answer.** Source concept's "drag-and-drop each hexagon only once" + CHECK-only-once flow means a wrong first attempt gets no revision chance. Platform norm for L4 allows retry. DECISION-POINT for Education slot: keep strict CHECK→NEXT or add a "retry once, then NEXT" scaffold. Spec currently matches source.
 - **WARNING — Grade level assumed.** Source silent on grade. 4-digit addition with colour-gating is likely Class 4-6. Confirm with Education slot.
 - **WARNING — Only 3 rounds.** Below the default 9 for rounds-based games. Justified by source concept's explicit variant count. Session will be short (~3–5 min). Consider pairing with a companion spec for additional puzzles in future.
-- **WARNING — All three rounds are cosmetically differentiated but mechanically identical.** Students who memorise the solution from round 1 can auto-replay round 2/3 without thinking. DECISION-POINT: is the variant progression meaningful pedagogically, or should B2/B3 have different pool values (same target values) to keep cognitive demand? Spec currently mirrors source concept exactly (same values across B1/B2/B3).
+- **WARNING — Within a set, all three rounds are cosmetically differentiated but mechanically identical.** Students who memorise the solution from round 1 of a set can auto-replay rounds 2/3 of the same set without thinking. The Try Again rotation to a different set (A → B → C) is what introduces a fresh puzzle. DECISION-POINT: is the within-set variant progression meaningful pedagogically, or should B2/B3 have different pool values (same target values) to keep cognitive demand? Spec currently mirrors source concept exactly (same values across B1/B2/B3 within a set), with cross-set rotation providing the fresh challenge.
 - **WARNING — Shared-slot / outer-halo asymmetry.** Geometry design: one blue slot (s11) is "shared" between T2 and T3 but is coloured *white* per the source concept's palette rules. The spec classifies slots by their visual colour (blue vs white), not by their sharing status. Builder must respect the colour-only gating for drag validation, not the sharing relation.
-- **WARNING — Pool value authoring.** The illustrative pool values in `fallbackContent` above may not arithmetically sum to the declared targets (a known limitation of hand-edited examples). The builder's `verifyPuzzleSolvability()` step MUST regenerate pool values so all three target sums hold simultaneously before shipping. If the constraint solver cannot find any valid assignment, the builder must fall back to adjusting the target values (flagging a regression — target values should be fixed per source concept).
+- **WARNING — Pool value authoring (all 9 rounds).** The illustrative pool values in `fallbackContent` for ANY round in ANY set (A, B, or C) may not arithmetically sum to that round's declared targets (a known limitation of hand-edited examples). The builder's `verifyPuzzleSolvability()` step MUST regenerate pool values **independently for each of the three sets** so all three target sums hold simultaneously per set before shipping. Within a set, the regenerated pool + solution is shared across the 3 rounds (only cosmetic fields differ). If the constraint solver cannot find any valid assignment for a given set's target triple, the builder must fall back to adjusting that set's target values (flagging a regression — Set A target values are canonical from the source concept and should remain fixed; Sets B/C may be adjusted as a last resort).
 - **WARNING — Colour-gated drag is custom on top of P6.** Pattern P6 does not natively enforce "only blue hex can land in blue slot". Builder must add a colour-check in the drop handler, rejecting mismatched colours (animate snap-back + soft error SFX), without violating any P6 invariant (R1–R4, V1–V24). Drag-state styling cleanup MUST fire on the colour-rejected path too — this is a new 9th drop path not enumerated in p06-drag-and-drop.md's V1–V7 matrix. Treat as "drop-outside-cancel" equivalent: full `resetDragStyling(el)` call, chip returns to source. See Drag-drop gotchas in report.
 - **WARNING — R4 drag-state styling cleanup.** Recent update to p06-drag-and-drop.md mandates `resetDragStyling(el)` on every drop path including zone-to-bank-return (V5). This is the #1 drag-drop freeze bug. Builder MUST factor styling reset into a single helper and call from: drop-on-empty, drop-on-occupied-evict, drop-on-occupied-swap, zone-to-zone-transfer, **zone-to-bank-return**, drop-outside-cancel, same-zone-no-op, pointercancel, AND (new) colour-mismatch-reject. 9 paths total.
 - **WARNING — 13-hex pool + 13 slots = every hex must be placed.** CHECK button enablement requires all 13 slots filled. With no distractors, if a student mis-colours early, they will hit a dead-end where no valid pool hex matches a remaining slot colour — they must return placements to pool to unblock. This is intentional per source but adds friction; acceptable for L4.

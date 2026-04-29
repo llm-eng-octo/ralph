@@ -1,1 +1,0 @@
-../../../games/addition-mcq/spec.md
