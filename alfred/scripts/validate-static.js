@@ -4348,6 +4348,27 @@ if (hasStartGame) {
           '(PART-050 "Try Again flow", GEN-FLOATING-BUTTON-RETRY-LIVES-RESET)'
       );
     }
+
+    // ─── GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE ───────────────────────────
+    // The retry handler MUST NOT call setSubmittable(...). Predicate-driven
+    // re-show is owned by the next interaction handler (input/drag/tap). When
+    // retryPreservesInput is true, calling setSubmittable(isSubmittable())
+    // inside the retry handler immediately re-shows Submit because the grid /
+    // input is still satisfied — the player taps Try Again → Submit with the
+    // same wrong answer. Caught the kakuro 2026-05 regression.
+    const retrySubmittablePattern = /\.setSubmittable\s*\(/;
+    if (retrySubmittablePattern.test(handlerBody)) {
+      errors.push(
+        'ERROR [GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE]: floatingBtn.on(\'retry\', ...) handler body calls ' +
+          'setSubmittable(...). The retry handler\'s only mode action is `setMode(null)` — predicate-driven ' +
+          're-show is owned by the next interaction handler (input / drag / tap). When `retryPreservesInput: true`, ' +
+          'calling `setSubmittable(isSubmittable())` (or `setSubmittable(true)`) inside the retry handler ' +
+          'immediately re-shows Submit because the input is still satisfied, letting the player tap-tap through ' +
+          'Try Again → Submit with the same wrong answer. The whole point of Try Again is to force at least one edit ' +
+          'before re-evaluating. Remove the setSubmittable call from the retry handler. ' +
+          '(PART-050 "Try Again flow", GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE)'
+      );
+    }
   }
 })();
 

@@ -142,6 +142,16 @@ async function handleSubmit() {
 
   // Inputs stay disabled until loadRound() re-enables them for the next round.
   // loadRound() is the single source of truth: isProcessing=false, voiceInput.enable(), clearMark(), clear().
+
+  // Progress bar bump — AFTER feedback resolves (above), ONLY on round resolution,
+  // BEFORE the round-change UI. The voice-input pattern shown here is the default
+  // no-retry flow — wrong always advances (or hits Game Over via lives upstream).
+  // For retry-flow variants, gate the bump on resolution: skip the bump when
+  // wrong + lives > 0 + retries available, and trigger floatingBtn.setMode('retry')
+  // instead. See PART-023 § Bump timing + flow-implementation.md § Round loop.
+  gameState.progress++;
+  if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
+
   gameState.currentRound++;
   if (gameState.currentRound >= gameState.totalRounds) {
     endGame('victory');

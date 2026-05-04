@@ -425,7 +425,26 @@ Per PART-050. Game-building rules:
     if (inputEl && !RETRY_PRESERVES_INPUT) inputEl.focus();
   });
   ```
-  `RETRY_PRESERVES_INPUT` is a game-scope const set from `spec.retryPreservesInput` (default `false` = clear input). The retry handler MUST preserve `gameState.lives`, `gameState.attempts`, `gameState.score`, and `gameState.retryCount` — NEVER reset them. Validator rules: `GEN-FLOATING-BUTTON-RETRY-STANDALONE`, `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET`.
+  `RETRY_PRESERVES_INPUT` is a game-scope const set from `spec.retryPreservesInput` (default `false` = clear input). The retry handler MUST preserve `gameState.lives`, `gameState.attempts`, `gameState.score`, and `gameState.retryCount` — NEVER reset them. Validator rules: `GEN-FLOATING-BUTTON-RETRY-STANDALONE`, `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET`, `GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE`.
+
+  **Retry handler must NOT call `setSubmittable(...)` — predicate-driven re-show is owned by the next interaction handler.** When `retryPreservesInput: true`, the predicate is still satisfied by the preserved input; calling `setSubmittable(isSubmittable())` (or `setSubmittable(true)`) inside the retry handler immediately re-shows Submit and lets the player tap-tap through Try Again → Submit with the same wrong answer. The whole point of Try Again is to force at least one edit before re-evaluating. Validator: `GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE`.
+
+  ```js
+  // WRONG — re-shows Submit instantly when input is preserved
+  floatingBtn.on('retry', function () {
+    clearFeedbackUI();
+    gameState.isProcessing = false;
+    floatingBtn.setMode(null);
+    floatingBtn.setSubmittable(isSubmittable()); // ← forbidden
+  });
+
+  // RIGHT — predicate fires from the player's next edit
+  floatingBtn.on('retry', function () {
+    clearFeedbackUI();
+    gameState.isProcessing = false;
+    floatingBtn.setMode(null);
+  });
+  ```
 - **No duplicate buttons — DELETE, don't rename.** When FloatingButton is instantiated, NO other `<button>` in the source may carry a Submit / Check / Done / Commit / Retry / Next / CTA word in its **id, class, data-testid, aria-label, OR inner text**. Validator `5e0-FLOATING-BUTTON-DUP` scans all 5 attributes. **Known evasion pattern (do NOT attempt):** renaming `id="bbSubmitBtn" class="bb-submit"` to `id="bbGoBtn" class="bb-go"` while keeping `data-testid="bb-submit-btn"` and inner text `Submit` — rule still fires and the build fails. The correct fix is to DELETE the hand-rolled button entirely and wire its handler via `floatingBtn.on('submit', ...)`. If tests reference a `data-testid`, point them at the FloatingButton DOM (`.mathai-fb-btn-primary`), or add a `data-testid` via the FloatingButton API — do not keep a parallel button to satisfy tests. Reset remains inline per PART-022 — FloatingButton does NOT absorb Reset.
 - **End-of-game teardown (Next-tap, NOT `endGame()`):** the `on('next', ...)` handler posts `next_ended`, then calls `previewScreen.destroy()` (and `answerComponent.destroy()` if applicable), then `floatingBtn.destroy()` last. `endGame()` MUST NOT call any `.destroy()` — destroys move into the Next handler so the header stays mounted while `show_star` lands.
 - **AnswerComponent integration (PART-051) overrides the Next-flow chain shown above.** When the game has not opted out of `answerComponent`, the Next button is gated by AnswerComponent reveal, NOT by a TransitionScreen dismiss. See the AnswerComponent section below for the corrected end-game patterns. The patterns above remain authoritative ONLY for games with `answerComponent: false` in the spec.
@@ -1047,40 +1066,95 @@ When the game has a `TimerComponent`, instantiate it into a container inside `#g
 - `timer.pause()` / `timer.resume()` from VisibilityTracker's `onInactive` / `onResume` callbacks, so the countdown freezes while the tab is hidden
 - `timer.reset()` on restart
 
-### Round-complete handler — bump just before round change (ordering rule)
+### Round-complete handler — bump only when student moves PAST the round (ordering rule)
 
-The round-complete handler runs after the student submits and feedback plays. **Bump the progress bar AFTER feedback resolves, immediately BEFORE the round-change UI fires** (next `showRoundIntro`, Victory transition, or Game Over transition). The student sees feedback for the round they just played with the bar still on that round, and the bar advances *as the round changes* — not at submit.
+The round-complete handler runs after the student submits and feedback plays. **Bump the progress bar AFTER feedback resolves, ONLY when the student moves PAST the current round, immediately BEFORE the next-round / Victory UI fires.** The bar advances *as the student moves to the next round / Victory* — not at submit, **not on Game Over** (game ended on this unfinished round; student never passed it), **not on a wrong-with-retry path** (still on same round).
 
-**Default policy — `gameState.progress` counts rounds attempted, NOT rounds correct.** It increments on EVERY round, regardless of verdict. Wrong answers also decrement `gameState.lives`. Score (correct count) is a separate internal counter (`gameState.score`) that feeds `getStars()` at end-of-game — it does NOT update the ActionBar header mid-round (the header is end-of-game-only). See `flow-implementation.md` § Round loop pattern for the full pattern.
+**The student moves past the round on:**
+- **Correct** — advance to next round (or Victory if last round)
+- **Retries exhausted with `lives > 0`** (only in spec-defined retry flows) — round ends, advance to next round
 
-**Canonical sequence per round:**
+**The student does NOT move past the round on:**
+- **Last-life wrong** (`lives === 0` after decrement) — Game Over fires; the student stayed on this round and the game ended. Bar preserves prior progress + 0 hearts.
+- **Wrong with retries remaining** — `floatingBtn.setMode('retry')` keeps the student on the same round.
+
+**Default policy — `gameState.progress` counts rounds passed, NOT rounds correct.** Each round-passed bumps `progress` by 1. A wrong answer that advances (e.g., default no-retry flow with `lives > 0`) still passes the round — bumps. A wrong answer that ends the game (Game Over) does NOT pass the round — no bump. Score (correct count) is a separate internal counter (`gameState.score`) that feeds `getStars()` at end-of-game — it does NOT update the ActionBar header mid-round (the header is end-of-game-only). See `flow-implementation.md` § Round loop pattern for the full pattern.
+
+**Canonical sequence per round (no-retry default flow):**
+
+In the default no-retry flow, wrong-with-lives-remaining advances to the next round and wrong-with-last-life ends the game. The Game Over check must come BEFORE the bump:
 
 ```javascript
-// Default: rounds-attempted progress counter, bump just before round change
+// Default no-retry flow — bump only when advancing (NOT on Game Over)
 async function onRoundComplete(verdict) {
   // 1. State mutations — internal counters only, no ActionBar header writes
   if (verdict.correct) {
     gameState.score++;          // feeds getStars() at end-of-game
   } else {
-    gameState.lives--;          // life lost
+    gameState.lives--;          // life lost (last-life wrong = Game Over)
   }
   // 2. Feedback FIRST — bar still at previous progress while feedback plays
   await FeedbackManager.sound.play(verdict.correct ? 'correct' : 'incorrect', {...});
-  // 3. Bump progress + update bar JUST BEFORE the round-change UI fires
-  gameState.progress++;                                                        // every round
+
+  // 3. Game Over branch — round NOT passed, no progress bump
+  if (gameState.lives === 0) {
+    if (progressBar) {
+      try { progressBar.update(gameState.progress, 0); } catch (e) {}   // hearts empty, progress preserved
+    }
+    return endGame('game_over');
+  }
+
+  // 4. Student moved past — bump progress + update bar JUST BEFORE next-round / Victory
+  gameState.progress++;
   if (progressBar) {
     try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
   }
-  // 4. Round-change UI (this is what the bump must precede)
-  if (gameState.lives === 0) return endGame('game_over');                      // bumped + 0 hearts
+
+  // 5. Next-round / Victory UI
   if (gameState.progress >= gameState.totalRounds) return endGame('victory');  // bumped to N/N
   nextRound();
 }
 ```
 
-**Ordering rule:** the bump MUST happen BEFORE any of `nextRound()`, `endGame('victory')`, `endGame('game_over')`, or any awaited round-change transition (`transitionScreen.show(...)`). It does NOT need to happen before the awaited feedback SFX — the bump fires AFTER feedback resolves. This is the corrected ordering: feedback first, bump second, round-change UI third.
+**Canonical sequence per round (retry flow — wrong with retry available does NOT bump):**
 
-Why this timing: bumping at submit feels premature (bar advances before the student has seen the result of their answer). Bumping after the round-change UI is too late (Victory paints with the pre-bump value — matching-doubles regression, April 2026). The middle path — bump after feedback resolves, before round-change UI — keeps the bar in sync with the visible round transition AND guarantees Victory / Game Over render with the post-bump value.
+When the spec defines a per-round retry mechanic, the handler adds a retry branch BEFORE the Game Over / advance branches:
+
+```javascript
+async function onRoundComplete(verdict) {
+  // 1. State mutations
+  if (verdict.correct) gameState.score++;
+  else gameState.lives--;
+
+  // 2. Feedback FIRST
+  await FeedbackManager.sound.play(verdict.correct ? 'correct' : 'incorrect', {...});
+
+  // 3. Wrong-with-retry? Stay on same round, no bump.
+  const retryAvailable = !verdict.correct && gameState.lives > 0 && hasRetry(gameState);
+  if (retryAvailable) {
+    floatingBtn.setMode('retry');
+    return;   // bump fires later (or never, if Game Over comes next)
+  }
+
+  // 4. Game Over? Round NOT passed, no progress bump.
+  if (gameState.lives === 0) {
+    if (progressBar) progressBar.update(gameState.progress, 0);
+    return endGame('game_over');
+  }
+
+  // 5. Student moved past — bump progress + update bar
+  gameState.progress++;
+  if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
+
+  // 6. Next-round / Victory UI
+  if (gameState.progress >= gameState.totalRounds) return endGame('victory');
+  nextRound();
+}
+```
+
+**Ordering rule:** the bump MUST happen BEFORE `nextRound()` / `endGame('victory')` (when bumping at all). The bump MUST NOT fire before `endGame('game_over')` (round wasn't passed) or before `floatingBtn.setMode('retry')` (still on same round). It does NOT need to happen before the awaited feedback SFX — the bump fires AFTER feedback resolves. Corrected ordering: feedback first, branch (retry → no bump | Game Over → no bump | moved past → bump), round-change UI.
+
+Why this timing: bumping at submit feels premature (bar advances before the student has seen the result of their answer). Bumping after the round-change UI is too late (Victory paints with the pre-bump value — matching-doubles regression, April 2026). Bumping on a non-resolving wrong answer advances the bar past where the student actually is. **Bumping on Game Over implies the student passed the round when they didn't** — Game Over with bar at `7/10` reads as "completed 7" but the student lost on round 7; the truthful read is `6/10` + 0 hearts, "completed 6, lost on 7."
 
 **Anti-pattern 1 — bar updated AFTER the round-change transition:**
 
@@ -1126,7 +1200,44 @@ async function onRoundComplete(verdict) {
 }
 ```
 
-**Correct — feedback first, bump just before round change:** see canonical sequence above. The visible order is: tap submit → feedback plays for current round (bar still on current round) → bar advances → next round / Victory / Game Over.
+**Anti-pattern 4 — bar bumped on every wrong-with-retry (advances past actual round):**
+
+```javascript
+// WRONG — retry flow bumps progress on every wrong answer, including ones that
+// keep the student on the same round. A 10-round game where the student retries
+// round 5 twice before getting it right shows "Round 7/10" while the round-intro
+// still says "Round 5" — bar disagrees with the round number being played.
+async function onRoundComplete(verdict) {
+  if (verdict.correct) gameState.score++; else gameState.lives--;
+  await FeedbackManager.sound.play(...);
+  gameState.progress++;                                     // bumps even when retrying
+  progressBar.update(gameState.progress, gameState.lives);
+  if (!verdict.correct && gameState.lives > 0) {
+    floatingBtn.setMode('retry');                           // back to same round, but bar moved
+    return;
+  }
+  // ...
+}
+```
+
+**Anti-pattern 5 — bar bumped on Game Over (implies student passed the unfinished round):**
+
+```javascript
+// WRONG — bumps progress before the Game Over branch. Student loses last life on
+// round 7 → bar shows 7/10 + 0 hearts on Game Over screen. Reads as "completed 7"
+// but the student never passed round 7 — they lost on it. Truthful read is
+// 6/10 + 0 hearts ("completed 6, lost on 7").
+async function onRoundComplete(verdict) {
+  if (verdict.correct) gameState.score++; else gameState.lives--;
+  await FeedbackManager.sound.play(...);
+  gameState.progress++;                                     // bumped before Game Over check
+  progressBar.update(gameState.progress, gameState.lives);
+  if (gameState.lives === 0) return endGame('game_over');   // bar misleads: 7/10 + 0 hearts
+  // ...
+}
+```
+
+**Correct — feedback first, retry → no bump, Game Over → no bump, moved past → bump:** see canonical sequences above. The Game Over branch must come BEFORE the bump, and it preserves the prior progress + 0 hearts so the bar reads as "completed N-1, lost on N."
 
 **Alternative policies (only with explicit spec authorization):** rounds-correct, points-earned, section-progress, tiles-cleared. Default is rounds-attempted — never invent a custom policy without spec opt-in. Document the chosen metric in the spec's `## Flow` section.
 

@@ -373,6 +373,8 @@ floatingBtn.on('retry', function () {
 
 `RETRY_PRESERVES_INPUT` is a game-scope const the generator emits from `spec.retryPreservesInput`.
 
+**Retry handler MUST NOT call `setSubmittable(...)` — MANDATORY.** The handler's only mode action is `setMode(null)`. Calling `setSubmittable(isSubmittable())` (or `setSubmittable(true)`) inside the retry handler defeats the canonical UX: when `retryPreservesInput: true`, the predicate is still satisfied by the preserved input and the call **immediately re-shows Submit**, letting the player tap-tap through Try Again → Submit with the same wrong answer. The correct flow is **predicate-driven re-show from the player's NEXT interaction** — the input/drag/tap handlers (which already call `setSubmittable(isSubmittable())`) will re-show Submit as soon as the player edits. Forcing the player to make at least one change before re-submitting is the whole point of the Try Again gate. Statically enforced by validator `GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE`. Caught the kakuro 2026-05 regression where the handler called `setSubmittable(isSubmittable())` after `setMode(null)` and Submit reappeared instantly with the unchanged grid.
+
 **Must NOT reset:**
 - `gameState.lives` — already decremented, do not restore
 - `gameState.attempts` — every attempt stays in the history with `is_retry: true`
@@ -383,7 +385,7 @@ floatingBtn.on('retry', function () {
 - Clear input value (unless `retryPreservesInput: true`)
 - Clear any inline feedback UI the game rendered for the wrong attempt
 
-Validator rules that enforce this: `GEN-FLOATING-BUTTON-RETRY-STANDALONE` (standalone + lives>1 must register `on('retry', ...)`), `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET` (retry handler must not contain a lives reset).
+Validator rules that enforce this: `GEN-FLOATING-BUTTON-RETRY-STANDALONE` (standalone + lives>1 must register `on('retry', ...)`), `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET` (retry handler must not contain a lives reset), `GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE` (retry handler must not call `setSubmittable(...)` — predicate-driven re-show is owned by the next interaction handler).
 
 ---
 
