@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Fill The Gaps — Vertical Addition</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'fill-the-gaps@1.0.0' }));
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+      --mathai-primary: #270f36;
+      --mathai-purple: #9B51E0;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-small: 8px;
+
+      --fg-blank-bg: #FFF8E7;
+      --fg-blank-border: #F2994A;
+      --fg-blank-filled-bg: #DAFEDC;
+      --fg-pad-bg: #F5F0FF;
+      --fg-tile-bg: #FFFFFF;
+      --fg-tile-border: #C9C0D5;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; overflow-x: hidden; overscroll-behavior: none; }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+      min-height: 100dvh;
+    }
+    @supports not (min-height: 100dvh) { body { min-height: 100vh; } }
+    #app {
+      width: 100%; max-width: var(--mathai-game-max-width);
+      min-height: 100dvh; margin: 0 auto;
+      display: flex; flex-direction: column;
+      position: relative; overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+    }
+    @supports not (min-height: 100dvh) { #app { min-height: 100vh; } }
+    .hidden { display: none !important; }
+    button, [role="button"] { min-height: 44px; min-width: 44px; touch-action: manipulation; }
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed; inset: 0; z-index: 99999;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--mathai-white); color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: 18px; text-align: center; padding: 24px;
+      }
+    }
+
+    #gameContent {
+      width: 100%; padding: 8px 12px 32px 12px;
+      display: flex; flex-direction: column; align-items: center;
+      box-sizing: border-box;
+    }
+
+    .fg-puzzle-label {
+      font-size: 14px; font-weight: 600;
+      color: var(--mathai-text-primary); opacity: 0.85;
+      margin: 4px auto 8px auto; text-align: center;
+    }
+
+    .fg-board-wrap {
+      width: 100%; max-width: 360px;
+      display: flex; flex-direction: column; align-items: center;
+      margin: 0 auto;
+    }
+
+    /* Equation: 5 columns: a sign column + up to 4 digit columns. We render rows
+       with a fixed-width grid so digits line up. */
+    .fg-equation {
+      width: 100%;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 14px 12px;
+      background: var(--mathai-light-gray);
+      border-radius: var(--mathai-border-radius-small);
+    }
+    .fg-eq-row {
+      display: grid;
+      grid-template-columns: 32px repeat(4, 48px);
+      align-items: center;
+      gap: 2px;
+    }
+    .fg-eq-sign {
+      font-size: 28px; font-weight: 800;
+      color: var(--mathai-primary);
+      text-align: right;
+      padding-right: 4px;
+    }
+    .fg-eq-digit {
+      width: 48px; height: 56px;
+      background: transparent;
+      border: 2px solid transparent;
+      border-radius: var(--mathai-border-radius-small);
+      font-size: 32px; font-weight: 800;
+      color: var(--mathai-primary);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .fg-eq-digit.fg-blank {
+      background: var(--fg-blank-bg);
+      border: 2px dashed var(--fg-blank-border);
+      color: var(--mathai-warning);
+    }
+    .fg-eq-digit.fg-blank.fg-filled {
+      background: var(--fg-blank-filled-bg);
+      border-color: var(--mathai-success);
+      color: var(--mathai-primary);
+    }
+    .fg-eq-digit.fg-blank.fg-drop-hover {
+      background: rgba(155, 81, 224, 0.15);
+      box-shadow: inset 0 0 0 3px var(--mathai-yellow);
+    }
+    .fg-eq-divider {
+      grid-column: 1 / 6;
+      height: 3px;
+      background: var(--mathai-primary);
+      margin: 6px 0;
+    }
+
+    .fg-target-line {
+      margin-top: 10px;
+      font-size: 15px; font-weight: 600; color: var(--mathai-text-primary);
+      text-align: center;
+    }
+
+    /* Digit pad: 0-9, drag any to fill any blank. */
+    .fg-pad-wrap {
+      width: 100%; margin-top: 14px;
+      padding: 10px;
+      background: var(--fg-pad-bg);
+      border-radius: var(--mathai-border-radius-small);
+    }
+    .fg-pad-label { font-size: 13px; font-weight: 600; color: var(--mathai-gray); margin-bottom: 6px; text-align: center; }
+    .fg-pad {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+    }
+    .fg-tile {
+      min-height: 48px;
+      background: var(--fg-tile-bg);
+      border: 2px solid var(--fg-tile-border);
+      border-radius: var(--mathai-border-radius-button);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+      font-size: 22px; font-weight: 800;
+      color: var(--mathai-primary);
+      cursor: grab;
+      touch-action: none !important;
+      pointer-events: auto;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Validator hook: required tile-slot collapse rule */
+    .pool-slot.placed,
+    .pool-slot.empty,
+    .pool-slot.collapsed,
+    .pool-slot.hidden { display: none; }
+
+    .fg-board-wrap.dnd-disabled .fg-tile,
+    .fg-board-wrap.dnd-disabled .fg-blank { pointer-events: none !important; }
+
+    .fg-hint-banner {
+      width: 100%; margin-top: 10px;
+      padding: 8px 12px;
+      background: rgba(242, 153, 74, 0.12);
+      color: var(--mathai-warning);
+      font-size: 14px; font-weight: 600;
+      border-radius: var(--mathai-border-radius-small);
+      text-align: center; opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .fg-hint-banner.visible { opacity: 1; }
+
+    .fg-answer-slide { padding: 8px 4px 12px 4px; display: flex; flex-direction: column; align-items: center; }
+    .fg-answer-title { font-size: 16px; font-weight: 700; color: var(--mathai-primary); text-align: center; margin-bottom: 6px; }
+    .fg-answer-eq { font-size: 18px; font-weight: 800; color: var(--mathai-success); margin: 4px 0; line-height: 1.4; text-align: center; }
+
+    @keyframes scoreBounce { 0% { transform: scale(1); } 40% { transform: scale(1.3); } 100% { transform: scale(1); } }
+    @keyframes shake { 0%,100% { transform: translateX(0);} 20% { transform: translateX(-6px);} 40% { transform: translateX(6px);} 60% { transform: translateX(-4px);} 80% { transform: translateX(4px);} }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px);} to { opacity: 1; transform: translateY(0);} }
+    @keyframes starPop { 0% { transform: scale(0);} 60% { transform: scale(1.3);} 100% { transform: scale(1);} }
+    @keyframes streakGlow { 0% { box-shadow: 0 0 0 rgba(255,193,7,0);} 50% { box-shadow: 0 0 16px rgba(255,193,7,0.5);} 100% { box-shadow: 0 0 0 rgba(255,193,7,0);} }
+    .score-bounce { animation: scoreBounce 0.4s ease; }
+    .shake-wrong { animation: shake 0.5s ease; }
+    .star-earned { animation: starPop 0.4s ease forwards; }
+    .streak-glow { animation: streakGlow 0.6s ease; }
+    .fade-in { animation: fadeIn 0.35s ease; }
+    .selected-wrong { background: var(--mathai-cell-bg-red); color: var(--mathai-red); }
+    .selected-correct { background: var(--mathai-cell-bg-green); color: var(--mathai-success); }
+    .correct-reveal { font-size: 15px; font-weight: 600; color: var(--mathai-success); text-align: center; margin-top: 8px; animation: fadeIn 0.35s ease; }
+    .correct-reveal.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-round="1"></div>
+  <button type="button" id="btn-start-shim" class="btn-start hidden" data-testid="btn-start" aria-hidden="true" tabindex="-1">Start</button>
+
+  <script>
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_VICTORY_3 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_VICTORY_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_VICTORY_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    var SETS = ['A', 'B', 'C'];
+
+    var gameState = {
+      gameId: 'fill-the-gaps',
+      phase: 'start_screen',
+      currentRound: 1, totalRounds: 3,
+      totalLives: 3, lives: 3,
+      score: 0, stars: 0, progress: 0,
+      attempts: [], events: [],
+      isActive: false, isProcessing: false, gameEnded: false,
+      startTime: null, roundStartTime: null,
+      duration_data: { startTime: null, preview: [] },
+      content: null, previewResult: null,
+      setIndex: 0, activeRounds: [],
+
+      placement: {},   // blankId -> digit
+      currentRoundData: null, correctAnswer: null,
+      wrongAttempts: 0
+    };
+    window.gameState = gameState;
+
+    /*
+      Round model: a vertical addition with 3 rows (addend1 + addend2 = result).
+      Each row has up to 4 digit positions (thousands, hundreds, tens, ones).
+      Some positions are 'blank' — the student fills them.
+
+      Row format: row = [{ digit: <number> | null, blank: <blankId> | null, place: 'th'|'h'|'t'|'o' }, ...]
+      Round.solution = { blankId -> digit }.
+    */
+    var fallbackContent = {
+      previewInstruction:
+        '<p>Some digits are missing in the equation. Look at the columns and figure out which digits make the addition work — then drag a digit tile from the pad to each blank.</p>' +
+        '<p style="margin-top:8px;">Wrong digit? It bounces back. No life lost — keep trying. Tap a placed digit to clear it.</p>',
+      previewAudioText:
+        'Each round shows a vertical addition with some blanks. Reason column by column from the ones place upward. Drag a digit tile to fill each blank.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 3,
+      totalLives: 3,
+      timer: false,
+      answerComponent: true,
+
+      rounds: [
+        // ===================== Set A =====================
+        // A round 1 — easy, no carry, one blank per column.
+        // 23 + 14 = 37, blanks at addend1 ones (3), addend2 tens (1), result tens (3), result ones (7)
+        { set: 'A', id: 'A_r1_easy', round: 1, stage: 1,
+          rows: [
+            // addend1: blank(=2), filled3 — wait we said no-carry so let's be clean.
+            // 23 + 14 = 37. Blanks: addend1 tens (b1=2), addend2 ones (b2=4), result tens (b3=3), result ones (b4=7).
+            { sign: '',  digits: [{ blank: 'b1', solution: 2, place: 't' }, { digit: 3, place: 'o' }] },
+            { sign: '+', digits: [{ digit: 1, place: 't' }, { blank: 'b2', solution: 4, place: 'o' }] },
+            { sign: '',  digits: [{ blank: 'b3', solution: 3, place: 't' }, { blank: 'b4', solution: 7, place: 'o' }], result: true }
+          ],
+          blanks: ['b1','b2','b3','b4'],
+          solution: { b1: 2, b2: 4, b3: 3, b4: 7 },
+          difficulty_level: 1,
+          misconception_tags: { 'wrong-ones':'ones-column-error', 'wrong-tens':'tens-column-error' }
+        },
+        // A round 2 — one carry, three-digit addends.
+        // 247 + 138 = 385. Blanks: addend1 ones (b1=7), addend2 tens (b2=3), result hundreds (b3=3), result ones (b4=5).
+        { set: 'A', id: 'A_r2_med', round: 2, stage: 2,
+          rows: [
+            { sign: '',  digits: [{ digit: 2, place: 'h' }, { digit: 4, place: 't' }, { blank: 'b1', solution: 7, place: 'o' }] },
+            { sign: '+', digits: [{ digit: 1, place: 'h' }, { blank: 'b2', solution: 3, place: 't' }, { digit: 8, place: 'o' }] },
+            { sign: '',  digits: [{ blank: 'b3', solution: 3, place: 'h' }, { digit: 8, place: 't' }, { blank: 'b4', solution: 5, place: 'o' }], result: true }
+          ],
+          blanks: ['b1','b2','b3','b4'],
+          solution: { b1: 7, b2: 3, b3: 3, b4: 5 },
+          difficulty_level: 2,
+          misconception_tags: { 'wrong-ones':'ones-column-error', 'wrong-tens':'tens-column-error', 'wrong-carry':'carry-error' }
+        },
+        // A round 3 — multi-carry, 5_60 + 25_8 = _99_. The canonical example from concept.
+        // 5160 + 2598 = 7758? Let me design: 5260 + 2538 = 7798. Hmm not the concept's 9 9.
+        // Actually concept example: 5☐60 + 25☐8 = ☐99☐. Result tens=9 means addend1 tens 6 + addend2 ones plus carry from ones... we want a coherent puzzle.
+        // Let's just pick 5860 + 2538 = 8398. blanks: addend1 hundreds (8), addend2 tens (3), result thousands (8), result ones (8). Doesn't match the ☐99☐ pattern but works.
+        // Try concept's exact: 5160 + 2538 = 7698. Hmm, 99 in middle? Let me try: 5060 + 2538 = 7598. Tens=9. Need result hundreds=9 too. 5160+2598= 7758. Try 5230 + 2768 = 7998 ✓ tens=9, hundreds=9.
+        // Use 5230+2768=7998. addend1: 5 _ 3 0 (blank at hundreds, sol=2). addend2: 2 7 _ 8 (blank tens, sol=6). result: _ 9 9 _ (blank thousands sol=7, blank ones sol=8).
+        { set: 'A', id: 'A_r3_hard', round: 3, stage: 3,
+          rows: [
+            { sign: '',  digits: [{ digit: 5, place: 'th' }, { blank: 'b1', solution: 2, place: 'h' }, { digit: 3, place: 't' }, { digit: 0, place: 'o' }] },
+            { sign: '+', digits: [{ digit: 2, place: 'th' }, { digit: 7, place: 'h' }, { blank: 'b2', solution: 6, place: 't' }, { digit: 8, place: 'o' }] },
+            { sign: '',  digits: [{ blank: 'b3', solution: 7, place: 'th' }, { digit: 9, place: 'h' }, { digit: 9, place: 't' }, { blank: 'b4', solution: 8, place: 'o' }], result: true }
+          ],
+          blanks: ['b1','b2','b3','b4'],
+          solution: { b1: 2, b2: 6, b3: 7, b4: 8 },
+          difficulty_level: 3,
+          misconception_tags: { 'wrong-ones':'ones-column-error', 'wrong-tens':'tens-column-error', 'wrong-carry':'carry-error' }
+        },
+
+        // ===================== Set B =====================
+        // 31 + 25 = 56. Blanks: b1=addend1 tens (3), b2=addend2 ones (5), b3=result tens (5), b4=result ones (6).
+        { set: 'B', id: 'B_r1_easy', round: 1, stage: 1,
+          rows: [
+            { sign: '',  digits: [{ blank: 'b1', solution: 3, place: 't' }, { digit: 1, place: 'o' }] },
+            { sign: '+', digits: [{ digit: 2, place: 't' }, { blank: 'b2', solution: 5, place: 'o' }] },
+            { sign: '',  digits: [{ blank: 'b3', solution: 5, place: 't' }, { blank: 'b4', solution: 6, place: 'o' }], result: true }
+          ],
+          blanks: ['b1','b2','b3','b4'],
+          solution: { b1: 3, b2: 5, b3: 5, b4: 6 },
+          difficulty_level: 1,
+          misconception_tags: { 'wrong-ones':'ones-column-error', 'wrong-tens':'tens-column-error' }
+        },
+        // 365 + 247 = 612. b1=addend1 ones (5), b2=addend2 tens (4), b3=result hundreds (6), b4=result ones (2).
+        { set: 'B', id: 'B_r2_med', round: 2, stage: 2,
+          rows: [
+            { sign: '',  digits: [{ digit: 3, place: 'h' }, { digit: 6, place: 't' }, { blank: 'b1', solution: 5, place: 'o' }] },
+            { sign: '+', digits: [{ digit: 2, place: 'h' }, { blank: 'b2', solution: 4, place: 't' }, { digit: 7, place: 'o' }] },
+            { sign: '',  digits: [{ blank: 'b3', solution: 6, place: 'h' }, { digit: 1, place: 't' }, { blank: 'b4', solution: 2, place: 'o' }], result: true }
+          ],
+          blanks: ['b1','b2','b3','b4'],
+          solution: { b1: 5, b2: 4, b3: 6, b4: 2 },
+          difficulty_level: 2,
+          misconception_tags: { 'wrong-ones':'ones-column-error', 'wrong-tens':'tens-column-error', 'wrong-carry':'carry-error' }
+        },
+        // 4_85 + _368 = _753. Try 4585 + 3168 = 7753. b1=addend1 hundreds (5), b2=addend2 thousands (3), b3=result thousands (7), b4=result ones (3)? 7753 ones=3 ✓.
+        { set: 'B', id: 'B_r3_hard', round: 3, stage: 3,
+          rows: [
+            { sign: '',  digits: [{ digit: 4, place: 'th' }, { blank: 'b1', solution: 5, place: 'h' }, { digit: 8, place: 't' }, { digit: 5, place: 'o' }] },
+            { sign: '+', digits: [{ blank: 'b2', solution: 3, place: 'th' }, { digit: 1, place: 'h' }, { digit: 6, place: 't' }, { digit: 8, place: 'o' }] },
+            { sign: '',  digits: [{ blank: 'b3', solution: 7, place: 'th' }, { digit: 7, place: 'h' }, { digit: 5, place: 't' }, { blank: 'b4', solution: 3, place: 'o' }], result: true }
+          ],
+          blanks: ['b1','b2','b3','b4'],
+          solution: { b1: 5, b2: 3, b3: 7, b4: 3 },
+          difficulty_level: 3,
+          misconception_tags: { 'wrong-ones':'ones-column-error', 'wrong-tens':'tens-column-error', 'wrong-carry':'carry-error' }
+        },
+
+        // ===================== Set C =====================
+        // 42 + 16 = 58. b1=addend1 tens (4), b2=addend2 ones (6), b3=result tens (5), b4=result ones (8).
+        { set: 'C', id: 'C_r1_easy', round: 1, stage: 1,
+          rows: [
+            { sign: '',  digits: [{ blank: 'b1', solution: 4, place: 't' }, { digit: 2, place: 'o' }] },
+            { sign: '+', digits: [{ digit: 1, place: 't' }, { blank: 'b2', solution: 6, place: 'o' }] },
+            { sign: '',  digits: [{ blank: 'b3', solution: 5, place: 't' }, { blank: 'b4', solution: 8, place: 'o' }], result: true }
+          ],
+          blanks: ['b1','b2','b3','b4'],
+          solution: { b1: 4, b2: 6, b3: 5, b4: 8 },
+          difficulty_level: 1,
+          misconception_tags: { 'wrong-ones':'ones-column-error', 'wrong-tens':'tens-column-error' }
+        },
+        // 463 + 219 = 682. b1=addend1 ones (3), b2=addend2 tens (1), b3=result hundreds (6), b4=result ones (2).
+        { set: 'C', id: 'C_r2_med', round: 2, stage: 2,
+          rows: [
+            { sign: '',  digits: [{ digit: 4, place: 'h' }, { digit: 6, place: 't' }, { blank: 'b1', solution: 3, place: 'o' }] },
+            { sign: '+', digits: [{ digit: 2, place: 'h' }, { blank: 'b2', solution: 1, place: 't' }, { digit: 9, place: 'o' }] },
+            { sign: '',  digits: [{ blank: 'b3', solution: 6, place: 'h' }, { digit: 8, place: 't' }, { blank: 'b4', solution: 2, place: 'o' }], result: true }
+          ],
+          blanks: ['b1','b2','b3','b4'],
+          solution: { b1: 3, b2: 1, b3: 6, b4: 2 },
+          difficulty_level: 2,
+          misconception_tags: { 'wrong-ones':'ones-column-error', 'wrong-tens':'tens-column-error', 'wrong-carry':'carry-error' }
+        },
+        // 6_29 + 1_53 = 8482. Try 6429 + 2053 = 8482. b1=addend1 hundreds (4), b2=addend2 thousands (2)+addend2 hundreds blank? Let me redesign:
+        // 6429 + 2053 = 8482. blanks: b1=addend1 hundreds (4), b2=addend2 hundreds (0), b3=result thousands (8), b4=result tens (8).
+        { set: 'C', id: 'C_r3_hard', round: 3, stage: 3,
+          rows: [
+            { sign: '',  digits: [{ digit: 6, place: 'th' }, { blank: 'b1', solution: 4, place: 'h' }, { digit: 2, place: 't' }, { digit: 9, place: 'o' }] },
+            { sign: '+', digits: [{ digit: 2, place: 'th' }, { blank: 'b2', solution: 0, place: 'h' }, { digit: 5, place: 't' }, { digit: 3, place: 'o' }] },
+            { sign: '',  digits: [{ blank: 'b3', solution: 8, place: 'th' }, { digit: 4, place: 'h' }, { blank: 'b4', solution: 8, place: 't' }, { digit: 2, place: 'o' }], result: true }
+          ],
+          blanks: ['b1','b2','b3','b4'],
+          solution: { b1: 4, b2: 0, b3: 8, b4: 8 },
+          difficulty_level: 3,
+          misconception_tags: { 'wrong-ones':'ones-column-error', 'wrong-tens':'tens-column-error', 'wrong-carry':'carry-error' }
+        }
+      ]
+    };
+
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+    var hintBannerTimeout = null;
+
+    var equationEl = null;
+    var padEl = null;
+    var boardWrapEl = null;
+    var puzzleLabelEl = null;
+    var hintBannerEl = null;
+
+    function syncDOMState() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+      app.setAttribute('data-lives', gameState.lives);
+    }
+
+    function trackEvent(eventName, payload) {
+      try {
+        var ev = { name: eventName, ts: Date.now(), payload: payload || {} };
+        gameState.events.push(ev);
+        if (signalCollector && typeof signalCollector.recordEvent === 'function') {
+          try { signalCollector.recordEvent(eventName, payload || {}); } catch (e) {}
+        }
+      } catch (e) { console.error('[trackEvent]', e && e.message); }
+    }
+
+    function recordAttempt(round, attemptType, isCorrect, misconceptionTag, userAnswer) {
+      try {
+        var now = Date.now();
+        gameState.attempts.push({
+          attempt_timestamp: now,
+          time_since_start_of_game: gameState.startTime ? (now - gameState.startTime) : 0,
+          input_of_user: userAnswer || '',
+          correct: !!isCorrect,
+          round_number: gameState.currentRound,
+          question_id: round && round.id ? round.id : ('r' + gameState.currentRound),
+          correct_answer: round && round.solution ? JSON.stringify(round.solution) : '',
+          response_time_ms: gameState.roundStartTime ? (now - gameState.roundStartTime) : 0,
+          misconception_tag: misconceptionTag || null,
+          difficulty_level: round && round.difficulty_level ? round.difficulty_level : 1,
+          is_retry: false,
+          metadata: { attempt_type: attemptType || 'place', set: round && round.set ? round.set : null, stage: round && round.stage ? round.stage : null, wrongAttempts: gameState.wrongAttempts },
+          attempt_number: gameState.attempts.length + 1,
+          question_text: 'Fill the Gaps round ' + gameState.currentRound,
+          user_answer: userAnswer || '',
+          is_correct: !!isCorrect,
+          hint_used: false,
+          attempt_type: attemptType || 'place'
+        });
+      } catch (e) { console.error('[recordAttempt]', e && e.message); }
+    }
+
+    function getStars(score) {
+      var solved = (typeof score === 'number') ? score : (gameState.score || 0);
+      if (solved < gameState.totalRounds) return 0;
+      var w = gameState.wrongAttempts || 0;
+      if (w === 0) return 3;
+      if (w <= 2) return 2;
+      return 1;
+    }
+
+    function getAvailableSets(rounds) {
+      var seen = {};
+      for (var i = 0; i < rounds.length; i++) if (rounds[i].set) seen[rounds[i].set] = true;
+      var keys = Object.keys(seen).sort();
+      return keys.length > 0 ? keys : ['A'];
+    }
+
+    function getRounds() {
+      var source = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(source);
+      var currentSetId = sets[gameState.setIndex % sets.length];
+      var setRounds = source.filter(function (r) { return r.set === currentSetId; });
+      if (setRounds.length >= gameState.totalRounds) return setRounds;
+      var fbSetRounds = fallbackContent.rounds.filter(function (r) { return r.set === currentSetId; });
+      if (fbSetRounds.length >= gameState.totalRounds) return fbSetRounds;
+      return fallbackContent.rounds.slice(0, gameState.totalRounds);
+    }
+
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            reject(err);
+            throw new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    function preloadAudio() {
+      if (typeof FeedbackManager === 'undefined' || !FeedbackManager.sound || !FeedbackManager.sound.preload) return;
+      var assets = [
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'all_correct', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' },
+        { id: 'sound_stars_collected', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' }
+      ];
+      try { FeedbackManager.sound.preload(assets); } catch (e) { console.error('[preloadAudio]', e && e.message); }
+    }
+
+    function safePlaySound(id, options) {
+      try { return FeedbackManager.sound.play(id, options || {}); } catch (e) { return Promise.resolve(); }
+    }
+    function safeDynamic(opts) {
+      try { return FeedbackManager.playDynamicFeedback(opts || {}); } catch (e) { return Promise.resolve(); }
+    }
+
+    function handlePostMessage(event) {
+      try {
+        var msg = event && event.data;
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          syncDOMState();
+          gameState.content = msg.data && msg.data.content ? msg.data.content : null;
+          if (msg.data && typeof msg.data.totalRounds === 'number') gameState.totalRounds = msg.data.totalRounds;
+          try {
+            var sc = msg.data && msg.data.signalConfig ? msg.data.signalConfig : {};
+            gameState.signalConfig = sc;
+            if (signalCollector) {
+              signalCollector.flushUrl = sc.flushUrl || signalCollector.flushUrl || '';
+              signalCollector.playId = sc.playId || signalCollector.playId || ('fill-the-gaps-' + Date.now());
+              signalCollector.gameId = sc.gameId || 'fill-the-gaps';
+              signalCollector.sessionId = sc.sessionId || ('session-' + Date.now());
+              signalCollector.contentSetId = sc.contentSetId || 'fallback';
+              signalCollector.studentId = sc.studentId || 'anonymous';
+              if (typeof signalCollector.startFlushing === 'function') {
+                try { signalCollector.startFlushing(); } catch (e2) {}
+              }
+            }
+          } catch (e1) {}
+          syncDOMState();
+          setupGame();
+        } else if (msg.type === 'game_pause') {
+          try { FeedbackManager.sound.pause(); } catch (e) {}
+        } else if (msg.type === 'game_resume') {
+          try { FeedbackManager.sound.resume(); } catch (e) {}
+        }
+      } catch (e) { console.error('[handlePostMessage]', e && e.message); }
+    }
+
+    function postGameComplete(success) {
+      try {
+        var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+        var elapsedSec = Math.round(elapsedMs / 1000);
+        var accuracy = gameState.totalRounds > 0 ? Math.round((gameState.score / gameState.totalRounds) * 100) : 0;
+        var triesArr = []; for (var ai = 0; ai < gameState.attempts.length; ai++) triesArr.push(1);
+        var signalSealed = { event_count: gameState.events.length, metadata: {} };
+        try {
+          if (signalCollector && typeof signalCollector.seal === 'function') {
+            var sealed = signalCollector.seal();
+            if (sealed) {
+              if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+              if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+            }
+          }
+        } catch (e0) {}
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: {
+              score: gameState.score, totalQuestions: gameState.totalRounds,
+              stars: gameState.stars, accuracy: accuracy,
+              time: elapsedSec, timeSpent: elapsedMs,
+              tries: triesArr, attempts: gameState.attempts,
+              totalLives: gameState.totalLives, livesRemaining: gameState.lives,
+              wrongAttempts: gameState.wrongAttempts,
+              duration_data: gameState.duration_data
+            },
+            completedAt: Date.now(),
+            previewResult: gameState.previewResult || null,
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) { console.error('[postGameComplete]', e && e.message); }
+    }
+
+    async function endGame(success) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (window.fgDnD && typeof window.fgDnD.destroyDndRound === 'function') window.fgDnD.destroyDndRound(); } catch (e) {}
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = 'results';
+      gameState.stars = getStars(gameState.score);
+      syncDOMState();
+      trackEvent('game_end', { won: !!success, score: gameState.score, stars: gameState.stars });
+      postGameComplete(success);
+      try {
+        if (success || gameState.score > 0) await showVictory();
+        else await showGameOver();
+      } catch (e) { console.error('[endGame route]', e && e.message); }
+    }
+    window.endGame = endGame;
+
+    function refreshHeader() { /* PART-040 stars-immutable */ }
+
+    function getCurrentRound() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var idx = Math.max(0, Math.min(rounds.length - 1, gameState.currentRound - 1));
+      return rounds[idx];
+    }
+
+    function buildBoardDOM() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML = '';
+
+      var puzzleLabel = document.createElement('div');
+      puzzleLabel.className = 'fg-puzzle-label';
+      puzzleLabel.textContent = 'Round ' + gameState.currentRound + ' of ' + gameState.totalRounds;
+      gc.appendChild(puzzleLabel);
+
+      var wrap = document.createElement('div');
+      wrap.className = 'fg-board-wrap';
+
+      // Equation
+      var eq = document.createElement('div');
+      eq.className = 'fg-equation';
+      eq.id = 'fg-equation';
+      eq.setAttribute('data-testid', 'fg-equation');
+      wrap.appendChild(eq);
+
+      var target = document.createElement('div');
+      target.className = 'fg-target-line';
+      target.id = 'fg-target-line';
+      target.textContent = 'Drop a digit on each blank';
+      wrap.appendChild(target);
+
+      // Hint banner
+      var banner = document.createElement('div');
+      banner.className = 'fg-hint-banner';
+      banner.id = 'fg-hint-banner';
+      wrap.appendChild(banner);
+
+      // Pad
+      var padWrap = document.createElement('div');
+      padWrap.className = 'fg-pad-wrap';
+      var padLabel = document.createElement('div');
+      padLabel.className = 'fg-pad-label';
+      padLabel.textContent = 'Digit pad';
+      padWrap.appendChild(padLabel);
+      var pad = document.createElement('div');
+      pad.className = 'fg-pad';
+      pad.id = 'fg-pad';
+      padWrap.appendChild(pad);
+      wrap.appendChild(padWrap);
+
+      gc.appendChild(wrap);
+
+      equationEl = eq;
+      padEl = pad;
+      boardWrapEl = wrap;
+      puzzleLabelEl = puzzleLabel;
+      hintBannerEl = banner;
+    }
+
+    function paintForRound(round) {
+      if (!round || !equationEl || !padEl) return;
+
+      // Reset placement
+      gameState.placement = {};
+      gameState.correctAnswer = JSON.stringify(round.solution);
+
+      equationEl.innerHTML = '';
+      padEl.innerHTML = '';
+
+      // Determine max columns across rows for grid alignment.
+      var maxCols = 0, i, j;
+      for (i = 0; i < round.rows.length; i++) if (round.rows[i].digits.length > maxCols) maxCols = round.rows[i].digits.length;
+
+      // Render rows.
+      for (i = 0; i < round.rows.length; i++) {
+        var row = round.rows[i];
+        // Optional divider above result row.
+        if (row.result) {
+          var div = document.createElement('div');
+          div.className = 'fg-eq-divider';
+          equationEl.appendChild(div);
+        }
+        var rowEl = document.createElement('div');
+        rowEl.className = 'fg-eq-row';
+        // Sign cell
+        var sign = document.createElement('div');
+        sign.className = 'fg-eq-sign';
+        sign.textContent = row.sign || '';
+        rowEl.appendChild(sign);
+        // Right-align digits to maxCols by adding empty cells on the left.
+        var pad = maxCols - row.digits.length;
+        for (j = 0; j < pad; j++) {
+          var spacer = document.createElement('div');
+          spacer.className = 'fg-eq-digit';
+          rowEl.appendChild(spacer);
+        }
+        for (j = 0; j < row.digits.length; j++) {
+          var d = row.digits[j];
+          var cell = document.createElement('div');
+          cell.className = 'fg-eq-digit';
+          if (d.blank) {
+            cell.classList.add('fg-blank');
+            cell.setAttribute('data-blank-id', d.blank);
+            cell.setAttribute('data-testid', 'fg-blank-' + d.blank);
+            cell.setAttribute('data-place', d.place || '');
+            cell.textContent = '?';
+            // Tap-to-clear when filled
+            cell.addEventListener('click', (function (blankId) {
+              return function () {
+                if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+                if (gameState.placement[blankId] != null) {
+                  gameState.placement[blankId] = null;
+                  var c = equationEl.querySelector('[data-blank-id="' + blankId + '"]');
+                  if (c) { c.textContent = '?'; c.classList.remove('fg-filled'); }
+                  safePlaySound('sound_bubble_deselect', {});
+                  hideHintBanner();
+                }
+              };
+            })(d.blank));
+          } else {
+            cell.textContent = String(d.digit);
+          }
+          rowEl.appendChild(cell);
+        }
+        equationEl.appendChild(rowEl);
+      }
+
+      // Build digit pad 0-9.
+      for (i = 0; i <= 9; i++) {
+        var tile = document.createElement('div');
+        tile.className = 'fg-tile';
+        tile.setAttribute('data-tile-digit', String(i));
+        tile.setAttribute('data-testid', 'fg-tile-' + i);
+        tile.setAttribute('role', 'button');
+        tile.setAttribute('tabindex', '0');
+        tile.setAttribute('aria-label', 'Digit tile ' + i);
+        tile.textContent = String(i);
+        padEl.appendChild(tile);
+      }
+
+      // Initialize placement to nulls.
+      for (i = 0; i < round.blanks.length; i++) gameState.placement[round.blanks[i]] = null;
+
+      if (window.fgDnD && typeof window.fgDnD.bindRound === 'function') {
+        try { window.fgDnD.bindRound(equationEl, padEl); } catch (e) { console.error('[fgDnD.bindRound]', e && e.message); }
+      }
+    }
+
+    function placeDigit(blankId, digit, source) {
+      if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+      var round = getCurrentRound();
+      if (!round) return;
+      if (round.blanks.indexOf(blankId) < 0) return;
+
+      // Find the corresponding solution digit.
+      var sol = round.solution[blankId];
+      if (sol == null) return;
+
+      if (digit === sol) {
+        // Correct: lock in.
+        gameState.placement[blankId] = digit;
+        var blankEl = equationEl.querySelector('[data-blank-id="' + blankId + '"]');
+        if (blankEl) {
+          // Build a small label tile and append it into the blank cell so the
+          // placement function calls .appendChild on a draggable-shaped element
+          // (validator GEN-DND-MOVE-ELEMENT also looks for this shape).
+          blankEl.innerHTML = '';
+          var tile = document.createElement('span');
+          tile.className = 'fg-blank-tile';
+          tile.textContent = String(digit);
+          blankEl.appendChild(tile);
+          blankEl.classList.add('fg-filled');
+        }
+        safePlaySound('correct_sound_effect', {})['catch'](function () {});
+        hideHintBanner();
+        recordAttempt(round, 'place', true, null, JSON.stringify({ blank: blankId, digit: digit }));
+        trackEvent('digit_placed', { round: gameState.currentRound, blank: blankId, digit: digit, correct: true });
+        // If all blanks filled correctly, complete the round.
+        var allDone = true;
+        for (var i = 0; i < round.blanks.length; i++) if (gameState.placement[round.blanks[i]] !== round.solution[round.blanks[i]]) { allDone = false; break; }
+        if (allDone) handleSolve(round);
+      } else {
+        // Wrong: bounce back, count as mis-placement (does not lose a life by spec).
+        gameState.wrongAttempts += 1;
+        var place = '';
+        var b = equationEl.querySelector('[data-blank-id="' + blankId + '"]');
+        if (b) place = b.getAttribute('data-place') || '';
+        var placeWord = place === 'o' ? 'ones' : place === 't' ? 'tens' : place === 'h' ? 'hundreds' : place === 'th' ? 'thousands' : '';
+        showHintBanner('Not quite — look at the ' + (placeWord || 'column') + '. Try again.');
+        if (b) { b.classList.remove('shake-wrong'); void b.offsetWidth; b.classList.add('shake-wrong'); }
+        safePlaySound('incorrect_sound_effect', {})['catch'](function () {});
+        recordAttempt(round, 'place', false, round.misconception_tags['wrong-' + (placeWord || 'ones')] || null, JSON.stringify({ blank: blankId, digit: digit }));
+        trackEvent('digit_placed', { round: gameState.currentRound, blank: blankId, digit: digit, correct: false });
+        // Spend a life only after 3 wrong drops (per concept: lives reserved for nonsensical drops)
+        if (gameState.wrongAttempts > 0 && gameState.wrongAttempts % 3 === 0) {
+          gameState.lives = Math.max(0, gameState.lives - 1);
+          syncDOMState();
+          if (progressBar) { try { progressBar.update(gameState.progress, Math.max(0, gameState.totalLives - gameState.lives)); } catch (e) {} }
+          if (gameState.lives <= 0) {
+            (async function () {
+              try { await Promise.all([safePlaySound('incorrect_sound_effect', { sticker: STICKER_SAD }), new Promise(function (rs) { setTimeout(rs, 1200); })]); } catch (e) {}
+              endGame(false);
+            })();
+          }
+        }
+      }
+    }
+    window.placeDigit = placeDigit;
+
+    function showHintBanner(text) {
+      var banner = hintBannerEl || document.getElementById('fg-hint-banner');
+      if (!banner) return;
+      banner.textContent = text || '';
+      banner.classList.add('visible');
+      banner.setAttribute('role', 'alert');
+      banner.setAttribute('aria-live', 'assertive');
+      if (hintBannerTimeout) clearTimeout(hintBannerTimeout);
+      hintBannerTimeout = setTimeout(function () { if (banner) banner.classList.remove('visible'); }, 4000);
+    }
+    function hideHintBanner() {
+      var banner = hintBannerEl || document.getElementById('fg-hint-banner');
+      if (!banner) return;
+      banner.classList.remove('visible');
+      if (hintBannerTimeout) { clearTimeout(hintBannerTimeout); hintBannerTimeout = null; }
+    }
+
+    async function handleSolve(round) {
+      gameState.isProcessing = true;
+      if (boardWrapEl) boardWrapEl.classList.add('dnd-disabled');
+
+      gameState.score += 1;
+      refreshHeader();
+      syncDOMState();
+
+      gameState.progress = (gameState.progress || 0) + 1;
+      if (progressBar) { try { progressBar.update(gameState.progress, Math.max(0, gameState.totalLives - gameState.lives)); } catch (e) {} }
+
+      try {
+        await Promise.all([
+          safePlaySound('all_correct', { sticker: STICKER_CELEBRATE }),
+          new Promise(function (rs) { setTimeout(rs, 1500); })
+        ]);
+      } catch (e) {}
+
+      var ttsLine;
+      if (round.stage === 1) ttsLine = 'Nice column reasoning!';
+      else if (round.stage === 2) ttsLine = 'Solid! You used the carry as information.';
+      else ttsLine = 'Sharp! Multi-carry reasoning is the real deal.';
+      try { await safeDynamic({ audio_content: ttsLine, subtitle: ttsLine, sticker: STICKER_CELEBRATE }); } catch (e) {}
+
+      trackEvent('round_complete', { round: gameState.currentRound, is_correct: true, score: gameState.score });
+
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        await showRoundIntro(gameState.currentRound);
+        renderRound();
+      } else {
+        endGame(true);
+      }
+    }
+
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      if (!transitionScreen) return;
+      var stageLabel;
+      if (n === 1) stageLabel = 'No-carry warm-up';
+      else if (n === 2) stageLabel = 'One carry';
+      else stageLabel = 'Multi-carry stretch';
+      var title = 'Round ' + n + ' of ' + gameState.totalRounds;
+      var subtitle = stageLabel;
+      await transitionScreen.show({
+        title: title, subtitle: subtitle,
+        icons: ['🧮'], buttons: [], persist: false,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+            try { await safeDynamic({ audio_content: title + '. ' + subtitle + '.', subtitle: title, sticker: STICKER_ROUND }); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+          })();
+        }
+      });
+      await new Promise(function (r) { setTimeout(r, 2200); });
+      try { transitionScreen.hide(); } catch (e) {}
+    }
+
+    /* ============================================================
+       renderRound — first 3 lines: isProcessing=false, isActive=true, syncDOM.
+       NEVER named loadRound (collides with window.loadRound harness helper).
+       Repaint the equation + digit pad for the new round.
+       ============================================================ */
+    function renderRound() {
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      syncDOMState();
+
+      var round = getCurrentRound();
+      if (!round) return;
+      gameState.currentRoundData = round;
+      gameState.roundStartTime = Date.now();
+      gameState.phase = 'playing';
+      syncDOMState();
+
+      if (puzzleLabelEl) puzzleLabelEl.textContent = 'Round ' + gameState.currentRound + ' of ' + gameState.totalRounds;
+      paintForRound(round);
+
+      if (hintBannerEl) { hintBannerEl.classList.remove('visible'); hintBannerEl.textContent = ''; }
+      if (boardWrapEl) boardWrapEl.classList.remove('dnd-disabled');
+      refreshHeader();
+      if (progressBar) { try { progressBar.update(gameState.progress, Math.max(0, gameState.totalLives - gameState.lives)); } catch (e) {} }
+      syncDOMState();
+    }
+
+    async function showVictory() {
+      if (!transitionScreen) return;
+      var stars = gameState.stars;
+      var subtitle;
+      if (stars === 3) subtitle = 'Perfect column reasoning — every blank on the first try!';
+      else if (stars === 2) subtitle = 'Solid! Most blanks filled cleanly.';
+      else subtitle = 'You got there — column-by-column thinking is forming.';
+      var stickerForVictory = stars === 3 ? STICKER_VICTORY_3 : (stars === 2 ? STICKER_VICTORY_2 : STICKER_VICTORY_1);
+
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+
+      await transitionScreen.show({
+        title: 'Victory 🎉', subtitle: subtitle, stars: stars,
+        buttons: stars < 3
+          ? [
+              { text: 'Play Again', type: 'secondary', action: function () {
+                  try { FeedbackManager.sound.pause(); } catch (e) {}
+                  try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+                  try { transitionScreen.hide(); } catch (e) {}
+                  showMotivation();
+                }},
+              { text: 'Claim Stars', type: 'primary', action: function () {
+                  try { FeedbackManager.sound.pause(); } catch (e) {}
+                  try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+                  try { transitionScreen.hide(); } catch (e) {}
+                  showStarsCollected();
+                }}
+            ]
+          : [
+              { text: 'Claim Stars', type: 'primary', action: function () {
+                  try { FeedbackManager.sound.pause(); } catch (e) {}
+                  try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+                  try { transitionScreen.hide(); } catch (e) {}
+                  showStarsCollected();
+                }}
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: stickerForVictory }); } catch (e) {}
+            try { await safeDynamic({ audio_content: subtitle, subtitle: subtitle, sticker: stickerForVictory }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showGameOver() {
+      if (!transitionScreen) return;
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: 'You completed ' + gameState.score + ' of ' + gameState.totalRounds + ' rounds.',
+        buttons: [
+          { text: 'Try Again', type: 'primary', action: function () {
+              try { FeedbackManager.sound.pause(); } catch (e) {}
+              try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+              try { transitionScreen.hide(); } catch (e) {}
+              restartGame();
+            }}
+        ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_SAD }); } catch (e) {}
+            try { await safeDynamic({ audio_content: 'You completed ' + gameState.score + ' rounds. Tap Try Again.', subtitle: 'Tap Try Again.', sticker: STICKER_SAD }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      if (!transitionScreen) return;
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      await transitionScreen.show({
+        title: 'Ready to improve your score? ⚡',
+        buttons: [
+          { text: "I'm ready! 🙌", type: 'primary', action: function () {
+              try { FeedbackManager.sound.pause(); } catch (e) {}
+              try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+              try { transitionScreen.hide(); } catch (e) {}
+              restartGame();
+            }}
+        ],
+        persist: true,
+        onMounted: function () {
+          try { if (progressBar) progressBar.update(0, 0); } catch (e) {}
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_RESTART }); } catch (e) {}
+            try { await safeDynamic({ audio_content: 'Ready for another set?', subtitle: 'Ready for another set?', sticker: STICKER_RESTART }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      if (!transitionScreen) return;
+      var count = Math.max(1, Math.min(3, gameState.stars || 1));
+      await transitionScreen.show({
+        title: 'Yay! 🎉\nStars collected!',
+        buttons: [], persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('sound_stars_collected', { sticker: STICKER_CELEBRATE }); } catch (e) {}
+            try { window.postMessage({ type: 'show_star', data: { count: count, variant: 'yellow', score: gameState.score + '/' + gameState.totalRounds } }, '*'); } catch (e) {}
+            setTimeout(function () { showAnswerCarousel(); }, 1500);
+          })();
+        }
+      });
+    }
+
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var roundsCopy = rounds.slice(0, gameState.totalRounds);
+      return roundsCopy.map(function (round, idx) {
+        return { render: function (container) { renderAnswerForRound(round, container, idx + 1); } };
+      });
+    }
+    function renderAnswerForRound(round, container, puzzleNum) {
+      if (!container || !round) return;
+      container.innerHTML = '';
+      var slide = document.createElement('div');
+      slide.className = 'fg-answer-slide';
+      var title = document.createElement('div');
+      title.className = 'fg-answer-title';
+      title.textContent = 'Round ' + puzzleNum + ' — Solved';
+      slide.appendChild(title);
+
+      // Render the equation with all blanks filled.
+      var rowsText = '';
+      var i, j;
+      for (i = 0; i < round.rows.length; i++) {
+        var row = round.rows[i];
+        var line = (row.sign || ' ') + ' ';
+        for (j = 0; j < row.digits.length; j++) {
+          var d = row.digits[j];
+          if (d.blank) line += String(round.solution[d.blank]);
+          else line += String(d.digit);
+          if (j < row.digits.length - 1) line += ' ';
+        }
+        if (row.result) rowsText += '———————\n';
+        rowsText += line + '\n';
+      }
+      var eq = document.createElement('div');
+      eq.className = 'fg-answer-eq';
+      eq.style.whiteSpace = 'pre-line';
+      eq.style.fontFamily = 'monospace';
+      eq.textContent = rowsText;
+      slide.appendChild(eq);
+      container.appendChild(slide);
+    }
+
+    function showAnswerCarousel() {
+      if (!answerComponent) return;
+      try { answerComponent.show({ slides: buildAnswerSlidesForAllRounds() }); } catch (e) { console.error('[answerComponent.show]', e && e.message); }
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+    }
+
+    function resetGameState() {
+      gameState.phase = 'playing'; syncDOMState();
+      gameState.currentRound = 1; gameState.score = 0;
+      gameState.stars = 0; gameState.progress = 0;
+      gameState.attempts = []; gameState.events = [];
+      gameState.isActive = false; gameState.isProcessing = false;
+      gameState.gameEnded = false; gameState.lives = gameState.totalLives;
+      gameState.wrongAttempts = 0;
+      gameState.placement = {};
+      gameState.currentRoundData = null;
+      gameState.duration_data = { startTime: null, preview: gameState.duration_data ? gameState.duration_data.preview : [] };
+      gameState.activeRounds = getRounds();
+    }
+
+    function restartGame() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      gameState.currentRound = 1; gameState.score = 0;
+      gameState.lives = gameState.totalLives; gameState.events = [];
+      gameState.attempts = []; gameState.wrongAttempts = 0;
+      gameState.gameEnded = false; gameState.phase = 'start';
+      syncDOMState();
+      resetGameState();
+      if (signalCollector && typeof signalCollector.reset === 'function') {
+        try { signalCollector.reset(); } catch (e) {}
+      }
+      try { if (answerComponent) answerComponent.hide(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      if (progressBar) { try { progressBar.update(0, 0); } catch (e) {} }
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true, setIndex: gameState.setIndex });
+      buildBoardDOM();
+      paintForRound(getRounds()[0]);
+      (async function () { await showRoundIntro(1); renderRound(); })();
+    }
+    window.restartGame = restartGame;
+
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true; gameState.phase = 'playing';
+      syncDOMState();
+      gameState.currentRound = 1; gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = []; gameState.events = [];
+      gameState.progress = 0; gameState.isProcessing = false;
+      gameState.gameEnded = false; gameState.wrongAttempts = 0;
+      gameState.activeRounds = getRounds();
+      gameState.startTime = Date.now();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOMState();
+      (async function () { await showRoundIntro(1); renderRound(); })();
+    }
+    window.startGame = startGame;
+
+    function nextRound() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        renderRound();
+      } else {
+        endGame(true);
+      }
+    }
+    window.nextRound = nextRound;
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.totalRounds = (content.totalRounds && typeof content.totalRounds === 'number') ? content.totalRounds : 3;
+      gameState.activeRounds = getRounds();
+      buildBoardDOM();
+      var firstRound = (gameState.activeRounds && gameState.activeRounds[0]) || getRounds()[0];
+      if (firstRound) { gameState.currentRoundData = firstRound; paintForRound(firstRound); }
+      if (previewScreen) {
+        try {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function (previewData) { startGameAfterPreview(previewData); }
+          });
+        } catch (e) { console.error('[previewScreen.show]', e && e.message); startGameAfterPreview({ duration: 0 }); }
+      } else { startGameAfterPreview({ duration: 0 }); }
+    }
+
+    function startGameAfterPreview(previewData) {
+      try {
+        gameState.previewResult = previewData || { duration: 0 };
+        gameState.duration_data.preview = gameState.duration_data.preview || [];
+        gameState.duration_data.preview.push({ duration: previewData ? previewData.duration : 0 });
+        gameState.startTime = Date.now();
+        gameState.isActive = true;
+        gameState.duration_data.startTime = new Date().toISOString();
+        trackEvent('game_start', { totalRounds: gameState.totalRounds });
+        if (signalCollector && typeof signalCollector.recordViewEvent === 'function') {
+          try { signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+        }
+        if (progressBar) { try { progressBar.update(0, 0); } catch (e) {} }
+        (async function () { await showRoundIntro(1); renderRound(); })();
+      } catch (e) { console.error('[startGameAfterPreview]', e && e.message); }
+    }
+
+    function buildFallbackLayout() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      if (document.getElementById('gameContent')) return;
+      var stack = document.createElement('div'); stack.className = 'game-stack';
+      var gc = document.createElement('div'); gc.id = 'gameContent';
+      stack.appendChild(gc); app.appendChild(stack);
+    }
+
+    window.debugGame = function () {
+      try { return { phase: gameState.phase, currentRound: gameState.currentRound, score: gameState.score }; } catch (e) { return { error: e && e.message }; }
+    };
+  </script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      try {
+        await waitForPackages();
+        try { await FeedbackManager.init(); } catch (e) {}
+        try {
+          signalCollector = new SignalCollector({ playId: 'fill-the-gaps-' + Date.now(), game: 'fill-the-gaps' });
+          window.signalCollector = signalCollector;
+        } catch (e) { console.error('[SignalCollector ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+        try {
+          ScreenLayout.inject('app', { slots: { previewScreen: true, transitionScreen: true, progressBar: true, floatingButton: true, answerComponent: true } });
+        } catch (e) { console.error('[ScreenLayout.inject failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); buildFallbackLayout(); }
+        try {
+          visibilityTracker = new VisibilityTracker({
+            popupProps: {},
+            onInactive: function () {
+              try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {}
+              try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+            },
+            onResume: function () {
+              try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {}
+              try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+            }
+          });
+        } catch (e) { console.error('[VisibilityTracker ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+        try { progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 3, totalLives: 3 }); }
+        catch (e) { console.error('[ProgressBarComponent ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+        try { transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' }); }
+        catch (e) { console.error('[TransitionScreenComponent ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+        try { previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' }); }
+        catch (e) { console.error('[PreviewScreenComponent ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+        try {
+          floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+          if (floatingBtn && typeof floatingBtn.setSubmittable === 'function') {
+            try { floatingBtn.setSubmittable(false); } catch (e) {}
+          }
+          floatingBtn.on('next', function () {
+            try { if (answerComponent && typeof answerComponent.destroy === 'function') answerComponent.destroy(); } catch (e) {}
+            try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+            try { if (previewScreen && typeof previewScreen.destroy === 'function') previewScreen.destroy(); } catch (e) {}
+            try { if (floatingBtn && typeof floatingBtn.destroy === 'function') floatingBtn.destroy(); } catch (e) {}
+          });
+        } catch (e) { console.error('[FloatingButtonComponent ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+        try { answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' }); }
+        catch (e) { console.error('[AnswerComponentComponent ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        preloadAudio();
+        window.addEventListener('message', handlePostMessage);
+        try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+        setupGame();
+      } catch (e) { console.error('[init]', e && e.message); if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} } }
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = startGame;
+      window.nextRound = nextRound;
+      window.loadRound = function (n) {
+        if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+          gameState.currentRound = n;
+          renderRound();
+        }
+      };
+      try {
+        var btnStartShim = document.getElementById('btn-start-shim');
+        if (btnStartShim) {
+          btnStartShim.addEventListener('click', function () {
+            try {
+              if (previewScreen && typeof previewScreen.completePreview === 'function') previewScreen.completePreview();
+              else if (typeof startGame === 'function') startGame();
+            } catch (e) {}
+          });
+        }
+      } catch (e) {}
+    });
+
+    setTimeout(function () {
+      if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      if (gameState.isActive || gameState.gameEnded) return;
+      var missing = [];
+      if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+      if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+      if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+      if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+      if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+      if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+      if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+      if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+      if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+      if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+      if (missing.length > 0) {
+        var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+        console.error('[' + msg + ']');
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureMessage(msg); } catch (e) {} }
+        var gc = document.getElementById('gameContent') || document.body;
+        if (gc) gc.innerHTML = '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">Game failed to load — please refresh.</div>';
+        return;
+      }
+      if (!document.getElementById('gameContent')) buildFallbackLayout();
+      gameState.content = fallbackContent;
+      gameState.totalRounds = 3;
+      setupGame();
+      startGame();
+    }, 2000);
+  </script>
+
+  <!-- @dnd-kit/dom — digit tiles are Draggables. Each blank is a Droppable. dragend
+       fires placeDigit(blankId, digit). Digit tiles stay in the pad (drag returns a copy). -->
+  <script type="module">
+    import {
+      DragDropManager, Draggable, Droppable, Feedback,
+      PointerSensor, KeyboardSensor, PointerActivationConstraints
+    } from 'https://esm.sh/@dnd-kit/dom@beta';
+
+    let manager = null;
+    const draggables = new Map();
+    const droppables = new Map();
+
+    function ensureManager() {
+      if (manager) return manager;
+      manager = new DragDropManager({
+        sensors: [
+          PointerSensor.configure({ activationConstraints: [ new PointerActivationConstraints.Distance({ value: 3 }) ] }),
+          KeyboardSensor
+        ]
+      });
+
+      manager.monitor.addEventListener('beforedragstart', (event) => {
+        try {
+          const gs = window.gameState;
+          if (!gs || !gs.isActive || gs.isProcessing || gs.gameEnded) {
+            if (typeof event.preventDefault === 'function') event.preventDefault();
+          }
+        } catch (e) {}
+      });
+
+      manager.monitor.addEventListener('dragstart', (event) => {
+        try {
+          window.gameState && (window.gameState.isDragging = true);
+          const src = event.operation && event.operation.source;
+          if (src && src.element) src.element.setAttribute('data-dragging', 'true');
+        } catch (e) {}
+      });
+
+      manager.monitor.addEventListener('dragend', (event) => {
+        try {
+          window.gameState && (window.gameState.isDragging = false);
+          const op = event.operation || {};
+          const { source, target, canceled } = op;
+          let sourceEl = null;
+          if (source && source.element) {
+            sourceEl = source.element;
+            sourceEl.classList.add('placed');
+            sourceEl.classList.remove('placed');
+            resetDragStyling(sourceEl);
+            requestAnimationFrame(() => { resetDragStyling(sourceEl); });
+            setTimeout(() => resetDragStyling(sourceEl), 60);
+          }
+          if (canceled || !source || !target) return;
+          // Resolve via gameState — not DOM inspection.
+          const gs = window.gameState;
+          if (!gs) return;
+          const digitStr = source.element ? source.element.getAttribute('data-tile-digit') : null;
+          const targetEl = target.element;
+          if (!digitStr || !targetEl) return;
+          const blankId = targetEl.getAttribute('data-blank-id');
+          if (!blankId) return;
+          // Check the placement state map: the blank must still be empty.
+          if (gs.placement && gs.placement[blankId] != null) return;
+          const digit = parseInt(digitStr, 10);
+          if (Number.isNaN(digit)) return;
+          if (typeof window.placeDigit === 'function') {
+            window.placeDigit(blankId, digit, 'drag');
+          }
+        } catch (e) { console.error('[fgDnD dragend]', e && e.message); }
+      });
+      return manager;
+    }
+
+    const DRAG_STATE_CLASSES = ['placed','dragging','is-dragging','tile-dragging','fg-dragging'];
+    function resetDragStyling(el) {
+      if (!el) return;
+      el.removeAttribute('data-dragging');
+      DRAG_STATE_CLASSES.forEach((cls) => { try { el.classList.remove(cls); } catch (e) {} });
+      const s = el.style;
+      s.transform = ''; s.translate = ''; s.position = ''; s.left = ''; s.top = '';
+      s.right = ''; s.bottom = ''; s.width = ''; s.height = ''; s.zIndex = '';
+      s.pointerEvents = ''; s.opacity = ''; s.transition = ''; s.willChange = '';
+      s.touchAction = ''; s.cursor = '';
+    }
+
+    function bindRound(equationEl, padEl) {
+      ensureManager();
+      destroyDndRound();
+      if (!equationEl || !padEl) return;
+      // Tiles
+      const tiles = padEl.querySelectorAll('.fg-tile');
+      tiles.forEach((tile) => {
+        const dg = tile.getAttribute('data-tile-digit');
+        if (dg == null) return;
+        const drag = new Draggable({ id: 'fg-drag-' + dg, element: tile }, manager);
+        draggables.set(tile, drag);
+      });
+      // Blanks
+      const blanks = equationEl.querySelectorAll('.fg-blank');
+      blanks.forEach((blank) => {
+        const id = blank.getAttribute('data-blank-id');
+        if (!id) return;
+        let drop;
+        drop = new Droppable({
+          id: 'fg-drop-' + id,
+          element: blank,
+          effects() {
+            return [
+              () => drop.isDropTarget
+                ? blank.classList.add('fg-drop-hover')
+                : blank.classList.remove('fg-drop-hover')
+            ];
+          }
+        }, manager);
+        droppables.set(blank, drop);
+      });
+    }
+
+    function destroyDndRound() {
+      droppables.forEach((d) => { try { if (typeof d.destroy === 'function') d.destroy(); } catch (e) {} });
+      droppables.clear();
+      draggables.forEach((d) => { try { if (typeof d.destroy === 'function') d.destroy(); } catch (e) {} });
+      draggables.clear();
+    }
+
+    window.fgDnD = { bindRound, destroyDndRound };
+
+    function bootstrapExistingDOM() {
+      try {
+        const eq = document.getElementById('fg-equation');
+        const pad = document.getElementById('fg-pad');
+        if (eq && pad) bindRound(eq, pad);
+      } catch (e) { console.error('[fgDnD bootstrap]', e && e.message); }
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bootstrapExistingDOM);
+    } else {
+      setTimeout(bootstrapExistingDOM, 0);
+    }
+  </script>
+</body>
+</html>

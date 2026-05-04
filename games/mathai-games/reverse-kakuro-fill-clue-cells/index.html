@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Eight-Friendly — Multiples Cross-Number</title>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-primary: #270f36;
+      --mathai-purple: #9B51E0;
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --kakuro-anchor-bg: #E6F8FF;
+      --kakuro-anchor-border: #2BA3D6;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width:100%; height:100dvh; overflow-x:hidden; overscroll-behavior:none; }
+    @supports not (height: 100dvh) { html, body { height: 100vh; } }
+    body { font-family: var(--mathai-font-family); background: var(--mathai-white); color: var(--mathai-text-primary); -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; line-height:1.5; }
+    #app { width:100%; max-width:var(--mathai-game-max-width); min-height:100dvh; margin:0 auto; display:flex; flex-direction:column; position:relative; overflow-x:clip; padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px); }
+    @supports not (min-height: 100dvh) { #app { min-height: 100vh; } }
+    #gameContent { display:flex; flex-direction:column; width:100%; padding:8px 16px 16px; }
+
+    .puzzle-meta {
+      text-align:center;
+      font-size:13px;
+      color:var(--mathai-gray);
+      letter-spacing:0.04em;
+      text-transform:uppercase;
+      margin: 6px 0 2px;
+    }
+    .factor-rule {
+      text-align:center;
+      font-size:18px;
+      color:var(--mathai-primary);
+      font-weight:700;
+      margin-bottom:14px;
+    }
+
+    .grid-stage {
+      display:flex; flex-direction:column; align-items:center; padding: 10px 0 16px;
+    }
+    .pair {
+      display:flex; align-items:center; justify-content:center; margin: 4px 0;
+    }
+    .pair.vertical { flex-direction:column; }
+    .pair-cell {
+      width: 56px; height: 56px;
+      border:2px solid var(--mathai-text-primary);
+      background: var(--mathai-white);
+      display:flex; align-items:center; justify-content:center;
+      font-size: 24px; font-weight:800;
+      color: var(--mathai-primary);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .pair-cell.fixed {
+      background: var(--kakuro-anchor-bg);
+      border-color: var(--kakuro-anchor-border);
+      cursor: default;
+    }
+    .pair-cell.empty { background: var(--mathai-white); }
+    .pair-cell.selected {
+      border-color: var(--mathai-yellow);
+      background: var(--mathai-cell-bg-yellow);
+    }
+    .pair-cell.solved-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-green);
+    }
+    .pair-cell.solved-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-cell-border-red);
+      color: var(--mathai-red);
+      animation: shake 0.5s ease;
+    }
+    .pair-row { display:flex; flex-direction:row; }
+
+    .digit-pool {
+      display:flex; flex-wrap:wrap; justify-content:center;
+      padding: 10px;
+      background: var(--mathai-light-gray);
+      border-radius: 14px;
+      margin: 12px 0;
+    }
+    .digit-chip {
+      width: 44px; height: 44px;
+      border:2px solid var(--mathai-border-gray);
+      background: var(--mathai-white);
+      border-radius: 999px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:18px; font-weight:700;
+      color: var(--mathai-primary);
+      margin: 4px;
+      cursor:pointer; touch-action:manipulation;
+      position: relative;
+      -webkit-appearance:none; appearance:none;
+    }
+    .digit-chip:disabled,
+    .digit-chip.disabled { opacity:0.35; pointer-events:none; }
+    .digit-chip-badge {
+      position: absolute; top: -6px; right: -6px;
+      width: 18px; height: 18px;
+      background: var(--mathai-purple);
+      color: var(--mathai-white);
+      font-size: 11px;
+      border-radius: 999px;
+      display:flex; align-items:center; justify-content:center;
+      pointer-events: none;
+    }
+
+    .pair-feedback {
+      margin: 6px 0; padding: 8px 10px;
+      background: var(--mathai-cell-bg-yellow);
+      border-radius: 10px;
+      font-size: 14px;
+      text-align:center;
+      color: var(--mathai-primary);
+      display: none;
+    }
+    .pair-feedback.visible { display: block; }
+
+    button, [role="button"] { min-height:44px; min-width:44px; touch-action:manipulation; }
+    #app { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+    input, textarea { -webkit-user-select:text; user-select:text; }
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed; inset: 0; z-index: 99999;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--mathai-white); color: var(--mathai-primary);
+        font-family: var(--mathai-font-family); font-size: 18px;
+        text-align: center; padding: 24px;
+      }
+    }
+
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes shake { 0%,100% { transform:translateX(0); } 20%{transform:translateX(-6px);} 40%{transform:translateX(6px);} 60%{transform:translateX(-4px);} 80%{transform:translateX(4px);} }
+    @keyframes pulseGreen { 0% { background: var(--mathai-cell-bg-green); } 50% { background: #B6F2C0; } 100% { background: var(--mathai-cell-bg-green); } }
+    .fade-in { animation: fadeIn 0.35s ease; }
+    .pulse-green { animation: pulseGreen 0.6s ease; }
+
+    .answer-card {
+      width:100%; max-width:380px; margin:0 auto; padding:14px 12px 18px; text-align:left;
+    }
+    .answer-card .scenario { font-weight:600; color:var(--mathai-primary); margin-bottom:8px; }
+    .answer-card .accepted {
+      padding:10px 12px; background:var(--mathai-cell-bg-green);
+      border:2px solid var(--mathai-cell-border-green); color:var(--mathai-green);
+      border-radius:12px; font-weight:700; margin-bottom:8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-lives="3"></div>
+  <script>
+    var STICKER_CORRECT  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_TWO      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_ONE      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_CELEBRATE = STICKER_VICTORY;
+    var STICKER_SAD = STICKER_WRONG;
+    var STICKER_MOTIVATE = STICKER_LEVEL;
+
+    /* Round structure:
+       multipleOf: number — every pair of digits must form a 2-digit multiple of this
+       digitPool: array of digit values 0..9 (4 has count 2, others count 1)
+       pairs: array of { kind: 'h' | 'v', cells: [c1, c2] }
+              each cell is { value: 0..9 | null, fixed: boolean }
+       Validity: cells of pair concatenated as 10*c1 + c2 must be a valid multiple of multipleOf.
+    */
+    function buildRound(set, n, multipleOf, layout, correctTTS, correctSubtitle, wrongTTS, wrongSubtitle) {
+      var prefix = set + '_r' + n;
+      return {
+        set: set, id: prefix + '_kakuro-' + multipleOf, round: n,
+        stage: n <= 3 ? 1 : (n <= 7 ? 2 : 3),
+        type: 'kakuro',
+        multipleOf: multipleOf,
+        digitPool: layout.digitPool.slice(),
+        pairs: layout.pairs.map(function (p) { return { kind: p.kind, cells: p.cells.map(function (c) { return { value: c.value, fixed: c.fixed, correctValue: c.correctValue }; }) }; }),
+        correctTTS: correctTTS, correctSubtitle: correctSubtitle,
+        wrongTTS: wrongTTS, wrongSubtitle: wrongSubtitle,
+        misconception_tags: {},
+        answer: { multipleOf: multipleOf, pairs: layout.pairs }
+      };
+    }
+
+    /* Layout helpers — each layout is a hand-curated set of pairs with a known solution.
+       Pair { kind:'h'|'v', cells:[ {value, fixed, correctValue}, ... ] }
+       Note: this is a simplified model — "pairs" don't share digits across pairs in this version,
+       but the digit pool is global and tracks usage. */
+    function L(pairs, pool) { return { pairs: pairs, digitPool: pool }; }
+    function H(c1Correct, c2Correct, fix1, fix2) {
+      return { kind:'h', cells:[
+        { value: fix1 ? c1Correct : null, fixed: !!fix1, correctValue: c1Correct },
+        { value: fix2 ? c2Correct : null, fixed: !!fix2, correctValue: c2Correct }
+      ]};
+    }
+    function V(c1Correct, c2Correct, fix1, fix2) {
+      return { kind:'v', cells:[
+        { value: fix1 ? c1Correct : null, fixed: !!fix1, correctValue: c1Correct },
+        { value: fix2 ? c2Correct : null, fixed: !!fix2, correctValue: c2Correct }
+      ]};
+    }
+
+    var fallbackContent = {
+      previewInstruction: '<p><b>Eight-Friendly</b> — every two-cell pair (horizontal or vertical) must form a 2-digit multiple of the round\'s number.</p><p>Pick digits from the pool. Use 4 twice; other digits once. <b>3 lives, 10 rounds.</b></p>',
+      previewAudioText: 'Eight friendly. Make every two-cell pair a multiple of the round number. Pool digits, three lives, ten rounds.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 10,
+      totalLives: 3,
+      answerComponent: true,
+      rounds: [
+        // Set A — multiples of 4 (intro), then multiples of 8, then multiples of 9
+        // Each round uses curated multiples so digit pool exactly matches.
+        // Round 1: multiples of 4. Pairs: 12, 24. Pool 1,2,2,4. (Using "4 twice" rule we offer pool with 4 twice).
+        buildRound('A', 1, 4,
+          L([ H(1, 2, false, false), H(2, 4, false, false) ], [1,2,2,4,4]),
+          'Done — both pairs are multiples of 4.', 'Two pairs, both multiples of 4!',
+          'Each pair must be a multiple of the round number.', 'Each pair must be a 2-digit multiple.'),
+        buildRound('A', 2, 4,
+          L([ V(1, 6, true, false), H(2, 8, false, false) ], [6,2,8,4,4]),
+          'Done — 16 vertical, 28 horizontal, both multiples of 4.', 'Two pairs valid!',
+          'A pair value is 10×top + bottom (or left + right).', 'Pair value = 10×first + second.'),
+        buildRound('A', 3, 4,
+          L([ H(2, 0, false, false), V(3, 6, false, false) ], [2,0,3,6,4,4]),
+          'Done — 20 and 36 are multiples of 4.', 'Two pairs valid!',
+          'Try the most-constrained cell first.', 'Pick the most-constrained cell first.'),
+        // Set A — rounds 4-7: multiples of 8
+        buildRound('A', 4, 8,
+          L([ H(1, 6, false, false), V(2, 4, false, true) ], [1,6,2,4,4,8]),
+          'Done — 16 and 24 are multiples of 8.', 'Multiples of 8 valid!',
+          'Multiples of 8: 16, 24, 32, 40, 48, 56...', 'Recall the multiples of 8 list.'),
+        buildRound('A', 5, 8,
+          L([ V(3, 2, false, false), H(4, 8, false, false) ], [3,2,4,4,8]),
+          'Done — 32 and 48 are multiples of 8.', 'Multiples of 8 valid!',
+          'List multiples of 8 from 16 to 96.', 'List multiples of 8: 16, 24, 32, 40...'),
+        buildRound('A', 6, 8,
+          L([ H(5, 6, false, false), V(7, 2, false, false) ], [5,6,7,2,4,4]),
+          'Done — 56 and 72 are multiples of 8.', 'Multiples of 8 valid!',
+          '56 and 72 are both multiples of 8.', 'Recall: 56 = 7×8, 72 = 9×8.'),
+        buildRound('A', 7, 8,
+          L([ V(8, 0, false, false), H(6, 4, false, false) ], [8,0,6,4,4]),
+          'Done — 80 and 64 are multiples of 8.', 'Multiples of 8 valid!',
+          '80 and 64 are multiples of 8.', '80 = 10×8, 64 = 8×8.'),
+        // Set A — rounds 8-10: multiples of 9
+        buildRound('A', 8, 9,
+          L([ H(1, 8, false, false), V(2, 7, false, false) ], [1,8,2,7,4,4]),
+          'Done — 18 and 27 are multiples of 9.', 'Multiples of 9 valid!',
+          'Multiples of 9: 18, 27, 36, 45, 54, 63, 72, 81, 90, 99.', 'List multiples of 9 from 18 to 99.'),
+        buildRound('A', 9, 9,
+          L([ V(3, 6, false, false), H(5, 4, false, false) ], [3,6,5,4,4]),
+          'Done — 36 and 54 are multiples of 9.', 'Multiples of 9 valid!',
+          '36 = 4×9, 54 = 6×9.', '36 and 54 are multiples of 9.'),
+        buildRound('A', 10, 9,
+          L([ H(6, 3, false, false), V(8, 1, false, false) ], [6,3,8,1,4,4]),
+          'Done — 63 and 81 are multiples of 9.', 'Multiples of 9 valid!',
+          '63 = 7×9, 81 = 9×9.', '63 and 81 are multiples of 9.'),
+        // Set B — same shape, different anchors
+        buildRound('B', 1, 4, L([ H(1, 6, false, false), H(2, 0, false, false) ], [1,6,2,0,4,4]), 'Done.', 'Two pairs valid!', 'Pair value = 10a + b.', 'Pair value 10a+b.'),
+        buildRound('B', 2, 4, L([ V(2, 4, true, false), H(3, 6, false, false) ], [4,3,6,4,4]), 'Done.', 'Two pairs valid!', 'Anchor narrows the search.', 'Anchor narrows search.'),
+        buildRound('B', 3, 4, L([ H(2, 8, false, false), V(4, 0, false, true) ], [2,8,4,0,4]), 'Done.', 'Two pairs valid!', 'Use the most-constrained cell first.', 'Most-constrained first.'),
+        buildRound('B', 4, 8, L([ V(2, 4, false, false), H(3, 2, false, false) ], [2,4,3,2,4,4]), 'Done.', 'Multiples of 8!', 'Multiples of 8 list.', 'Recall multiples of 8.'),
+        buildRound('B', 5, 8, L([ H(4, 0, false, false), V(4, 8, true, false) ], [4,0,8,4,4]), 'Done.', 'Multiples of 8!', 'Both pairs valid.', 'Both pairs valid.'),
+        buildRound('B', 6, 8, L([ V(8, 8, false, false), H(7, 2, false, false) ], [8,8,7,2,4,4]), 'Done.', 'Multiples of 8!', '88 and 72 are multiples of 8.', '88 = 11×8, 72 = 9×8.'),
+        buildRound('B', 7, 8, L([ H(9, 6, false, false), V(5, 6, false, false) ], [9,6,5,6,4,4]), 'Done.', 'Multiples of 8!', '96 and 56 are multiples of 8.', '96 = 12×8, 56 = 7×8.'),
+        buildRound('B', 8, 9, L([ V(2, 7, false, false), H(4, 5, false, false) ], [2,7,4,5,4,4]), 'Done.', 'Multiples of 9!', '27 and 45 are multiples of 9.', '27 = 3×9, 45 = 5×9.'),
+        buildRound('B', 9, 9, L([ H(7, 2, false, false), V(9, 0, false, false) ], [7,2,9,0,4,4]), 'Done.', 'Multiples of 9!', '72 and 90 are multiples of 9.', '72 = 8×9, 90 = 10×9.'),
+        buildRound('B', 10, 9, L([ V(3, 6, false, false), H(9, 9, false, false) ], [3,6,9,9,4,4]), 'Done.', 'Multiples of 9!', '36 and 99 are multiples of 9.', '36 = 4×9, 99 = 11×9.'),
+        // Set C
+        buildRound('C', 1, 4, L([ V(2, 0, false, false), H(3, 2, false, false) ], [2,0,3,2,4,4]), 'Done.', 'Two pairs valid!', 'Multiples of 4.', 'Multiples of 4.'),
+        buildRound('C', 2, 4, L([ H(2, 4, false, false), V(3, 6, false, false) ], [2,4,3,6,4,4]), 'Done.', 'Two pairs valid!', 'Multiples of 4.', 'Multiples of 4.'),
+        buildRound('C', 3, 4, L([ V(4, 0, false, false), H(2, 8, false, false) ], [4,0,2,8,4]), 'Done.', 'Two pairs valid!', 'Multiples of 4.', 'Multiples of 4.'),
+        buildRound('C', 4, 8, L([ H(1, 6, false, false), V(2, 4, false, false) ], [1,6,2,4,4,8]), 'Done.', 'Multiples of 8!', 'Multiples of 8 list.', 'Recall multiples of 8.'),
+        buildRound('C', 5, 8, L([ V(3, 2, false, false), H(4, 0, false, false) ], [3,2,4,0,4,8]), 'Done.', 'Multiples of 8!', 'Multiples of 8 list.', 'Recall multiples of 8.'),
+        buildRound('C', 6, 8, L([ H(5, 6, false, false), V(6, 4, false, false) ], [5,6,6,4,4,4]), 'Done.', 'Multiples of 8!', '56 and 64 are multiples of 8.', '56 = 7×8, 64 = 8×8.'),
+        buildRound('C', 7, 8, L([ V(8, 0, false, false), H(8, 8, false, false) ], [8,0,8,8,4,4]), 'Done.', 'Multiples of 8!', '80 and 88 are multiples of 8.', '80 = 10×8, 88 = 11×8.'),
+        buildRound('C', 8, 9, L([ H(1, 8, false, false), V(3, 6, false, false) ], [1,8,3,6,4,4]), 'Done.', 'Multiples of 9!', '18 and 36 are multiples of 9.', '18 = 2×9, 36 = 4×9.'),
+        buildRound('C', 9, 9, L([ V(5, 4, false, false), H(6, 3, false, false) ], [5,4,6,3,4,4]), 'Done.', 'Multiples of 9!', '54 and 63 are multiples of 9.', '54 = 6×9, 63 = 7×9.'),
+        buildRound('C', 10, 9, L([ H(8, 1, false, false), V(9, 9, false, false) ], [8,1,9,9,4,4]), 'Done.', 'Multiples of 9!', '81 and 99 are multiples of 9.', '81 = 9×9, 99 = 11×9.')
+      ]
+    };
+
+    var SETS = ['A','B','C'];
+    var gameState = {
+      gameId: 'reverse-kakuro-fill-clue-cells',
+      gameTitle: 'Eight-Friendly',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 10,
+      score: 0,
+      lives: 3,
+      totalLives: 3,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      duration_data: { startTime: null, endTime: null, preview: [] },
+      correctAnswer: null,
+      stars: 0,
+      setIndex: 0,
+      activeRounds: [],
+      previewResult: null,
+      progress: 0,
+      currentRoundData: null,
+      poolUses: {},
+      selectedCell: null,
+      wrongPlacements: 0
+    };
+    window.gameState = gameState;
+
+    var timer = null, visibilityTracker = null, signalCollector = null, progressBar = null;
+    var transitionScreen = null, previewScreen = null, floatingBtn = null, answerComponent = null;
+
+    function getAvailableSets(rounds) {
+      var seen = {}; var out = [];
+      for (var i = 0; i < rounds.length; i++) { var s = rounds[i].set; if (s && !seen[s]) { seen[s] = true; out.push(s); } }
+      return out.length ? out : ['A'];
+    }
+    function getRounds() {
+      var src = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(src);
+      var setKey = sets[gameState.setIndex % sets.length];
+      var filtered = [];
+      for (var i = 0; i < src.length; i++) if (src[i].set === setKey) filtered.push(src[i]);
+      filtered.sort(function (a,b) { return a.round - b.round; });
+      return filtered;
+    }
+    function getCorrectCount() {
+      var c = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) if (gameState.attempts[i].correct === true) c++;
+      return c;
+    }
+    function getStars() {
+      var c = getCorrectCount();
+      var t = gameState.totalRounds;
+      if (c >= t && gameState.lives === gameState.totalLives) return 3;
+      if (c >= Math.ceil(t * 0.7)) return 2;
+      if (c >= 1) return 1;
+      return 0;
+    }
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+    }
+    function trackEvent(name, payload) {
+      try { gameState.events.push({ event: name, ts: Date.now(), data: payload || {} }); } catch (e) {}
+      try { if (signalCollector && signalCollector.recordEvent) signalCollector.recordEvent(name, payload || {}); } catch (e) {}
+    }
+    function recordAttempt(input, correct, miscTag, responseMs) {
+      var round = gameState.activeRounds[gameState.currentRound];
+      var qid = round ? round.id : ('r' + (gameState.currentRound + 1));
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) : 0,
+        input_of_user: input,
+        correct: correct === true,
+        round_number: gameState.currentRound + 1,
+        question_id: qid,
+        correct_answer: round ? round.multipleOf : null,
+        response_time_ms: typeof responseMs === 'number' ? responseMs : 0,
+        misconception_tag: miscTag || null,
+        difficulty_level: round ? (round.stage || 1) : 1,
+        is_retry: false,
+        metadata: { set: round ? round.set : null }
+      };
+      gameState.attempts.push(attempt);
+      try { if (signalCollector && signalCollector.recordAttempt) signalCollector.recordAttempt(attempt); } catch (e) {}
+    }
+    function postGameComplete() {
+      if (gameState._gameCompletePosted) return;
+      gameState._gameCompletePosted = true;
+      var correctCount = getCorrectCount();
+      var attempted = gameState.attempts.length;
+      var accuracy = attempted === 0 ? 0 : Math.round((correctCount / attempted) * 100);
+      var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+      var triesByRound = gameState.attempts.map(function (a) { return { round: a.round_number, correct: a.correct === true }; });
+      var metrics = {
+        accuracy: accuracy, time: Math.round(elapsedMs / 1000), stars: gameState.stars,
+        attempts: gameState.attempts.slice(), duration_data: gameState.duration_data,
+        totalLives: gameState.lives, tries: triesByRound, score: gameState.score, correctCount: correctCount
+      };
+      var signalSealed = { event_count: gameState.events.length, metadata: {} };
+      try { if (signalCollector && typeof signalCollector.seal === 'function') { var sealed = signalCollector.seal(); if (sealed) { if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count; if (sealed.metadata) signalSealed.metadata = sealed.metadata; } } } catch (e0) {}
+      try { window.parent.postMessage({ type:'game_complete', data:{ metrics:metrics, previewResult:gameState.previewResult, completedAt:Date.now(), signal_event_count:signalSealed.event_count, signal_metadata:signalSealed.metadata } }, '*'); } catch (e) {}
+    }
+
+    function safePlaySound(id, opts) { try { return FeedbackManager.sound.play(id, opts || {}); } catch (e) { return Promise.resolve(); } }
+    function awaitedFeedbackSound(id, opts) {
+      var p = safePlaySound(id, opts || {});
+      var floor = new Promise(function (r) { setTimeout(r, 1500); });
+      return Promise.all([p, floor]).then(function () {}, function () {});
+    }
+    function playDynamicFeedback(opts) { try { return FeedbackManager.playDynamicFeedback(opts || {}); } catch (e) { return Promise.resolve(); } }
+
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok = typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            try { throw new Error('waitForPackages timeout'); } catch (re) { reject(err); return; }
+            return reject(err);
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    function poolCountFor(d) {
+      // 4 has 2 uses, others 1 use (per concept)
+      return d === 4 ? 2 : 1;
+    }
+    function poolRemaining(d) {
+      var data = gameState.currentRoundData;
+      if (!data) return 0;
+      var allowed = 0;
+      for (var i = 0; i < data.digitPool.length; i++) if (data.digitPool[i] === d) allowed++;
+      var used = gameState.poolUses[d] || 0;
+      return Math.max(0, allowed - used);
+    }
+
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div class="puzzle-meta" id="puzzleMeta"></div>' +
+        '<div class="factor-rule" id="multipleOfRule"></div>' +
+        '<div class="grid-stage" id="gridStage" data-testid="grid-stage"></div>' +
+        '<div class="digit-pool" id="digitPool" data-testid="digit-pool"></div>' +
+        '<div class="pair-feedback" id="pairFeedback" aria-live="polite" role="status"></div>';
+    }
+    function renderInitialState() {
+      var pm = document.getElementById('puzzleMeta');
+      var mb = document.getElementById('multipleOfRule');
+      var gs = document.getElementById('gridStage');
+      var dp = document.getElementById('digitPool');
+      var pf = document.getElementById('pairFeedback');
+      if (pm) pm.textContent = '';
+      if (mb) mb.textContent = '';
+      if (gs) gs.innerHTML = '';
+      if (dp) dp.innerHTML = '';
+      if (pf) { pf.textContent = ''; pf.classList.remove('visible'); }
+    }
+
+    function renderRound(roundIdxOneBased) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      gameState.currentRound = roundIdxOneBased - 1;
+      gameState.isActive = true;
+      gameState.phase = 'gameplay';
+      syncDOM();
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) return;
+      // Deep clone the round's pair structure so player edits don't mutate the source data
+      gameState.currentRoundData = JSON.parse(JSON.stringify(round));
+      gameState.poolUses = {};
+      gameState.selectedCell = null;
+      gameState.wrongPlacements = 0;
+      gameState.correctAnswer = round.multipleOf;
+
+      var pm = document.getElementById('puzzleMeta');
+      var mb = document.getElementById('multipleOfRule');
+      if (pm) pm.textContent = 'Round ' + roundIdxOneBased + ' of ' + gameState.totalRounds;
+      if (mb) mb.textContent = 'Make every pair a multiple of ' + round.multipleOf;
+
+      renderGrid();
+      renderPool();
+      var pf = document.getElementById('pairFeedback');
+      if (pf) { pf.textContent = ''; pf.classList.remove('visible'); }
+
+      gameState.isProcessing = false;
+      gameState.roundStartMs = Date.now();
+      try { if (timer && timer.resume) timer.resume(); } catch (e) {}
+      try { var p = safePlaySound('tap_sound', {}); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+      trackEvent('round_start', { round: roundIdxOneBased, multipleOf: round.multipleOf });
+    }
+
+    function renderGrid() {
+      var gs = document.getElementById('gridStage');
+      if (!gs) return;
+      gs.innerHTML = '';
+      var data = gameState.currentRoundData;
+      for (var pi = 0; pi < data.pairs.length; pi++) {
+        var pair = data.pairs[pi];
+        var pairDiv = document.createElement('div');
+        pairDiv.className = 'pair' + (pair.kind === 'v' ? ' vertical' : '');
+        for (var ci = 0; ci < pair.cells.length; ci++) {
+          var cell = pair.cells[ci];
+          var cdiv = document.createElement('div');
+          cdiv.className = 'pair-cell' + (cell.fixed ? ' fixed' : ' empty');
+          if (cell.value !== null && cell.value !== undefined) cdiv.textContent = String(cell.value);
+          else cdiv.textContent = '';
+          if (!cell.fixed) {
+            cdiv.setAttribute('data-pair', String(pi));
+            cdiv.setAttribute('data-cell', String(ci));
+            cdiv.setAttribute('data-testid', 'pair-' + pi + '-cell-' + ci);
+            cdiv.addEventListener('click', onCellTap);
+          }
+          // Mark selected
+          if (gameState.selectedCell && gameState.selectedCell.pi === pi && gameState.selectedCell.ci === ci) {
+            cdiv.classList.add('selected');
+          }
+          pairDiv.appendChild(cdiv);
+        }
+        gs.appendChild(pairDiv);
+      }
+    }
+
+    function renderPool() {
+      var dp = document.getElementById('digitPool');
+      if (!dp) return;
+      dp.innerHTML = '';
+      var data = gameState.currentRoundData;
+      // Count distinct digits and their available count
+      var seen = {};
+      for (var i = 0; i < data.digitPool.length; i++) {
+        var d = data.digitPool[i];
+        seen[d] = (seen[d] || 0) + 1;
+      }
+      // Sort digits ascending
+      var digits = [];
+      for (var k in seen) if (Object.prototype.hasOwnProperty.call(seen, k)) digits.push(parseInt(k, 10));
+      digits.sort(function (a,b) { return a-b; });
+      for (var j = 0; j < digits.length; j++) {
+        var dd = digits[j];
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'digit-chip';
+        btn.setAttribute('data-digit', String(dd));
+        btn.setAttribute('data-testid', 'digit-' + dd);
+        btn.textContent = String(dd);
+        var rem = poolRemaining(dd);
+        if (rem === 0) { btn.classList.add('disabled'); btn.disabled = true; }
+        if (seen[dd] > 1) {
+          var badge = document.createElement('span');
+          badge.className = 'digit-chip-badge';
+          badge.textContent = '×' + seen[dd];
+          btn.appendChild(badge);
+        }
+        btn.addEventListener('click', onPoolTap);
+        dp.appendChild(btn);
+      }
+    }
+
+    function onCellTap(ev) {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var btn = ev.currentTarget;
+      var pi = parseInt(btn.getAttribute('data-pair'), 10);
+      var ci = parseInt(btn.getAttribute('data-cell'), 10);
+      var cell = gameState.currentRoundData.pairs[pi].cells[ci];
+      if (cell.fixed) return;
+      // If already filled, lift it back into pool
+      if (cell.value !== null && cell.value !== undefined) {
+        var d = cell.value;
+        gameState.poolUses[d] = Math.max(0, (gameState.poolUses[d] || 0) - 1);
+        cell.value = null;
+        gameState.selectedCell = { pi: pi, ci: ci };
+        var p2 = safePlaySound('tap_sound', {});
+        if (p2 && p2.catch) p2.catch(function () {});
+      } else {
+        gameState.selectedCell = { pi: pi, ci: ci };
+        var p1 = safePlaySound('tap_sound', {});
+        if (p1 && p1.catch) p1.catch(function () {});
+      }
+      renderGrid();
+      renderPool();
+    }
+
+    function onPoolTap(ev) {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      if (!gameState.selectedCell) return;
+      var btn = ev.currentTarget;
+      var d = parseInt(btn.getAttribute('data-digit'), 10);
+      if (poolRemaining(d) <= 0) return;
+      var pi = gameState.selectedCell.pi;
+      var ci = gameState.selectedCell.ci;
+      var cell = gameState.currentRoundData.pairs[pi].cells[ci];
+      cell.value = d;
+      gameState.poolUses[d] = (gameState.poolUses[d] || 0) + 1;
+      gameState.selectedCell = null;
+
+      // Check pair validity
+      var pair = gameState.currentRoundData.pairs[pi];
+      var c1 = pair.cells[0].value;
+      var c2 = pair.cells[1].value;
+      if (c1 !== null && c1 !== undefined && c2 !== null && c2 !== undefined) {
+        var twoDigit = 10 * c1 + c2;
+        var mof = gameState.currentRoundData.multipleOf;
+        if (twoDigit > 0 && twoDigit % mof === 0) {
+          // partial-correct: fire-and-forget per CASE 5
+          var p1 = safePlaySound('correct_sound_effect', { sticker: STICKER_CORRECT });
+          if (p1 && p1.catch) p1.catch(function () {});
+          var pf = document.getElementById('pairFeedback');
+          if (pf) { pf.textContent = twoDigit + ' is a multiple of ' + mof + '.'; pf.classList.add('visible'); }
+        } else {
+          // partial-wrong: fire-and-forget per CASE 5; pop digit back, increment wrong count
+          var p2 = safePlaySound('incorrect_sound_effect', { sticker: STICKER_SAD });
+          if (p2 && p2.catch) p2.catch(function () {});
+          var pf2 = document.getElementById('pairFeedback');
+          if (pf2) { pf2.textContent = twoDigit + ' is not a multiple of ' + mof + '.'; pf2.classList.add('visible'); }
+          // pop the digit back
+          gameState.poolUses[d] = Math.max(0, (gameState.poolUses[d] || 0) - 1);
+          cell.value = null;
+          gameState.wrongPlacements += 1;
+        }
+      }
+
+      renderGrid();
+      renderPool();
+
+      // Check round resolution: every pair fully filled and valid
+      checkRoundResolution();
+    }
+
+    function checkRoundResolution() {
+      var data = gameState.currentRoundData;
+      var allFilled = true;
+      var allValid = true;
+      for (var pi = 0; pi < data.pairs.length; pi++) {
+        var pair = data.pairs[pi];
+        var c1 = pair.cells[0].value, c2 = pair.cells[1].value;
+        if (c1 === null || c1 === undefined || c2 === null || c2 === undefined) { allFilled = false; break; }
+        var v = 10 * c1 + c2;
+        if (v % data.multipleOf !== 0) { allValid = false; break; }
+      }
+      if (allFilled && allValid) {
+        handleRoundComplete();
+      }
+    }
+
+    function handleRoundComplete() {
+      gameState.isProcessing = true;
+      try { if (timer && timer.pause) timer.pause(); } catch (e) {}
+      var responseMs = Date.now() - (gameState.roundStartMs || Date.now());
+      gameState.score += 1;
+      gameState.progress = gameState.currentRound + 1;
+      try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+      syncDOM();
+      var round = gameState.activeRounds[gameState.currentRound];
+      recordAttempt('all-pairs-valid', true, null, responseMs);
+      trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: true, wrongPlacements: gameState.wrongPlacements });
+      runCorrectFeedbackAndAdvance(round);
+    }
+
+    function runCorrectFeedbackAndAdvance(round) {
+      (async function () {
+        try { await awaitedFeedbackSound('correct_sound_effect', { sticker: STICKER_CORRECT }); } catch (e) {}
+        try { await playDynamicFeedback({ audio_content: round.correctTTS, subtitle: round.correctSubtitle, sticker: STICKER_CORRECT }); } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function runWrongFeedbackAndAdvance(round) {
+      (async function () {
+        try { await awaitedFeedbackSound('incorrect_sound_effect', { sticker: STICKER_SAD }); } catch (e) {}
+        try { await playDynamicFeedback({ audio_content: round.wrongTTS, subtitle: round.wrongSubtitle, sticker: STICKER_SAD }); } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function advanceAfterFeedback() {
+      var roundJustPlayed = gameState.currentRound + 1;
+      if (gameState.lives === 0) { gameState.stars = getStars(); postGameComplete(); endGame(false); return; }
+      if (roundJustPlayed === gameState.totalRounds) { endGame(true); return; }
+      showRoundIntro(roundJustPlayed + 1);
+    }
+
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      var ttsText = 'Round ' + n;
+      await transitionScreen.show({
+        title: 'Round ' + n, icons: [], persist: true, buttons: [],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_ROUND }); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          })();
+        }
+      });
+
+      // Safety timeout if audio stalls. Use `<` not `!==` so we only fire if the
+      // game has not YET reached round n. Once it has advanced, do nothing —
+      // a stale `!==` check would yank the game backwards across rounds.
+      setTimeout(function () {
+        try {
+          if (gameState.gameEnded) return;
+          if (gameState.currentRound + 1 < n) {
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          }
+        } catch (e) {}
+      }, 9000);
+    }
+
+    function endGame(victory) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      try { if (timer && timer.pause) timer.pause(); } catch (e) {}
+      gameState.stars = getStars();
+      if (victory) { gameState.phase = 'results'; syncDOM(); postGameComplete(); showVictory(); }
+      else { gameState.phase = 'game_over'; syncDOM(); postGameComplete(); showGameOver(); }
+      trackEvent('game_end', { victory: victory, stars: gameState.stars, score: gameState.score });
+    }
+
+    function _victoryClaimAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showStarsCollected();
+    }
+    function _victoryPlayAgainAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showMotivation();
+    }
+
+    async function showVictory() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var stars = gameState.stars;
+      var subtitle = 'You completed ' + gameState.score + ' of ' + gameState.totalRounds + ' grids!';
+      var ttsText = stars === 3
+        ? 'Victory! Three stars for clean placements!'
+        : 'Great work! ' + gameState.score + ' of ' + gameState.totalRounds + '!';
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var sfxSticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_TWO : STICKER_ONE);
+      await transitionScreen.show({
+        title: 'Victory 🎉', subtitle: subtitle, stars: stars,
+        buttons: stars === 3
+          ? [ { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction } ]
+          : [ { text: 'Play Again', type: 'secondary', action: _victoryPlayAgainAction },
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction } ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound(sfxId, { sticker: sfxSticker }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_CELEBRATE }); } catch (e) {}
+          })();
+        }
+      });
+    }
+    async function showGameOver() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var subtitle = 'You completed ' + gameState.score + '/' + gameState.totalRounds + ' — try again.';
+      await transitionScreen.show({
+        title: 'Game Over', subtitle: subtitle, icons: ['😔'], persist: true,
+        buttons: [{ text: 'Try Again', type: 'primary', action: function () {
+          try { FeedbackManager.sound.pause(); } catch (e) {}
+          try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+          try { transitionScreen.hide(); } catch (e) {}
+          showMotivation();
+        } }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_GAMEOVER }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: subtitle, subtitle: subtitle, sticker: STICKER_GAMEOVER }); } catch (e) {}
+          })();
+        }
+      });
+    }
+    async function showMotivation() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = 'Ready to improve your score?';
+      await transitionScreen.show({
+        title: 'Ready to improve your score?', icons:['⚡'], persist:true,
+        buttons:[{ text:"I'm ready", type:'primary', action: function () {
+          try { FeedbackManager.sound.pause(); } catch (e) {}
+          try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+          try { transitionScreen.hide(); } catch (e) {}
+          restartGame();
+        } }],
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_MOTIVATE }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_MOTIVATE }); } catch (e) {}
+          })();
+        }
+      });
+    }
+    async function showStarsCollected() {
+      gameState.phase = 'stars_collected';
+      syncDOM();
+      await transitionScreen.show({
+        title: "Yay!\nStars collected!", buttons:[], persist:true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY }); } catch (e) {}
+            try {
+              window.postMessage({ type:'show_star', data:{ count: gameState.stars, variant:'yellow', score: gameState.score + '/' + gameState.totalRounds } }, '*');
+            } catch (e) {}
+            setTimeout(showAnswerCarousel, 1500);
+          })();
+        }
+      });
+    }
+
+    function renderAnswerSlide(container, round) {
+      if (!container || !round || !round.answer) return;
+      var html = '<div class="answer-card">';
+      html += '<div class="scenario">Round ' + round.round + ' — multiples of ' + round.multipleOf + '</div>';
+      html += '<div class="accepted">Solved grid (each pair is a multiple of ' + round.multipleOf + ')</div>';
+      html += '<div style="display:flex; flex-direction:column; align-items:center;">';
+      for (var pi = 0; pi < round.answer.pairs.length; pi++) {
+        var pair = round.answer.pairs[pi];
+        html += '<div class="pair' + (pair.kind === 'v' ? ' vertical' : '') + '" style="margin:4px 0;">';
+        for (var ci = 0; ci < pair.cells.length; ci++) {
+          var c = pair.cells[ci];
+          html += '<div class="pair-cell solved-correct">' + escapeHTML(String(c.correctValue)) + '</div>';
+        }
+        html += '</div>';
+      }
+      html += '</div></div>';
+      container.innerHTML = html;
+    }
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds; var slides = [];
+      for (var i = 0; i < rounds.length; i++) {
+        (function (r) { slides.push({ render: function (c) { renderAnswerSlide(c, r); } }); })(rounds[i]);
+      }
+      return slides;
+    }
+    function showAnswerCarousel() {
+      try { answerComponent.show({ slides: buildAnswerSlidesForAllRounds() }); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+      try { setTimeout(function () { var slot = document.getElementById('mathai-answer-slot'); if (slot && slot.scrollIntoView) slot.scrollIntoView({ behavior:'smooth', block:'center' }); }, 200); } catch (e) {}
+    }
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.content = content;
+      gameState.totalRounds = content.totalRounds || 10;
+      gameState.totalLives = content.totalLives || 3;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+      injectGameHTML();
+      renderInitialState();
+      try {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          onComplete: function (previewData) { startGameAfterPreview(previewData); }
+        });
+      } catch (e) { console.error('[previewScreen.show failed]', e && e.message); }
+    }
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || {};
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: (previewData && previewData.duration) || 0 });
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try { if (progressBar) { progressBar.show(); progressBar.update(0, gameState.totalLives); } } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex] });
+      try { if (signalCollector && signalCollector.recordViewEvent) signalCollector.recordViewEvent('screen_transition', { from:'preview', to:'game' }); } catch (e) {}
+      showWelcome();
+    }
+    async function showWelcome() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = "Let's play! Make every pair a 2-digit multiple.";
+      await transitionScreen.show({
+        title: 'Welcome!', icons:['👋'], persist:true,
+        buttons:[{ text:"Let's go!", type:'primary', action: function () {
+          try { FeedbackManager.sound.pause(); } catch (e) {}
+          try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+          try { transitionScreen.hide(); } catch (e) {}
+          showRoundIntro(1);
+        } }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_LEVEL }); } catch (e) {}
+          })();
+        }
+      });
+    }
+    function resetGameState() {
+      gameState.phase = 'gameplay';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState._gameCompletePosted = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.progress = 0;
+      gameState.duration_data = { startTime: null, endTime: null, preview: gameState.duration_data.preview || [] };
+      gameState.activeRounds = getRounds();
+      gameState.poolUses = {};
+      gameState.selectedCell = null;
+      gameState.wrongPlacements = 0;
+      try { if (timer) { if (timer.reset) timer.reset(); if (timer.pause) timer.pause(); } } catch (e) {}
+      try { if (answerComponent && answerComponent.update) answerComponent.update({ slides: [] }); if (answerComponent && answerComponent.hide) answerComponent.hide(); } catch (e) {}
+    }
+    function restartGame() {
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex], restart: true });
+      showRoundIntro(1);
+    }
+
+    function handlePostMessage(event) {
+      if (!event || !event.data || !event.data.type) return;
+      var t = event.data.type;
+      var data = event.data.data || {};
+      if (t === 'game_init') {
+        gameState.phase = 'playing';
+        if (data.content) gameState.content = data.content;
+        gameState.signalConfig = data.signalConfig || {};
+        if (data.signalConfig && signalCollector && signalCollector.applyConfig) { try { signalCollector.applyConfig(data.signalConfig); } catch (e) {} }
+        try {
+          if (signalCollector) {
+            signalCollector.gameId = 'reverse-kakuro-fill-clue-cells';
+            if (data.sessionId) signalCollector.sessionId = data.sessionId;
+            if (data.studentId) signalCollector.studentId = data.studentId;
+            if (data.contentSetId) signalCollector.contentSetId = data.contentSetId;
+            if (data.signalConfig && data.signalConfig.flushUrl) signalCollector.flushUrl = data.signalConfig.flushUrl;
+            if (data.signalConfig && data.signalConfig.playId) signalCollector.playId = data.signalConfig.playId;
+            if (signalCollector.startFlushing) { try { signalCollector.startFlushing(); } catch (e) {} }
+          }
+        } catch (e) {}
+        syncDOM();
+        setupGame();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      waitForPackages().then(function () {
+        try {
+          var initP = FeedbackManager.init && FeedbackManager.init();
+          var doInit = initP && initP.then ? initP : Promise.resolve();
+          doInit.then(function () {
+            try {
+              try {
+                signalCollector = new SignalCollector({
+                  sessionId: 'reverse-kakuro-fill-clue-cells-' + Date.now(),
+                  studentId: 'standalone',
+                  gameId: 'reverse-kakuro-fill-clue-cells',
+                  contentSetId: 'fallback'
+                });
+                window.signalCollector = signalCollector;
+              } catch (e) { console.error('[SignalCollector ctor failed]', e && e.message); }
+
+              try { ScreenLayout.inject('app', { slots: { previewScreen:true, progressBar:true, transitionScreen:true, floatingButton:true, answerComponent:true } }); }
+              catch (e) { console.error('[ScreenLayout.inject failed]', e && e.message); }
+
+              injectGameHTML();
+              renderInitialState();
+
+              try { timer = new TimerComponent('timer-container', { timerType:'increase', format:'min', startTime:0, autoStart:false }); }
+              catch (e) { console.error('[TimerComponent ctor failed]', e && e.message); }
+
+              try {
+                visibilityTracker = new VisibilityTracker({
+                  popupProps:{ title:'Paused', description:'Tap Resume to continue.', primaryText:'Resume' },
+                  onInactive: function () {
+                    try { FeedbackManager.sound.pause(); } catch (e) {}
+                    try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+                    try { if (timer && timer.pause) timer.pause(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+                  },
+                  onResume: function () {
+                    try { FeedbackManager.sound.resume(); } catch (e) {}
+                    try { FeedbackManager.stream.resumeAll(); } catch (e) {}
+                    try { if (timer && timer.resume) timer.resume(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+                  }
+                });
+              } catch (e) { console.error('[VisibilityTracker ctor failed]', e && e.message); }
+
+              try { progressBar = new ProgressBarComponent({ slotId:'mathai-progress-slot', totalRounds:10, totalLives:3 }); } catch (e) { console.error('[ProgressBarComponent ctor failed]', e && e.message); }
+              try { transitionScreen = new TransitionScreenComponent({ slotId:'mathai-transition-slot' }); } catch (e) { console.error('[TransitionScreenComponent ctor failed]', e && e.message); }
+              try { previewScreen = new PreviewScreenComponent({ slotId:'mathai-preview-slot' }); } catch (e) { console.error('[PreviewScreenComponent ctor failed]', e && e.message); }
+              try { floatingBtn = new FloatingButtonComponent({ slotId:'mathai-floating-button-slot' }); } catch (e) { console.error('[FloatingButtonComponent ctor failed]', e && e.message); }
+              try { answerComponent = new AnswerComponentComponent({ slotId:'mathai-answer-slot' }); } catch (e) { console.error('[AnswerComponentComponent ctor failed]', e && e.message); }
+
+              try {
+                if (floatingBtn && floatingBtn.on) {
+                  floatingBtn.on('next', function () {
+                    try { window.parent.postMessage({ type:'next_ended' }, '*'); } catch (e) {}
+                    try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+                    try { if (floatingBtn) floatingBtn.destroy(); } catch (e) {}
+                  });
+                }
+              } catch (e) {}
+
+              // multi-step: no submit primitive
+              try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+
+              try {
+                FeedbackManager.sound.preload([
+                  { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+                  { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+                  { id: 'sound_level_transition',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+                  { id: 'victory_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+                  { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+                  { id: 'game_over_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+                  { id: 'tap_sound',                url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+                ]);
+              } catch (e) { console.error('[FeedbackManager.preload failed]', e && e.message); }
+
+              window.addEventListener('message', handlePostMessage);
+              try { window.parent.postMessage({ type:'game_ready' }, '*'); } catch (e) {}
+              setupGame();
+            } catch (e) { console.error('[init inner] ' + (e && e.message)); }
+          }, function (e) { console.error('[FeedbackManager.init failed]', e && e.message); });
+        } catch (e) { console.error('[init outer] ' + (e && e.message)); }
+      }, function (err) { console.error('[waitForPackages rejected] ' + (err && err.message)); });
+
+      setTimeout(function () {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+      }, 2000);
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = setupGame;
+      window.renderRound = renderRound;
+      window.loadRound = function (n) { try { renderRound(n); } catch (e) {} };
+    });
+  </script>
+</body>
+</html>

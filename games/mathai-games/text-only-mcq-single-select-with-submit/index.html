@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Better Way</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+      --mathai-primary: #270f36;
+      --mathai-purple: #9B51E0;
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 28px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; overflow-x: hidden; overscroll-behavior: none; }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    @supports not (min-height: 100dvh) { #app { min-height: 100vh; } }
+    input, textarea { -webkit-user-select: text; user-select: text; }
+
+    #gameContent {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      padding: 8px 16px 24px;
+    }
+
+    .bw-scenario-block {
+      padding: 14px 8px 6px;
+    }
+    .bw-scenario {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-primary);
+      line-height: 1.5;
+    }
+    .bw-scenario b { color: var(--mathai-purple); }
+    .bw-scenario p { margin-bottom: 8px; }
+    .bw-scenario p:last-child { margin-bottom: 0; }
+
+    .bw-options {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 420px;
+      margin: 14px auto 18px;
+    }
+    .bw-option-card {
+      display: block;
+      width: 100%;
+      min-height: 56px;
+      margin-top: 12px;
+      padding: 14px 18px;
+      border: 2px solid var(--mathai-border-gray);
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      font-family: var(--mathai-font-family);
+      font-size: 16px;
+      font-weight: 600;
+      text-align: left;
+      border-radius: var(--mathai-border-radius-card);
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+      -webkit-appearance: none;
+      appearance: none;
+      line-height: 1.4;
+    }
+    .bw-option-card:first-child { margin-top: 0; }
+    .bw-option-card:active:not(.disabled):not(:disabled) { transform: scale(0.99); }
+    .bw-option-card.selected {
+      background: #EEF2FF;
+      border-color: var(--mathai-blue);
+      color: var(--mathai-blue);
+    }
+    .bw-option-card.solved-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-green);
+      animation: pulseGreen 0.6s ease;
+    }
+    .bw-option-card.solved-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-cell-border-red);
+      color: var(--mathai-red);
+      animation: shake 0.5s ease;
+    }
+    .bw-option-card.disabled, .bw-option-card:disabled {
+      opacity: 0.55;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+
+    .bw-feedback-panel {
+      width: 100%;
+      max-width: 420px;
+      margin: 4px auto 0;
+      padding: 12px 14px;
+      border-radius: var(--mathai-border-radius-card);
+      font-size: var(--mathai-font-size-body);
+      text-align: left;
+      display: none;
+      line-height: 1.4;
+    }
+    .bw-feedback-panel.visible { display: block; }
+    .bw-feedback-panel.show-correct {
+      background: var(--mathai-cell-bg-green);
+      border: 1px solid var(--mathai-cell-border-green);
+      color: var(--mathai-green);
+    }
+    .bw-feedback-panel.show-wrong {
+      background: var(--mathai-cell-bg-red);
+      border: 1px solid var(--mathai-cell-border-red);
+      color: var(--mathai-red);
+    }
+
+    /* Answer carousel slide */
+    .bw-answer-card {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      padding: 14px 12px 18px;
+      text-align: left;
+    }
+    .bw-answer-prompt { font-size: var(--mathai-font-size-body); color: var(--mathai-gray); margin-bottom: 10px; line-height: 1.4; }
+    .bw-answer-options { display: flex; flex-direction: column; }
+    .bw-answer-pill {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1.5px solid var(--mathai-border-gray);
+      background: var(--mathai-white);
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-primary);
+      margin-top: 6px;
+    }
+    .bw-answer-pill:first-child { margin-top: 0; }
+    .bw-answer-pill.solved-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-green);
+    }
+    .bw-answer-explanation {
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-text-primary);
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      75% { transform: translateX(4px); }
+    }
+    @keyframes pulseGreen {
+      0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); }
+    }
+
+    @media (max-height: 500px) {
+      #landscape-overlay {
+        display: flex;
+        position: fixed;
+        inset: 0;
+        background: var(--mathai-white);
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        font-size: 18px;
+        text-align: center;
+        padding: 24px;
+      }
+    }
+    #landscape-overlay { display: none; }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-lives="3" data-round="1"></div>
+  <div id="landscape-overlay">Please rotate your device to portrait mode.</div>
+
+  <script>
+    /* ====================================================================== */
+    /* Stickers                                                                  */
+    /* ====================================================================== */
+    var STICKER_CORRECT  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_TWO      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_ONE      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_RESTART  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+    var STICKER_CELEBRATE = STICKER_VICTORY;
+    var STICKER_SAD      = STICKER_WRONG;
+    var STICKER_MOTIVATE = STICKER_LEVEL;
+
+    /* ====================================================================== */
+    /* fallbackContent — 10 rounds × 3 sets = 30 entries                        */
+    /* ====================================================================== */
+    var fallbackContent = {
+      previewInstruction: '<p><b>Better Way.</b> Read the story, then choose the strategy you would use — division, multiplication, addition, or subtraction. Three lives, ten rounds, find the smarter way.</p>',
+      previewAudioText: 'Read each story, then choose the strategy you would use to solve it — not the answer, the method. You have three lives.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 10,
+      totalLives: 3,
+      answerComponent: true,
+      rounds: [
+        // Set A — 10 rounds: equal-share, total-of-equal-groups, combine/separate, mixed
+        { set:'A', id:'A_r1_pins', round:1, stage:1, scenario:'<p>You tried to give away <b>108 pins to 4 students</b>.</p><p>We saw that giving out one pin at a time is slow. How can you find the number of pins each student gets faster?</p>',
+          options:[
+            "I don't think there is a faster way.",
+            'Use division to find how many pins each student gets.',
+            'Guess how many pins each student should get.'],
+          correctIndex:1, correctTTS:'Equal share means division — 108 divided by 4.', correctSubtitle:'Equal share = division.',
+          wrongTTS:'When you split a total into equal groups, you divide.', wrongSubtitle:'Equal share = division.',
+          misconception_tags:{ '0':'avoidance', '2':'guess-and-check' },
+          answer:{ prompt:'Faster way for 108 pins to 4 students?', options:[
+            "I don't think there is a faster way.", 'Use division to find how many pins each student gets.', 'Guess how many pins each student should get.'],
+            correctIndex:1, explanation:'Equal share = division. 108 ÷ 4 = 27 pins each.' } },
+        { set:'A', id:'A_r2_sweets', round:2, stage:1, scenario:'<p>You want to share <b>72 sweets among 6 friends</b> equally. Counting one sweet at a time is slow.</p><p>What is the faster way to find how many each friend gets?</p>',
+          options:['Add 6 sweets to each friend until they run out.','Divide 72 by 6 to find sweets per friend.',"Try out a number and see if it's enough."],
+          correctIndex:1, correctTTS:'Sharing equally is division — 72 divided by 6.', correctSubtitle:'Share equally = division.',
+          wrongTTS:'Sharing equally always means dividing the total.', wrongSubtitle:'Share equally = division.',
+          misconception_tags:{ '0':'slow-counting', '2':'guess-and-check' },
+          answer:{ prompt:'Faster way for 72 sweets among 6 friends?', options:['Add 6 sweets to each friend until they run out.','Divide 72 by 6 to find sweets per friend.',"Try out a number and see if it's enough."],
+            correctIndex:1, explanation:'Sharing equally = division. 72 ÷ 6 = 12 each.' } },
+        { set:'A', id:'A_r3_cards', round:3, stage:1, scenario:'<p><b>54 cards</b> need to be dealt to <b>9 players</b> equally.</p><p>Which strategy gets each player\'s share fastest?</p>',
+          options:['Deal cards one at a time round-the-table.','Divide 54 by 9 to find cards per player.',"It can't be done faster."],
+          correctIndex:1, correctTTS:'Equal dealing is division — 54 divided by 9.', correctSubtitle:'Deal equally = division.',
+          wrongTTS:'Equal dealing is the same as dividing the total by groups.', wrongSubtitle:'Deal equally = division.',
+          misconception_tags:{ '0':'slow-counting', '2':'avoidance' },
+          answer:{ prompt:'Faster way for 54 cards among 9 players?', options:['Deal cards one at a time round-the-table.','Divide 54 by 9 to find cards per player.',"It can't be done faster."],
+            correctIndex:1, explanation:'Equal share = division. 54 ÷ 9 = 6 each.' } },
+        { set:'A', id:'A_r4_pencils', round:4, stage:2, scenario:'<p>There are <b>6 boxes</b> of pencils with <b>9 pencils each</b>.</p><p>How can you find the total number of pencils?</p>',
+          options:['Add 9 + 9 + 9 + 9 + 9 + 9.','Multiply 6 by 9 to get the total.',"There's no fast way."],
+          correctIndex:1, correctTTS:'Equal groups together is multiplication — 6 times 9.', correctSubtitle:'Equal groups = multiply.',
+          wrongTTS:'Equal groups joined is multiplication.', wrongSubtitle:'Equal groups = multiply.',
+          misconception_tags:{ '0':'repeated-add', '2':'avoidance' },
+          answer:{ prompt:'Total pencils in 6 boxes of 9?', options:['Add 9 + 9 + 9 + 9 + 9 + 9.','Multiply 6 by 9 to get the total.',"There's no fast way."],
+            correctIndex:1, explanation:'Equal groups = multiplication. 6 × 9 = 54.' } },
+        { set:'A', id:'A_r5_packs', round:5, stage:2, scenario:'<p>You have <b>8 packs</b> of stickers, with <b>12 stickers each</b>.</p><p>Which is the fast way to find total stickers?</p>',
+          options:['Count one sticker at a time.','Multiply 8 by 12.',"Guess a round number."],
+          correctIndex:1, correctTTS:'Equal groups together is multiplication — 8 times 12.', correctSubtitle:'Equal groups = multiply.',
+          wrongTTS:'Equal groups always join with multiplication.', wrongSubtitle:'Equal groups = multiply.',
+          misconception_tags:{ '0':'slow-counting', '2':'guess-and-check' },
+          answer:{ prompt:'Total stickers in 8 packs of 12?', options:['Count one sticker at a time.','Multiply 8 by 12.',"Guess a round number."],
+            correctIndex:1, explanation:'Equal groups = multiplication. 8 × 12 = 96.' } },
+        { set:'A', id:'A_r6_seats', round:6, stage:2, scenario:'<p>A bus has <b>5 rows</b> with <b>4 seats each</b>.</p><p>How do you find the total number of seats fast?</p>',
+          options:['Multiply 5 by 4.','Subtract 4 from 5.',"I don't know a faster way."],
+          correctIndex:0, correctTTS:'Equal groups joined is multiplication — 5 times 4.', correctSubtitle:'Equal groups = multiply.',
+          wrongTTS:'When equal groups are joined, multiplication is the fast way.', wrongSubtitle:'Equal groups = multiply.',
+          misconception_tags:{ '1':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'Total seats in 5 rows of 4?', options:['Multiply 5 by 4.','Subtract 4 from 5.',"I don't know a faster way."],
+            correctIndex:0, explanation:'Equal groups = multiplication. 5 × 4 = 20.' } },
+        { set:'A', id:'A_r7_balance', round:7, stage:3, scenario:'<p>You had <b>47 marbles</b>. You gave <b>19</b> to a friend.</p><p>How many do you have left?</p>',
+          options:['Add 47 + 19.','Subtract 19 from 47.',"There's no fast way to know."],
+          correctIndex:1, correctTTS:'Giving away from a total is subtraction — 47 minus 19.', correctSubtitle:'Give away = subtract.',
+          wrongTTS:'Giving things away from a total means subtraction.', wrongSubtitle:'Give away = subtract.',
+          misconception_tags:{ '0':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'47 marbles, gave away 19 — how many left?', options:['Add 47 + 19.','Subtract 19 from 47.',"There's no fast way to know."],
+            correctIndex:1, explanation:'Give away = subtraction. 47 − 19 = 28.' } },
+        { set:'A', id:'A_r8_combine', round:8, stage:3, scenario:'<p>You had <b>23 stamps</b>. Your sister gave you <b>18 more</b>.</p><p>How many do you have now?</p>',
+          options:['Subtract 18 from 23.','Add 23 + 18.',"I don't know."],
+          correctIndex:1, correctTTS:'Joining two amounts is addition — 23 plus 18.', correctSubtitle:'Combine = add.',
+          wrongTTS:'When two amounts join together, you add.', wrongSubtitle:'Combine = add.',
+          misconception_tags:{ '0':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'23 stamps and 18 more — how many in total?', options:['Subtract 18 from 23.','Add 23 + 18.',"I don't know."],
+            correctIndex:1, explanation:'Combine = addition. 23 + 18 = 41.' } },
+        { set:'A', id:'A_r9_remain', round:9, stage:3, scenario:'<p>A baker baked <b>60 cookies</b>. He sold <b>42</b>.</p><p>How many cookies are left?</p>',
+          options:['Add 60 + 42.','Subtract 42 from 60.',"It depends."],
+          correctIndex:1, correctTTS:'Sold means taken away — 60 minus 42.', correctSubtitle:'Sold = subtract.',
+          wrongTTS:'Items sold are removed from a total — subtraction.', wrongSubtitle:'Sold = subtract.',
+          misconception_tags:{ '0':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'60 cookies, sold 42 — how many left?', options:['Add 60 + 42.','Subtract 42 from 60.',"It depends."],
+            correctIndex:1, explanation:'Sold from total = subtraction. 60 − 42 = 18.' } },
+        { set:'A', id:'A_r10_mixed', round:10, stage:3, scenario:'<p>A shop has <b>4 boxes</b> of <b>15 chocolates each</b>. <b>10 chocolates</b> are damaged.</p><p>How do you find the number of good chocolates?</p>',
+          options:['First multiply 4 × 15, then subtract 10.','Add 4 + 15 − 10.',"I don't think this can be solved fast."],
+          correctIndex:0, correctTTS:'First the total: 4 times 15, then take away 10 damaged.', correctSubtitle:'Multiply first, then subtract.',
+          wrongTTS:'First find the total with multiplication, then subtract the damaged.', wrongSubtitle:'Multiply first, then subtract.',
+          misconception_tags:{ '1':'wrong-step-order', '2':'avoidance' },
+          answer:{ prompt:'4 boxes of 15 chocolates, 10 damaged — how many good?', options:['First multiply 4 × 15, then subtract 10.','Add 4 + 15 − 10.',"I don't think this can be solved fast."],
+            correctIndex:0, explanation:'Multiply 4 × 15 = 60, then 60 − 10 = 50 good chocolates.' } },
+
+        // Set B — 10 rounds (parallel difficulty to A)
+        { set:'B', id:'B_r1_pinsB', round:1, stage:1, scenario:'<p>You want to share <b>96 candies among 8 children</b> equally.</p><p>What is the faster way?</p>',
+          options:['Try a number and see.','Divide 96 by 8.',"There's no faster way."],
+          correctIndex:1, correctTTS:'Equal share is division — 96 divided by 8.', correctSubtitle:'Equal share = division.',
+          wrongTTS:'Sharing equally is division of the total.', wrongSubtitle:'Equal share = division.',
+          misconception_tags:{ '0':'guess-and-check', '2':'avoidance' },
+          answer:{ prompt:'Faster way for 96 candies among 8?', options:['Try a number and see.','Divide 96 by 8.',"There's no faster way."], correctIndex:1, explanation:'Equal share = division. 96 ÷ 8 = 12 each.' } },
+        { set:'B', id:'B_r2_marbles', round:2, stage:1, scenario:'<p><b>84 marbles</b> need to be split into <b>7 bags</b> equally.</p><p>Which is fastest?</p>',
+          options:['Add 7 marbles per bag until done.','Divide 84 by 7.',"I don't know."],
+          correctIndex:1, correctTTS:'Equal split is division — 84 divided by 7.', correctSubtitle:'Split equally = division.',
+          wrongTTS:'Equal splits are divisions.', wrongSubtitle:'Split equally = division.',
+          misconception_tags:{ '0':'slow-counting', '2':'avoidance' },
+          answer:{ prompt:'Faster way for 84 marbles into 7 bags?', options:['Add 7 marbles per bag until done.','Divide 84 by 7.',"I don't know."], correctIndex:1, explanation:'Equal split = division. 84 ÷ 7 = 12 each.' } },
+        { set:'B', id:'B_r3_books', round:3, stage:1, scenario:'<p>A teacher gives <b>120 books</b> to <b>5 classes</b> equally.</p><p>Fastest method?</p>',
+          options:['Divide 120 by 5.','Subtract 5 from 120.',"There is no quicker way."],
+          correctIndex:0, correctTTS:'Equal share among classes is division — 120 by 5.', correctSubtitle:'Equal share = division.',
+          wrongTTS:'Equal shares between groups means division.', wrongSubtitle:'Equal share = division.',
+          misconception_tags:{ '1':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'Faster way for 120 books to 5 classes?', options:['Divide 120 by 5.','Subtract 5 from 120.',"There is no quicker way."], correctIndex:0, explanation:'Equal share = division. 120 ÷ 5 = 24 each.' } },
+        { set:'B', id:'B_r4_eggs', round:4, stage:2, scenario:'<p>There are <b>7 trays</b> of <b>10 eggs each</b>.</p><p>How do you find total eggs fastest?</p>',
+          options:['Multiply 7 by 10.','Subtract 10 from 7.',"I don't know."],
+          correctIndex:0, correctTTS:'Equal groups joined is multiplication — 7 times 10.', correctSubtitle:'Equal groups = multiply.',
+          wrongTTS:'Equal groups together means multiplication.', wrongSubtitle:'Equal groups = multiply.',
+          misconception_tags:{ '1':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'Total eggs in 7 trays of 10?', options:['Multiply 7 by 10.','Subtract 10 from 7.',"I don't know."], correctIndex:0, explanation:'Equal groups = multiplication. 7 × 10 = 70.' } },
+        { set:'B', id:'B_r5_pages', round:5, stage:2, scenario:'<p>A book has <b>9 chapters</b> and each chapter has <b>11 pages</b>.</p><p>How do you find total pages fastest?</p>',
+          options:['Add 11 nine times.','Multiply 9 by 11.',"There is no fast way."],
+          correctIndex:1, correctTTS:'Equal groups joined is multiplication — 9 times 11.', correctSubtitle:'Equal groups = multiply.',
+          wrongTTS:'Equal groups together is multiplication.', wrongSubtitle:'Equal groups = multiply.',
+          misconception_tags:{ '0':'repeated-add', '2':'avoidance' },
+          answer:{ prompt:'Total pages in 9 chapters of 11?', options:['Add 11 nine times.','Multiply 9 by 11.',"There is no fast way."], correctIndex:1, explanation:'Equal groups = multiplication. 9 × 11 = 99.' } },
+        { set:'B', id:'B_r6_buses', round:6, stage:2, scenario:'<p><b>6 buses</b> carry <b>30 children each</b>.</p><p>Total children — fast way?</p>',
+          options:['Multiply 6 by 30.','Add 6 + 30.',"I don't know."],
+          correctIndex:0, correctTTS:'Equal groups together is multiplication — 6 times 30.', correctSubtitle:'Equal groups = multiply.',
+          wrongTTS:'Equal groups joined is multiplication.', wrongSubtitle:'Equal groups = multiply.',
+          misconception_tags:{ '1':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'Total children in 6 buses of 30?', options:['Multiply 6 by 30.','Add 6 + 30.',"I don't know."], correctIndex:0, explanation:'Equal groups = multiplication. 6 × 30 = 180.' } },
+        { set:'B', id:'B_r7_diff', round:7, stage:3, scenario:'<p>A library had <b>250 books</b>. <b>87 books</b> were borrowed.</p><p>How many remain?</p>',
+          options:['Add 250 + 87.','Subtract 87 from 250.',"It depends."],
+          correctIndex:1, correctTTS:'Borrowed taken from total is subtraction.', correctSubtitle:'Borrow = subtract.',
+          wrongTTS:'Items borrowed remove from a total — subtraction.', wrongSubtitle:'Borrow = subtract.',
+          misconception_tags:{ '0':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'250 books, 87 borrowed — how many remain?', options:['Add 250 + 87.','Subtract 87 from 250.',"It depends."], correctIndex:1, explanation:'Borrow from total = subtraction. 250 − 87 = 163.' } },
+        { set:'B', id:'B_r8_join', round:8, stage:3, scenario:'<p>A class has <b>34 boys</b> and <b>27 girls</b>.</p><p>Total students — fastest way?</p>',
+          options:['Subtract 27 from 34.','Add 34 + 27.',"There is no fast way."],
+          correctIndex:1, correctTTS:'Joining two groups is addition — 34 plus 27.', correctSubtitle:'Combine = add.',
+          wrongTTS:'When two groups join, you add.', wrongSubtitle:'Combine = add.',
+          misconception_tags:{ '0':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'34 boys and 27 girls — total?', options:['Subtract 27 from 34.','Add 34 + 27.',"There is no fast way."], correctIndex:1, explanation:'Combine = addition. 34 + 27 = 61.' } },
+        { set:'B', id:'B_r9_loss', round:9, stage:3, scenario:'<p>You had <b>500 rupees</b>. You spent <b>175 rupees</b>.</p><p>How much is left?</p>',
+          options:['Add 500 + 175.','Subtract 175 from 500.',"I don't know."],
+          correctIndex:1, correctTTS:'Spent taken from total is subtraction.', correctSubtitle:'Spent = subtract.',
+          wrongTTS:'Money spent reduces the total — subtraction.', wrongSubtitle:'Spent = subtract.',
+          misconception_tags:{ '0':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'500 rupees, spent 175 — how much left?', options:['Add 500 + 175.','Subtract 175 from 500.',"I don't know."], correctIndex:1, explanation:'Spent from total = subtraction. 500 − 175 = 325.' } },
+        { set:'B', id:'B_r10_combo', round:10, stage:3, scenario:'<p>A factory makes <b>5 batches</b> of <b>20 toys each</b>. <b>8 toys</b> are broken.</p><p>How many toys are good?</p>',
+          options:['First multiply 5 × 20, then subtract 8.','Add 5 + 20 − 8.',"It cannot be solved fast."],
+          correctIndex:0, correctTTS:'First find total: 5 times 20. Then take away 8 broken.', correctSubtitle:'Multiply first, then subtract.',
+          wrongTTS:'Multiply for total, subtract for broken.', wrongSubtitle:'Multiply first, then subtract.',
+          misconception_tags:{ '1':'wrong-step-order', '2':'avoidance' },
+          answer:{ prompt:'5 batches of 20, 8 broken — good toys?', options:['First multiply 5 × 20, then subtract 8.','Add 5 + 20 − 8.',"It cannot be solved fast."], correctIndex:0, explanation:'5 × 20 = 100, then 100 − 8 = 92 good toys.' } },
+
+        // Set C — 10 rounds
+        { set:'C', id:'C_r1_share', round:1, stage:1, scenario:'<p><b>144 stickers</b> need to be shared among <b>12 students</b> equally.</p><p>Fastest way?</p>',
+          options:['Divide 144 by 12.','Add 12 + 144.',"There is no fast way."],
+          correctIndex:0, correctTTS:'Equal share is division — 144 by 12.', correctSubtitle:'Equal share = division.',
+          wrongTTS:'Equal sharing among groups is division.', wrongSubtitle:'Equal share = division.',
+          misconception_tags:{ '1':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'Faster way for 144 stickers among 12?', options:['Divide 144 by 12.','Add 12 + 144.',"There is no fast way."], correctIndex:0, explanation:'Equal share = division. 144 ÷ 12 = 12 each.' } },
+        { set:'C', id:'C_r2_team', round:2, stage:1, scenario:'<p><b>60 players</b> are split into <b>5 teams</b> equally.</p><p>Players per team — fast way?</p>',
+          options:['Divide 60 by 5.','Add 60 + 5.',"I don't know."],
+          correctIndex:0, correctTTS:'Equal split is division — 60 by 5.', correctSubtitle:'Split equally = division.',
+          wrongTTS:'Equal split between teams is division.', wrongSubtitle:'Split equally = division.',
+          misconception_tags:{ '1':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'Players per team for 60 in 5 teams?', options:['Divide 60 by 5.','Add 60 + 5.',"I don't know."], correctIndex:0, explanation:'Split = division. 60 ÷ 5 = 12 per team.' } },
+        { set:'C', id:'C_r3_cookies', round:3, stage:1, scenario:'<p><b>132 cookies</b> are shared among <b>11 friends</b> equally.</p><p>Cookies each — fast way?</p>',
+          options:['Divide 132 by 11.','Subtract 11 from 132.',"There is no fast way."],
+          correctIndex:0, correctTTS:'Equal share is division — 132 by 11.', correctSubtitle:'Equal share = division.',
+          wrongTTS:'Equal share is always division.', wrongSubtitle:'Equal share = division.',
+          misconception_tags:{ '1':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'Faster way for 132 cookies among 11?', options:['Divide 132 by 11.','Subtract 11 from 132.',"There is no fast way."], correctIndex:0, explanation:'Equal share = division. 132 ÷ 11 = 12 each.' } },
+        { set:'C', id:'C_r4_rows', round:4, stage:2, scenario:'<p>A garden has <b>12 rows</b> of <b>8 plants each</b>.</p><p>Total plants — fast way?</p>',
+          options:['Multiply 12 by 8.','Subtract 8 from 12.',"There is no fast way."],
+          correctIndex:0, correctTTS:'Equal groups together is multiplication — 12 times 8.', correctSubtitle:'Equal groups = multiply.',
+          wrongTTS:'Equal groups joined means multiplication.', wrongSubtitle:'Equal groups = multiply.',
+          misconception_tags:{ '1':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'Total plants in 12 rows of 8?', options:['Multiply 12 by 8.','Subtract 8 from 12.',"There is no fast way."], correctIndex:0, explanation:'Equal groups = multiplication. 12 × 8 = 96.' } },
+        { set:'C', id:'C_r5_fruit', round:5, stage:2, scenario:'<p>You buy <b>4 packets</b> of <b>15 fruits each</b>.</p><p>Total fruits — fastest way?</p>',
+          options:['Multiply 4 by 15.','Add 4 + 15.',"There is no fast way."],
+          correctIndex:0, correctTTS:'Equal groups joined is multiplication — 4 times 15.', correctSubtitle:'Equal groups = multiply.',
+          wrongTTS:'Equal groups joined is always multiplication.', wrongSubtitle:'Equal groups = multiply.',
+          misconception_tags:{ '1':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'Total fruits in 4 packets of 15?', options:['Multiply 4 by 15.','Add 4 + 15.',"There is no fast way."], correctIndex:0, explanation:'Equal groups = multiplication. 4 × 15 = 60.' } },
+        { set:'C', id:'C_r6_pages2', round:6, stage:2, scenario:'<p>A magazine has <b>14 sections</b>, each with <b>5 articles</b>.</p><p>Total articles — fast way?</p>',
+          options:['Multiply 14 by 5.','Add 14 + 5.',"There is no fast way."],
+          correctIndex:0, correctTTS:'Equal groups joined is multiplication — 14 times 5.', correctSubtitle:'Equal groups = multiply.',
+          wrongTTS:'Equal groups joined is multiplication.', wrongSubtitle:'Equal groups = multiply.',
+          misconception_tags:{ '1':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'Total articles in 14 sections of 5?', options:['Multiply 14 by 5.','Add 14 + 5.',"There is no fast way."], correctIndex:0, explanation:'Equal groups = multiplication. 14 × 5 = 70.' } },
+        { set:'C', id:'C_r7_take', round:7, stage:3, scenario:'<p>There are <b>320 apples</b>. <b>140 apples</b> are taken.</p><p>How many remain?</p>',
+          options:['Add 320 + 140.','Subtract 140 from 320.',"There is no fast way."],
+          correctIndex:1, correctTTS:'Taken from total is subtraction.', correctSubtitle:'Taken = subtract.',
+          wrongTTS:'Items taken remove from a total — subtraction.', wrongSubtitle:'Taken = subtract.',
+          misconception_tags:{ '0':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'320 apples, 140 taken — how many remain?', options:['Add 320 + 140.','Subtract 140 from 320.',"There is no fast way."], correctIndex:1, explanation:'Taken from total = subtraction. 320 − 140 = 180.' } },
+        { set:'C', id:'C_r8_combine2', round:8, stage:3, scenario:'<p>A bowl has <b>45 grapes</b>. You add <b>32 more</b>.</p><p>How many grapes total?</p>',
+          options:['Subtract 32 from 45.','Add 45 + 32.',"There is no fast way."],
+          correctIndex:1, correctTTS:'Adding more is addition — 45 plus 32.', correctSubtitle:'Combine = add.',
+          wrongTTS:'When more is added, you add.', wrongSubtitle:'Combine = add.',
+          misconception_tags:{ '0':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'45 grapes plus 32 more — total?', options:['Subtract 32 from 45.','Add 45 + 32.',"There is no fast way."], correctIndex:1, explanation:'Combine = addition. 45 + 32 = 77.' } },
+        { set:'C', id:'C_r9_left', round:9, stage:3, scenario:'<p>A can holds <b>800 ml of juice</b>. You drink <b>275 ml</b>.</p><p>How much juice is left?</p>',
+          options:['Add 800 + 275.','Subtract 275 from 800.',"It depends."],
+          correctIndex:1, correctTTS:'Drank from total is subtraction.', correctSubtitle:'Used = subtract.',
+          wrongTTS:'When some is used, total reduces — subtraction.', wrongSubtitle:'Used = subtract.',
+          misconception_tags:{ '0':'wrong-operation', '2':'avoidance' },
+          answer:{ prompt:'800 ml − drank 275 ml — how much left?', options:['Add 800 + 275.','Subtract 275 from 800.',"It depends."], correctIndex:1, explanation:'Used from total = subtraction. 800 − 275 = 525 ml.' } },
+        { set:'C', id:'C_r10_full', round:10, stage:3, scenario:'<p>A shop sells <b>3 boxes</b> of <b>25 pens each</b>. <b>5 pens</b> are broken.</p><p>How many good pens?</p>',
+          options:['First multiply 3 × 25, then subtract 5.','Add 3 + 25 − 5.',"It cannot be solved fast."],
+          correctIndex:0, correctTTS:'First the total: 3 times 25. Then take away 5 broken.', correctSubtitle:'Multiply first, then subtract.',
+          wrongTTS:'Multiply first for total, then subtract the broken.', wrongSubtitle:'Multiply first, then subtract.',
+          misconception_tags:{ '1':'wrong-step-order', '2':'avoidance' },
+          answer:{ prompt:'3 boxes of 25 pens, 5 broken — good pens?', options:['First multiply 3 × 25, then subtract 5.','Add 3 + 25 − 5.',"It cannot be solved fast."], correctIndex:0, explanation:'3 × 25 = 75, then 75 − 5 = 70 good pens.' } }
+      ]
+    };
+
+    /* ====================================================================== */
+    /* gameState                                                                 */
+    /* ====================================================================== */
+    var SETS = ['A', 'B', 'C'];
+
+    var gameState = {
+      gameId: 'text-only-mcq-single-select-with-submit',
+      gameTitle: 'Better Way',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 10,
+      score: 0,
+      lives: 3,
+      totalLives: 3,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      duration_data: { startTime: null, endTime: null, preview: [] },
+      correctAnswer: null,
+      stars: 0,
+      setIndex: 0,
+      activeRounds: [],
+      previewResult: null,
+      progress: 0,
+      roundToken: 0,
+      roundStartMs: 0,
+      pickedIndex: -1
+    };
+    window.gameState = gameState;
+
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+
+    function getAvailableSets(rounds) {
+      var seen = {}; var out = [];
+      for (var i = 0; i < rounds.length; i++) {
+        var s = rounds[i].set;
+        if (s && !seen[s]) { seen[s] = true; out.push(s); }
+      }
+      return out.length ? out : ['A'];
+    }
+    function getRounds() {
+      var src = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(src);
+      var setKey = sets[gameState.setIndex % sets.length];
+      var filtered = [];
+      for (var i = 0; i < src.length; i++) { if (src[i].set === setKey) filtered.push(src[i]); }
+      filtered.sort(function (a, b) { return a.round - b.round; });
+      return filtered;
+    }
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function getCorrectCount() {
+      var c = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) { if (gameState.attempts[i].correct === true) c++; }
+      return c;
+    }
+    function getStars() {
+      var correctCount = getCorrectCount();
+      var ratio = correctCount / gameState.totalRounds;
+      if (ratio >= 0.9) return 3;
+      if (ratio >= 0.6) return 2;
+      if (correctCount >= 1) return 1;
+      return 0;
+    }
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+    }
+    function trackEvent(name, payload) {
+      try { gameState.events.push({ event: name, ts: Date.now(), data: payload || {} }); } catch (e) {}
+      try { if (signalCollector && signalCollector.recordEvent) signalCollector.recordEvent(name, payload || {}); } catch (e) {}
+    }
+    function recordAttempt(input, correct, misconceptionTag, responseMs) {
+      var round = gameState.activeRounds[gameState.currentRound];
+      var qid = round ? round.id : ('r' + (gameState.currentRound + 1));
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) : 0,
+        input_of_user: input,
+        correct: correct === true,
+        round_number: gameState.currentRound + 1,
+        question_id: qid,
+        correct_answer: round ? round.correctIndex : null,
+        response_time_ms: typeof responseMs === 'number' ? responseMs : 0,
+        misconception_tag: misconceptionTag || null,
+        difficulty_level: round ? (round.stage || 1) : 1,
+        is_retry: false,
+        metadata: { set: round ? round.set : null }
+      };
+      gameState.attempts.push(attempt);
+      try { if (signalCollector && signalCollector.recordAttempt) signalCollector.recordAttempt(attempt); } catch (e) {}
+    }
+    function postGameComplete() {
+      if (gameState._gameCompletePosted) return;
+      gameState._gameCompletePosted = true;
+      var correctCount = getCorrectCount();
+      var attempted = gameState.attempts.length;
+      var accuracy = attempted === 0 ? 0 : Math.round((correctCount / attempted) * 100);
+      var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+      var triesByRound = gameState.attempts.map(function (a) { return { round: a.round_number, correct: a.correct === true }; });
+      var metrics = {
+        accuracy: accuracy,
+        time: Math.round(elapsedMs / 1000),
+        stars: gameState.stars,
+        attempts: gameState.attempts.slice(),
+        duration_data: gameState.duration_data,
+        totalLives: gameState.lives,
+        tries: triesByRound,
+        score: gameState.score,
+        correctCount: correctCount,
+        previewResult: gameState.previewResult || null
+      };
+      var signalSealed = { event_count: gameState.events.length, metadata: {} };
+      try {
+        if (signalCollector && typeof signalCollector.seal === 'function') {
+          var sealed = signalCollector.seal();
+          if (sealed) {
+            if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+            if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+          }
+        }
+      } catch (e0) {}
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: Date.now(),
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) {}
+    }
+
+    function safePlaySound(id, opts) { try { return FeedbackManager.sound.play(id, opts || {}); } catch (e) { return Promise.resolve(); } }
+    function awaitedFeedbackSound(id, opts) {
+      var p = safePlaySound(id, opts || {});
+      var floor = new Promise(function (r) { setTimeout(r, 1500); });
+      return Promise.all([p, floor]).then(function () {}, function () {});
+    }
+    function playDynamicFeedback(opts) { try { return FeedbackManager.playDynamicFeedback(opts || {}); } catch (e) { return Promise.resolve(); } }
+
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            try { throw new Error('waitForPackages timeout'); } catch (rethrown) { reject(err); return; }
+            return reject(err);
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div class="bw-scenario-block">' +
+          '<div class="bw-scenario" id="bwScenario"></div>' +
+        '</div>' +
+        '<div class="bw-options" id="bwOptions"></div>' +
+        '<div class="bw-feedback-panel" id="bwFeedback" role="status" aria-live="polite"></div>';
+    }
+    function renderInitialState() {
+      var s = document.getElementById('bwScenario');
+      var o = document.getElementById('bwOptions');
+      var f = document.getElementById('bwFeedback');
+      if (s) s.innerHTML = '';
+      if (o) o.innerHTML = '';
+      if (f) { f.classList.remove('visible', 'show-correct', 'show-wrong'); f.textContent = ''; }
+    }
+
+    function renderRound(roundIdxOneBased) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      gameState.currentRound = roundIdxOneBased - 1;
+      gameState.isActive = true;
+      gameState.phase = 'gameplay';
+      gameState.roundToken = (gameState.roundToken || 0) + 1;
+      gameState.pickedIndex = -1;
+      syncDOM();
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) return;
+
+      gameState.correctAnswer = round.correctIndex;
+      gameState.roundStartMs = Date.now();
+      gameState.isProcessing = false;
+
+      var s = document.getElementById('bwScenario');
+      if (s) {
+        s.innerHTML = round.scenario;
+        s.classList.remove('fade-in'); void s.offsetWidth; s.classList.add('fade-in');
+      }
+      var o = document.getElementById('bwOptions');
+      if (o) {
+        o.innerHTML = '';
+        for (var i = 0; i < round.options.length; i++) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'bw-option-card';
+          btn.setAttribute('data-option-index', String(i));
+          btn.setAttribute('data-testid', 'btn-option-' + i);
+          btn.setAttribute('data-round-token', String(gameState.roundToken));
+          btn.textContent = round.options[i];
+          btn.addEventListener('click', onOptionTap);
+          o.appendChild(btn);
+        }
+      }
+      var f = document.getElementById('bwFeedback');
+      if (f) { f.classList.remove('visible', 'show-correct', 'show-wrong'); f.textContent = ''; }
+
+      try {
+        if (floatingBtn) {
+          floatingBtn.setMode('submit');
+          floatingBtn.setSubmittable(false);
+        }
+      } catch (e) {}
+      try { var p = safePlaySound('tap_sound', {}); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+      trackEvent('round_start', { round: roundIdxOneBased, set: round.set });
+    }
+
+    function refreshSubmittable() {
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(gameState.pickedIndex >= 0); } catch (e) {}
+    }
+
+    function onOptionTap(ev) {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var btn = ev.currentTarget;
+      var rt = btn.getAttribute('data-round-token');
+      if (rt !== String(gameState.roundToken || '')) return;
+      var idx = parseInt(btn.getAttribute('data-option-index'), 10);
+      gameState.pickedIndex = idx;
+      var all = document.querySelectorAll('.bw-option-card');
+      for (var i = 0; i < all.length; i++) {
+        if (parseInt(all[i].getAttribute('data-option-index'), 10) === idx) all[i].classList.add('selected');
+        else all[i].classList.remove('selected');
+      }
+      try { var p = safePlaySound('sound_bubble_select', {}); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+      refreshSubmittable();
+    }
+
+    function handleSubmit() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      if (gameState.pickedIndex < 0) return;
+      gameState.isProcessing = true;
+
+      var responseMs = Date.now() - gameState.roundStartMs;
+      var round = gameState.activeRounds[gameState.currentRound];
+      var picked = gameState.pickedIndex;
+      var isCorrect = picked === round.correctIndex;
+
+      var all = document.querySelectorAll('.bw-option-card');
+      for (var i = 0; i < all.length; i++) all[i].classList.add('disabled');
+
+      if (isCorrect) {
+        for (var j = 0; j < all.length; j++) {
+          if (parseInt(all[j].getAttribute('data-option-index'), 10) === picked) all[j].classList.add('solved-correct');
+        }
+        gameState.score += 1;
+        gameState.progress = gameState.currentRound + 1;
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+        syncDOM();
+        recordAttempt(String(picked), true, null, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: true, value: picked });
+        runCorrectFeedbackAndAdvance(round);
+      } else {
+        for (var k = 0; k < all.length; k++) {
+          var oi = parseInt(all[k].getAttribute('data-option-index'), 10);
+          if (oi === picked) all[k].classList.add('solved-wrong');
+          if (oi === round.correctIndex) all[k].classList.add('solved-correct');
+        }
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        gameState.progress = gameState.currentRound + 1;
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+        syncDOM();
+        var miscTag = (round.misconception_tags && round.misconception_tags[String(picked)]) || null;
+        recordAttempt(String(picked), false, miscTag, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: false, value: picked, misconception_tag: miscTag });
+        runWrongFeedbackAndAdvance(round);
+      }
+      try { if (floatingBtn) floatingBtn.setSubmittable(false); } catch (e) {}
+    }
+
+    function runCorrectFeedbackAndAdvance(round) {
+      (async function () {
+        var f = document.getElementById('bwFeedback');
+        if (f) { f.classList.add('visible', 'show-correct'); f.textContent = round.correctSubtitle || 'Nice — that was the smarter way!'; }
+        try { await awaitedFeedbackSound('correct_sound_effect', { sticker: STICKER_CORRECT }); } catch (e) {}
+        try { await playDynamicFeedback({ audio_content: round.correctTTS, subtitle: round.correctSubtitle, sticker: STICKER_CORRECT }); } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function runWrongFeedbackAndAdvance(round) {
+      (async function () {
+        var f = document.getElementById('bwFeedback');
+        if (f) { f.classList.add('visible', 'show-wrong'); f.textContent = round.wrongSubtitle || 'Not quite — see the green option.'; }
+        try { await awaitedFeedbackSound('incorrect_sound_effect', { sticker: STICKER_SAD }); } catch (e) {}
+        try { await playDynamicFeedback({ audio_content: round.wrongTTS, subtitle: round.wrongSubtitle, sticker: STICKER_SAD }); } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+
+    function advanceAfterFeedback() {
+      var roundJustPlayed = gameState.currentRound + 1;
+      if (gameState.lives === 0) {
+        gameState.stars = getStars();
+        postGameComplete();
+        endGame(false);
+        return;
+      }
+      if (roundJustPlayed === gameState.totalRounds) { endGame(true); return; }
+      showRoundIntro(roundJustPlayed + 1);
+    }
+
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound.stopAll(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+
+      var ttsText = 'Round ' + n;
+      await transitionScreen.show({
+        title: 'Round ' + n,
+        icons: [],
+        persist: true,
+        buttons: [],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_ROUND }); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          })();
+        }
+      });
+      setTimeout(function () {
+        try {
+          if (gameState.gameEnded) return;
+          if (gameState.currentRound + 1 < n) {
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          }
+        } catch (e) {}
+      }, 9000);
+    }
+
+    function endGame(victory) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.stars = getStars();
+      if (victory) {
+        gameState.phase = 'results'; syncDOM(); postGameComplete(); showVictory();
+      } else {
+        gameState.phase = 'game_over'; syncDOM(); postGameComplete(); showGameOver();
+      }
+      trackEvent('game_end', { victory: victory, stars: gameState.stars, score: gameState.score });
+    }
+
+    function _victoryClaimAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showStarsCollected();
+    }
+    function _victoryPlayAgainAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showMotivation();
+    }
+
+    async function showVictory() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var stars = gameState.stars;
+      var subtitle = 'You got ' + gameState.score + '/' + gameState.totalRounds + ' right.';
+      var ttsText = stars === 3 ? 'Brilliant! You spotted the strategy every time.' : 'Great work — you got ' + gameState.score + ' out of ' + gameState.totalRounds + '!';
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var sfxSticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_TWO : STICKER_ONE);
+      await transitionScreen.show({
+        title: 'Victory 🎉',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars === 3
+          ? [{ text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }]
+          : [
+              { text: 'Play Again', type: 'secondary', action: _victoryPlayAgainAction },
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound(sfxId, { sticker: sfxSticker }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_CELEBRATE }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showGameOver() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var subtitle = 'You got ' + gameState.score + '/' + gameState.totalRounds + ' — try again.';
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: subtitle,
+        icons: ['😔'],
+        persist: true,
+        buttons: [{
+          text: 'Try Again', type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showMotivation();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_GAMEOVER }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: subtitle, subtitle: subtitle, sticker: STICKER_GAMEOVER }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = 'Ready to improve your score?';
+      await transitionScreen.show({
+        title: 'Ready to improve your score?',
+        icons: ['⚡'],
+        persist: true,
+        buttons: [{
+          text: "I'm ready", type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            restartGame();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_MOTIVATE }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_MOTIVATE }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      gameState.phase = 'stars_collected';
+      syncDOM();
+      await transitionScreen.show({
+        title: "Yay!\nStars collected!",
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY }); } catch (e) {}
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: { count: gameState.stars, variant: 'yellow', score: gameState.score + '/' + gameState.totalRounds }
+              }, '*');
+            } catch (e) {}
+            setTimeout(showAnswerCarousel, 1500);
+          })();
+        }
+      });
+    }
+
+    function renderAnswerSlide(container, round) {
+      if (!container || !round || !round.answer) return;
+      var a = round.answer;
+      var html = '';
+      html += '<div class="bw-answer-card">';
+      html += '<div class="bw-answer-prompt">' + escapeHTML(a.prompt) + '</div>';
+      html += '<div class="bw-answer-options">';
+      for (var i = 0; i < a.options.length; i++) {
+        var cls = (i === a.correctIndex) ? 'bw-answer-pill solved-correct' : 'bw-answer-pill';
+        html += '<div class="' + cls + '">' + escapeHTML(a.options[i]) + '</div>';
+      }
+      html += '</div>';
+      html += '<div class="bw-answer-explanation">' + escapeHTML(a.explanation) + '</div>';
+      html += '</div>';
+      container.innerHTML = html;
+    }
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds;
+      var slides = [];
+      for (var i = 0; i < rounds.length; i++) {
+        (function (r) { slides.push({ render: function (container) { renderAnswerSlide(container, r); } }); })(rounds[i]);
+      }
+      return slides;
+    }
+    function showAnswerCarousel() {
+      try { answerComponent.show({ slides: buildAnswerSlidesForAllRounds() }); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+      try {
+        setTimeout(function () {
+          var slot = document.getElementById('mathai-answer-slot');
+          if (slot && slot.scrollIntoView) slot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+      } catch (e) {}
+    }
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.content = content;
+      gameState.totalRounds = content.totalRounds || 10;
+      gameState.totalLives = content.totalLives || 3;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+
+      injectGameHTML();
+      renderInitialState();
+
+      try {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          onComplete: function (previewData) { startGameAfterPreview(previewData); }
+        });
+      } catch (e) { console.error('[previewScreen.show failed]', e && e.message, e); }
+    }
+
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || {};
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: (previewData && previewData.duration) || 0 });
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try {
+        if (progressBar) {
+          progressBar.show && progressBar.show();
+          progressBar.update(0, gameState.totalLives);
+        }
+      } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex] });
+      try {
+        if (signalCollector && signalCollector.recordViewEvent) {
+          signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+        }
+      } catch (e) {}
+      showWelcome();
+    }
+
+    async function showWelcome() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = "Let's play Better Way! Read each story and choose the smartest method.";
+      await transitionScreen.show({
+        title: 'Welcome!',
+        icons: ['👋'],
+        persist: true,
+        buttons: [{
+          text: "Let's go!", type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showRoundIntro(1);
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_LEVEL }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    function resetGameState() {
+      gameState.phase = 'gameplay';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState._gameCompletePosted = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.progress = 0;
+      gameState.duration_data = { startTime: null, endTime: null, preview: gameState.duration_data.preview || [] };
+      gameState.activeRounds = getRounds();
+      try {
+        if (answerComponent && answerComponent.update) answerComponent.update({ slides: [] });
+        if (answerComponent && answerComponent.hide) answerComponent.hide();
+      } catch (e) {}
+    }
+    function restartGame() {
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex], restart: true });
+      injectGameHTML();
+      renderInitialState();
+      showRoundIntro(1);
+    }
+
+    function handlePostMessage(event) {
+      if (!event || !event.data || !event.data.type) return;
+      var t = event.data.type;
+      var data = event.data.data || {};
+      if (t === 'game_init') {
+        gameState.phase = 'playing';
+        if (data.content) gameState.content = data.content;
+        gameState.signalConfig = data.signalConfig || {};
+        if (data.signalConfig && signalCollector && signalCollector.applyConfig) {
+          try { signalCollector.applyConfig(data.signalConfig); } catch (e) {}
+        }
+        try {
+          if (signalCollector) {
+            signalCollector.gameId = 'text-only-mcq-single-select-with-submit';
+            if (data.sessionId) signalCollector.sessionId = data.sessionId;
+            if (data.studentId) signalCollector.studentId = data.studentId;
+            if (data.contentSetId) signalCollector.contentSetId = data.contentSetId;
+            if (data.signalConfig && data.signalConfig.flushUrl) signalCollector.flushUrl = data.signalConfig.flushUrl;
+            if (data.signalConfig && data.signalConfig.playId) signalCollector.playId = data.signalConfig.playId;
+            if (signalCollector.startFlushing) { try { signalCollector.startFlushing(); } catch (e) {} }
+          }
+        } catch (e) {}
+        syncDOM();
+        setupGame();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      waitForPackages().then(function () {
+        try {
+          var initP = FeedbackManager.init && FeedbackManager.init();
+          var doInit = initP && initP.then ? initP : Promise.resolve();
+          doInit.then(function () {
+            try {
+              try {
+                signalCollector = new SignalCollector({
+                  sessionId: 'bw-' + Date.now(),
+                  studentId: 'standalone',
+                  gameId: 'text-only-mcq-single-select-with-submit',
+                  contentSetId: 'fallback'
+                });
+                window.signalCollector = signalCollector;
+              } catch (e) { console.error('[SignalCollector ctor failed]', e && e.message, e); }
+              try {
+                ScreenLayout.inject('app', {
+                  slots: { previewScreen: true, progressBar: true, transitionScreen: true, floatingButton: true, answerComponent: true }
+                });
+              } catch (e) { console.error('[ScreenLayout.inject failed]', e && e.message, e); }
+              injectGameHTML();
+              renderInitialState();
+              try {
+                visibilityTracker = new VisibilityTracker({
+                  popupProps: { title: 'Paused', description: 'Tap Resume to continue.', primaryText: 'Resume' },
+                  onInactive: function () {
+                    try { FeedbackManager.sound.pause(); } catch (e) {}
+                    try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+                  },
+                  onResume: function () {
+                    try { FeedbackManager.sound.resume(); } catch (e) {}
+                    try { FeedbackManager.stream.resumeAll(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+                  }
+                });
+              } catch (e) { console.error('[VisibilityTracker ctor failed]', e && e.message, e); }
+              try {
+                progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 10, totalLives: 3 });
+              } catch (e) { console.error('[ProgressBarComponent ctor failed]', e && e.message, e); }
+              try { transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' }); } catch (e) { console.error('[TransitionScreenComponent ctor failed]', e && e.message, e); }
+              try { previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' }); } catch (e) { console.error('[PreviewScreenComponent ctor failed]', e && e.message, e); }
+              try { floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' }); } catch (e) { console.error('[FloatingButtonComponent ctor failed]', e && e.message, e); }
+              try { answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' }); } catch (e) { console.error('[AnswerComponentComponent ctor failed]', e && e.message, e); }
+              try {
+                if (floatingBtn && floatingBtn.on) {
+                  floatingBtn.on('submit', function () { handleSubmit(); });
+                  floatingBtn.on('next', function () {
+                    try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                    try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+                    try { if (floatingBtn) floatingBtn.destroy(); } catch (e) {}
+                  });
+                }
+              } catch (e) {}
+              try {
+                FeedbackManager.sound.preload([
+                  { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+                  { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+                  { id: 'sound_level_transition',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+                  { id: 'victory_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+                  { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+                  { id: 'game_over_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+                  { id: 'sound_bubble_select',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+                  { id: 'tap_sound',                url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+                ]);
+              } catch (e) { console.error('[FeedbackManager.preload failed]', e && e.message, e); }
+              window.addEventListener('message', handlePostMessage);
+              try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+              setupGame();
+            } catch (e) { console.error('[init inner] ' + (e && e.message), e); }
+          }, function (e) { console.error('[FeedbackManager.init failed]', e && e.message, e); });
+        } catch (e) { console.error('[init outer] ' + (e && e.message), e); }
+      }, function (err) { console.error('[waitForPackages rejected] ' + (err && err.message)); });
+      setTimeout(function () {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+      }, 2000);
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = setupGame;
+      window.renderRound = renderRound;
+      window.loadRound = function (n) { try { renderRound(n); } catch (e) {} };
+    });
+  </script>
+</body>
+</html>

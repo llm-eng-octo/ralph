@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>True or False — Two-Choice Math Reasoning Sprint</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'binary-mcq-with-submit@1.0.0' }));
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+      --mathai-primary: #270f36;
+      --mathai-purple: #9B51E0;
+      --mathai-blue: #3478F6;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Concept §"What the player sees and does": "There is **no timer** here;
+       this game is about deliberation." Concept §"Shape of the experience":
+       "No timer, ever." No timer in the header. */
+
+    #gameContent {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      padding: 8px 16px 24px;
+    }
+    .tof-stage {
+      text-align: center;
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-gray);
+      margin: 6px 0 4px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .tof-question {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      margin: 14px 0 18px;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .tof-options {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      width: 100%;
+      max-width: 380px;
+      margin: 8px auto 14px;
+    }
+    .tof-option {
+      display: block;
+      width: 100%;
+      min-height: 56px;
+      margin-top: 12px;
+      padding: 14px 18px;
+      border: 2px solid var(--mathai-border-gray);
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      font-family: var(--mathai-font-family);
+      font-size: var(--mathai-font-size-body);
+      font-weight: 600;
+      border-radius: var(--mathai-border-radius-card);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-appearance: none;
+      appearance: none;
+      text-align: left;
+      transition: background 120ms ease, border-color 120ms ease;
+    }
+    .tof-option:first-child { margin-top: 0; }
+    .tof-option.selected {
+      background: var(--mathai-cell-bg-yellow);
+      border-color: var(--mathai-warning);
+    }
+    .tof-option.locked-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-success);
+    }
+    .tof-option.locked-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-cell-border-red);
+      color: var(--mathai-error);
+      animation: shake 0.4s ease;
+    }
+    .tof-option.locked-correct-other {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-success);
+    }
+    .tof-option:disabled, .tof-option.disabled {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .tof-explanation {
+      margin: 14px auto 0;
+      max-width: 380px;
+      padding: 10px 14px;
+      background: var(--mathai-cell-bg-yellow);
+      border-radius: var(--mathai-border-radius-small);
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-text-primary);
+      min-height: 0;
+      transition: opacity 120ms ease;
+    }
+    .tof-explanation.hidden-init { display: none; }
+
+    button, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+    #app {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.3s ease; }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-lives="3"></div>
+
+  <script>
+    var STICKER_CORRECT  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_CELEBRATE = STICKER_VICTORY;
+    var STICKER_SAD = STICKER_WRONG;
+    var STICKER_MOTIVATE = STICKER_LEVEL;
+
+    function makeRound(set, n, q) {
+      var id = set + '_r' + n + '_' + q.key;
+      return {
+        set: set, id: id, round: n, stage: q.stage || 1,
+        question: q.question,
+        optionA: q.optionA, optionB: q.optionB,
+        correctIndex: q.correctIndex,
+        explanation: q.explanation,
+        wrongMisconception: q.wrongMisconception || null,
+        correctTTS: q.correctTTS || ('Right — ' + q.explanation),
+        correctSubtitle: q.correctSubtitle || q.explanation,
+        wrongTTS: q.wrongTTS || ('Not quite — ' + q.explanation),
+        wrongSubtitle: q.wrongSubtitle || q.explanation
+      };
+    }
+
+    var QUESTIONS = [
+      { key: 'multiple-of-6', stage: 1, question: 'Is 48 a multiple of 6?',
+        optionA: 'Yes, 48 = 6 × 8', optionB: 'No, 48 leaves a remainder', correctIndex: 0,
+        explanation: '48 ÷ 6 = 8 exactly, so 48 IS a multiple of 6.',
+        wrongMisconception: 'thought-divisibility-leaves-remainder' },
+      { key: 'odd-7', stage: 1, question: 'Is 7 an odd number?',
+        optionA: 'Yes, 7 is odd', optionB: 'No, 7 is even', correctIndex: 0,
+        explanation: '7 is not divisible by 2, so it is odd.' },
+      { key: 'three-plus-four', stage: 1, question: 'Is 3 + 4 = 8?',
+        optionA: 'Yes', optionB: 'No, 3 + 4 = 7', correctIndex: 1,
+        explanation: '3 + 4 = 7, not 8.' },
+      { key: 'square-perim', stage: 2, question: 'Is the perimeter of a 3×3 square 9?',
+        optionA: 'Yes', optionB: 'No, perimeter of 3×3 is 12', correctIndex: 1,
+        explanation: 'Perimeter is 4 × side = 4 × 3 = 12. 9 is the area.',
+        wrongMisconception: 'confused-area-with-perimeter' },
+      { key: 'half-vs-005', stage: 2, question: 'Is 0.5 less than 0.05?',
+        optionA: 'Yes', optionB: 'No, 0.5 > 0.05', correctIndex: 1,
+        explanation: '0.5 = 50/100 and 0.05 = 5/100, so 0.5 is bigger.',
+        wrongMisconception: 'judged-by-digit-count' },
+      { key: 'square-side', stage: 2, question: 'Does a square have 4 equal sides?',
+        optionA: 'Yes', optionB: 'No', correctIndex: 0,
+        explanation: 'A square is defined by 4 equal sides.' },
+      { key: 'div-zero', stage: 2, question: 'Is 5 ÷ 0 equal to 0?',
+        optionA: 'Yes', optionB: 'No, division by 0 is undefined', correctIndex: 1,
+        explanation: 'Division by zero is undefined — there is no number that times 0 gives 5.' },
+      { key: 'one-prime', stage: 3, question: 'Is 1 a prime number?',
+        optionA: 'Yes', optionB: 'No, 1 is not prime', correctIndex: 1,
+        explanation: 'A prime has exactly two divisors: 1 and itself. 1 has only one, so 1 is NOT prime.',
+        wrongMisconception: 'thought-1-is-prime' },
+      { key: 'zero-multiple', stage: 3, question: 'Is zero a multiple of every whole number?',
+        optionA: 'Yes', optionB: 'No', correctIndex: 0,
+        explanation: '0 = 0 × n for any n, so 0 is a multiple of every whole number.' },
+      { key: 'rect-square', stage: 3, question: 'Is every square also a rectangle?',
+        optionA: 'Yes', optionB: 'No', correctIndex: 0,
+        explanation: 'A rectangle has 4 right angles. A square is a special rectangle with equal sides.' }
+    ];
+
+    function buildSet(setKey, offset) {
+      var out = [];
+      for (var i = 0; i < QUESTIONS.length; i++) {
+        var q = QUESTIONS[(i + offset) % QUESTIONS.length];
+        out.push(makeRound(setKey, i + 1, q));
+      }
+      return out;
+    }
+
+    var fallbackContent = {
+      previewInstruction: '<p><b>True or false?</b> Read the statement, pick one of the two answers, then commit by tapping Submit.</p><p>Three lives, ten rounds. Take your time — there is no timer.</p>',
+      previewAudioText: 'Read each statement carefully, pick the option you think is right, and submit.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 10,
+      totalLives: 3,
+      answerComponent: true,
+      rounds: buildSet('A', 0).concat(buildSet('B', 3)).concat(buildSet('C', 6))
+    };
+
+    var SETS = ['A', 'B', 'C'];
+    var gameState = {
+      gameId: 'binary-mcq-with-submit',
+      gameTitle: 'True or False',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 10,
+      score: 0,
+      lives: 3,
+      totalLives: 3,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      duration_data: { startTime: null, endTime: null, preview: [] },
+      correctAnswer: null,
+      stars: 0,
+      setIndex: 0,
+      activeRounds: [],
+      roundStartMs: 0,
+      previewResult: null,
+      progress: 0,
+      roundToken: 0,
+      currentSelection: -1
+    };
+    window.gameState = gameState;
+
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+
+    function getAvailableSets(rounds) {
+      var seen = {}; var out = [];
+      for (var i = 0; i < rounds.length; i++) {
+        var s = rounds[i].set;
+        if (s && !seen[s]) { seen[s] = true; out.push(s); }
+      }
+      return out.length ? out : ['A'];
+    }
+    function getRounds() {
+      var src = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(src);
+      var setKey = sets[gameState.setIndex % sets.length];
+      var filtered = [];
+      for (var i = 0; i < src.length; i++) if (src[i].set === setKey) filtered.push(src[i]);
+      filtered.sort(function (a, b) { return a.round - b.round; });
+      return filtered;
+    }
+    function getCorrectCount() { var c = 0; for (var i = 0; i < gameState.attempts.length; i++) if (gameState.attempts[i].correct === true) c++; return c; }
+    function getStars() {
+      var c = getCorrectCount();
+      var t = gameState.totalRounds;
+      if (c === 0) return 0;
+      if (c >= Math.ceil(t * 0.9)) return 3;
+      if (c >= Math.ceil(t * 0.6)) return 2;
+      return 1;
+    }
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+    }
+    function trackEvent(name, payload) {
+      try { gameState.events.push({ event: name, ts: Date.now(), data: payload || {} }); } catch (e) {}
+      try { if (signalCollector && signalCollector.recordEvent) signalCollector.recordEvent(name, payload || {}); } catch (e) {}
+    }
+    function recordAttempt(input, correct, misconceptionTag, responseMs) {
+      var round = gameState.activeRounds[gameState.currentRound];
+      var qid = round ? round.id : ('r' + (gameState.currentRound + 1));
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) : 0,
+        input_of_user: input,
+        correct: correct === true,
+        round_number: gameState.currentRound + 1,
+        question_id: qid,
+        correct_answer: round ? round.correctIndex : null,
+        response_time_ms: typeof responseMs === 'number' ? responseMs : 0,
+        misconception_tag: misconceptionTag || null,
+        difficulty_level: round ? (round.stage || 1) : 1,
+        is_retry: false,
+        metadata: { set: round ? round.set : null }
+      };
+      gameState.attempts.push(attempt);
+      try { if (signalCollector && signalCollector.recordAttempt) signalCollector.recordAttempt(attempt); } catch (e) {}
+    }
+    function postGameComplete() {
+      if (gameState._gameCompletePosted) return;
+      gameState._gameCompletePosted = true;
+      var attempted = gameState.attempts.length;
+      var correctCount = getCorrectCount();
+      var accuracy = attempted === 0 ? 0 : Math.round((correctCount / attempted) * 100);
+      var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+      var triesByRound = gameState.attempts.map(function (a) { return { round: a.round_number, correct: a.correct === true }; });
+      var metrics = {
+        accuracy: accuracy, time: Math.round(elapsedMs / 1000), stars: gameState.stars,
+        attempts: gameState.attempts.slice(), duration_data: gameState.duration_data,
+        totalLives: gameState.lives, tries: triesByRound, score: gameState.score,
+        correctCount: correctCount, previewResult: gameState.previewResult || null
+      };
+      var signalSealed = { event_count: gameState.events.length, metadata: {} };
+      try {
+        if (signalCollector && typeof signalCollector.seal === 'function') {
+          var sealed = signalCollector.seal();
+          if (sealed) {
+            if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+            if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+          }
+        }
+      } catch (e0) {}
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: { metrics: metrics, completedAt: Date.now(), signal_event_count: signalSealed.event_count, signal_metadata: signalSealed.metadata }
+        }, '*');
+      } catch (e) {}
+    }
+
+    function safePlaySound(id, opts) { try { return FeedbackManager.sound.play(id, opts || {}); } catch (e) { return Promise.resolve(); } }
+    function awaitedFeedbackSound(id, opts) {
+      var p = safePlaySound(id, opts || {});
+      var floor = new Promise(function (r) { setTimeout(r, 1500); });
+      return Promise.all([p, floor]).then(function () {}, function () {});
+    }
+    function playDynamicFeedback(opts) { try { return FeedbackManager.playDynamicFeedback(opts || {}); } catch (e) { return Promise.resolve(); } }
+
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            try { reject(new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms')); } catch (e) {}
+            throw new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div class="tof-stage" id="tofStage"></div>' +
+        '<div class="tof-question" id="tofQuestion"></div>' +
+        '<div class="tof-options" id="tofOptions"></div>' +
+        '<div class="tof-explanation hidden-init" id="tofExplain"></div>';
+    }
+
+    function renderInitialState() {
+      var stageEl = document.getElementById('tofStage');
+      var qEl = document.getElementById('tofQuestion');
+      var optsEl = document.getElementById('tofOptions');
+      var expEl = document.getElementById('tofExplain');
+      if (stageEl) stageEl.textContent = '';
+      if (qEl) qEl.textContent = '';
+      if (optsEl) optsEl.innerHTML = '';
+      if (expEl) { expEl.textContent = ''; expEl.classList.add('hidden-init'); }
+    }
+
+    function renderRound(roundIdxOneBased) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      gameState.currentRound = roundIdxOneBased - 1;
+      gameState.isActive = true;
+      gameState.phase = 'gameplay';
+      gameState.roundToken = (gameState.roundToken || 0) + 1;
+      gameState.currentSelection = -1;
+      syncDOM();
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) return;
+      gameState.correctAnswer = round.correctIndex;
+
+      var stageEl = document.getElementById('tofStage');
+      var qEl = document.getElementById('tofQuestion');
+      var optsEl = document.getElementById('tofOptions');
+      var expEl = document.getElementById('tofExplain');
+
+      if (stageEl) stageEl.textContent = 'Round ' + roundIdxOneBased + ' of ' + gameState.totalRounds;
+      if (qEl) {
+        qEl.textContent = round.question;
+        qEl.classList.remove('fade-in');
+        void qEl.offsetWidth;
+        qEl.classList.add('fade-in');
+      }
+      if (expEl) { expEl.textContent = ''; expEl.classList.add('hidden-init'); }
+      if (optsEl) {
+        optsEl.innerHTML = '';
+        var labels = [round.optionA, round.optionB];
+        for (var i = 0; i < labels.length; i++) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'tof-option';
+          btn.textContent = labels[i];
+          btn.setAttribute('data-index', String(i));
+          btn.setAttribute('data-round-token', String(gameState.roundToken));
+          btn.setAttribute('data-testid', 'option-' + i);
+          btn.addEventListener('click', onOptionTap);
+          optsEl.appendChild(btn);
+        }
+      }
+
+      gameState.roundStartMs = Date.now();
+      gameState.isProcessing = false;
+
+      try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode('submit'); } catch (e) {}
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+
+      try {
+        var p = safePlaySound('tap_sound', { sticker: null });
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+
+      trackEvent('round_start', { round: roundIdxOneBased, set: round.set });
+    }
+
+    function onOptionTap(ev) {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var btn = ev.currentTarget;
+      var btnRoundToken = btn.getAttribute('data-round-token');
+      if (btnRoundToken !== String(gameState.roundToken || '')) return;
+      var idx = parseInt(btn.getAttribute('data-index'), 10);
+      var optsEl = document.getElementById('tofOptions');
+      if (!optsEl) return;
+      var allBtns = optsEl.querySelectorAll('.tof-option');
+      for (var i = 0; i < allBtns.length; i++) allBtns[i].classList.remove('selected');
+      btn.classList.add('selected');
+      gameState.currentSelection = idx;
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(true); } catch (e) {}
+    }
+
+    function handleSubmit() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      if (gameState.currentSelection < 0) return;
+
+      gameState.isProcessing = true;
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      var responseMs = Date.now() - gameState.roundStartMs;
+      var picked = gameState.currentSelection;
+      var isCorrect = picked === round.correctIndex;
+
+      var optsEl = document.getElementById('tofOptions');
+      if (optsEl) {
+        var allBtns = optsEl.querySelectorAll('.tof-option');
+        for (var i = 0; i < allBtns.length; i++) {
+          var b = allBtns[i];
+          var bi = parseInt(b.getAttribute('data-index'), 10);
+          b.classList.add('disabled');
+          b.disabled = true;
+          if (bi === picked) {
+            b.classList.add(isCorrect ? 'locked-correct' : 'locked-wrong');
+          } else if (bi === round.correctIndex && !isCorrect) {
+            b.classList.add('locked-correct-other');
+          }
+        }
+      }
+      var expEl = document.getElementById('tofExplain');
+      if (expEl) { expEl.textContent = round.explanation; expEl.classList.remove('hidden-init'); }
+
+      if (isCorrect) {
+        gameState.score += 1;
+        gameState.progress = gameState.currentRound + 1;
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+        syncDOM();
+        recordAttempt(String(picked), true, null, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: true, picked: picked });
+        runCorrectFeedbackAndAdvance(round);
+      } else {
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        gameState.progress = gameState.currentRound + 1;
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+        syncDOM();
+        recordAttempt(String(picked), false, round.wrongMisconception, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: false, picked: picked });
+        runWrongFeedbackAndAdvance(round);
+      }
+    }
+
+    function runCorrectFeedbackAndAdvance(round) {
+      (async function () {
+        try { await awaitedFeedbackSound('correct_sound_effect', { sticker: STICKER_CORRECT }); } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.correctTTS, subtitle: round.correctSubtitle, sticker: STICKER_CORRECT
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function runWrongFeedbackAndAdvance(round) {
+      (async function () {
+        try { await awaitedFeedbackSound('incorrect_sound_effect', { sticker: STICKER_SAD }); } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.wrongTTS, subtitle: round.wrongSubtitle, sticker: STICKER_SAD
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function advanceAfterFeedback() {
+      var roundJustPlayed = gameState.currentRound + 1;
+      if (gameState.lives === 0) { gameState.stars = getStars(); endGame(false); return; }
+      if (roundJustPlayed === gameState.totalRounds) { endGame(true); return; }
+      showRoundIntro(roundJustPlayed + 1);
+    }
+
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      var ttsText = 'Round ' + n;
+      await transitionScreen.show({
+        title: 'Round ' + n,
+        icons: [],
+        persist: true,
+        buttons: [],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_ROUND }); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          })();
+        }
+      });
+
+      // Safety timeout if audio stalls
+      setTimeout(function () {
+        try {
+          if (gameState.gameEnded) return;
+          if (gameState.currentRound + 1 < n) {
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          }
+        } catch (e) {}
+      }, 9000);
+    }
+
+    function endGame(victory) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.stars = getStars();
+      if (victory) { gameState.phase = 'results'; syncDOM(); postGameComplete(); showVictory(); }
+      else { gameState.phase = 'game_over'; syncDOM(); postGameComplete(); showGameOver(); }
+      trackEvent('game_end', { victory: victory, stars: gameState.stars, score: gameState.score });
+    }
+
+    function _victoryClaimAction() { try { FeedbackManager.sound.pause(); } catch (e) {} try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {} try { transitionScreen.hide(); } catch (e) {} showStarsCollected(); }
+    function _victoryPlayAgainAction() { try { FeedbackManager.sound.pause(); } catch (e) {} try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {} try { transitionScreen.hide(); } catch (e) {} showMotivation(); }
+
+    async function showVictory() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var stars = gameState.stars;
+      var subtitle = 'You got ' + gameState.score + ' out of ' + gameState.totalRounds + '!';
+      var ttsText = stars === 3 ? 'Brilliant! Three stars!' : 'Great job — try again for more stars!';
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      await transitionScreen.show({
+        title: 'Victory', subtitle: subtitle, stars: stars,
+        buttons: stars === 3
+          ? [{ text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }]
+          : [
+              { text: 'Play Again', type: 'secondary', action: _victoryPlayAgainAction },
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound(sfxId, { sticker: STICKER_VICTORY }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_CELEBRATE }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showGameOver() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var subtitle = 'You got ' + gameState.score + '/' + gameState.totalRounds + ' — try again.';
+      await transitionScreen.show({
+        title: 'Game Over', subtitle: subtitle, icons: ['😔'], stars: 0, persist: true,
+        buttons: [{
+          text: 'Try Again', type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showMotivation();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_GAMEOVER }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: subtitle, subtitle: subtitle, sticker: STICKER_GAMEOVER }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = 'Ready to improve your score?';
+      await transitionScreen.show({
+        title: 'Ready to improve your score?', icons: ['⚡'], persist: true,
+        buttons: [{
+          text: "I'm ready", type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            restartGame();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_MOTIVATE }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_MOTIVATE }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      gameState.phase = 'stars_collected';
+      syncDOM();
+      await transitionScreen.show({
+        title: "Yay!\nStars collected!", buttons: [], persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY }); } catch (e) {}
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: { count: gameState.stars, variant: 'yellow', score: gameState.score + '/' + gameState.totalRounds }
+              }, '*');
+            } catch (e) {}
+            setTimeout(showAnswerCarousel, 1500);
+          })();
+        }
+      });
+    }
+
+    function renderAnswerSlide(container, round) {
+      if (!container || !round) return;
+      var labels = [round.optionA, round.optionB];
+      var html = '<div style="padding:14px 12px;text-align:center;">';
+      html += '<div style="font-size:18px;font-weight:800;color:var(--mathai-primary);margin-bottom:10px;">' + escapeHTML(round.question) + '</div>';
+      html += '<div class="tof-options">';
+      for (var i = 0; i < labels.length; i++) {
+        var cls = 'tof-option';
+        if (i === round.correctIndex) cls += ' locked-correct';
+        html += '<div class="' + cls + '">' + escapeHTML(labels[i]) + '</div>';
+      }
+      html += '</div>';
+      html += '<div class="tof-explanation" style="display:block;">' + escapeHTML(round.explanation) + '</div>';
+      html += '</div>';
+      container.innerHTML = html;
+    }
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds;
+      var slides = [];
+      for (var i = 0; i < rounds.length; i++) {
+        (function (r) { slides.push({ render: function (container) { renderAnswerSlide(container, r); } }); })(rounds[i]);
+      }
+      return slides;
+    }
+    function showAnswerCarousel() {
+      try { answerComponent.show({ slides: buildAnswerSlidesForAllRounds() }); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+      try {
+        setTimeout(function () {
+          var slot = document.getElementById('mathai-answer-slot');
+          if (slot && slot.scrollIntoView) slot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+      } catch (e) {}
+    }
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.content = content;
+      gameState.totalRounds = content.totalRounds || 10;
+      gameState.totalLives = content.totalLives || 3;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+      injectGameHTML();
+      renderInitialState();
+      try {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          onComplete: function (previewData) { startGameAfterPreview(previewData); }
+        });
+      } catch (e) { console.error('[previewScreen.show failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+    }
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || {};
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: (previewData && previewData.duration) || 0 });
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try { if (progressBar) { progressBar.show(); progressBar.update(0, gameState.totalLives); } } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex] });
+      try { if (signalCollector && signalCollector.recordViewEvent) signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+      showWelcome();
+    }
+    async function showWelcome() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = "Let's play! Read each statement, pick one, then submit.";
+      await transitionScreen.show({
+        title: 'Welcome!', icons: ['👋'], persist: true,
+        buttons: [{
+          text: "Let's go!", type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showRoundIntro(1);
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_LEVEL }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    function resetGameState() {
+      gameState.phase = 'gameplay';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState._gameCompletePosted = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.progress = 0;
+      gameState.duration_data = { startTime: null, endTime: null, preview: gameState.duration_data.preview || [] };
+      gameState.activeRounds = getRounds();
+      gameState.currentSelection = -1;
+      try { if (answerComponent && answerComponent.update) answerComponent.update({ slides: [] }); if (answerComponent && answerComponent.hide) answerComponent.hide(); } catch (e) {}
+    }
+
+    function restartGame() {
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex], restart: true });
+      showRoundIntro(1);
+    }
+
+    function handlePostMessage(event) {
+      if (!event || !event.data || !event.data.type) return;
+      var t = event.data.type;
+      var data = event.data.data || {};
+      if (t === 'game_init') {
+        gameState.phase = 'playing';
+        if (data.content) gameState.content = data.content;
+        gameState.signalConfig = data.signalConfig || {};
+        if (data.signalConfig && signalCollector && signalCollector.applyConfig) {
+          try { signalCollector.applyConfig(data.signalConfig); } catch (e) {}
+        }
+        try {
+          if (signalCollector) {
+            signalCollector.gameId = 'binary-mcq-with-submit';
+            if (data.sessionId) signalCollector.sessionId = data.sessionId;
+            if (data.studentId) signalCollector.studentId = data.studentId;
+            if (data.contentSetId) signalCollector.contentSetId = data.contentSetId;
+            if (data.signalConfig && data.signalConfig.flushUrl) signalCollector.flushUrl = data.signalConfig.flushUrl;
+            if (data.signalConfig && data.signalConfig.playId) signalCollector.playId = data.signalConfig.playId;
+            if (signalCollector.startFlushing) { try { signalCollector.startFlushing(); } catch (e) {} }
+          }
+        } catch (e) {}
+        syncDOM();
+        setupGame();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      waitForPackages().then(function () {
+        try {
+          var initP = FeedbackManager.init && FeedbackManager.init();
+          var doInit = initP && initP.then ? initP : Promise.resolve();
+          doInit.then(function () {
+            try {
+              try {
+                signalCollector = new SignalCollector({
+                  sessionId: 'binary-mcq-with-submit-' + Date.now(),
+                  studentId: 'standalone',
+                  gameId: 'binary-mcq-with-submit',
+                  contentSetId: 'fallback'
+                });
+                window.signalCollector = signalCollector;
+              } catch (e) { console.error('[SignalCollector ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+              try { ScreenLayout.inject('app', { slots: { previewScreen: true, progressBar: true, transitionScreen: true, floatingButton: true, answerComponent: true } }); } catch (e) { console.error('[ScreenLayout.inject failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+              injectGameHTML();
+              renderInitialState();
+              try {
+                visibilityTracker = new VisibilityTracker({
+                  popupProps: { title: 'Paused', description: 'Tap Resume to continue.', primaryText: 'Resume' },
+                  onInactive: function () {
+                    try { FeedbackManager.sound.pause(); } catch (e) {}
+                    try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+                  },
+                  onResume: function () {
+                    try { FeedbackManager.sound.resume(); } catch (e) {}
+                    try { FeedbackManager.stream.resumeAll(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+                  }
+                });
+              } catch (e) { console.error('[VisibilityTracker ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+              try { progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 10, totalLives: 3 }); } catch (e) { console.error('[ProgressBarComponent ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+              try { transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' }); } catch (e) { console.error('[TransitionScreenComponent ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+              try { previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' }); } catch (e) { console.error('[PreviewScreenComponent ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+              try { floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' }); } catch (e) { console.error('[FloatingButtonComponent ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+              try { answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' }); } catch (e) { console.error('[AnswerComponentComponent ctor failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+              try {
+                if (floatingBtn && floatingBtn.on) {
+                  floatingBtn.on('submit', function () { handleSubmit(); });
+                  floatingBtn.on('next', function () {
+                    try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                    try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+                    try { if (floatingBtn) floatingBtn.destroy(); } catch (e) {}
+                  });
+                }
+              } catch (e) {}
+              try {
+                FeedbackManager.sound.preload([
+                  { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+                  { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+                  { id: 'sound_level_transition',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+                  { id: 'victory_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+                  { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+                  { id: 'game_over_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+                  { id: 'tap_sound',                url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+                ]);
+              } catch (e) { console.error('[FeedbackManager.preload failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+              window.addEventListener('message', handlePostMessage);
+              try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+              setupGame();
+            } catch (e) { console.error('[init inner] ' + (e && e.message), e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+          }, function (e) { console.error('[FeedbackManager.init failed]', e && e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); });
+        } catch (e) { console.error('[init outer] ' + (e && e.message), e); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+      }, function (err) { console.error('[waitForPackages rejected] ' + (err && err.message)); if (typeof Sentry !== 'undefined') Sentry.captureException(err); });
+
+      setTimeout(function () {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+        var missing = [];
+        if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+        if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+        if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+        if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+        if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+        if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+        if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+        if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+        if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+        if (missing.length > 0) {
+          var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+          console.error('[' + msg + ']');
+          if (typeof Sentry !== 'undefined') Sentry.captureMessage(msg);
+          var gc = document.getElementById('gameContent') || document.getElementById('app') || document.body;
+          if (gc) gc.innerHTML = '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">Game failed to load — please refresh.</div>';
+          return;
+        }
+      }, 2000);
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = setupGame;
+      window.renderRound = renderRound;
+      window.loadRound = function (n) { try { renderRound(n); } catch (e) {} };
+    });
+  </script>
+</body>
+</html>

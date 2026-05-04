@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Treasure Grid — Tap Adjacent Digits</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+      --mathai-primary: #270f36;
+      --mathai-purple: #9B51E0;
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-bg-mint: #DAFEDC;
+      --mathai-cell-bg-blue: #E0F0FF;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-cell-border-blue: #4a90e2;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+    @supports not (height: 100dvh) {
+      html, body { height: 100vh; }
+    }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    #gameContent {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      padding: 8px 16px 24px;
+    }
+
+    .tg-clue-card {
+      background: var(--mathai-cell-bg-yellow);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 14px 16px;
+      margin: 12px 0 18px;
+      text-align: center;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      animation: fadeIn 0.35s ease;
+    }
+    .tg-clue-label {
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-gray);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .tg-progress-line {
+      text-align: center;
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-gray);
+      margin-bottom: 10px;
+    }
+
+    .tg-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-gap: 8px;
+      max-width: 320px;
+      margin: 0 auto 18px;
+    }
+    .tg-grid.tg-grid-5 {
+      grid-template-columns: repeat(5, 1fr);
+      max-width: 360px;
+      grid-gap: 6px;
+    }
+    .tg-treasure-found {
+      text-align: center;
+      font-size: var(--mathai-font-size-body);
+      font-weight: 700;
+      color: var(--mathai-primary);
+      margin: 0 auto 10px;
+    }
+    .tg-timer-wrap {
+      display: flex;
+      justify-content: center;
+      margin: 6px auto 10px;
+      min-height: 41px;
+    }
+    .tg-timer-wrap .mathai-timer-component {
+      width: 320px !important;
+      max-width: 100% !important;
+      height: 41px !important;
+    }
+    .tg-cell {
+      aspect-ratio: 1 / 1;
+      min-height: 50px;
+      min-width: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--mathai-cell-bg-mint);
+      border: 2px solid var(--mathai-border-gray);
+      border-radius: 10px;
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--mathai-primary);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+    }
+    .tg-cell.selected {
+      background: var(--mathai-cell-bg-blue);
+      border-color: var(--mathai-cell-border-blue);
+      color: var(--mathai-blue);
+    }
+    .tg-cell.correct-flash {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-green);
+    }
+    .tg-cell.wrong-flash {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-cell-border-red);
+      color: var(--mathai-red);
+      animation: shake 0.5s ease;
+    }
+    .tg-cell.disabled {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .tg-current {
+      text-align: center;
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-gray);
+      margin-bottom: 10px;
+      min-height: 24px;
+    }
+    .tg-current b {
+      color: var(--mathai-primary);
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .tg-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 6px;
+    }
+    .tg-check-btn {
+      min-height: 48px;
+      min-width: 160px;
+      padding: 10px 20px;
+      background: var(--mathai-cell-bg-yellow);
+      border: 2px dashed var(--mathai-yellow);
+      border-radius: 10px;
+      font-family: var(--mathai-font-family);
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--mathai-primary);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-appearance: none;
+      appearance: none;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .tg-check-btn:disabled,
+    .tg-check-btn.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .tg-check-btn[data-testid="btn-check"]:not(:disabled):hover { border-color: var(--mathai-orange); }
+
+    /* Answer carousel slide */
+    .tg-answer-card {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      padding: 12px;
+      text-align: center;
+    }
+    .tg-answer-clue {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      margin-bottom: 8px;
+    }
+    .tg-answer-number {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--mathai-green);
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+    .tg-answer-explanation {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary);
+      margin-top: 8px;
+    }
+
+    /* Touch targets */
+    button, .tg-cell, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    #app {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.35s ease; }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-lives="3"></div>
+
+  <script>
+    /* Stickers (canonical from feedbackmanager-api.md) */
+    var STICKER_CORRECT  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_TWO      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_ONE      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_RESTART  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+    var STICKER_CELEBRATE = STICKER_VICTORY;
+    var STICKER_SAD      = STICKER_WRONG;
+    var STICKER_MOTIVATE = STICKER_LEVEL;
+
+    /* fallbackContent — 3 sets x 4 rounds = 12 entries.
+       Each round: a digit grid (4x4 for rounds 1-2, 5x5 for rounds 3-4),
+       a clue, and a target number. The student taps adjacent cells
+       (left-to-right OR top-to-bottom only) to form the digit run that
+       equals the target. 39-second per-round countdown. */
+    var fallbackContent = {
+      previewInstruction: '<p><b>Treasure Grid!</b> Read each clue and find the answer hidden as a run of digits in the grid. Tap cells from <b>left to right</b> or <b>top to bottom</b> to form the number.</p><p>3 lives, 4 clues to solve, 39 seconds each.</p>',
+      previewAudioText: 'Each round shows a clue. Compute the number, then tap the digits in a row or column to spell it out. Three lives, four rounds, thirty-nine seconds each.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 4,
+      totalLives: 3,
+      answerComponent: true,
+      rounds: [
+        // ── Set A ── 4 rounds: r1-2 = 4×4, r3-4 = 5×5
+        { set:'A', id:'A_r1_half-100', round:1, stage:1, gridSize:4,
+          clue:'Half of 100', target:'50',
+          gridRows:['1628','9050','7256','2563'],
+          correctTTS:'Right! Half of 100 is 50, hidden in the second row.',
+          correctSubtitle:'Half of 100 is 50.',
+          wrongTTS:'Half of 100 is 50. Look for 5 next to 0.',
+          wrongSubtitle:'Half of 100 is 50.' },
+        { set:'A', id:'A_r2_twice-25', round:2, stage:1, gridSize:4,
+          clue:'Twice 25', target:'50',
+          gridRows:['3825','1507','2691','4853'],
+          correctTTS:'Right! Twice 25 is 50, hidden in the second row.',
+          correctSubtitle:'Twice 25 is 50.',
+          wrongTTS:'Twice 25 is 50. Find 5 then 0.',
+          wrongSubtitle:'Twice 25 is 50.' },
+        { set:'A', id:'A_r3_double-60', round:3, stage:2, gridSize:5,
+          clue:'Double of 60', target:'120',
+          gridRows:['12096','56347','78201','31984','67253'],
+          correctTTS:'Nice! Double of 60 is 120 — top row has 1, 2, 0.',
+          correctSubtitle:'Double of 60 is 120.',
+          wrongTTS:'Double of 60 is 120. Find 1, 2, 0 in a row.',
+          wrongSubtitle:'Double of 60 is 120.' },
+        { set:'A', id:'A_r4_100-more-150', round:4, stage:3, gridSize:5,
+          clue:'100 more than 150', target:'250',
+          gridRows:['82503','41365','95721','25036','17489'],
+          correctTTS:'Right! 100 more than 150 is 250 — top row.',
+          correctSubtitle:'150 + 100 = 250.',
+          wrongTTS:'150 plus 100 is 250. Find 2, 5, 0.',
+          wrongSubtitle:'150 + 100 = 250.' },
+
+        // ── Set B ── parallel 4 rounds
+        { set:'B', id:'B_r1_half-200', round:1, stage:1, gridSize:4,
+          clue:'Half of 200', target:'100',
+          gridRows:['1004','7385','2691','5847'],
+          correctTTS:'Right! Half of 200 is 100 — top row.',
+          correctSubtitle:'Half of 200 is 100.',
+          wrongTTS:'Half of 200 is 100. Find 1, 0, 0.',
+          wrongSubtitle:'Half of 200 is 100.' },
+        { set:'B', id:'B_r2_twice-15', round:2, stage:1, gridSize:4,
+          clue:'Twice 15', target:'30',
+          gridRows:['7263','5489','3014','9265'],
+          correctTTS:'Nice! Twice 15 is 30 — third row has 3, 0.',
+          correctSubtitle:'Twice 15 is 30.',
+          wrongTTS:'Twice 15 is 30. Find 3 then 0.',
+          wrongSubtitle:'Twice 15 is 30.' },
+        { set:'B', id:'B_r3_double-50', round:3, stage:2, gridSize:5,
+          clue:'Double of 50', target:'100',
+          gridRows:['75218','10037','86492','27358','41096'],
+          correctTTS:'Nice! Double of 50 is 100 — second row.',
+          correctSubtitle:'Double of 50 is 100.',
+          wrongTTS:'Double of 50 is 100. Find 1, 0, 0.',
+          wrongSubtitle:'Double of 50 is 100.' },
+        { set:'B', id:'B_r4_50-more-200', round:4, stage:3, gridSize:5,
+          clue:'50 more than 200', target:'250',
+          gridRows:['91836','76423','25037','59178','38462'],
+          correctTTS:'Right! 50 more than 200 is 250 — third row.',
+          correctSubtitle:'200 + 50 = 250.',
+          wrongTTS:'200 plus 50 is 250. Find 2, 5, 0.',
+          wrongSubtitle:'200 + 50 = 250.' },
+
+        // ── Set C ── parallel 4 rounds
+        { set:'C', id:'C_r1_half-60', round:1, stage:1, gridSize:4,
+          clue:'Half of 60', target:'30',
+          gridRows:['7521','3083','9264','4178'],
+          correctTTS:'Right! Half of 60 is 30 — second row has 3, 0.',
+          correctSubtitle:'Half of 60 is 30.',
+          wrongTTS:'Half of 60 is 30. Find 3 next to 0.',
+          wrongSubtitle:'Half of 60 is 30.' },
+        { set:'C', id:'C_r2_twice-20', round:2, stage:1, gridSize:4,
+          clue:'Twice 20', target:'40',
+          gridRows:['1672','9408','5314','7286'],
+          correctTTS:'Nice! Twice 20 is 40 — second row has 4 then 0.',
+          correctSubtitle:'Twice 20 is 40.',
+          wrongTTS:'Twice 20 is 40. Find 4 next to 0.',
+          wrongSubtitle:'Twice 20 is 40.' },
+        { set:'C', id:'C_r3_double-75', round:3, stage:2, gridSize:5,
+          clue:'Double of 75', target:'150',
+          gridRows:['15036','78461','29173','56384','41295'],
+          correctTTS:'Nice! Double of 75 is 150 — top row has 1, 5, 0.',
+          correctSubtitle:'Double of 75 is 150.',
+          wrongTTS:'Double of 75 is 150. Find 1, 5, 0.',
+          wrongSubtitle:'Double of 75 is 150.' },
+        { set:'C', id:'C_r4_25-pct-400', round:4, stage:3, gridSize:5,
+          clue:'A quarter of 400', target:'100',
+          gridRows:['10047','73826','56913','48275','21098'],
+          correctTTS:'Smart! A quarter of 400 is 100 — top row.',
+          correctSubtitle:'400 ÷ 4 = 100.',
+          wrongTTS:'A quarter of 400 is 100. Find 1, 0, 0.',
+          wrongSubtitle:'400 ÷ 4 = 100.' }
+      ]
+    };
+
+    /* gameState */
+    var SETS = ['A', 'B', 'C'];
+    var gameState = {
+      gameId: 'tap-adjacent-digits-form-number-with-save',
+      gameTitle: 'Treasure Grid',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 4,
+      score: 0,
+      lives: 3,
+      totalLives: 3,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      duration_data: { startTime: null, endTime: null, preview: [] },
+      correctAnswer: null,
+      stars: 0,
+      setIndex: 0,
+      activeRounds: [],
+      roundStartMs: 0,
+      previewResult: null,
+      progress: 0,
+      roundToken: 0,
+      currentSelection: []   // array of {row, col, digit}
+    };
+    window.gameState = gameState;
+
+    var timer = null;
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+
+    /* Helpers */
+    function getAvailableSets(rounds) {
+      var seen = {}; var out = [];
+      for (var i = 0; i < rounds.length; i++) {
+        var s = rounds[i].set;
+        if (s && !seen[s]) { seen[s] = true; out.push(s); }
+      }
+      return out.length ? out : ['A'];
+    }
+    function getRounds() {
+      var src = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(src);
+      var setKey = sets[gameState.setIndex % sets.length];
+      var filtered = [];
+      for (var i = 0; i < src.length; i++) {
+        if (src[i].set === setKey) filtered.push(src[i]);
+      }
+      filtered.sort(function (a, b) { return a.round - b.round; });
+      return filtered;
+    }
+    function getCorrectCount() {
+      var c = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        if (gameState.attempts[i].correct === true) c++;
+      }
+      return c;
+    }
+    function getStars() {
+      var n = getCorrectCount();
+      var t = gameState.totalRounds || 4;
+      if (n >= Math.ceil(t * 0.9)) return 3;
+      if (n >= Math.ceil(t * 0.6)) return 2;
+      if (n >= 1) return 1;
+      return 0;
+    }
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+    }
+    function trackEvent(name, payload) {
+      try { gameState.events.push({ event: name, ts: Date.now(), data: payload || {} }); } catch (e) {}
+      try {
+        if (signalCollector && signalCollector.recordEvent) {
+          signalCollector.recordEvent(name, payload || {});
+        }
+      } catch (e) {}
+    }
+    function recordAttempt(input, correct, misconceptionTag, responseMs) {
+      var round = gameState.activeRounds[gameState.currentRound];
+      var qid = round ? round.id : ('r' + (gameState.currentRound + 1));
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) : 0,
+        input_of_user: input,
+        correct: correct === true,
+        round_number: gameState.currentRound + 1,
+        question_id: qid,
+        correct_answer: round ? round.target : null,
+        response_time_ms: typeof responseMs === 'number' ? responseMs : 0,
+        misconception_tag: misconceptionTag || null,
+        difficulty_level: round ? (round.stage || 1) : 1,
+        is_retry: false,
+        metadata: { set: round ? round.set : null }
+      };
+      gameState.attempts.push(attempt);
+      try {
+        if (signalCollector && signalCollector.recordAttempt) signalCollector.recordAttempt(attempt);
+      } catch (e) {}
+    }
+    function postGameComplete() {
+      if (gameState._gameCompletePosted) return;
+      gameState._gameCompletePosted = true;
+      var correctCount = getCorrectCount();
+      var attempted = gameState.attempts.length;
+      var accuracy = attempted === 0 ? 0 : Math.round((correctCount / attempted) * 100);
+      var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+      var triesByRound = gameState.attempts.map(function (a) {
+        return { round: a.round_number, correct: a.correct === true };
+      });
+      var metrics = {
+        accuracy: accuracy,
+        time: Math.round(elapsedMs / 1000),
+        stars: gameState.stars,
+        attempts: gameState.attempts.slice(),
+        duration_data: gameState.duration_data,
+        totalLives: gameState.lives,
+        tries: triesByRound,
+        score: gameState.score,
+        correctCount: correctCount,
+        previewResult: gameState.previewResult
+      };
+      var signalSealed = { event_count: gameState.events.length, metadata: {} };
+      try {
+        if (signalCollector && typeof signalCollector.seal === 'function') {
+          var sealed = signalCollector.seal();
+          if (sealed) {
+            if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+            if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+          }
+        }
+      } catch (e0) {}
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: Date.now(),
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) {}
+    }
+
+    function safePlaySound(id, opts) {
+      try { return FeedbackManager.sound.play(id, opts || {}); }
+      catch (e) { return Promise.resolve(); }
+    }
+    function awaitedFeedbackSound(id, opts) {
+      var p = safePlaySound(id, opts || {});
+      var floor = new Promise(function (r) { setTimeout(r, 1500); });
+      return Promise.all([p, floor]).then(function () {}, function () {});
+    }
+    function playDynamicFeedback(opts) {
+      try { return FeedbackManager.playDynamicFeedback(opts || {}); }
+      catch (e) { return Promise.resolve(); }
+    }
+
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined' &&
+            typeof TimerComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            try { throw new Error('waitForPackages timeout'); } catch (rethrown) { reject(err); return; }
+            return reject(err);
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    /* Round rendering */
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div class="tg-progress-line" id="tgProgress"></div>' +
+        '<div id="timer-container" class="tg-timer-wrap"></div>' +
+        '<div class="tg-clue-card" id="tgClueCard">' +
+          '<div class="tg-clue-label">Clue</div>' +
+          '<div id="tgClue">—</div>' +
+        '</div>' +
+        '<div class="tg-treasure-found" id="tgTreasureFound">Treasures found 0/' + (gameState.totalRounds || 4) + '</div>' +
+        '<div class="tg-current" id="tgCurrent">Selected: <b id="tgCurrentNum">—</b></div>' +
+        '<div class="tg-grid" id="tgGrid"></div>';
+    }
+
+    function renderInitialState() {
+      var grid = document.getElementById('tgGrid');
+      var clue = document.getElementById('tgClue');
+      var prog = document.getElementById('tgProgress');
+      var num = document.getElementById('tgCurrentNum');
+      if (grid) grid.innerHTML = '';
+      if (clue) clue.textContent = '—';
+      if (prog) prog.textContent = '';
+      if (num) num.textContent = '—';
+    }
+
+    function renderRound(roundIdxOneBased) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      gameState.currentRound = roundIdxOneBased - 1;
+      gameState.isActive = true;
+      gameState.phase = 'gameplay';
+      gameState.roundToken = (gameState.roundToken || 0) + 1;
+      gameState.currentSelection = [];
+      syncDOM();
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) return;
+      gameState.correctAnswer = round.target;
+
+      var prog = document.getElementById('tgProgress');
+      if (prog) prog.textContent = 'Clue ' + roundIdxOneBased + ' of ' + gameState.totalRounds;
+      var clue = document.getElementById('tgClue');
+      if (clue) {
+        clue.textContent = round.clue;
+        clue.classList.remove('fade-in');
+        void clue.offsetWidth;
+        clue.classList.add('fade-in');
+      }
+      var num = document.getElementById('tgCurrentNum');
+      if (num) num.textContent = '—';
+
+      var grid = document.getElementById('tgGrid');
+      var gridSize = round.gridSize || 4;
+      if (grid) {
+        grid.classList.remove('tg-grid-5');
+        if (gridSize === 5) grid.classList.add('tg-grid-5');
+        grid.innerHTML = '';
+        var defaultRow = '';
+        for (var z = 0; z < gridSize; z++) defaultRow += '0';
+        for (var r = 0; r < gridSize; r++) {
+          var row = round.gridRows[r] || defaultRow;
+          for (var c = 0; c < gridSize; c++) {
+            var d = row.charAt(c) || '0';
+            var cell = document.createElement('div');
+            cell.className = 'tg-cell';
+            cell.setAttribute('role', 'button');
+            cell.setAttribute('tabindex', '0');
+            cell.setAttribute('data-row', String(r));
+            cell.setAttribute('data-col', String(c));
+            cell.setAttribute('data-digit', d);
+            cell.setAttribute('data-round-token', String(gameState.roundToken));
+            cell.setAttribute('data-testid', 'cell-' + r + '-' + c);
+            cell.id = 'tg-cell-' + r + '-' + c;
+            cell.textContent = d;
+            cell.addEventListener('click', onCellTap);
+            grid.appendChild(cell);
+          }
+        }
+      }
+      var tFound = document.getElementById('tgTreasureFound');
+      if (tFound) tFound.textContent = 'Treasures found ' + gameState.score + '/' + gameState.totalRounds;
+      // Start per-round 39s countdown timer
+      try {
+        if (timer && timer.reset) timer.reset();
+        if (timer && timer.start) timer.start();
+      } catch (e) {}
+      try {
+        if (floatingBtn) {
+          floatingBtn.setMode('submit');
+          floatingBtn.setSubmittable(false);
+        }
+      } catch (e) {}
+
+      gameState.roundStartMs = Date.now();
+      gameState.isProcessing = false;
+
+      try {
+        var p = safePlaySound('tap_sound', { sticker: null });
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+
+      trackEvent('round_start', { round: roundIdxOneBased, set: round.set });
+    }
+
+    /* Selection logic — accepts a horizontal run (same row, contiguous cols) or
+       a vertical run (same col, contiguous rows). The student can grow the run
+       at either end OR shrink by tapping the most recent endpoint. */
+    function onCellTap(ev) {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var cell = ev.currentTarget;
+      var btnRoundToken = cell.getAttribute('data-round-token');
+      if (btnRoundToken !== String(gameState.roundToken || '')) return;
+      if (cell.classList.contains('disabled')) return;
+
+      var r = parseInt(cell.getAttribute('data-row'), 10);
+      var c = parseInt(cell.getAttribute('data-col'), 10);
+      var d = cell.getAttribute('data-digit');
+      var sel = gameState.currentSelection;
+
+      // Toggle off (only if it's an endpoint of the run)
+      var idx = -1;
+      for (var i = 0; i < sel.length; i++) {
+        if (sel[i].row === r && sel[i].col === c) { idx = i; break; }
+      }
+      if (idx >= 0) {
+        if (idx === 0 || idx === sel.length - 1) {
+          sel.splice(idx, 1);
+          updateSelectionPaint();
+          try {
+            var p = safePlaySound('sound_bubble_deselect', { sticker: null });
+            if (p && p.catch) p.catch(function () {});
+          } catch (e) {}
+        }
+        return;
+      }
+
+      // Empty selection — start fresh
+      if (sel.length === 0) {
+        sel.push({ row: r, col: c, digit: d });
+        updateSelectionPaint();
+        playSelectSfx();
+        return;
+      }
+
+      // First tap establishes the orientation pivot. Determine orientation from
+      // the existing run: 1+ cells with same row → horizontal candidate; same
+      // col → vertical candidate. Single cell can grow either way.
+      var head = sel[0];
+      var tail = sel[sel.length - 1];
+      var orientation;
+      if (sel.length === 1) {
+        if (r === head.row && Math.abs(c - head.col) === 1) orientation = 'h';
+        else if (c === head.col && Math.abs(r - head.row) === 1) orientation = 'v';
+        else return; // not adjacent
+      } else if (head.row === tail.row) {
+        orientation = 'h';
+      } else if (head.col === tail.col) {
+        orientation = 'v';
+      } else {
+        return;
+      }
+
+      if (orientation === 'h') {
+        if (r !== head.row) return;
+        if (c === head.col - 1) { sel.unshift({ row: r, col: c, digit: d }); }
+        else if (c === tail.col + 1) { sel.push({ row: r, col: c, digit: d }); }
+        else return;
+      } else {
+        if (c !== head.col) return;
+        if (r === head.row - 1) { sel.unshift({ row: r, col: c, digit: d }); }
+        else if (r === tail.row + 1) { sel.push({ row: r, col: c, digit: d }); }
+        else return;
+      }
+
+      updateSelectionPaint();
+      playSelectSfx();
+    }
+    function playSelectSfx() {
+      try {
+        var p = safePlaySound('sound_bubble_select', { sticker: null });
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+    }
+    function updateSelectionPaint() {
+      var sel = gameState.currentSelection;
+      var cells = document.querySelectorAll('#tgGrid .tg-cell');
+      for (var i = 0; i < cells.length; i++) {
+        cells[i].classList.remove('selected');
+      }
+      var formed = '';
+      for (var k = 0; k < sel.length; k++) {
+        var s = sel[k];
+        var el = document.getElementById('tg-cell-' + s.row + '-' + s.col);
+        if (el) el.classList.add('selected');
+        formed += s.digit;
+      }
+      var num = document.getElementById('tgCurrentNum');
+      if (num) num.textContent = formed.length ? formed : '—';
+      try {
+        if (floatingBtn && floatingBtn.setSubmittable) {
+          floatingBtn.setSubmittable(formed.length > 0);
+        }
+      } catch (e) {}
+    }
+
+    /* Submit handler — wired to FloatingButton 'submit' event */
+    function onSubmitTap() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var sel = gameState.currentSelection;
+      if (sel.length === 0) return;
+      var formed = '';
+      for (var i = 0; i < sel.length; i++) formed += sel[i].digit;
+      handleAnswer(formed);
+    }
+
+    function handleAnswer(formed) {
+      gameState.isProcessing = true;
+      var responseMs = Date.now() - gameState.roundStartMs;
+      var round = gameState.activeRounds[gameState.currentRound];
+      var isCorrect = formed === String(round.target);
+
+      // Disable everything during feedback
+      var cells = document.querySelectorAll('#tgGrid .tg-cell');
+      for (var i = 0; i < cells.length; i++) cells[i].classList.add('disabled');
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+
+      var sel = gameState.currentSelection;
+      if (isCorrect) {
+        for (var k = 0; k < sel.length; k++) {
+          var el = document.getElementById('tg-cell-' + sel[k].row + '-' + sel[k].col);
+          if (el) el.classList.add('correct-flash');
+        }
+        gameState.score += 1;
+        gameState.progress = gameState.currentRound + 1;
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+        syncDOM();
+        recordAttempt(formed, true, null, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: true, formed: formed });
+        runCorrectFeedbackAndAdvance(round);
+      } else {
+        for (var m = 0; m < sel.length; m++) {
+          var el2 = document.getElementById('tg-cell-' + sel[m].row + '-' + sel[m].col);
+          if (el2) el2.classList.add('wrong-flash');
+        }
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        gameState.progress = gameState.currentRound + 1;
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+        syncDOM();
+        recordAttempt(formed, false, null, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: false, formed: formed });
+        runWrongFeedbackAndAdvance(round);
+      }
+    }
+
+    function onTimerTimeout() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      gameState.isProcessing = true;
+      try { if (timer && timer.pause) timer.pause(); } catch (e) {}
+      var round = gameState.activeRounds[gameState.currentRound];
+      var responseMs = Date.now() - gameState.roundStartMs;
+      var cells = document.querySelectorAll('#tgGrid .tg-cell');
+      for (var i = 0; i < cells.length; i++) cells[i].classList.add('disabled');
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+      gameState.lives = Math.max(0, gameState.lives - 1);
+      gameState.progress = gameState.currentRound + 1;
+      try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+      syncDOM();
+      recordAttempt('(timeout)', false, 'timeout', responseMs);
+      trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: false, timeout: true });
+      runWrongFeedbackAndAdvance(round);
+    }
+
+    function runCorrectFeedbackAndAdvance(round) {
+      try { if (timer && timer.pause) timer.pause(); } catch (e) {}
+      (async function () {
+        try { await awaitedFeedbackSound('correct_sound_effect', { sticker: STICKER_CORRECT }); } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.correctTTS,
+            subtitle: round.correctSubtitle,
+            sticker: STICKER_CORRECT
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function runWrongFeedbackAndAdvance(round) {
+      try { if (timer && timer.pause) timer.pause(); } catch (e) {}
+      (async function () {
+        try { await awaitedFeedbackSound('incorrect_sound_effect', { sticker: STICKER_SAD }); } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.wrongTTS,
+            subtitle: round.wrongSubtitle,
+            sticker: STICKER_SAD
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function advanceAfterFeedback() {
+      var roundJustPlayed = gameState.currentRound + 1;
+      if (gameState.lives === 0) {
+        gameState.stars = getStars();
+        postGameComplete();
+        endGame(false);
+        return;
+      }
+      if (roundJustPlayed === gameState.totalRounds) {
+        endGame(true);
+        return;
+      }
+      showRoundIntro(roundJustPlayed + 1);
+    }
+
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      var ttsText = 'Round ' + n;
+      await transitionScreen.show({
+        title: 'Round ' + n,
+        icons: [],
+        persist: true,
+        buttons: [],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_ROUND
+              });
+            } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          })();
+        }
+      });
+      setTimeout(function () {
+        try {
+          if (gameState.gameEnded) return;
+          if (gameState.currentRound + 1 < n) {
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          }
+        } catch (e) {}
+      }, 9000);
+    }
+
+    function endGame(victory) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.stars = getStars();
+      if (victory) {
+        gameState.phase = 'results';
+        syncDOM();
+        postGameComplete();
+        showVictory();
+      } else {
+        gameState.phase = 'game_over';
+        syncDOM();
+        postGameComplete();
+        showGameOver();
+      }
+      trackEvent('game_end', { victory: victory, stars: gameState.stars, score: gameState.score });
+    }
+    function _victoryClaimAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showStarsCollected();
+    }
+    function _victoryPlayAgainAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showMotivation();
+    }
+    async function showVictory() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var stars = gameState.stars;
+      var subtitle = 'You found ' + gameState.score + ' of ' + gameState.totalRounds + ' treasures!';
+      var ttsText = stars === 3
+        ? 'Brilliant! You found all the treasures!'
+        : 'Great work! You found ' + gameState.score + ' out of ' + gameState.totalRounds + '.';
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var sfxSticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_TWO : STICKER_ONE);
+      await transitionScreen.show({
+        title: 'Victory',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars === 3
+          ? [{ text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }]
+          : [
+              { text: 'Play Again', type: 'secondary', action: _victoryPlayAgainAction },
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound(sfxId, { sticker: sfxSticker }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_CELEBRATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+    async function showGameOver() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var subtitle = 'You found ' + gameState.score + '/' + gameState.totalRounds + ' — try again.';
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: subtitle,
+        icons: [],
+        persist: true,
+        buttons: [{
+          text: 'Try Again',
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showMotivation();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_GAMEOVER }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: subtitle,
+                subtitle: subtitle,
+                sticker: STICKER_GAMEOVER
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+    async function showMotivation() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = 'Ready to improve your score?';
+      await transitionScreen.show({
+        title: 'Ready to improve your score?',
+        icons: [],
+        persist: true,
+        buttons: [{
+          text: "I'm ready",
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            restartGame();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_MOTIVATE }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_MOTIVATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+    async function showStarsCollected() {
+      gameState.phase = 'stars_collected';
+      syncDOM();
+      await transitionScreen.show({
+        title: "Yay!\nStars collected!",
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY }); } catch (e) {}
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: {
+                  count: gameState.stars,
+                  variant: 'yellow',
+                  score: gameState.score + '/' + gameState.totalRounds
+                }
+              }, '*');
+            } catch (e) {}
+            setTimeout(showAnswerCarousel, 1500);
+          })();
+        }
+      });
+    }
+
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    function renderAnswerSlide(container, round) {
+      if (!container || !round) return;
+      var html = '';
+      html += '<div class="tg-answer-card">';
+      html += '<div class="tg-answer-clue">' + escapeHTML(round.clue) + '</div>';
+      html += '<div class="tg-answer-number">' + escapeHTML(String(round.target)) + '</div>';
+      html += '<div class="tg-answer-explanation">' + escapeHTML(round.correctSubtitle || '') + '</div>';
+      html += '</div>';
+      container.innerHTML = html;
+    }
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds;
+      var slides = [];
+      for (var i = 0; i < rounds.length; i++) {
+        (function (r) {
+          slides.push({ render: function (container) { renderAnswerSlide(container, r); } });
+        })(rounds[i]);
+      }
+      return slides;
+    }
+    function showAnswerCarousel() {
+      try { answerComponent.show({ slides: buildAnswerSlidesForAllRounds() }); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+      try {
+        setTimeout(function () {
+          var slot = document.getElementById('mathai-answer-slot');
+          if (slot && slot.scrollIntoView) slot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+      } catch (e) {}
+    }
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.content = content;
+      gameState.totalRounds = content.totalRounds || 4;
+      gameState.totalLives = content.totalLives || 3;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+      injectGameHTML();
+      renderInitialState();
+      try {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          onComplete: function (previewData) { startGameAfterPreview(previewData); }
+        });
+      } catch (e) {
+        console.error('[previewScreen.show failed]', e && e.message, e);
+      }
+    }
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || {};
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: (previewData && previewData.duration) || 0 });
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try {
+        if (progressBar) {
+          progressBar.show();
+          progressBar.update(0, gameState.totalLives);
+        }
+      } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex] });
+      try {
+        if (signalCollector && signalCollector.recordViewEvent) {
+          signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+        }
+      } catch (e) {}
+      showWelcome();
+    }
+    async function showWelcome() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = "Find each treasure! Tap a row or column of digits to spell it out.";
+      await transitionScreen.show({
+        title: 'Welcome!',
+        icons: [],
+        persist: true,
+        buttons: [{
+          text: "Let's go!",
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showRoundIntro(1);
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_LEVEL
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    function resetGameState() {
+      gameState.phase = 'gameplay';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState._gameCompletePosted = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.progress = 0;
+      gameState.duration_data = { startTime: null, endTime: null, preview: gameState.duration_data.preview || [] };
+      gameState.activeRounds = getRounds();
+      gameState.currentSelection = [];
+      try {
+        if (answerComponent && answerComponent.update) answerComponent.update({ slides: [] });
+        if (answerComponent && answerComponent.hide) answerComponent.hide();
+      } catch (e) {}
+    }
+    function restartGame() {
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex], restart: true });
+      showRoundIntro(1);
+    }
+
+    function handlePostMessage(event) {
+      if (!event || !event.data || !event.data.type) return;
+      var t = event.data.type;
+      var data = event.data.data || {};
+      if (t === 'game_init') {
+        gameState.phase = 'playing';
+        if (data.content) gameState.content = data.content;
+        gameState.signalConfig = data.signalConfig || {};
+        if (data.signalConfig && signalCollector && signalCollector.applyConfig) {
+          try { signalCollector.applyConfig(data.signalConfig); } catch (e) {}
+        }
+        try {
+          if (signalCollector) {
+            signalCollector.gameId = gameState.gameId;
+            if (data.sessionId) signalCollector.sessionId = data.sessionId;
+            if (data.studentId) signalCollector.studentId = data.studentId;
+            if (data.contentSetId) signalCollector.contentSetId = data.contentSetId;
+            if (data.signalConfig && data.signalConfig.flushUrl) signalCollector.flushUrl = data.signalConfig.flushUrl;
+            if (data.signalConfig && data.signalConfig.playId) signalCollector.playId = data.signalConfig.playId;
+            if (signalCollector.startFlushing) {
+              try { signalCollector.startFlushing(); } catch (e) {}
+            }
+          }
+        } catch (e) {}
+        syncDOM();
+        setupGame();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      waitForPackages().then(function () {
+        try {
+          var initP = FeedbackManager.init && FeedbackManager.init();
+          var doInit = initP && initP.then ? initP : Promise.resolve();
+          doInit.then(function () {
+            try {
+              try {
+                signalCollector = new SignalCollector({
+                  sessionId: 'tap-adjacent-' + Date.now(),
+                  studentId: 'standalone',
+                  gameId: gameState.gameId,
+                  contentSetId: 'fallback'
+                });
+                window.signalCollector = signalCollector;
+              } catch (e) {
+                console.error('[SignalCollector ctor failed]', e && e.message, e);
+              }
+              try {
+                ScreenLayout.inject('app', {
+                  slots: {
+                    previewScreen: true,
+                    progressBar: true,
+                    transitionScreen: true,
+                    floatingButton: true,
+                    answerComponent: true,
+                    timer: true
+                  }
+                });
+              } catch (e) {
+                console.error('[ScreenLayout.inject failed]', e && e.message, e);
+              }
+              injectGameHTML();
+              renderInitialState();
+              try {
+                visibilityTracker = new VisibilityTracker({
+                  popupProps: { title: 'Paused', description: 'Tap Resume to continue.', primaryText: 'Resume' },
+                  onInactive: function () {
+                    try { FeedbackManager.sound.pause(); } catch (e) {}
+                    try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+                  },
+                  onResume: function () {
+                    try { FeedbackManager.sound.resume(); } catch (e) {}
+                    try { FeedbackManager.stream.resumeAll(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+                  }
+                });
+              } catch (e) {
+                console.error('[VisibilityTracker ctor failed]', e && e.message, e);
+              }
+              try {
+                progressBar = new ProgressBarComponent({
+                  slotId: 'mathai-progress-slot',
+                  totalRounds: gameState.totalRounds,
+                  totalLives: gameState.totalLives
+                });
+              } catch (e) {
+                console.error('[ProgressBarComponent ctor failed]', e && e.message, e);
+              }
+              try {
+                transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' });
+              } catch (e) {
+                console.error('[TransitionScreenComponent ctor failed]', e && e.message, e);
+              }
+              try {
+                previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+              } catch (e) {
+                console.error('[PreviewScreenComponent ctor failed]', e && e.message, e);
+              }
+              try {
+                floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+              } catch (e) {
+                console.error('[FloatingButtonComponent ctor failed]', e && e.message, e);
+              }
+              try {
+                answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' });
+              } catch (e) {
+                console.error('[AnswerComponentComponent ctor failed]', e && e.message, e);
+              }
+              try {
+                timer = new TimerComponent('timer-container', {
+                  initialTime: 39,
+                  countdown: true,
+                  autoStart: false,
+                  onTimeout: function () {
+                    try { onTimerTimeout(); } catch (e) {}
+                  }
+                });
+              } catch (e) {
+                console.error('[TimerComponent ctor failed]', e && e.message, e);
+              }
+              try {
+                if (floatingBtn && floatingBtn.on) {
+                  floatingBtn.on('submit', onSubmitTap);
+                  floatingBtn.on('next', function () {
+                    try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                    try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+                    try { if (floatingBtn) floatingBtn.destroy(); } catch (e) {}
+                  });
+                }
+                if (floatingBtn && floatingBtn.setSubmittable) {
+                  floatingBtn.setSubmittable(false);
+                }
+              } catch (e) {}
+              try {
+                FeedbackManager.sound.preload([
+                  { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+                  { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+                  { id: 'sound_level_transition',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+                  { id: 'victory_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+                  { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+                  { id: 'game_over_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+                  { id: 'tap_sound',                url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+                  { id: 'sound_bubble_select',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+                  { id: 'sound_bubble_deselect',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' }
+                ]);
+              } catch (e) {
+                console.error('[FeedbackManager.preload failed]', e && e.message, e);
+              }
+              window.addEventListener('message', handlePostMessage);
+              try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+              setupGame();
+            } catch (e) {
+              console.error('[init inner] ' + (e && e.message), e);
+            }
+          }, function (e) {
+            console.error('[FeedbackManager.init failed]', e && e.message, e);
+          });
+        } catch (e) {
+          console.error('[init outer] ' + (e && e.message), e);
+        }
+      }, function (err) {
+        console.error('[waitForPackages rejected] ' + (err && err.message));
+      });
+
+      setTimeout(function () {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+        var missing = [];
+        if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+        if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+        if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+        if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+        if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+        if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+        if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+        if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+        if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+        if (missing.length > 0) {
+          var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+          console.error('[' + msg + ']');
+          var gc = document.getElementById('gameContent') || document.getElementById('app') || document.body;
+          if (gc) {
+            gc.innerHTML =
+              '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">' +
+              'Game failed to load — please refresh.' +
+              '</div>';
+          }
+        }
+      }, 2000);
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = setupGame;
+      window.renderRound = renderRound;
+      window.loadRound = function (n) { try { renderRound(n); } catch (e) {} };
+      window.debugGame = function () { return gameState; };
+    });
+  </script>
+</body>
+</html>

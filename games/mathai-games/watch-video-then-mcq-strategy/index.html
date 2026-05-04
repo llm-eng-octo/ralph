@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Whose Strategy? — The Estimation Decision Game</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-primary: #270f36;
+      --mathai-purple: #9B51E0;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-blue: #E5EBFF;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-cell-border-blue: #5a73e8;
+      --mathai-success: #27ae60;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-border-radius-card: 14px;
+      --mathai-border-radius-button: 999px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+    @supports not (height: 100dvh) {
+      html, body { height: 100vh; }
+    }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    #gameContent {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      padding: 8px 16px 24px;
+    }
+
+    .ws-stage {
+      text-align: center;
+      font-size: 14px;
+      color: var(--mathai-gray);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin: 6px 0 4px;
+    }
+    .ws-question {
+      text-align: center;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--mathai-primary);
+      margin: 6px auto 12px;
+      max-width: 380px;
+      animation: fadeIn 0.32s ease;
+    }
+    .ws-jars {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      margin: 0 auto 10px;
+      max-width: 280px;
+      gap: 0;
+    }
+    .ws-jar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0 8px;
+    }
+    .ws-jar {
+      font-size: 64px;
+      line-height: 1;
+    }
+    .ws-jar-label {
+      margin-top: 4px;
+      font-size: 13px;
+      color: var(--mathai-gray);
+      font-weight: 600;
+    }
+
+    .ws-video-card {
+      width: 100%;
+      max-width: 380px;
+      margin: 8px auto 14px;
+      background: var(--mathai-light-gray);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 14px 12px 10px;
+      text-align: center;
+    }
+    .ws-video-screen {
+      background: var(--mathai-primary);
+      border-radius: 8px;
+      color: var(--mathai-yellow);
+      padding: 22px 12px;
+      font-size: 14px;
+      line-height: 1.45;
+      text-align: left;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .ws-video-screen b { color: var(--mathai-white); }
+    .ws-video-controls {
+      margin-top: 8px;
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      align-items: center;
+      font-size: 13px;
+      color: var(--mathai-gray);
+    }
+
+    .ws-options {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      width: 100%;
+      max-width: 360px;
+      margin: 6px auto 16px;
+    }
+    .ws-option-btn {
+      display: block;
+      width: 100%;
+      min-height: 56px;
+      margin-top: 10px;
+      padding: 12px 16px;
+      border: 2px solid var(--mathai-border-gray);
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      font-family: var(--mathai-font-family);
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: var(--mathai-border-radius-button);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+      text-align: left;
+    }
+    .ws-option-btn:first-child { margin-top: 0; }
+    .ws-option-btn:active:not(.disabled):not(:disabled) {
+      transform: scale(0.99);
+    }
+    .ws-option-btn.selected {
+      background: var(--mathai-cell-bg-blue);
+      border-color: var(--mathai-cell-border-blue);
+      color: var(--mathai-primary);
+    }
+    .ws-option-btn.dimmed {
+      opacity: 0.5;
+    }
+    .ws-option-btn.selected-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-success);
+    }
+    .ws-option-btn.selected-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-cell-border-red);
+      color: var(--mathai-error);
+    }
+    .ws-option-btn.disabled,
+    .ws-option-btn:disabled {
+      pointer-events: none;
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .ws-option-name {
+      font-size: 16px;
+      font-weight: 800;
+      display: block;
+    }
+    .ws-option-tag {
+      font-size: 13px;
+      color: var(--mathai-gray);
+      font-weight: 600;
+      display: block;
+      margin-top: 2px;
+    }
+
+    .ws-reveal {
+      width: 100%;
+      max-width: 380px;
+      margin: 8px auto 12px;
+      background: var(--mathai-cell-bg-yellow);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 12px 14px;
+      font-size: 14px;
+      color: var(--mathai-primary);
+      min-height: 18px;
+    }
+    .ws-reveal.hidden { display: none; }
+    .ws-reveal b { color: var(--mathai-purple); }
+
+    button, .ws-option-btn, [role="button"] {
+      min-height: 44px;
+      touch-action: manipulation;
+    }
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: 18px;
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .ws-answer-card {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      padding: 12px;
+      text-align: center;
+    }
+    .ws-answer-prompt { font-size: 16px; font-weight: 700; color: var(--mathai-primary); margin-bottom: 8px; }
+    .ws-answer-explain { font-size: 14px; color: var(--mathai-text-primary); font-weight: 600; margin-top: 8px; }
+    .ws-answer-strat {
+      background: var(--mathai-light-gray);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      font-size: 14px;
+      text-align: left;
+    }
+    .ws-answer-strat.better {
+      background: var(--mathai-cell-bg-green);
+      border: 2px solid var(--mathai-cell-border-green);
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-lives="1"></div>
+
+  <script>
+    var STICKER_CORRECT  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_TWO      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_ONE      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_CELEBRATE = STICKER_VICTORY;
+    var STICKER_SAD = STICKER_WRONG;
+    var STICKER_MOTIVATE = STICKER_LEVEL;
+
+    /* Each round gives a scenario with two strategies; the "better" strategy lands closer to the truth.
+       Choosing either is never punished — but choosing the better strategy increments score. */
+    function makeStratRound(setKey, roundNum, stage, scene, jars, raviStrat, samStrat, raviEst, samEst, truth, betterIdx, takeaway, id) {
+      return {
+        set: setKey,
+        id: setKey + '_r' + roundNum + '_' + id,
+        round: roundNum,
+        stage: stage,
+        scene: scene,
+        jars: jars,
+        videoText: 'Ravi: <b>' + raviStrat + '</b> Estimate: <b>' + raviEst + '</b>. Sam: <b>' + samStrat + '</b> Estimate: <b>' + samEst + '</b>.',
+        options: [
+          { name: "Ravi's strategy", tag: raviStrat, estimate: raviEst },
+          { name: "Sam's strategy",  tag: samStrat,  estimate: samEst }
+        ],
+        truth: truth,
+        betterIdx: betterIdx,
+        takeaway: takeaway,
+        correctTTS: 'Nice — that strategy landed closer to the actual answer.',
+        correctSubtitle: 'That strategy was closer.',
+        wrongTTS: takeaway,
+        wrongSubtitle: takeaway,
+        answer: { strategies: [raviStrat, samStrat], estimates: [raviEst, samEst], truth: truth, betterIdx: betterIdx, takeaway: takeaway }
+      };
+    }
+
+    var fallbackContent = {
+      previewInstruction: '<p><b>Whose Strategy?</b> Look at the scene, listen to Ravi and Sam explain how they would estimate, then pick the strategy you trust more before the answer is revealed.</p>',
+      previewAudioText: 'Look at the scene, hear how Ravi and Sam would estimate, then commit to the strategy you trust more.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 10,
+      totalLives: 1,
+      answerComponent: true,
+      rounds: [
+        // Set A — volume, length, then weight/crowd
+        makeStratRound('A', 1, 1, 'Two glass jars on a kitchen counter.', '🫙 🫙',
+          'Compare each jar to one glass (200 ml each), count glasses.',
+          'Bracket: total is between 1 and 2 litres, start at 1.5 and adjust.',
+          '1.8 L', '1.6 L', '1.7 L', 0,
+          'Unit-comparison worked because each jar matched a standard glass.', 'jars-2'),
+        makeStratRound('A', 2, 1, 'Two water bottles, one taller.', '🧴 🧴',
+          'Each bottle ≈ 500 ml × 2 bottles = 1 L total.',
+          'Both look like roughly half a litre, total around 1 L.',
+          '1.0 L', '1.0 L', '1.05 L', 0,
+          'Both strategies landed close — unit-counting was tighter.', 'bottles-2'),
+        makeStratRound('A', 3, 1, 'A jug and a bowl on the table.', '🫗 🍲',
+          'Jug = 1 mug, bowl = half a mug, total 1.5 mugs × 250 ml.',
+          'Both together feel like 1 small bottle, ~500 ml.',
+          '375 ml', '500 ml', '400 ml', 0,
+          'Unit-counting against a known mug nailed it.', 'jug-bowl'),
+        makeStratRound('A', 4, 2, 'Two pencils on a page, one shorter.', '✏️ ✏️',
+          'Each pencil = 7 fingers, total 14 fingers × 1 cm.',
+          'They look between 10 cm and 18 cm together.',
+          '14 cm', '14 cm', '15 cm', 0,
+          'Finger-units kept it simple and accurate.', 'pencils'),
+        makeStratRound('A', 5, 2, 'Two ribbons hanging from a pin board.', '🎀 🎀',
+          'Count knots: 6 knots × 5 cm = 30 cm.',
+          'Bracket: clearly between 20 and 40 cm.',
+          '30 cm', '30 cm', '32 cm', 0,
+          'Counting knots was a perfect unit choice.', 'ribbons'),
+        makeStratRound('A', 6, 2, 'Two photo frames hanging.', '🖼️ 🖼️',
+          'Count tiles: 3 tiles wide × 2 tiles tall × 2 frames.',
+          'They look like roughly 2 sheets of A4.',
+          '12 tiles', '2 sheets', '12 tiles', 0,
+          'Tile-grid units beat a vague sheet comparison.', 'frames'),
+        makeStratRound('A', 7, 3, 'A jar of marbles.', '🫙',
+          'Sample 1 cup, count 30 marbles, jar is ~5 cups.',
+          'Bracket: more than 100, less than 200.',
+          '150', '150', '155', 0,
+          'Sampling-and-multiplying was the sharper move.', 'marbles'),
+        makeStratRound('A', 8, 3, 'A bag of grains.', '🛍️',
+          'Weigh 1 cup, multiply by number of cups.',
+          'Bracket: between 500 g and 1 kg.',
+          '750 g', '750 g', '780 g', 0,
+          'Sampling + scale won — the bracket was wide.', 'grains'),
+        makeStratRound('A', 9, 3, 'A stack of coins.', '🪙',
+          'Count thickness, divide by one coin thickness.',
+          'It looks like roughly half a foot of coins.',
+          '40', '50', '42', 0,
+          'Thickness-division gave a tighter count.', 'coins'),
+        makeStratRound('A', 10, 3, 'A row of plant pots.', '🪴',
+          'Count rows × pots-per-row.',
+          'Bracket: somewhere between 20 and 40 pots.',
+          '32', '30', '32', 0,
+          'Multiplying rows × cols nailed it.', 'pots'),
+        // Set B
+        makeStratRound('B', 1, 1, 'Two cooking pots on the stove.', '🍲 🍲',
+          'Use a ladle: 4 ladles × 100 ml = 400 ml.',
+          'Both look about 1 cup each, ~500 ml total.',
+          '400 ml', '500 ml', '420 ml', 0,
+          'Ladle-counting was sharper.', 'pots-2'),
+        makeStratRound('B', 2, 1, 'Two milk packets stacked.', '🥛 🥛',
+          'Each packet 500 ml × 2 = 1 L.',
+          'They look like a litre and a half.',
+          '1.0 L', '1.5 L', '1.0 L', 0,
+          'Reading the packet wins over a vague look.', 'milk-2'),
+        makeStratRound('B', 3, 1, 'A glass and a tumbler side by side.', '🥃 🥃',
+          'Glass ~ 200 ml, tumbler ~ 150 ml. Total 350 ml.',
+          'About one full water bottle, ~500 ml.',
+          '350 ml', '500 ml', '370 ml', 0,
+          'Knowing standard sizes wins.', 'glass-tumbler'),
+        makeStratRound('B', 4, 2, 'Two erasers on a desk.', '🩹 🩹',
+          'Each is half a thumb (~2 cm), total ~4 cm.',
+          'They look between 2 and 8 cm.',
+          '4 cm', '5 cm', '4.2 cm', 0,
+          'Thumb-units beat a wide bracket.', 'erasers'),
+        makeStratRound('B', 5, 2, 'Two scarves hanging.', '🧣 🧣',
+          'Each = 5 hand-spans × 15 cm = 75 cm × 2.',
+          'Each is roughly 1 metre.',
+          '150 cm', '200 cm', '160 cm', 0,
+          'Hand-spans counted gave the better total.', 'scarves'),
+        makeStratRound('B', 6, 2, 'Two notebooks placed flat.', '📔 📔',
+          'Tile-count: 4 × 6 grid × 2 books.',
+          'Each is about a sheet of paper.',
+          '48 tiles', '2 sheets', '48 tiles', 0,
+          'Counting tile-grid was the sharper move.', 'notebooks'),
+        makeStratRound('B', 7, 3, 'A small bowl of beads.', '🥣',
+          'Sample a spoon: 20 beads × 6 spoons.',
+          'Bracket: 50–200 beads.',
+          '120', '125', '130', 0,
+          'Sampling beat a wide bracket.', 'beads'),
+        makeStratRound('B', 8, 3, 'A pile of rice.', '🍚',
+          'Weigh one cup, multiply by visual cup-count.',
+          'It looks roughly the size of a 250 g packet.',
+          '500 g', '250 g', '480 g', 0,
+          'Sampling + multiplying was right.', 'rice'),
+        makeStratRound('B', 9, 3, 'A stack of postage stamps.', '📮',
+          'Count rows × columns of stamps.',
+          'It looks like one full sheet of paper.',
+          '60', '80', '60', 0,
+          'Row-and-column count won.', 'stamps'),
+        makeStratRound('B', 10, 3, 'A row of small cups.', '🥛',
+          'Count rows × cups-per-row.',
+          'Bracket: between 15 and 30 cups.',
+          '24', '25', '24', 0,
+          'Multiplication of rows × cols nailed it.', 'cups'),
+        // Set C
+        makeStratRound('C', 1, 1, 'Two jugs side by side.', '🫗 🫗',
+          'Compare to a 250 ml glass: 4 glasses + 3 glasses.',
+          'They look like just under 2 litres total.',
+          '1.75 L', '2.0 L', '1.8 L', 0,
+          'Glass-count nailed it.', 'jugs-2'),
+        makeStratRound('C', 2, 1, 'Two open kettles.', '🫖 🫖',
+          'Each kettle = 1 L × 2.',
+          'Together about 1.5 L.',
+          '2.0 L', '1.5 L', '2.05 L', 0,
+          'Reading kettle volume directly wins.', 'kettles'),
+        makeStratRound('C', 3, 1, 'A cup and a small bottle.', '☕ 🍶',
+          'Cup ~ 150 ml, bottle ~ 250 ml. Total 400 ml.',
+          'Both feel like half a litre.',
+          '400 ml', '500 ml', '410 ml', 0,
+          'Standard sizes win again.', 'cup-bottle'),
+        makeStratRound('C', 4, 2, 'Two playing cards laid end to end.', '🃏 🃏',
+          'Each card = 9 cm × 2 cards = 18 cm.',
+          'A bit longer than a hand, ~20 cm.',
+          '18 cm', '20 cm', '18 cm', 0,
+          'Standard card length is reliable.', 'cards'),
+        makeStratRound('C', 5, 2, 'Two shoelaces.', '👟 👟',
+          'Each lace = 8 thumbs × 5 cm = 40 cm × 2.',
+          'They look about a metre together.',
+          '80 cm', '100 cm', '85 cm', 0,
+          'Thumb-units beat a vague metre guess.', 'laces'),
+        makeStratRound('C', 6, 2, 'Two small rugs side by side.', '🟫 🟫',
+          'Tile-grid count: 6 × 4 tiles × 2 rugs.',
+          'They look like one big rug.',
+          '48 tiles', '1 rug', '48 tiles', 0,
+          'Tile-grid is the precise tool.', 'rugs'),
+        makeStratRound('C', 7, 3, 'A jar of buttons.', '🫙',
+          'Sample one fistful: 40 × 5 fistfuls.',
+          'Bracket: 100 to 300 buttons.',
+          '200', '200', '210', 0,
+          'Sampling + multiplying was sharper.', 'buttons'),
+        makeStratRound('C', 8, 3, 'A bag of flour.', '🛍️',
+          'Weigh a cup, multiply by ~4 cups.',
+          'It looks like a normal 1 kg packet.',
+          '1.0 kg', '1.0 kg', '0.95 kg', 0,
+          'Sampling matched the bracket here.', 'flour'),
+        makeStratRound('C', 9, 3, 'A line of toy soldiers.', '🪖',
+          'Count rows × per-row soldiers.',
+          'It looks like about 30 figures.',
+          '24', '30', '24', 0,
+          'Row × column counted was right.', 'soldiers'),
+        makeStratRound('C', 10, 3, 'A row of plants.', '🌱',
+          'Count rows × plants-per-row.',
+          'Bracket: between 30 and 50 plants.',
+          '36', '40', '36', 0,
+          'Multiplication of rows × cols nailed it.', 'plants')
+      ]
+    };
+
+    var SETS = ['A','B','C'];
+
+    var gameState = {
+      gameId: 'watch-video-then-mcq-strategy',
+      gameTitle: 'Whose Strategy?',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 10,
+      score: 0,
+      lives: 1,
+      totalLives: 1,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      duration_data: { startTime: null, endTime: null, preview: [] },
+      correctAnswer: null,
+      stars: 0,
+      setIndex: 0,
+      activeRounds: [],
+      previewResult: null,
+      progress: 0,
+      roundToken: 0,
+      roundStartMs: 0,
+      _gameCompletePosted: false,
+      currentSelectedIdx: -1
+    };
+    window.gameState = gameState;
+
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+
+    function getAvailableSets(rounds) {
+      var seen = {}; var out = [];
+      for (var i = 0; i < rounds.length; i++) {
+        var s = rounds[i].set;
+        if (s && !seen[s]) { seen[s] = true; out.push(s); }
+      }
+      return out.length ? out : ['A'];
+    }
+    function getRounds() {
+      var src = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(src);
+      var setKey = sets[gameState.setIndex % sets.length];
+      var filtered = [];
+      for (var i = 0; i < src.length; i++) {
+        if (src[i].set === setKey) filtered.push(src[i]);
+      }
+      filtered.sort(function (a, b) { return a.round - b.round; });
+      return filtered;
+    }
+    function getCorrectCount() {
+      var c = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) if (gameState.attempts[i].correct === true) c++;
+      return c;
+    }
+    function getStars() {
+      var n = gameState.totalRounds;
+      var c = getCorrectCount();
+      if (c === 0 && gameState.attempts.length === 0) return 0;
+      if (c >= 8) return 3;
+      if (c >= 5) return 2;
+      return 1;
+    }
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+    }
+    function trackEvent(name, payload) {
+      try { gameState.events.push({ event: name, ts: Date.now(), data: payload || {} }); } catch (e) {}
+      try { if (signalCollector && signalCollector.recordEvent) signalCollector.recordEvent(name, payload || {}); } catch (e) {}
+    }
+    function recordAttempt(input, correct, misconceptionTag, responseMs) {
+      var round = gameState.activeRounds[gameState.currentRound];
+      var qid = round ? round.id : ('r' + (gameState.currentRound + 1));
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) : 0,
+        input_of_user: input,
+        correct: correct === true,
+        round_number: gameState.currentRound + 1,
+        question_id: qid,
+        correct_answer: round ? round.betterIdx : null,
+        response_time_ms: typeof responseMs === 'number' ? responseMs : 0,
+        misconception_tag: misconceptionTag || null,
+        difficulty_level: round ? (round.stage || 1) : 1,
+        is_retry: false,
+        metadata: { set: round ? round.set : null }
+      };
+      gameState.attempts.push(attempt);
+      try { if (signalCollector && signalCollector.recordAttempt) signalCollector.recordAttempt(attempt); } catch (e) {}
+    }
+    function postGameComplete() {
+      if (gameState._gameCompletePosted) return;
+      gameState._gameCompletePosted = true;
+      var correctCount = getCorrectCount();
+      var attempted = gameState.attempts.length;
+      var accuracy = attempted === 0 ? 0 : Math.round((correctCount / attempted) * 100);
+      var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+      var triesByRound = gameState.attempts.map(function (a) { return { round: a.round_number, correct: a.correct === true }; });
+      var metrics = {
+        accuracy: accuracy,
+        time: Math.round(elapsedMs / 1000),
+        stars: gameState.stars,
+        attempts: gameState.attempts.slice(),
+        duration_data: gameState.duration_data,
+        totalLives: gameState.lives,
+        tries: triesByRound,
+        score: gameState.score,
+        correctCount: correctCount
+      };
+      var signalSealed = { event_count: gameState.events.length, metadata: {} };
+      try {
+        if (signalCollector && typeof signalCollector.seal === 'function') {
+          var sealed = signalCollector.seal();
+          if (sealed) {
+            if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+            if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+          }
+        }
+      } catch (e0) {}
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: Date.now(),
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata,
+            previewResult: gameState.previewResult || null
+          }
+        }, '*');
+      } catch (e) {}
+    }
+
+    function safePlaySound(id, opts) {
+      try { return FeedbackManager.sound.play(id, opts || {}); } catch (e) { return Promise.resolve(); }
+    }
+    function awaitedFeedbackSound(id, opts) {
+      var p = safePlaySound(id, opts || {});
+      var floor = new Promise(function (r) { setTimeout(r, 1500); });
+      return Promise.all([p, floor]).then(function () {}, function () {});
+    }
+    function playDynamicFeedback(opts) {
+      try { return FeedbackManager.playDynamicFeedback(opts || {}); } catch (e) { return Promise.resolve(); }
+    }
+
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            try { throw new Error('waitForPackages timeout'); } catch (rethrown) { reject(err); return; }
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div class="ws-stage" id="wsStage"></div>' +
+        '<div class="ws-question" id="wsQuestion"></div>' +
+        '<div class="ws-jars" id="wsJars"></div>' +
+        '<div class="ws-video-card">' +
+          '<div class="ws-video-screen" id="wsVideoScreen"></div>' +
+          '<div class="ws-video-controls">▶ ⏸ 🔊 — text-only video</div>' +
+        '</div>' +
+        '<div class="ws-options" id="wsOptions"></div>' +
+        '<div class="ws-reveal hidden" id="wsReveal"></div>';
+    }
+    function renderInitialState() {
+      var ids = ['wsStage','wsQuestion','wsJars','wsVideoScreen'];
+      for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if (el) el.textContent = '';
+      }
+      var opts = document.getElementById('wsOptions');
+      if (opts) opts.innerHTML = '';
+      var reveal = document.getElementById('wsReveal');
+      if (reveal) {
+        reveal.classList.add('hidden');
+        reveal.innerHTML = '';
+      }
+    }
+
+    function renderRound(roundIdxOneBased) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      gameState.currentRound = roundIdxOneBased - 1;
+      gameState.isActive = true;
+      gameState.phase = 'gameplay';
+      gameState.roundToken = (gameState.roundToken || 0) + 1;
+      gameState.currentSelectedIdx = -1;
+      syncDOM();
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) return;
+      gameState.correctAnswer = round.betterIdx;
+
+      var stageEl = document.getElementById('wsStage');
+      if (stageEl) stageEl.textContent = 'Round ' + roundIdxOneBased + ' of ' + gameState.totalRounds + ' · Stage ' + (round.stage || 1);
+      var qEl = document.getElementById('wsQuestion');
+      if (qEl) qEl.textContent = "Whose strategy would you like to use? — " + round.scene;
+      var jars = document.getElementById('wsJars');
+      if (jars) jars.innerHTML = '<div class="ws-jar-col"><div class="ws-jar">' + round.jars + '</div></div>';
+      var screen = document.getElementById('wsVideoScreen');
+      if (screen) screen.innerHTML = round.videoText;
+
+      var optsEl = document.getElementById('wsOptions');
+      if (optsEl) {
+        optsEl.innerHTML = '';
+        for (var i = 0; i < round.options.length; i++) {
+          var opt = round.options[i];
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'ws-option-btn';
+          btn.setAttribute('data-index', String(i));
+          btn.setAttribute('data-round-token', String(gameState.roundToken));
+          btn.setAttribute('data-testid', 'option-' + i);
+          btn.innerHTML =
+            '<span class="ws-option-name">' + escapeHTML(opt.name) + '</span>' +
+            '<span class="ws-option-tag">' + escapeHTML(opt.tag) + '</span>';
+          btn.addEventListener('click', onOptionTap);
+          optsEl.appendChild(btn);
+        }
+      }
+      var revealEl = document.getElementById('wsReveal');
+      if (revealEl) {
+        revealEl.classList.add('hidden');
+        revealEl.innerHTML = '';
+      }
+
+      try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode('submit'); } catch (e) {}
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+
+      gameState.roundStartMs = Date.now();
+      gameState.isProcessing = false;
+
+      try {
+        var p = safePlaySound('tap_sound', { sticker: null });
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+
+      trackEvent('round_start', { round: roundIdxOneBased, set: round.set });
+    }
+
+    function onOptionTap(ev) {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var btn = ev.currentTarget;
+      var btnRoundToken = btn.getAttribute('data-round-token');
+      if (btnRoundToken !== String(gameState.roundToken || '')) return;
+      var idx = parseInt(btn.getAttribute('data-index'), 10);
+      if (isNaN(idx)) return;
+      // Toggle selection — selecting another swaps highlight
+      gameState.currentSelectedIdx = idx;
+      var opts = document.querySelectorAll('#wsOptions .ws-option-btn');
+      for (var i = 0; i < opts.length; i++) {
+        var oi = parseInt(opts[i].getAttribute('data-index'), 10);
+        opts[i].classList.remove('selected');
+        opts[i].classList.remove('dimmed');
+        if (oi === idx) opts[i].classList.add('selected');
+        else opts[i].classList.add('dimmed');
+      }
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(true); } catch (e) {}
+      try {
+        var p = safePlaySound('tap_sound', { sticker: null });
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+    }
+
+    function onSubmit() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      if (gameState.currentSelectedIdx < 0) return;
+      handleAnswer(gameState.currentSelectedIdx);
+    }
+
+    function handleAnswer(selectedIdx) {
+      gameState.isProcessing = true;
+      var responseMs = Date.now() - gameState.roundStartMs;
+      var round = gameState.activeRounds[gameState.currentRound];
+      var isCorrect = selectedIdx === round.betterIdx;
+
+      // Lock buttons & show feedback
+      var opts = document.querySelectorAll('#wsOptions .ws-option-btn');
+      for (var i = 0; i < opts.length; i++) {
+        var oi = parseInt(opts[i].getAttribute('data-index'), 10);
+        opts[i].classList.add('disabled');
+        opts[i].classList.remove('selected');
+        opts[i].classList.remove('dimmed');
+        if (oi === round.betterIdx) opts[i].classList.add('selected-correct');
+        if (!isCorrect && oi === selectedIdx) opts[i].classList.add('selected-wrong');
+      }
+      var revealEl = document.getElementById('wsReveal');
+      if (revealEl) {
+        revealEl.classList.remove('hidden');
+        revealEl.innerHTML =
+          '<b>Ravi:</b> ' + escapeHTML(round.options[0].estimate) +
+          ' &nbsp; <b>Sam:</b> ' + escapeHTML(round.options[1].estimate) +
+          '<br><b>Actual:</b> ' + escapeHTML(round.truth) +
+          '<br>' + escapeHTML(round.takeaway);
+      }
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+
+      gameState.progress = gameState.currentRound + 1;
+      try { if (progressBar) progressBar.update(gameState.progress, 0); } catch (e) {}
+      if (isCorrect) {
+        gameState.score += 1;
+        syncDOM();
+        recordAttempt(String(selectedIdx), true, null, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: true, value: selectedIdx });
+        runCorrectFeedbackAndAdvance(round);
+      } else {
+        // No life lost — but record the choice
+        syncDOM();
+        var miscTag = 'less-accurate-strategy-chosen';
+        recordAttempt(String(selectedIdx), false, miscTag, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: false, value: selectedIdx, misconception_tag: miscTag });
+        runWrongFeedbackAndAdvance(round);
+      }
+    }
+
+    function runCorrectFeedbackAndAdvance(round) {
+      (async function () {
+        try { await awaitedFeedbackSound('correct_sound_effect', { sticker: STICKER_CORRECT }); } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.correctTTS,
+            subtitle: round.correctSubtitle,
+            sticker: STICKER_CORRECT
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function runWrongFeedbackAndAdvance(round) {
+      (async function () {
+        try { await awaitedFeedbackSound('incorrect_sound_effect', { sticker: STICKER_SAD }); } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.wrongTTS,
+            subtitle: round.wrongSubtitle,
+            sticker: STICKER_SAD
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function advanceAfterFeedback() {
+      var roundJustPlayed = gameState.currentRound + 1;
+      if (roundJustPlayed === gameState.totalRounds) {
+        endGame(true);
+        return;
+      }
+      showRoundIntro(roundJustPlayed + 1);
+    }
+
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode('hidden'); } catch (e) {}
+
+      var ttsText = 'Round ' + n;
+      await transitionScreen.show({
+        title: 'Round ' + n,
+        icons: [],
+        persist: true,
+        buttons: [],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_ROUND
+              });
+            } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          })();
+        }
+      });
+      setTimeout(function () {
+        try {
+          if (gameState.gameEnded) return;
+          if (gameState.currentRound + 1 < n) {
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          }
+        } catch (e) {}
+      }, 9000);
+    }
+
+    function endGame(victory) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.stars = getStars();
+      if (victory) {
+        gameState.phase = 'results';
+        syncDOM();
+        postGameComplete();
+        showVictory();
+      } else {
+        gameState.phase = 'game_over';
+        syncDOM();
+        postGameComplete();
+        showGameOver();
+      }
+      trackEvent('game_end', { victory: victory, stars: gameState.stars, score: gameState.score });
+    }
+
+    function _victoryClaimAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showStarsCollected();
+    }
+    function _victoryPlayAgainAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showMotivation();
+    }
+
+    async function showVictory() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var stars = gameState.stars;
+      var subtitle = 'You picked the better strategy ' + gameState.score + '/' + gameState.totalRounds + ' times!';
+      var ttsText = stars === 3 ? ('Excellent judgement! ' + subtitle) : ('Nice round! ' + subtitle);
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var sfxSticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_TWO : STICKER_ONE);
+      await transitionScreen.show({
+        title: 'Victory',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars === 3
+          ? [{ text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }]
+          : [
+              { text: 'Play Again', type: 'secondary', action: _victoryPlayAgainAction },
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound(sfxId, { sticker: sfxSticker }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_CELEBRATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showGameOver() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var subtitle = 'You picked the better strategy ' + gameState.score + '/' + gameState.totalRounds + ' times.';
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: subtitle,
+        icons: ['😔'],
+        persist: true,
+        buttons: [{
+          text: 'Try Again',
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showMotivation();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_GAMEOVER }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: subtitle,
+                subtitle: subtitle,
+                sticker: STICKER_GAMEOVER
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = 'Ready to improve your score?';
+      await transitionScreen.show({
+        title: 'Ready to improve your score?',
+        icons: ['⚡'],
+        persist: true,
+        buttons: [{
+          text: "I'm ready",
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            restartGame();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, 0); } catch (e) {}
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_MOTIVATE }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_MOTIVATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      gameState.phase = 'stars_collected';
+      syncDOM();
+      await transitionScreen.show({
+        title: "Yay!\nStars collected!",
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY }); } catch (e) {}
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: {
+                  count: gameState.stars,
+                  variant: 'yellow',
+                  score: gameState.score + '/' + gameState.totalRounds
+                }
+              }, '*');
+            } catch (e) {}
+            setTimeout(showAnswerCarousel, 1500);
+          })();
+        }
+      });
+    }
+
+    function renderAnswerSlide(container, round) {
+      if (!container || !round || !round.answer) return;
+      var html = '';
+      html += '<div class="ws-answer-card">';
+      html += '<div class="ws-answer-prompt">Round ' + round.round + ' — ' + escapeHTML(round.scene) + '</div>';
+      for (var i = 0; i < round.options.length; i++) {
+        var cls = (i === round.betterIdx) ? 'ws-answer-strat better' : 'ws-answer-strat';
+        html += '<div class="' + cls + '"><b>' + escapeHTML(round.options[i].name) + '</b><br>' + escapeHTML(round.options[i].tag) + '<br>Estimate: ' + escapeHTML(round.options[i].estimate) + '</div>';
+      }
+      html += '<div class="ws-answer-explain">Actual: ' + escapeHTML(round.truth) + '. ' + escapeHTML(round.takeaway) + '</div>';
+      html += '</div>';
+      container.innerHTML = html;
+    }
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds;
+      var slides = [];
+      for (var i = 0; i < rounds.length; i++) {
+        (function (r) { slides.push({ render: function (container) { renderAnswerSlide(container, r); } }); })(rounds[i]);
+      }
+      return slides;
+    }
+    function showAnswerCarousel() {
+      try { answerComponent.show({ slides: buildAnswerSlidesForAllRounds() }); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+      try {
+        setTimeout(function () {
+          var slot = document.getElementById('mathai-answer-slot');
+          if (slot && slot.scrollIntoView) slot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+      } catch (e) {}
+    }
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.content = content;
+      gameState.totalRounds = content.totalRounds || 10;
+      gameState.totalLives = content.totalLives || 1;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+
+      injectGameHTML();
+      renderInitialState();
+
+      try {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          onComplete: function (previewData) { startGameAfterPreview(previewData); }
+        });
+      } catch (e) { console.error('[previewScreen.show failed]', e && e.message, e); }
+    }
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || {};
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: (previewData && previewData.duration) || 0 });
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try {
+        if (progressBar) {
+          progressBar.show();
+          progressBar.update(0, 0);
+        }
+      } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex] });
+      try {
+        if (signalCollector && signalCollector.recordViewEvent) {
+          signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+        }
+      } catch (e) {}
+      showWelcome();
+    }
+
+    async function showWelcome() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = "Time to be a strategist! Watch each scene, then pick the strategy you trust more.";
+      await transitionScreen.show({
+        title: 'Welcome!',
+        icons: ['👋'],
+        persist: true,
+        buttons: [{
+          text: "Let's go!",
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showRoundIntro(1);
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_LEVEL
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    function resetGameState() {
+      gameState.phase = 'gameplay';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState._gameCompletePosted = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.progress = 0;
+      gameState.currentSelectedIdx = -1;
+      gameState.duration_data = { startTime: null, endTime: null, preview: gameState.duration_data.preview || [] };
+      gameState.activeRounds = getRounds();
+      try {
+        if (answerComponent && answerComponent.update) answerComponent.update({ slides: [] });
+        if (answerComponent && answerComponent.hide) answerComponent.hide();
+      } catch (e) {}
+    }
+    function restartGame() {
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try { if (progressBar) progressBar.update(0, 0); } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex], restart: true });
+      showRoundIntro(1);
+    }
+
+    function handlePostMessage(event) {
+      if (!event || !event.data || !event.data.type) return;
+      var t = event.data.type;
+      var data = event.data.data || {};
+      if (t === 'game_init') {
+        gameState.phase = 'playing';
+        if (data.content) gameState.content = data.content;
+        gameState.signalConfig = data.signalConfig || {};
+        try {
+          if (signalCollector) {
+            signalCollector.gameId = gameState.gameId;
+            if (data.sessionId) signalCollector.sessionId = data.sessionId;
+            if (data.studentId) signalCollector.studentId = data.studentId;
+            if (data.contentSetId) signalCollector.contentSetId = data.contentSetId;
+            if (data.signalConfig && data.signalConfig.flushUrl) signalCollector.flushUrl = data.signalConfig.flushUrl;
+            if (data.signalConfig && data.signalConfig.playId) signalCollector.playId = data.signalConfig.playId;
+            if (signalCollector.startFlushing) { try { signalCollector.startFlushing(); } catch (e) {} }
+          }
+        } catch (e) {}
+        syncDOM();
+        setupGame();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      waitForPackages().then(function () {
+        try {
+          var initP = FeedbackManager.init && FeedbackManager.init();
+          var doInit = initP && initP.then ? initP : Promise.resolve();
+          doInit.then(function () {
+            try {
+              try {
+                signalCollector = new SignalCollector({
+                  sessionId: gameState.gameId + '-' + Date.now(),
+                  studentId: 'standalone',
+                  gameId: gameState.gameId,
+                  contentSetId: 'fallback'
+                });
+                window.signalCollector = signalCollector;
+              } catch (e) { console.error('[SignalCollector ctor failed]', e && e.message, e); }
+
+              try {
+                ScreenLayout.inject('app', {
+                  slots: {
+                    previewScreen: true,
+                    progressBar: true,
+                    transitionScreen: true,
+                    floatingButton: true,
+                    answerComponent: true
+                  }
+                });
+              } catch (e) { console.error('[ScreenLayout.inject failed]', e && e.message, e); }
+
+              injectGameHTML();
+              renderInitialState();
+
+              try {
+                visibilityTracker = new VisibilityTracker({
+                  popupProps: {
+                    title: 'Paused',
+                    description: 'Tap Resume to continue.',
+                    primaryText: 'Resume'
+                  },
+                  onInactive: function () {
+                    try { FeedbackManager.sound.pause(); } catch (e) {}
+                    try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+                  },
+                  onResume: function () {
+                    try { FeedbackManager.sound.resume(); } catch (e) {}
+                    try { FeedbackManager.stream.resumeAll(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+                  }
+                });
+              } catch (e) { console.error('[VisibilityTracker ctor failed]', e && e.message, e); }
+
+              try {
+                progressBar = new ProgressBarComponent({
+                  slotId: 'mathai-progress-slot',
+                  totalRounds: 10,
+                  totalLives: 1,
+                  showLives: false
+                });
+              } catch (e) { console.error('[ProgressBarComponent ctor failed]', e && e.message, e); }
+
+              try {
+                transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' });
+              } catch (e) { console.error('[TransitionScreenComponent ctor failed]', e && e.message, e); }
+
+              try {
+                previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+              } catch (e) { console.error('[PreviewScreenComponent ctor failed]', e && e.message, e); }
+
+              try {
+                floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+              } catch (e) { console.error('[FloatingButtonComponent ctor failed]', e && e.message, e); }
+
+              try {
+                answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' });
+              } catch (e) { console.error('[AnswerComponentComponent ctor failed]', e && e.message, e); }
+
+              try {
+                if (floatingBtn && floatingBtn.on) {
+                  floatingBtn.on('submit', function () { onSubmit(); });
+                  floatingBtn.on('next', function () {
+                    try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                    try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+                    try { if (floatingBtn) floatingBtn.destroy(); } catch (e) {}
+                  });
+                }
+              } catch (e) {}
+
+              try {
+                FeedbackManager.sound.preload([
+                  { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+                  { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+                  { id: 'sound_level_transition',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+                  { id: 'victory_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+                  { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+                  { id: 'game_over_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+                  { id: 'tap_sound',                url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+                ]);
+              } catch (e) { console.error('[FeedbackManager.preload failed]', e && e.message, e); }
+
+              window.addEventListener('message', handlePostMessage);
+              try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+              setupGame();
+            } catch (e) { console.error('[init inner] ' + (e && e.message), e); }
+          }, function (e) { console.error('[FeedbackManager.init failed]', e && e.message, e); });
+        } catch (e) { console.error('[init outer] ' + (e && e.message), e); }
+      }, function (err) { console.error('[waitForPackages rejected] ' + (err && err.message)); });
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = setupGame;
+      window.renderRound = renderRound;
+      window.loadRound = function (n) { try { renderRound(n); } catch (e) {} };
+    });
+  </script>
+</body>
+</html>

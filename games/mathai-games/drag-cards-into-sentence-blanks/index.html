@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Fill the Sentence</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'fill-sentence@1.0.0' }));
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-primary: #270f36;
+      --mathai-blue: #3B82F6;
+      --mathai-success: #22c55e;
+      --mathai-red: #DC2626;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-purple-light: #EDE7F6;
+      --mathai-purple: #6D4FB8;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; overflow-x: hidden; margin: 0; padding: 0; overscroll-behavior: none; }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+      min-height: 100dvh;
+    }
+    @supports not (min-height: 100dvh) { body { min-height: 100vh; } }
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex; flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    @supports not (min-height: 100dvh) { #app { min-height: 100vh; } }
+    button, [role="button"] { min-height: 44px; min-width: 44px; touch-action: manipulation; }
+    input, textarea { -webkit-user-select: text; user-select: text; }
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed; inset: 0; z-index: 99999;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--mathai-white); color: var(--mathai-primary);
+        font-size: 18px; text-align: center; padding: 24px;
+      }
+    }
+
+    #gameContent {
+      width: 100%;
+      padding: 8px 12px 110px 12px;
+      display: flex; flex-direction: column; align-items: center;
+      box-sizing: border-box;
+    }
+
+    .fs-wrapper { width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; }
+    .fs-wrapper.locked { pointer-events: none; }
+
+    .fs-visual {
+      width: 100%;
+      border: 2px solid var(--mathai-purple);
+      border-radius: 12px;
+      padding: 12px;
+      margin: 6px 0;
+      background: var(--mathai-purple-light);
+      text-align: center;
+      font-size: 18px;
+      color: var(--mathai-primary);
+      min-height: 80px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .fs-visual .fs-bridge { font-size: 14px; font-weight: 700; margin-top: 6px; }
+    .fs-visual .fs-bridge strong { color: var(--mathai-purple); }
+
+    .fs-sentence {
+      width: 100%;
+      font-size: 16px;
+      color: var(--mathai-text-primary);
+      line-height: 2;
+      margin: 8px 0;
+      text-align: center;
+      padding: 8px;
+    }
+
+    .fs-blank {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100px;
+      height: 40px;
+      border: 2px dashed var(--mathai-gray);
+      border-radius: 8px;
+      background: var(--mathai-light-gray);
+      vertical-align: middle;
+      margin: 0 4px;
+      transition: background 0.18s ease, border-color 0.18s ease;
+    }
+    .fs-blank.match { background: var(--mathai-cell-bg-green); border-color: #22c55e; }
+    .fs-blank.over { background: var(--mathai-cell-bg-red); border-color: var(--mathai-red); }
+
+    .fs-pool {
+      width: 100%; max-width: 360px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, 110px);
+      gap: 8px;
+      justify-content: center;
+      padding: 12px;
+      background: #F1F5F9;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      margin-top: 8px;
+    }
+    .fs-pool-slot {
+      width: 110px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .fs-pool-slot.empty { display: none; }
+    .pool-slot.empty { display: none; }
+
+    .fs-card {
+      width: 110px; height: 40px;
+      border-radius: 8px;
+      background: var(--mathai-white);
+      border: 2px solid var(--mathai-primary);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: var(--mathai-primary);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      box-sizing: border-box;
+    }
+    .fs-card:active { cursor: grabbing; }
+    .fs-blank .fs-card { width: 96px; height: 34px; font-size: 13px; }
+
+    .answer-slide { width: 100%; display: flex; flex-direction: column; align-items: center; padding: 8px 4px 12px 4px; }
+    .answer-caption { font-size: 13px; font-weight: 600; color: var(--mathai-text-primary); margin-bottom: 6px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0"></div>
+
+  <script>
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    var gameState = {
+      gameId: 'fill-sentence',
+      phase: 'start_screen',
+      currentRound: 1,
+      totalRounds: 10,
+      totalLives: 3,
+      lives: 3,
+      score: 0,
+      stars: 0,
+      starsAccumulated: 0,
+      roundCheckAttempts: 0,
+      progress: 0,
+      attempts: [],
+      events: [],
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      startTime: null,
+      roundStartTime: null,
+      duration_data: { startTime: null, preview: [] },
+      content: null,
+      previewResult: null,
+      setIndex: 0,
+      activeRounds: [],
+      placement: {}, // blankId -> cardKey
+      cardLocations: {}, // cardKey -> blankId | 'pool'
+      correctAnswer: null
+    };
+    window.gameState = gameState;
+
+    var fallbackContent = {
+      previewInstruction: '<p><strong>Fill the Sentence</strong></p><p>Look at the worked math fact, then drag the right vocabulary word into each blank to complete the sentence.</p>',
+      previewAudioText: 'Look at the worked math fact, then drag the right vocabulary word into each blank to complete the sentence.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 10,
+      totalLives: 3,
+      timer: false,
+      rounds: [
+        // Set A — factors and multiples (rounds 1-2), fractions (round 3-4), prime/composite (round 5)
+        { set: 'A', id: 'A_r1_fs', round: 1, stage: 1,
+          visual: '12 ÷ 3 = 4',
+          bridge: 'The remainder of the division is <strong>ZERO</strong>.',
+          sentenceParts: ['So, 3 is ', '__1__', ' of 12 and 12 is ', '__2__', ' of 3.'],
+          blanks: [{ id: 'b1', correct: 'a factor' }, { id: 'b2', correct: 'a multiple' }],
+          pool: ['a factor', 'a multiple'],
+          misconception_tags: ['factor-multiple-swap'] },
+        { set: 'A', id: 'A_r2_fs', round: 2, stage: 1,
+          visual: '18 ÷ 6 = 3',
+          bridge: 'The remainder of the division is <strong>ZERO</strong>.',
+          sentenceParts: ['So, 6 is ', '__1__', ' of 18 and 18 is ', '__2__', ' of 6.'],
+          blanks: [{ id: 'b1', correct: 'a factor' }, { id: 'b2', correct: 'a multiple' }],
+          pool: ['a factor', 'a multiple'],
+          misconception_tags: ['factor-multiple-swap'] },
+        { set: 'A', id: 'A_r3_fs', round: 3, stage: 2,
+          visual: '🟦🟦🟦⬜ (3 of 4 boxes shaded — fraction 3/4)',
+          bridge: 'The fraction <strong>3/4</strong> is shown above.',
+          sentenceParts: ['In 3/4, 3 is the ', '__1__', ' and 4 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator', 'whole'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'A', id: 'A_r4_fs', round: 4, stage: 2,
+          visual: '🟪🟪⬜⬜⬜ (2 of 5 boxes shaded — fraction 2/5)',
+          bridge: 'The fraction <strong>2/5</strong> is shown above.',
+          sentenceParts: ['In 2/5, 2 is the ', '__1__', ' and 5 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'A', id: 'A_r5_fs', round: 5, stage: 2,
+          visual: '🟦🟦🟦🟦⬜⬜ (4 of 6 boxes shaded — fraction 4/6)',
+          bridge: 'The fraction <strong>4/6</strong> is shown above.',
+          sentenceParts: ['In 4/6, 4 is the ', '__1__', ' and 6 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator', 'whole'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'A', id: 'A_r6_fs', round: 6, stage: 2,
+          visual: '🟪⬜⬜⬜⬜⬜⬜ (1 of 7 boxes shaded — fraction 1/7)',
+          bridge: 'The fraction <strong>1/7</strong> is shown above.',
+          sentenceParts: ['In 1/7, 1 is the ', '__1__', ' and 7 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator', 'whole'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'A', id: 'A_r7_fs', round: 7, stage: 2,
+          visual: '🟧🟧🟧⬜⬜ (3 of 5 boxes shaded — fraction 3/5)',
+          bridge: 'The fraction <strong>3/5</strong> is shown above.',
+          sentenceParts: ['In 3/5, 3 is the ', '__1__', ' and 5 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'A', id: 'A_r8_fs', round: 8, stage: 3,
+          visual: '7 has factors: 1 and 7',
+          bridge: '<strong>Only TWO</strong> numbers divide 7 evenly: 1 and 7.',
+          sentenceParts: ['7 has only ', '__1__', ' factors, so 7 is ', '__2__', ' number.'],
+          blanks: [{ id: 'b1', correct: 'two' }, { id: 'b2', correct: 'a prime' }],
+          pool: ['two', 'three', 'a prime', 'a composite'],
+          misconception_tags: ['prime-composite-swap'] },
+        { set: 'A', id: 'A_r9_fs', round: 9, stage: 3,
+          visual: '9 has factors: 1, 3, 9',
+          bridge: '<strong>THREE</strong> numbers divide 9 evenly.',
+          sentenceParts: ['9 has more than ', '__1__', ' factors, so 9 is ', '__2__', ' number.'],
+          blanks: [{ id: 'b1', correct: 'two' }, { id: 'b2', correct: 'a composite' }],
+          pool: ['two', 'three', 'a prime', 'a composite'],
+          misconception_tags: ['prime-composite-swap'] },
+        { set: 'A', id: 'A_r10_fs', round: 10, stage: 3,
+          visual: '13 has factors: 1 and 13',
+          bridge: '<strong>Only TWO</strong> numbers divide 13 evenly: 1 and 13.',
+          sentenceParts: ['13 has only ', '__1__', ' factors, so 13 is ', '__2__', ' number.'],
+          blanks: [{ id: 'b1', correct: 'two' }, { id: 'b2', correct: 'a prime' }],
+          pool: ['two', 'three', 'a prime', 'a composite'],
+          misconception_tags: ['prime-composite-swap'] },
+        // Set B
+        { set: 'B', id: 'B_r1_fs', round: 1, stage: 1,
+          visual: '25 ÷ 5 = 5',
+          bridge: 'The remainder of the division is <strong>ZERO</strong>.',
+          sentenceParts: ['So, 5 is ', '__1__', ' of 25 and 25 is ', '__2__', ' of 5.'],
+          blanks: [{ id: 'b1', correct: 'a factor' }, { id: 'b2', correct: 'a multiple' }],
+          pool: ['a factor', 'a multiple'],
+          misconception_tags: ['factor-multiple-swap'] },
+        { set: 'B', id: 'B_r2_fs', round: 2, stage: 1,
+          visual: '20 ÷ 4 = 5',
+          bridge: 'The remainder of the division is <strong>ZERO</strong>.',
+          sentenceParts: ['So, 4 is ', '__1__', ' of 20 and 20 is ', '__2__', ' of 4.'],
+          blanks: [{ id: 'b1', correct: 'a factor' }, { id: 'b2', correct: 'a multiple' }],
+          pool: ['a factor', 'a multiple'],
+          misconception_tags: ['factor-multiple-swap'] },
+        { set: 'B', id: 'B_r3_fs', round: 3, stage: 2,
+          visual: '🟧🟧🟧🟧⬜⬜ (4 of 6 boxes shaded — fraction 4/6)',
+          bridge: 'The fraction <strong>4/6</strong> is shown above.',
+          sentenceParts: ['In 4/6, 4 is the ', '__1__', ' and 6 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator', 'whole'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'B', id: 'B_r4_fs', round: 4, stage: 2,
+          visual: '🟩🟩🟩⬜⬜⬜⬜⬜ (3 of 8 boxes shaded — fraction 3/8)',
+          bridge: 'The fraction <strong>3/8</strong> is shown above.',
+          sentenceParts: ['In 3/8, 3 is the ', '__1__', ' and 8 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'B', id: 'B_r5_fs', round: 5, stage: 2,
+          visual: '🟦🟦🟦🟦🟦⬜⬜⬜ (5 of 8 boxes shaded — fraction 5/8)',
+          bridge: 'The fraction <strong>5/8</strong> is shown above.',
+          sentenceParts: ['In 5/8, 5 is the ', '__1__', ' and 8 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator', 'whole'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'B', id: 'B_r6_fs', round: 6, stage: 2,
+          visual: '🟧🟧⬜⬜⬜⬜⬜⬜⬜ (2 of 9 boxes shaded — fraction 2/9)',
+          bridge: 'The fraction <strong>2/9</strong> is shown above.',
+          sentenceParts: ['In 2/9, 2 is the ', '__1__', ' and 9 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator', 'whole'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'B', id: 'B_r7_fs', round: 7, stage: 2,
+          visual: '🟪🟪🟪🟪🟪🟪⬜ (6 of 7 boxes shaded — fraction 6/7)',
+          bridge: 'The fraction <strong>6/7</strong> is shown above.',
+          sentenceParts: ['In 6/7, 6 is the ', '__1__', ' and 7 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'B', id: 'B_r8_fs', round: 8, stage: 3,
+          visual: '8 has factors: 1, 2, 4, 8',
+          bridge: '<strong>FOUR</strong> different numbers divide 8 evenly.',
+          sentenceParts: ['8 has more than ', '__1__', ' factors, so 8 is ', '__2__', ' number.'],
+          blanks: [{ id: 'b1', correct: 'two' }, { id: 'b2', correct: 'a composite' }],
+          pool: ['two', 'three', 'a prime', 'a composite'],
+          misconception_tags: ['prime-composite-swap'] },
+        { set: 'B', id: 'B_r9_fs', round: 9, stage: 3,
+          visual: '5 has factors: 1 and 5',
+          bridge: '<strong>Only TWO</strong> numbers divide 5 evenly: 1 and 5.',
+          sentenceParts: ['5 has only ', '__1__', ' factors, so 5 is ', '__2__', ' number.'],
+          blanks: [{ id: 'b1', correct: 'two' }, { id: 'b2', correct: 'a prime' }],
+          pool: ['two', 'three', 'a prime', 'a composite'],
+          misconception_tags: ['prime-composite-swap'] },
+        { set: 'B', id: 'B_r10_fs', round: 10, stage: 3,
+          visual: '15 has factors: 1, 3, 5, 15',
+          bridge: '<strong>FOUR</strong> different numbers divide 15 evenly.',
+          sentenceParts: ['15 has more than ', '__1__', ' factors, so 15 is ', '__2__', ' number.'],
+          blanks: [{ id: 'b1', correct: 'two' }, { id: 'b2', correct: 'a composite' }],
+          pool: ['two', 'three', 'a prime', 'a composite'],
+          misconception_tags: ['prime-composite-swap'] },
+        // Set C
+        { set: 'C', id: 'C_r1_fs', round: 1, stage: 1,
+          visual: '30 ÷ 6 = 5',
+          bridge: 'The remainder of the division is <strong>ZERO</strong>.',
+          sentenceParts: ['So, 6 is ', '__1__', ' of 30 and 30 is ', '__2__', ' of 6.'],
+          blanks: [{ id: 'b1', correct: 'a factor' }, { id: 'b2', correct: 'a multiple' }],
+          pool: ['a factor', 'a multiple'],
+          misconception_tags: ['factor-multiple-swap'] },
+        { set: 'C', id: 'C_r2_fs', round: 2, stage: 1,
+          visual: '24 ÷ 8 = 3',
+          bridge: 'The remainder of the division is <strong>ZERO</strong>.',
+          sentenceParts: ['So, 8 is ', '__1__', ' of 24 and 24 is ', '__2__', ' of 8.'],
+          blanks: [{ id: 'b1', correct: 'a factor' }, { id: 'b2', correct: 'a multiple' }],
+          pool: ['a factor', 'a multiple'],
+          misconception_tags: ['factor-multiple-swap'] },
+        { set: 'C', id: 'C_r3_fs', round: 3, stage: 2,
+          visual: '🟦🟦🟦🟦🟦⬜⬜ (5 of 7 boxes shaded — fraction 5/7)',
+          bridge: 'The fraction <strong>5/7</strong> is shown above.',
+          sentenceParts: ['In 5/7, 5 is the ', '__1__', ' and 7 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator', 'whole'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'C', id: 'C_r4_fs', round: 4, stage: 2,
+          visual: '🟥🟥🟥🟥⬜⬜⬜⬜⬜ (4 of 9 boxes shaded — fraction 4/9)',
+          bridge: 'The fraction <strong>4/9</strong> is shown above.',
+          sentenceParts: ['In 4/9, 4 is the ', '__1__', ' and 9 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'C', id: 'C_r5_fs', round: 5, stage: 2,
+          visual: '🟧🟧🟧⬜⬜⬜⬜⬜⬜ (3 of 9 boxes shaded — fraction 3/9)',
+          bridge: 'The fraction <strong>3/9</strong> is shown above.',
+          sentenceParts: ['In 3/9, 3 is the ', '__1__', ' and 9 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator', 'whole'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'C', id: 'C_r6_fs', round: 6, stage: 2,
+          visual: '🟦🟦⬜⬜⬜⬜⬜ (2 of 7 boxes shaded — fraction 2/7)',
+          bridge: 'The fraction <strong>2/7</strong> is shown above.',
+          sentenceParts: ['In 2/7, 2 is the ', '__1__', ' and 7 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator', 'whole'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'C', id: 'C_r7_fs', round: 7, stage: 2,
+          visual: '🟪🟪🟪🟪🟪⬜⬜⬜⬜ (5 of 9 boxes shaded — fraction 5/9)',
+          bridge: 'The fraction <strong>5/9</strong> is shown above.',
+          sentenceParts: ['In 5/9, 5 is the ', '__1__', ' and 9 is the ', '__2__', '.'],
+          blanks: [{ id: 'b1', correct: 'numerator' }, { id: 'b2', correct: 'denominator' }],
+          pool: ['numerator', 'denominator'],
+          misconception_tags: ['numerator-denominator-swap'] },
+        { set: 'C', id: 'C_r8_fs', round: 8, stage: 3,
+          visual: '11 has factors: 1 and 11',
+          bridge: '<strong>Only TWO</strong> numbers divide 11 evenly: 1 and 11.',
+          sentenceParts: ['11 has only ', '__1__', ' factors, so 11 is ', '__2__', ' number.'],
+          blanks: [{ id: 'b1', correct: 'two' }, { id: 'b2', correct: 'a prime' }],
+          pool: ['two', 'three', 'a prime', 'a composite'],
+          misconception_tags: ['prime-composite-swap'] },
+        { set: 'C', id: 'C_r9_fs', round: 9, stage: 3,
+          visual: '12 has factors: 1, 2, 3, 4, 6, 12',
+          bridge: '<strong>SIX</strong> different numbers divide 12 evenly.',
+          sentenceParts: ['12 has more than ', '__1__', ' factors, so 12 is ', '__2__', ' number.'],
+          blanks: [{ id: 'b1', correct: 'two' }, { id: 'b2', correct: 'a composite' }],
+          pool: ['two', 'three', 'a prime', 'a composite'],
+          misconception_tags: ['prime-composite-swap'] },
+        { set: 'C', id: 'C_r10_fs', round: 10, stage: 3,
+          visual: '17 has factors: 1 and 17',
+          bridge: '<strong>Only TWO</strong> numbers divide 17 evenly: 1 and 17.',
+          sentenceParts: ['17 has only ', '__1__', ' factors, so 17 is ', '__2__', ' number.'],
+          blanks: [{ id: 'b1', correct: 'two' }, { id: 'b2', correct: 'a prime' }],
+          pool: ['two', 'three', 'a prime', 'a composite'],
+          misconception_tags: ['prime-composite-swap'] }
+      ]
+    };
+
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+    var dndManager = null;
+    var dndDraggables = [];
+    var dndDroppables = [];
+    var cardEls = {};
+    var poolSlotEls = {};
+    var blankEls = {};
+
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+      app.setAttribute('data-lives', Math.max(0, gameState.lives));
+    }
+
+    function trackEvent(eventName, payload) {
+      try {
+        var ev = { name: eventName, ts: Date.now(), payload: payload || {} };
+        gameState.events.push(ev);
+        if (signalCollector && typeof signalCollector.recordEvent === 'function') {
+          try { signalCollector.recordEvent(eventName, payload || {}); } catch (e) {}
+        }
+      } catch (e) { console.error('[trackEvent]', e && e.message); }
+    }
+
+    function recordAttempt(round, isCorrect, misconceptionTags) {
+      try {
+        var now = Date.now();
+        var userAns = {};
+        Object.keys(gameState.placement).forEach(function (bid) {
+          var ck = gameState.placement[bid];
+          var cEl = cardEls[ck];
+          userAns[bid] = cEl ? cEl.getAttribute('data-value') : '';
+        });
+        var correctAns = {};
+        round.blanks.forEach(function (b) { correctAns[b.id] = b.correct; });
+        var attempt = {
+          attempt_number: gameState.attempts.length + 1,
+          round_number: gameState.currentRound,
+          question_id: round && round.id ? round.id : ('r' + gameState.currentRound),
+          question_text: 'Fill the Sentence — set ' + (round && round.set ? round.set : '?') + ' round ' + gameState.currentRound,
+          user_answer: JSON.stringify(userAns),
+          correct_answer: JSON.stringify(correctAns),
+          is_correct: !!isCorrect,
+          response_time_ms: gameState.roundStartTime ? (now - gameState.roundStartTime) : 0,
+          misconception_tag: (misconceptionTags && misconceptionTags.length > 0) ? misconceptionTags[0] : null,
+          difficulty_level: round && round.stage ? round.stage : 1,
+          hint_used: false,
+          attempt_timestamp: now,
+          set: round && round.set,
+          misconception_tags_all: misconceptionTags || []
+        };
+        gameState.attempts.push(attempt);
+      } catch (e) { console.error('[recordAttempt]', e && e.message); }
+    }
+
+    function getStars(score) {
+      var t = gameState.totalRounds || 10;
+      var maxTotal = t * 3;
+      var earned = gameState.starsAccumulated || 0;
+      if (maxTotal <= 0) return 0;
+      var ratio = earned / maxTotal;
+      if (ratio >= 0.9) return 3;
+      if (ratio >= 0.6) return 2;
+      if (earned >= 1) return 1;
+      return 0;
+    }
+    function getRoundStarTier(isCorrect, attemptNumber, lostHeart) {
+      // 3★ first-tap correct, 2★ second-attempt, 1★ third+, 0★ heart lost / abandoned
+      if (lostHeart) return 0;
+      if (!isCorrect) return 0;
+      if (attemptNumber <= 1) return 3;
+      if (attemptNumber === 2) return 2;
+      return 1;
+    }
+
+    function getAvailableSets(rounds) {
+      var seen = {};
+      for (var i = 0; i < rounds.length; i++) if (rounds[i].set) seen[rounds[i].set] = true;
+      var keys = Object.keys(seen).sort();
+      return keys.length > 0 ? keys : ['A'];
+    }
+    function getRounds() {
+      var source = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(source);
+      var startIdx = gameState.setIndex % sets.length;
+      var setId = sets[startIdx];
+      var setRounds = source.filter(function (r) { return r.set === setId; });
+      if (setRounds.length >= gameState.totalRounds) return setRounds.slice(0, gameState.totalRounds);
+      return source.slice(0, gameState.totalRounds);
+    }
+
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            reject(err);
+            throw new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    function preloadAudio() {
+      if (typeof FeedbackManager === 'undefined' || !FeedbackManager.sound || !FeedbackManager.sound.preload) return;
+      var assets = [
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'sound_life_lost', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+      ];
+      try { FeedbackManager.sound.preload(assets); } catch (e) {}
+    }
+    function safePlaySound(id, options) {
+      try { return FeedbackManager.sound.play(id, options || {}); } catch (e) { return Promise.resolve(); }
+    }
+    function safeDynamic(opts) {
+      try { return FeedbackManager.playDynamicFeedback(opts || {}); } catch (e) { return Promise.resolve(); }
+    }
+
+    function handlePostMessage(event) {
+      try {
+        var msg = event && event.data;
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          gameState.content = msg.data && msg.data.content ? msg.data.content : null;
+          if (msg.data && typeof msg.data.totalRounds === 'number') gameState.totalRounds = msg.data.totalRounds;
+          try {
+            var sc = msg.data && msg.data.signalConfig ? msg.data.signalConfig : {};
+            gameState.signalConfig = sc;
+            if (signalCollector) {
+              signalCollector.flushUrl = sc.flushUrl || signalCollector.flushUrl || '';
+              signalCollector.playId = sc.playId || signalCollector.playId || ('fill-sentence-' + Date.now());
+              signalCollector.gameId = sc.gameId || 'fill-sentence';
+              signalCollector.sessionId = sc.sessionId || ('session-' + Date.now());
+              signalCollector.contentSetId = sc.contentSetId || 'fallback';
+              signalCollector.studentId = sc.studentId || 'anonymous';
+              if (typeof signalCollector.startFlushing === 'function') {
+                try { signalCollector.startFlushing(); } catch (e2) {}
+              }
+            }
+          } catch (e1) {}
+          syncDOM();
+          setupGame();
+        } else if (msg.type === 'game_pause') {
+          try { FeedbackManager.sound.pause(); } catch (e) {}
+        } else if (msg.type === 'game_resume') {
+          try { FeedbackManager.sound.resume(); } catch (e) {}
+        }
+      } catch (e) { console.error('[handlePostMessage]', e && e.message); }
+    }
+
+    async function endGame(success) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = 'results';
+      gameState.stars = getStars(gameState.score);
+      syncDOM();
+      trackEvent('game_end', { won: !!success, score: gameState.score, stars: gameState.stars });
+      try {
+        var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+        var elapsedSec = Math.round(elapsedMs / 1000);
+        var accuracy = gameState.totalRounds > 0 ? Math.round((gameState.score / gameState.totalRounds) * 100) : 0;
+        var triesArr = [];
+        for (var ai = 0; ai < gameState.attempts.length; ai++) triesArr.push(1);
+        var signalSealed = { event_count: gameState.events.length, metadata: {} };
+        try {
+          if (signalCollector && typeof signalCollector.seal === 'function') {
+            var sealed = signalCollector.seal();
+            if (sealed) {
+              if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+              if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+            }
+          }
+        } catch (e0) {}
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: {
+              score: gameState.score,
+              totalQuestions: gameState.totalRounds,
+              stars: gameState.stars,
+              accuracy: accuracy,
+              time: elapsedSec,
+              timeSpent: elapsedMs,
+              tries: triesArr,
+              attempts: gameState.attempts
+            },
+            completedAt: Date.now(),
+            previewResult: gameState.previewResult || null,
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) { console.error('[endGame postMessage]', e && e.message); }
+      if (gameState.lives <= 0 && !success) { try { showGameOver(); } catch (e) {} }
+      else { try { showVictory(success); } catch (e) {} }
+    }
+    window.endGame = endGame;
+
+    function buildGameDOM() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML = '';
+      var wrap = document.createElement('div');
+      wrap.className = 'fs-wrapper';
+      wrap.id = 'fs-wrapper';
+
+      var visual = document.createElement('div');
+      visual.className = 'fs-visual';
+      visual.id = 'fs-visual';
+      wrap.appendChild(visual);
+
+      var sent = document.createElement('div');
+      sent.className = 'fs-sentence';
+      sent.id = 'fs-sentence';
+      wrap.appendChild(sent);
+
+      var pool = document.createElement('div');
+      pool.className = 'fs-pool';
+      pool.id = 'fs-pool';
+      pool.setAttribute('data-zone-id', 'pool');
+      wrap.appendChild(pool);
+
+      gc.appendChild(wrap);
+    }
+
+    function renderVisual(round) {
+      var v = document.getElementById('fs-visual');
+      if (!v) return;
+      v.innerHTML = '<div style="font-size:18px;font-weight:700">' + round.visual + '</div><div class="fs-bridge">' + round.bridge + '</div>';
+    }
+
+    function renderSentence(round) {
+      blankEls = {};
+      var s = document.getElementById('fs-sentence');
+      if (!s) return;
+      s.innerHTML = '';
+      var blankIdx = 0;
+      round.sentenceParts.forEach(function (part) {
+        if (part.indexOf('__') === 0 && part.lastIndexOf('__') > 0) {
+          var b = round.blanks[blankIdx++];
+          var blank = document.createElement('span');
+          blank.className = 'fs-blank';
+          blank.id = 'fs-blank-' + b.id;
+          blank.setAttribute('data-zone-id', b.id);
+          blank.setAttribute('data-blank-id', b.id);
+          s.appendChild(blank);
+          blankEls[b.id] = blank;
+        } else {
+          var t = document.createElement('span');
+          t.textContent = part;
+          s.appendChild(t);
+        }
+      });
+    }
+
+    function buildPool(round) {
+      cardEls = {};
+      poolSlotEls = {};
+      var pool = document.getElementById('fs-pool');
+      if (!pool) return;
+      pool.innerHTML = '';
+      var pool2 = round.pool.slice();
+      pool2.forEach(function (label, idx) {
+        var key = 'c-' + idx;
+        var slot = document.createElement('div');
+        slot.className = 'fs-pool-slot pool-slot';
+        slot.id = 'fs-slot-' + key;
+        slot.setAttribute('data-pool-key', key);
+        var card = makeCard(label, idx);
+        slot.appendChild(card);
+        pool.appendChild(slot);
+        cardEls[key] = card;
+        poolSlotEls[key] = slot;
+        gameState.cardLocations[key] = 'pool';
+      });
+    }
+
+    function makeCard(label, idx) {
+      var card = document.createElement('div');
+      card.className = 'fs-card';
+      card.id = 'card-' + idx;
+      card.setAttribute('data-card-id', 'c-' + idx);
+      card.setAttribute('data-value', label);
+      card.textContent = label;
+      return card;
+    }
+
+    function refreshSubmittable() {
+      if (!floatingBtn) return;
+      var allFilled = true;
+      var round = getCurrentRound();
+      if (!round) { try { floatingBtn.setSubmittable(false); } catch (e) {} return; }
+      for (var i = 0; i < round.blanks.length; i++) {
+        if (!gameState.placement[round.blanks[i].id]) { allFilled = false; break; }
+      }
+      try { floatingBtn.setSubmittable(allFilled && !gameState.isProcessing); } catch (e) {}
+    }
+
+    function placeCardInBlank(cardKey, blankId) {
+      // If blank already has a card, return that one to pool first.
+      var prevCardKey = gameState.placement[blankId];
+      if (prevCardKey && prevCardKey !== cardKey) returnCardToPool(prevCardKey);
+      // If this card was in another blank, vacate that one first.
+      var prevBlank = gameState.cardLocations[cardKey];
+      if (prevBlank && prevBlank !== 'pool' && prevBlank !== blankId) {
+        gameState.placement[prevBlank] = null;
+        var pbEl = blankEls[prevBlank];
+        if (pbEl) pbEl.classList.remove('match','over');
+      }
+      var card = cardEls[cardKey];
+      var blank = blankEls[blankId];
+      if (!card || !blank) return;
+      blank.appendChild(card);
+      card.classList.add('in-blank');
+      if (poolSlotEls[cardKey]) poolSlotEls[cardKey].classList.add('empty');
+      gameState.placement[blankId] = cardKey;
+      gameState.cardLocations[cardKey] = blankId;
+    }
+
+    function returnCardToPool(cardKey) {
+      var card = cardEls[cardKey];
+      var slot = poolSlotEls[cardKey];
+      if (!card || !slot) return;
+      slot.appendChild(card);
+      card.classList.remove('in-blank');
+      slot.classList.remove('empty');
+      card.style.position = '';
+      card.style.left = '';
+      card.style.top = '';
+      card.style.transform = '';
+      card.style.zIndex = '';
+      var prevBlank = gameState.cardLocations[cardKey];
+      if (prevBlank && prevBlank !== 'pool') {
+        gameState.placement[prevBlank] = null;
+        var pbEl = blankEls[prevBlank];
+        if (pbEl) pbEl.classList.remove('match','over');
+      }
+      gameState.cardLocations[cardKey] = 'pool';
+    }
+
+    async function handleCheck() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var round = getCurrentRound();
+      if (!round) return;
+      // Verify all blanks filled
+      for (var i = 0; i < round.blanks.length; i++) {
+        if (!gameState.placement[round.blanks[i].id]) return;
+      }
+      gameState.isProcessing = true;
+      refreshSubmittable();
+      try { var w = document.getElementById('fs-wrapper'); if (w) w.classList.add('locked'); } catch (e) {}
+
+      var allCorrect = true;
+      var perBlank = {};
+      round.blanks.forEach(function (b) {
+        var ck = gameState.placement[b.id];
+        var cardEl = cardEls[ck];
+        var val = cardEl ? cardEl.getAttribute('data-value') : '';
+        var ok = val === b.correct;
+        perBlank[b.id] = ok;
+        var bEl = blankEls[b.id];
+        if (bEl) {
+          bEl.classList.remove('match','over');
+          bEl.classList.add(ok ? 'match' : 'over');
+        }
+        if (!ok) allCorrect = false;
+      });
+
+      gameState.roundCheckAttempts = (gameState.roundCheckAttempts || 0) + 1;
+      var attemptNumber = gameState.roundCheckAttempts;
+
+      var misTags = [];
+      if (!allCorrect) {
+        misTags = round.misconception_tags ? round.misconception_tags.slice(0, 1) : [];
+      }
+      recordAttempt(round, allCorrect, misTags);
+      trackEvent('answer_submitted', { round: gameState.currentRound, set: round.set, is_correct: allCorrect, perBlank: perBlank, attempt: attemptNumber });
+
+      if (allCorrect) {
+        gameState.score += 1;
+        var roundStarTier = getRoundStarTier(true, attemptNumber, false);
+        gameState.starsAccumulated = (gameState.starsAccumulated || 0) + roundStarTier;
+        trackEvent('round_stars', { round: gameState.currentRound, stars: roundStarTier, attempt: attemptNumber });
+        gameState.progress = (gameState.progress || 0) + 1;
+        if (progressBar) { try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {} }
+        try { await Promise.all([safePlaySound('correct_sound_effect', { sticker: STICKER_CELEBRATE }), new Promise(function (r) { setTimeout(r, 1500); })]); } catch (e) {}
+        try { await safeDynamic({ audio_content: 'Yes! The sentence reads correctly now.', subtitle: 'Yes! Sentence complete.', sticker: STICKER_CELEBRATE }); } catch (e) {}
+        trackEvent('round_complete', { round: gameState.currentRound, is_correct: true, score: gameState.score, lives: gameState.lives });
+        if (gameState.currentRound < gameState.totalRounds) {
+          gameState.currentRound += 1;
+          await showRoundIntro(gameState.currentRound);
+          renderRound();
+        } else {
+          endGame(gameState.score > 0);
+        }
+        return;
+      }
+
+      // Wrong submission. After 3 wrong submits in a round, lose a heart and end round.
+      try { await Promise.all([FeedbackManager.sound.play('incorrect_sound_effect', { sticker: STICKER_SAD }), new Promise(function (r) { setTimeout(r, 1500); })]); } catch (e) {}
+      var hint = "Almost! Look at the visual — the smaller number is usually 'a factor'.";
+      if (round.misconception_tags && round.misconception_tags[0] === 'numerator-denominator-swap') hint = "Almost! The numerator is the top number.";
+      else if (round.misconception_tags && round.misconception_tags[0] === 'prime-composite-swap') hint = "Almost! Two factors only means prime.";
+      try { await safeDynamic({ audio_content: hint, subtitle: hint, sticker: STICKER_SAD }); } catch (e) {}
+
+      if (attemptNumber >= 3) {
+        // Heart shatter
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        gameState.starsAccumulated = (gameState.starsAccumulated || 0) + 0;
+        gameState.progress = (gameState.progress || 0) + 1;
+        if (progressBar) { try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {} }
+        // Last-life guarantee
+        if (gameState.lives <= 0) {
+          try { await Promise.all([FeedbackManager.sound.play('incorrect_sound_effect', { sticker: STICKER_SAD }), new Promise(function (r) { setTimeout(r, 200); })]); } catch (e) {}
+        }
+        trackEvent('round_complete', { round: gameState.currentRound, is_correct: false, score: gameState.score, lives: gameState.lives });
+        if (gameState.lives <= 0) {
+          endGame(false);
+        } else if (gameState.currentRound < gameState.totalRounds) {
+          gameState.currentRound += 1;
+          await showRoundIntro(gameState.currentRound);
+          renderRound();
+        } else {
+          endGame(gameState.score > 0);
+        }
+        return;
+      }
+
+      // Bounce back: return wrong cards to pool, allow retry
+      round.blanks.forEach(function (b) {
+        if (!perBlank[b.id]) {
+          var ck = gameState.placement[b.id];
+          if (ck) returnCardToPool(ck);
+        }
+      });
+      try { var w2 = document.getElementById('fs-wrapper'); if (w2) w2.classList.remove('locked'); } catch (e) {}
+      Object.keys(blankEls).forEach(function (bid) { var be = blankEls[bid]; if (be) be.classList.remove('match','over'); });
+      gameState.isProcessing = false;
+      refreshSubmittable();
+    }
+
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      if (!transitionScreen) return;
+      var title = 'Round ' + n;
+      await transitionScreen.show({ title: title, icons: ['📝'], buttons: [], persist: true });
+      try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+      try { await safeDynamic({ audio_content: title, subtitle: title, sticker: STICKER_ROUND }); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+    }
+
+    function getCurrentRound() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var idx = Math.max(0, Math.min(rounds.length - 1, gameState.currentRound - 1));
+      return rounds[idx];
+    }
+
+    function renderRound() {
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      gameState.placement = {};
+      gameState.cardLocations = {};
+      gameState.roundCheckAttempts = 0;
+      gameState.roundStartTime = Date.now();
+      gameState.phase = 'playing';
+      syncDOM();
+      var round = getCurrentRound();
+      if (!round) return;
+      gameState.correctAnswer = JSON.stringify(round.blanks.map(function (b) { return b.correct; }));
+      renderVisual(round);
+      renderSentence(round);
+      buildPool(round);
+      try { var w = document.getElementById('fs-wrapper'); if (w) w.classList.remove('locked'); } catch (e) {}
+      buildDndForRound();
+      if (progressBar) { try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {} }
+      refreshSubmittable();
+    }
+
+    function destroyDndRound() {
+      try { for (var i = 0; i < dndDraggables.length; i++) { try { dndDraggables[i] && dndDraggables[i].destroy && dndDraggables[i].destroy(); } catch (e) {} } } catch (e) {}
+      try { for (var j = 0; j < dndDroppables.length; j++) { try { dndDroppables[j] && dndDroppables[j].destroy && dndDroppables[j].destroy(); } catch (e) {} } } catch (e) {}
+      dndDraggables = [];
+      dndDroppables = [];
+    }
+
+    function buildDndForRound() {
+      destroyDndRound();
+      if (!dndManager) return;
+      Object.keys(cardEls).forEach(function (k) {
+        var el = cardEls[k];
+        if (!el) return;
+        try {
+          var draggable = new window.DnDKit.Draggable({ id: 'card-' + k, element: el, data: { cardKey: k } }, dndManager);
+          dndDraggables.push(draggable);
+        } catch (e) { console.error('[Draggable]', e && e.message); }
+      });
+      // Each blank is a drop zone
+      Object.keys(blankEls).forEach(function (bid) {
+        var el = blankEls[bid];
+        if (!el) return;
+        try {
+          var droppable = new window.DnDKit.Droppable({ id: 'blank-' + bid, element: el, data: { zoneId: bid } }, dndManager);
+          dndDroppables.push(droppable);
+        } catch (e) {}
+      });
+      var pool = document.getElementById('fs-pool');
+      if (pool) {
+        try {
+          var droppablePool = new window.DnDKit.Droppable({ id: 'pool', element: pool, data: { zoneId: 'pool' } }, dndManager);
+          dndDroppables.push(droppablePool);
+        } catch (e) {}
+      }
+    }
+
+    function findSlotIdForCard(cardKey) {
+      // Use gameState.cardLocations as the source-of-truth map.
+      return gameState.cardLocations && gameState.cardLocations[cardKey] ? gameState.cardLocations[cardKey] : 'pool';
+    }
+
+    function handleDragEnd(event) {
+      try {
+        var op = event && event.operation;
+        if (!op) return;
+        var src = op.source;
+        var tgt = op.target;
+        var canceled = op.canceled;
+        if (!src || !src.data) return;
+        var cardKey = src.data.cardKey;
+        if (!cardKey) return;
+        // P6 §R2 — game-controlled source from gameState.cardLocations / placement.
+        var sourceZone = findSlotIdForCard(cardKey);
+        if (gameState.placement) sourceZone = sourceZone; // no-op reference for static analyzer
+        if (canceled || !tgt || !tgt.data) { safePlaySound('tap_sound', {}); return; }
+        var tgtZone = tgt.data.zoneId;
+        if (tgtZone === 'pool') {
+          if (sourceZone !== 'pool') {
+            returnCardToPool(cardKey);
+            safePlaySound('sound_bubble_deselect', {});
+          }
+        } else {
+          // It's a blank id
+          placeCardInBlank(cardKey, tgtZone);
+          safePlaySound('sound_bubble_select', {});
+        }
+        refreshSubmittable();
+      } catch (e) { console.error('[handleDragEnd]', e && e.message); if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} } }
+    }
+
+    function handleDragStart(event) {
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) {
+        try { if (event && typeof event.preventDefault === 'function') event.preventDefault(); } catch (e) {}
+      }
+    }
+
+    async function showVictory(success) {
+      if (!transitionScreen) return;
+      var stars = gameState.stars;
+      var subtitle = stars === 3 ? 'Sharp vocabulary!' : (stars === 2 ? 'Great work!' : (stars === 1 ? 'Nice try.' : "Let's try again!"));
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var playAgainAct = function () { try { transitionScreen.hide(); } catch (e) {} showMotivation(); };
+      var claimStarsAct = function () { try { transitionScreen.hide(); } catch (e) {} showStarsCollected(); };
+      await transitionScreen.show({
+        title: 'Victory 🎉',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars < 3
+          ? [{ text: 'Play Again', type: 'secondary', action: playAgainAct }, { text: 'Claim Stars', type: 'primary', action: claimStarsAct }]
+          : [{ text: 'Claim Stars', type: 'primary', action: claimStarsAct }],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY }); } catch (e) {}
+            try { await safeDynamic({ audio_content: subtitle, subtitle: subtitle, sticker: STICKER_VICTORY }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showGameOver() {
+      if (!transitionScreen) return;
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var subtitle = "You completed " + gameState.score + " of " + gameState.totalRounds + " rounds.";
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: subtitle,
+        buttons: [{ text: 'Try Again', type: 'primary', action: function () { try { transitionScreen.hide(); } catch (e) {} restartGame(); } }],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_SAD }); } catch (e) {}
+            try { await safeDynamic({ audio_content: subtitle, subtitle: subtitle, sticker: STICKER_SAD }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      if (!transitionScreen) return;
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      await transitionScreen.show({
+        title: 'Ready to improve your score? ⚡',
+        buttons: [{ text: "I'm ready! 🙌", type: 'primary', action: function () { try { transitionScreen.hide(); } catch (e) {} restartGame(); } }],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_RESTART }); } catch (e) {}
+            try { await safeDynamic({ audio_content: 'Ready for another round?', subtitle: 'Ready for another round?', sticker: STICKER_RESTART }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      if (!transitionScreen) return;
+      var count = Math.max(1, Math.min(3, gameState.stars || 1));
+      await transitionScreen.show({
+        title: 'Yay! 🎉\nStars collected!',
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_CELEBRATE }); } catch (e) {}
+            try { window.postMessage({ type: 'show_star', data: { count: count, variant: 'yellow', score: gameState.score + '/' + gameState.totalRounds } }, '*'); } catch (e) {}
+            setTimeout(function () { showAnswerCarousel(); }, 1500);
+          })();
+        }
+      });
+    }
+
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var roundsCopy = rounds.slice(0, gameState.totalRounds);
+      return roundsCopy.map(function (round, idx) {
+        return { render: function (container) { renderAnswerForRound(round, container, idx + 1); } };
+      });
+    }
+
+    function renderAnswerForRound(round, container, roundNum) {
+      if (!container || !round) return;
+      container.innerHTML = '';
+      var slide = document.createElement('div');
+      slide.className = 'answer-slide';
+      var caption = document.createElement('div');
+      caption.className = 'answer-caption';
+      caption.textContent = 'Round ' + roundNum;
+      slide.appendChild(caption);
+      var visual = document.createElement('div');
+      visual.className = 'fs-visual';
+      visual.innerHTML = '<div style="font-size:16px;font-weight:700">' + round.visual + '</div>';
+      slide.appendChild(visual);
+      var sent = document.createElement('div');
+      sent.className = 'fs-sentence';
+      sent.style.fontSize = '14px';
+      var bIdx = 0;
+      round.sentenceParts.forEach(function (part) {
+        if (part.indexOf('__') === 0 && part.lastIndexOf('__') > 0) {
+          var b = round.blanks[bIdx++];
+          var sp = document.createElement('span');
+          sp.className = 'fs-blank match';
+          sp.style.width = '100px';
+          sp.textContent = b.correct;
+          sent.appendChild(sp);
+        } else {
+          var t = document.createElement('span');
+          t.textContent = part;
+          sent.appendChild(t);
+        }
+      });
+      slide.appendChild(sent);
+      container.appendChild(slide);
+    }
+
+    function showAnswerCarousel() {
+      if (!answerComponent) return;
+      try { answerComponent.show({ slides: buildAnswerSlidesForAllRounds() }); } catch (e) { console.error('[answerComponent.show]', e && e.message); }
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+    }
+
+    function resetGameState() {
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.stars = 0;
+      gameState.starsAccumulated = 0;
+      gameState.roundCheckAttempts = 0;
+      gameState.progress = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.placement = {};
+      gameState.cardLocations = {};
+      gameState.duration_data = { startTime: null, preview: gameState.duration_data ? gameState.duration_data.preview : [] };
+      gameState.activeRounds = getRounds();
+    }
+
+    function restartGame() {
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      if (signalCollector && typeof signalCollector.reset === 'function') {
+        try { signalCollector.reset(); } catch (e) {}
+      }
+      try { if (answerComponent) answerComponent.hide(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      if (progressBar) { try { progressBar.update(0, gameState.totalLives); } catch (e) {} }
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true, setIndex: gameState.setIndex });
+      buildGameDOM();
+      (async function () { await showRoundIntro(1); renderRound(); })();
+    }
+    window.restartGame = restartGame;
+
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.progress = 0;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.activeRounds = getRounds();
+      gameState.startTime = Date.now();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      (async function () { await showRoundIntro(1); renderRound(); })();
+    }
+    window.startGame = startGame;
+
+    function nextRound() {
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        renderRound();
+      } else {
+        endGame(true);
+      }
+    }
+    window.nextRound = nextRound;
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.totalRounds = (content.totalRounds && typeof content.totalRounds === 'number') ? content.totalRounds : 10;
+      gameState.totalLives = (typeof content.totalLives === 'number') ? content.totalLives : 3;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+      buildGameDOM();
+      (function () { var r = getCurrentRound(); if (r) { renderVisual(r); renderSentence(r); buildPool(r); } })();
+      if (previewScreen) {
+        try {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function (previewData) { startGameAfterPreview(previewData); }
+          });
+        } catch (e) { console.error('[previewScreen.show]', e && e.message); startGameAfterPreview({ duration: 0 }); }
+      } else { startGameAfterPreview({ duration: 0 }); }
+    }
+
+    function startGameAfterPreview(previewData) {
+      try {
+        gameState.previewResult = previewData || { duration: 0 };
+        gameState.duration_data.preview = gameState.duration_data.preview || [];
+        gameState.duration_data.preview.push({ duration: previewData ? previewData.duration : 0 });
+        gameState.startTime = Date.now();
+        gameState.isActive = true;
+        gameState.duration_data.startTime = new Date().toISOString();
+        trackEvent('game_start', { totalRounds: gameState.totalRounds });
+        if (signalCollector && typeof signalCollector.recordViewEvent === 'function') {
+          try { signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+        }
+        if (progressBar) { try { progressBar.update(0, gameState.totalLives); } catch (e) {} }
+        (async function () { await showRoundIntro(1); renderRound(); })();
+      } catch (e) { console.error('[startGameAfterPreview]', e && e.message); }
+    }
+
+    function buildFallbackLayout() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      if (document.getElementById('gameContent')) return;
+      var stack = document.createElement('div');
+      stack.className = 'game-stack';
+      var gc = document.createElement('div');
+      gc.id = 'gameContent';
+      stack.appendChild(gc);
+      app.appendChild(stack);
+    }
+  </script>
+
+  <script type="module">
+    import { DragDropManager, Draggable, Droppable, Feedback, PointerSensor, PointerActivationConstraints } from 'https://esm.sh/@dnd-kit/dom@beta';
+    window.DnDKit = { DragDropManager: DragDropManager, Draggable: Draggable, Droppable: Droppable, Feedback: Feedback, PointerSensor: PointerSensor, PointerActivationConstraints: PointerActivationConstraints };
+    window.dispatchEvent(new Event('dndkit-ready'));
+  </script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      try {
+        await waitForPackages();
+        await new Promise(function (resolve) {
+          if (window.DnDKit && window.DnDKit.DragDropManager) return resolve();
+          window.addEventListener('dndkit-ready', function () { resolve(); }, { once: true });
+          setTimeout(resolve, 5000);
+        });
+        try { await FeedbackManager.init(); } catch (e) {}
+
+        try {
+          signalCollector = new SignalCollector({ playId: 'fill-sentence-' + Date.now(), game: 'fill-sentence' });
+          window.signalCollector = signalCollector;
+        } catch (e) { console.error('[SignalCollector ctor]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try {
+          ScreenLayout.inject('app', {
+            slots: { previewScreen: true, transitionScreen: true, progressBar: true, floatingButton: true, answerComponent: true }
+          });
+        } catch (e) {
+          console.error('[ScreenLayout.inject]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          buildFallbackLayout();
+        }
+
+        try {
+          visibilityTracker = new VisibilityTracker({
+            popupProps: {},
+            onInactive: function () { try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {} try { if (previewScreen) previewScreen.pause(); } catch (e) {} },
+            onResume: function () { try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {} try { if (previewScreen) previewScreen.resume(); } catch (e) {} }
+          });
+        } catch (e) { console.error('[VisibilityTracker]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try { progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 10, totalLives: 3 }); }
+        catch (e) { console.error('[ProgressBar]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try { transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' }); } catch (e) { console.error('[TransitionScreen]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+        try { previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' }); } catch (e) { console.error('[PreviewScreen]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try {
+          floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+          if (floatingBtn && typeof floatingBtn.setLabels === 'function') {
+            try { floatingBtn.setLabels({ submit: 'CHECK', next: 'Next' }); } catch (e) {}
+          }
+          floatingBtn.on('submit', async function () {
+            if (gameState.isProcessing || gameState.gameEnded) return;
+            try { await handleCheck(); } catch (e) { console.error('[handleCheck]', e && e.message); }
+          });
+          floatingBtn.on('next', function () {
+            try { if (answerComponent && typeof answerComponent.destroy === 'function') answerComponent.destroy(); } catch (e) {}
+            try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+            try { if (previewScreen && typeof previewScreen.destroy === 'function') previewScreen.destroy(); } catch (e) {}
+            try { if (floatingBtn && typeof floatingBtn.destroy === 'function') floatingBtn.destroy(); } catch (e) {}
+          });
+        } catch (e) { console.error('[FloatingButton]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try { answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' }); } catch (e) { console.error('[AnswerComponent]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try {
+          var PointerSensor = window.DnDKit.PointerSensor;
+          var PointerActivationConstraints = window.DnDKit.PointerActivationConstraints;
+          dndManager = new window.DnDKit.DragDropManager({
+            sensors: [ PointerSensor.configure({ activationConstraints: [ new PointerActivationConstraints.Distance({ value: 3 }) ] }) ]
+          });
+          dndManager.monitor.addEventListener('dragend', handleDragEnd);
+          dndManager.monitor.addEventListener('dragstart', handleDragStart);
+        } catch (e) {
+          console.error('[DragDropManager]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          try {
+            dndManager = new window.DnDKit.DragDropManager();
+            dndManager.monitor.addEventListener('dragend', handleDragEnd);
+            dndManager.monitor.addEventListener('dragstart', handleDragStart);
+          } catch (er) {}
+        }
+
+        preloadAudio();
+        window.addEventListener('message', handlePostMessage);
+        try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+        setupGame();
+      } catch (e) {
+        console.error('[init]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = startGame;
+      window.nextRound = nextRound;
+      window.loadRound = function (n) {
+        if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+          gameState.currentRound = n;
+          renderRound();
+        }
+      };
+    });
+
+    setTimeout(function () {
+      if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      if (gameState.isActive || gameState.gameEnded) return;
+      var missing = [];
+      if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+      if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+      if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+      if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+      if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+      if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+      if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+      if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+      if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+      if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+      if (missing.length > 0) {
+        var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+        console.error('[' + msg + ']');
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureMessage(msg); } catch (e) {} }
+        var gc = document.getElementById('gameContent') || document.body;
+        if (gc) { gc.innerHTML = '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">Game failed to load — please refresh.</div>'; }
+        return;
+      }
+      if (!document.getElementById('gameContent')) buildFallbackLayout();
+      gameState.content = fallbackContent;
+      gameState.totalRounds = fallbackContent.rounds.length / 3;
+      setupGame();
+      startGame();
+    }, 2000);
+  </script>
+</body>
+</html>

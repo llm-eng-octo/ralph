@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Party Math — The Equal-Groups Story Trainer</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-primary: #270f36;
+      --mathai-purple: #9B51E0;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-success: #27ae60;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-border-radius-card: 12px;
+      --mathai-border-radius-button: 10px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+    @supports not (height: 100dvh) {
+      html, body { height: 100vh; }
+    }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    #gameContent {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      padding: 8px 16px 24px;
+    }
+
+    .pm-stage {
+      text-align: center;
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-gray);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin: 6px 0 4px;
+    }
+    .pm-story {
+      text-align: center;
+      font-size: 18px;
+      line-height: 1.5;
+      color: var(--mathai-primary);
+      margin: 8px auto 12px;
+      max-width: 380px;
+      animation: fadeIn 0.32s ease;
+    }
+    .pm-story b { color: var(--mathai-purple); }
+    .pm-illustration {
+      width: 100%;
+      max-width: 240px;
+      height: 140px;
+      margin: 4px auto 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--mathai-cell-bg-yellow);
+      border-radius: var(--mathai-border-radius-card);
+      font-size: 64px;
+    }
+    .pm-question {
+      text-align: center;
+      font-size: 16px;
+      color: var(--mathai-text-primary);
+      margin: 6px auto 12px;
+      max-width: 380px;
+    }
+    .pm-question b { color: var(--mathai-purple); }
+    .pm-answer-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    .pm-input {
+      width: 110px;
+      padding: 10px 12px;
+      font-family: var(--mathai-font-family);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      background: var(--mathai-white);
+      border: 2px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-button);
+      text-align: center;
+      -webkit-appearance: none;
+      appearance: none;
+      outline: none;
+    }
+    .pm-input:focus { border-color: var(--mathai-purple); }
+    .pm-input.input-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-success);
+    }
+    .pm-input.input-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-cell-border-red);
+      color: var(--mathai-error);
+      animation: shake 0.5s ease;
+    }
+    .pm-unit {
+      margin-left: 10px;
+      font-size: 18px;
+      color: var(--mathai-gray);
+      font-weight: 600;
+    }
+    .pm-reveal {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 14px;
+      color: var(--mathai-success);
+      min-height: 18px;
+    }
+
+    button, .pm-input, [role="button"] {
+      min-height: 44px;
+      touch-action: manipulation;
+    }
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: 18px;
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .pm-answer-card {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      padding: 12px;
+      text-align: center;
+    }
+    .pm-answer-prompt { font-size: 16px; font-weight: 700; color: var(--mathai-primary); margin-bottom: 8px; }
+    .pm-answer-total { font-size: 28px; font-weight: 800; color: var(--mathai-success); margin: 8px 0; }
+    .pm-answer-explain { font-size: 14px; color: var(--mathai-text-primary); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-lives="3"></div>
+
+  <script>
+    var STICKER_CORRECT  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_TWO      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_ONE      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_CELEBRATE = STICKER_VICTORY;
+    var STICKER_SAD = STICKER_WRONG;
+    var STICKER_MOTIVATE = STICKER_LEVEL;
+
+    function makePartyRound(setKey, roundNum, stage, character, action, item, emoji, groupSize, numGroups, id) {
+      var total = groupSize * numGroups;
+      return {
+        set: setKey,
+        id: setKey + '_r' + roundNum + '_' + id,
+        round: roundNum,
+        stage: stage,
+        character: character,
+        action: action,
+        item: item,
+        emoji: emoji,
+        groupSize: groupSize,
+        numGroups: numGroups,
+        total: total,
+        story: character + ' wants to give <b>' + groupSize + ' ' + item + '</b> to each guest at the party.',
+        question: 'How many ' + item + ' will ' + character + ' need for <b>' + numGroups + ' guests</b>?',
+        unit: item,
+        correctTTS: 'Yes! ' + groupSize + ' for each of ' + numGroups + ' makes ' + total + '.',
+        correctSubtitle: groupSize + ' × ' + numGroups + ' = ' + total + '.',
+        wrongTTS: 'Not quite. ' + groupSize + ' for each of ' + numGroups + ' is ' + total + '.',
+        wrongSubtitle: 'Try counting: ' + groupSize + ', ' + (groupSize*2) + ', … = ' + total + '.',
+        answer: { groupSize: groupSize, numGroups: numGroups, item: item, total: total, explanation: groupSize + ' × ' + numGroups + ' = ' + total }
+      };
+    }
+
+    var fallbackContent = {
+      previewInstruction: '<p><b>Party Math!</b> Read the story, then type how many things the host needs for all the guests. Each guest gets the same number — that\'s a multiplication clue!</p>',
+      previewAudioText: 'Read the story, then type how many things the host needs in total. Each guest gets the same number, so multiply.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 10,
+      totalLives: 3,
+      answerComponent: true,
+      rounds: [
+        // Set A
+        makePartyRound('A', 1, 1, 'Ravi', 'gives', 'balloons', '🎈', 2, 3, 'balloons-2x3'),
+        makePartyRound('A', 2, 1, 'Priya', 'hands', 'sweets', '🍬', 3, 2, 'sweets-3x2'),
+        makePartyRound('A', 3, 1, 'Aman', 'packs', 'cookies', '🍪', 2, 4, 'cookies-2x4'),
+        makePartyRound('A', 4, 2, 'Sara', 'arranges', 'pencils', '✏️', 3, 4, 'pencils-3x4'),
+        makePartyRound('A', 5, 2, 'Ravi', 'puts', 'chocolates', '🍫', 4, 3, 'chocolates-4x3'),
+        makePartyRound('A', 6, 2, 'Priya', 'stacks', 'books', '📚', 5, 3, 'books-5x3'),
+        makePartyRound('A', 7, 2, 'Aman', 'gives', 'cupcakes', '🧁', 4, 5, 'cupcakes-4x5'),
+        makePartyRound('A', 8, 3, 'Sara', 'shares', 'apples', '🍎', 5, 5, 'apples-5x5'),
+        makePartyRound('A', 9, 3, 'Ravi', 'sets', 'plates', '🍽️', 6, 4, 'plates-6x4'),
+        makePartyRound('A', 10, 3, 'Priya', 'gives', 'gifts', '🎁', 6, 6, 'gifts-6x6'),
+        // Set B
+        makePartyRound('B', 1, 1, 'Aman', 'gives', 'balloons', '🎈', 3, 3, 'balloons-3x3'),
+        makePartyRound('B', 2, 1, 'Sara', 'hands', 'sweets', '🍬', 2, 5, 'sweets-2x5'),
+        makePartyRound('B', 3, 1, 'Ravi', 'packs', 'cookies', '🍪', 3, 3, 'cookies-3x3'),
+        makePartyRound('B', 4, 2, 'Priya', 'arranges', 'pencils', '✏️', 4, 4, 'pencils-4x4'),
+        makePartyRound('B', 5, 2, 'Aman', 'puts', 'chocolates', '🍫', 3, 5, 'chocolates-3x5'),
+        makePartyRound('B', 6, 2, 'Sara', 'stacks', 'books', '📚', 4, 3, 'books-4x3'),
+        makePartyRound('B', 7, 2, 'Ravi', 'gives', 'cupcakes', '🧁', 5, 4, 'cupcakes-5x4'),
+        makePartyRound('B', 8, 3, 'Priya', 'shares', 'apples', '🍎', 4, 6, 'apples-4x6'),
+        makePartyRound('B', 9, 3, 'Aman', 'sets', 'plates', '🍽️', 5, 6, 'plates-5x6'),
+        makePartyRound('B', 10, 3, 'Sara', 'gives', 'gifts', '🎁', 6, 5, 'gifts-6x5'),
+        // Set C
+        makePartyRound('C', 1, 1, 'Ravi', 'gives', 'balloons', '🎈', 2, 4, 'balloons-2x4'),
+        makePartyRound('C', 2, 1, 'Priya', 'hands', 'sweets', '🍬', 3, 4, 'sweets-3x4'),
+        makePartyRound('C', 3, 1, 'Aman', 'packs', 'cookies', '🍪', 4, 2, 'cookies-4x2'),
+        makePartyRound('C', 4, 2, 'Sara', 'arranges', 'pencils', '✏️', 5, 2, 'pencils-5x2'),
+        makePartyRound('C', 5, 2, 'Ravi', 'puts', 'chocolates', '🍫', 4, 4, 'chocolates-4x4'),
+        makePartyRound('C', 6, 2, 'Priya', 'stacks', 'books', '📚', 3, 6, 'books-3x6'),
+        makePartyRound('C', 7, 2, 'Aman', 'gives', 'cupcakes', '🧁', 5, 5, 'cupcakes-5x5'),
+        makePartyRound('C', 8, 3, 'Sara', 'shares', 'apples', '🍎', 6, 3, 'apples-6x3'),
+        makePartyRound('C', 9, 3, 'Ravi', 'sets', 'plates', '🍽️', 4, 6, 'plates-4x6'),
+        makePartyRound('C', 10, 3, 'Priya', 'gives', 'gifts', '🎁', 5, 6, 'gifts-5x6')
+      ]
+    };
+
+    var SETS = ['A','B','C'];
+
+    var gameState = {
+      gameId: 'speed-doubles-typed-input',
+      gameTitle: 'Party Math',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 10,
+      score: 0,
+      lives: 3,
+      totalLives: 3,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      duration_data: { startTime: null, endTime: null, preview: [] },
+      correctAnswer: null,
+      stars: 0,
+      setIndex: 0,
+      activeRounds: [],
+      previewResult: null,
+      progress: 0,
+      roundToken: 0,
+      roundStartMs: 0,
+      timerIntentionallyPaused: false,
+      _gameCompletePosted: false
+    };
+    window.gameState = gameState;
+
+    var timer = null;
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+
+    function getAvailableSets(rounds) {
+      var seen = {}; var out = [];
+      for (var i = 0; i < rounds.length; i++) {
+        var s = rounds[i].set;
+        if (s && !seen[s]) { seen[s] = true; out.push(s); }
+      }
+      return out.length ? out : ['A'];
+    }
+    function getRounds() {
+      var src = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(src);
+      var setKey = sets[gameState.setIndex % sets.length];
+      var filtered = [];
+      for (var i = 0; i < src.length; i++) {
+        if (src[i].set === setKey) filtered.push(src[i]);
+      }
+      filtered.sort(function (a, b) { return a.round - b.round; });
+      return filtered;
+    }
+    function getCorrectCount() {
+      var c = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) if (gameState.attempts[i].correct === true) c++;
+      return c;
+    }
+    function getStars() {
+      var n = gameState.totalRounds;
+      var c = getCorrectCount();
+      if (c === 0) return 0;
+      if (c >= Math.ceil(n * 0.9)) return 3;
+      if (c >= Math.ceil(n * 0.6)) return 2;
+      return 1;
+    }
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+    }
+    function trackEvent(name, payload) {
+      try { gameState.events.push({ event: name, ts: Date.now(), data: payload || {} }); } catch (e) {}
+      try { if (signalCollector && signalCollector.recordEvent) signalCollector.recordEvent(name, payload || {}); } catch (e) {}
+    }
+    function recordAttempt(input, correct, misconceptionTag, responseMs) {
+      var round = gameState.activeRounds[gameState.currentRound];
+      var qid = round ? round.id : ('r' + (gameState.currentRound + 1));
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) : 0,
+        input_of_user: input,
+        correct: correct === true,
+        round_number: gameState.currentRound + 1,
+        question_id: qid,
+        correct_answer: round ? round.total : null,
+        response_time_ms: typeof responseMs === 'number' ? responseMs : 0,
+        misconception_tag: misconceptionTag || null,
+        difficulty_level: round ? (round.stage || 1) : 1,
+        is_retry: false,
+        metadata: { set: round ? round.set : null }
+      };
+      gameState.attempts.push(attempt);
+      try { if (signalCollector && signalCollector.recordAttempt) signalCollector.recordAttempt(attempt); } catch (e) {}
+    }
+    function postGameComplete() {
+      if (gameState._gameCompletePosted) return;
+      gameState._gameCompletePosted = true;
+      var correctCount = getCorrectCount();
+      var attempted = gameState.attempts.length;
+      var accuracy = attempted === 0 ? 0 : Math.round((correctCount / attempted) * 100);
+      var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+      var triesByRound = gameState.attempts.map(function (a) { return { round: a.round_number, correct: a.correct === true }; });
+      var metrics = {
+        accuracy: accuracy,
+        time: Math.round(elapsedMs / 1000),
+        stars: gameState.stars,
+        attempts: gameState.attempts.slice(),
+        duration_data: gameState.duration_data,
+        totalLives: gameState.lives,
+        tries: triesByRound,
+        score: gameState.score,
+        correctCount: correctCount
+      };
+      var signalSealed = { event_count: gameState.events.length, metadata: {} };
+      try {
+        if (signalCollector && typeof signalCollector.seal === 'function') {
+          var sealed = signalCollector.seal();
+          if (sealed) {
+            if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+            if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+          }
+        }
+      } catch (e0) {}
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: Date.now(),
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata,
+            previewResult: gameState.previewResult || null
+          }
+        }, '*');
+      } catch (e) {}
+    }
+
+    function safePlaySound(id, opts) {
+      try { return FeedbackManager.sound.play(id, opts || {}); } catch (e) { return Promise.resolve(); }
+    }
+    function awaitedFeedbackSound(id, opts) {
+      var p = safePlaySound(id, opts || {});
+      var floor = new Promise(function (r) { setTimeout(r, 1500); });
+      return Promise.all([p, floor]).then(function () {}, function () {});
+    }
+    function playDynamicFeedback(opts) {
+      try { return FeedbackManager.playDynamicFeedback(opts || {}); } catch (e) { return Promise.resolve(); }
+    }
+
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            try { throw new Error('waitForPackages timeout'); } catch (rethrown) { reject(err); return; }
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div class="pm-stage" id="pmStage"></div>' +
+        '<div class="pm-story" id="pmStory"></div>' +
+        '<div class="pm-illustration" id="pmIllustration">🎉</div>' +
+        '<div class="pm-question" id="pmQuestion"></div>' +
+        '<div class="pm-answer-row">' +
+          '<input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" id="pmInput" data-testid="answer-input" class="pm-input" placeholder="?" />' +
+          '<span class="pm-unit" id="pmUnit"></span>' +
+        '</div>' +
+        '<div class="pm-reveal" id="pmReveal"></div>';
+    }
+    function renderInitialState() {
+      var ids = ['pmStage','pmStory','pmQuestion','pmReveal'];
+      for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if (el) el.textContent = '';
+      }
+      var ill = document.getElementById('pmIllustration');
+      if (ill) ill.textContent = '🎉';
+    }
+
+    function renderRound(roundIdxOneBased) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      gameState.currentRound = roundIdxOneBased - 1;
+      gameState.isActive = true;
+      gameState.phase = 'gameplay';
+      gameState.roundToken = (gameState.roundToken || 0) + 1;
+      syncDOM();
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) return;
+      gameState.correctAnswer = round.total;
+
+      var stageEl = document.getElementById('pmStage');
+      if (stageEl) stageEl.textContent = 'Round ' + roundIdxOneBased + ' of ' + gameState.totalRounds + ' · Stage ' + (round.stage || 1);
+
+      var storyEl = document.getElementById('pmStory');
+      if (storyEl) storyEl.innerHTML = round.story;
+      var qEl = document.getElementById('pmQuestion');
+      if (qEl) qEl.innerHTML = round.question;
+      var ill = document.getElementById('pmIllustration');
+      if (ill) ill.textContent = round.emoji;
+      var unit = document.getElementById('pmUnit');
+      if (unit) unit.textContent = round.unit;
+
+      var input = document.getElementById('pmInput');
+      if (input) {
+        input.value = '';
+        input.disabled = false;
+        input.classList.remove('input-correct');
+        input.classList.remove('input-wrong');
+        input.setAttribute('data-round-token', String(gameState.roundToken));
+        input.addEventListener('input', onInputChange);
+        input.addEventListener('keydown', onInputKey);
+      }
+      var revealEl = document.getElementById('pmReveal');
+      if (revealEl) revealEl.textContent = '';
+
+      try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode('submit'); } catch (e) {}
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+
+      gameState.roundStartMs = Date.now();
+      gameState.isProcessing = false;
+
+      try {
+        var p = safePlaySound('tap_sound', { sticker: null });
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+
+      trackEvent('round_start', { round: roundIdxOneBased, set: round.set });
+    }
+
+    function onInputChange() {
+      var input = document.getElementById('pmInput');
+      if (!input) return;
+      var v = String(input.value || '').trim();
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(v.length > 0); } catch (e) {}
+    }
+    function onInputKey(ev) {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        onSubmit();
+      }
+    }
+    function onSubmit() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var input = document.getElementById('pmInput');
+      if (!input) return;
+      var raw = String(input.value || '').trim();
+      if (raw === '') return;
+      var btnRoundToken = input.getAttribute('data-round-token');
+      if (btnRoundToken !== String(gameState.roundToken || '')) return;
+      var typed = parseInt(raw.replace(/[^0-9-]/g, ''), 10);
+      if (isNaN(typed)) typed = -1;
+      handleAnswer(typed, raw);
+    }
+
+    function handleAnswer(typed, rawStr) {
+      gameState.isProcessing = true;
+      var responseMs = Date.now() - gameState.roundStartMs;
+      var round = gameState.activeRounds[gameState.currentRound];
+      var isCorrect = typed === round.total;
+
+      var input = document.getElementById('pmInput');
+      if (input) {
+        input.disabled = true;
+        if (isCorrect) input.classList.add('input-correct');
+        else input.classList.add('input-wrong');
+      }
+      var revealEl = document.getElementById('pmReveal');
+      if (!isCorrect && revealEl) revealEl.textContent = round.groupSize + ' × ' + round.numGroups + ' = ' + round.total;
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+
+      if (isCorrect) {
+        gameState.score += 1;
+        gameState.progress = gameState.currentRound + 1;
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+        syncDOM();
+        recordAttempt(rawStr, true, null, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: true, value: typed });
+        runCorrectFeedbackAndAdvance(round);
+      } else {
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        gameState.progress = gameState.currentRound + 1;
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+        syncDOM();
+        var miscTag = (typed === round.groupSize + round.numGroups) ? 'added-instead-of-multiplied' : (typed === Math.abs(round.groupSize - round.numGroups) ? 'subtracted-instead-of-multiplied' : 'computation-error');
+        recordAttempt(rawStr, false, miscTag, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: false, value: typed, misconception_tag: miscTag });
+        runWrongFeedbackAndAdvance(round);
+      }
+    }
+
+    function runCorrectFeedbackAndAdvance(round) {
+      (async function () {
+        try { await awaitedFeedbackSound('correct_sound_effect', { sticker: STICKER_CORRECT }); } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.correctTTS,
+            subtitle: round.correctSubtitle,
+            sticker: STICKER_CORRECT
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function runWrongFeedbackAndAdvance(round) {
+      (async function () {
+        try { await awaitedFeedbackSound('incorrect_sound_effect', { sticker: STICKER_SAD }); } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.wrongTTS,
+            subtitle: round.wrongSubtitle,
+            sticker: STICKER_SAD
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function advanceAfterFeedback() {
+      var roundJustPlayed = gameState.currentRound + 1;
+      if (gameState.lives === 0) {
+        gameState.stars = getStars();
+        endGame(false);
+        return;
+      }
+      if (roundJustPlayed === gameState.totalRounds) {
+        endGame(true);
+        return;
+      }
+      showRoundIntro(roundJustPlayed + 1);
+    }
+
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode('hidden'); } catch (e) {}
+
+      var ttsText = 'Round ' + n;
+      await transitionScreen.show({
+        title: 'Round ' + n,
+        icons: [],
+        persist: true,
+        buttons: [],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_ROUND
+              });
+            } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          })();
+        }
+      });
+      setTimeout(function () {
+        try {
+          if (gameState.gameEnded) return;
+          if (gameState.currentRound + 1 < n) {
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          }
+        } catch (e) {}
+      }, 9000);
+    }
+
+    function endGame(victory) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.stars = getStars();
+      if (victory) {
+        gameState.phase = 'results';
+        syncDOM();
+        postGameComplete();
+        showVictory();
+      } else {
+        gameState.phase = 'game_over';
+        syncDOM();
+        postGameComplete();
+        showGameOver();
+      }
+      trackEvent('game_end', { victory: victory, stars: gameState.stars, score: gameState.score });
+    }
+
+    function _victoryClaimAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showStarsCollected();
+    }
+    function _victoryPlayAgainAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showMotivation();
+    }
+
+    async function showVictory() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var stars = gameState.stars;
+      var subtitle = 'You got ' + gameState.score + '/' + gameState.totalRounds + '!';
+      var ttsText = stars === 3 ? ('Brilliant! ' + subtitle) : ('Great work! ' + subtitle);
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var sfxSticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_TWO : STICKER_ONE);
+      await transitionScreen.show({
+        title: 'Victory',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars === 3
+          ? [{ text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }]
+          : [
+              { text: 'Play Again', type: 'secondary', action: _victoryPlayAgainAction },
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound(sfxId, { sticker: sfxSticker }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_CELEBRATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showGameOver() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var subtitle = 'You got ' + gameState.score + '/' + gameState.totalRounds + ' — try again.';
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: subtitle,
+        icons: ['😔'],
+        persist: true,
+        buttons: [{
+          text: 'Try Again',
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showMotivation();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_GAMEOVER }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: subtitle,
+                subtitle: subtitle,
+                sticker: STICKER_GAMEOVER
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = 'Ready to improve your score?';
+      await transitionScreen.show({
+        title: 'Ready to improve your score?',
+        icons: ['⚡'],
+        persist: true,
+        buttons: [{
+          text: "I'm ready",
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            restartGame();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_MOTIVATE }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_MOTIVATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      gameState.phase = 'stars_collected';
+      syncDOM();
+      await transitionScreen.show({
+        title: "Yay!\nStars collected!",
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY }); } catch (e) {}
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: {
+                  count: gameState.stars,
+                  variant: 'yellow',
+                  score: gameState.score + '/' + gameState.totalRounds
+                }
+              }, '*');
+            } catch (e) {}
+            setTimeout(showAnswerCarousel, 1500);
+          })();
+        }
+      });
+    }
+
+    function renderAnswerSlide(container, round) {
+      if (!container || !round || !round.answer) return;
+      var html = '';
+      html += '<div class="pm-answer-card">';
+      html += '<div class="pm-answer-prompt">' + escapeHTML(round.character + ' — ' + round.item) + '</div>';
+      html += '<div class="pm-illustration" style="margin:8px auto;">' + escapeHTML(round.emoji) + '</div>';
+      html += '<div class="pm-answer-total">' + round.total + ' ' + escapeHTML(round.unit) + '</div>';
+      html += '<div class="pm-answer-explain">' + escapeHTML(round.answer.explanation) + '</div>';
+      html += '</div>';
+      container.innerHTML = html;
+    }
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds;
+      var slides = [];
+      for (var i = 0; i < rounds.length; i++) {
+        (function (r) { slides.push({ render: function (container) { renderAnswerSlide(container, r); } }); })(rounds[i]);
+      }
+      return slides;
+    }
+    function showAnswerCarousel() {
+      try { answerComponent.show({ slides: buildAnswerSlidesForAllRounds() }); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+      try {
+        setTimeout(function () {
+          var slot = document.getElementById('mathai-answer-slot');
+          if (slot && slot.scrollIntoView) slot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+      } catch (e) {}
+    }
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.content = content;
+      gameState.totalRounds = content.totalRounds || 10;
+      gameState.totalLives = content.totalLives || 3;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+
+      injectGameHTML();
+      renderInitialState();
+
+      try {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          onComplete: function (previewData) { startGameAfterPreview(previewData); }
+        });
+      } catch (e) { console.error('[previewScreen.show failed]', e && e.message, e); }
+    }
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || {};
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: (previewData && previewData.duration) || 0 });
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try {
+        if (progressBar) {
+          progressBar.show();
+          progressBar.update(0, gameState.totalLives);
+        }
+      } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex] });
+      try {
+        if (signalCollector && signalCollector.recordViewEvent) {
+          signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+        }
+      } catch (e) {}
+      showWelcome();
+    }
+
+    async function showWelcome() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = "Let's play Party Math! Read the story, then type how many things the host needs.";
+      await transitionScreen.show({
+        title: 'Welcome!',
+        icons: ['👋'],
+        persist: true,
+        buttons: [{
+          text: "Let's go!",
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showRoundIntro(1);
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_LEVEL
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    function resetGameState() {
+      gameState.phase = 'gameplay';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState._gameCompletePosted = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.progress = 0;
+      gameState.timerIntentionallyPaused = false;
+      gameState.duration_data = { startTime: null, endTime: null, preview: gameState.duration_data.preview || [] };
+      gameState.activeRounds = getRounds();
+      try {
+        if (answerComponent && answerComponent.update) answerComponent.update({ slides: [] });
+        if (answerComponent && answerComponent.hide) answerComponent.hide();
+      } catch (e) {}
+    }
+    function restartGame() {
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex], restart: true });
+      showRoundIntro(1);
+    }
+
+    function handlePostMessage(event) {
+      if (!event || !event.data || !event.data.type) return;
+      var t = event.data.type;
+      var data = event.data.data || {};
+      if (t === 'game_init') {
+        gameState.phase = 'playing';
+        if (data.content) gameState.content = data.content;
+        gameState.signalConfig = data.signalConfig || {};
+        try {
+          if (signalCollector) {
+            signalCollector.gameId = gameState.gameId;
+            if (data.sessionId) signalCollector.sessionId = data.sessionId;
+            if (data.studentId) signalCollector.studentId = data.studentId;
+            if (data.contentSetId) signalCollector.contentSetId = data.contentSetId;
+            if (data.signalConfig && data.signalConfig.flushUrl) signalCollector.flushUrl = data.signalConfig.flushUrl;
+            if (data.signalConfig && data.signalConfig.playId) signalCollector.playId = data.signalConfig.playId;
+            if (signalCollector.startFlushing) { try { signalCollector.startFlushing(); } catch (e) {} }
+          }
+        } catch (e) {}
+        syncDOM();
+        setupGame();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      waitForPackages().then(function () {
+        try {
+          var initP = FeedbackManager.init && FeedbackManager.init();
+          var doInit = initP && initP.then ? initP : Promise.resolve();
+          doInit.then(function () {
+            try {
+              try {
+                signalCollector = new SignalCollector({
+                  sessionId: gameState.gameId + '-' + Date.now(),
+                  studentId: 'standalone',
+                  gameId: gameState.gameId,
+                  contentSetId: 'fallback'
+                });
+                window.signalCollector = signalCollector;
+              } catch (e) { console.error('[SignalCollector ctor failed]', e && e.message, e); }
+
+              try {
+                ScreenLayout.inject('app', {
+                  slots: {
+                    previewScreen: true,
+                    progressBar: true,
+                    transitionScreen: true,
+                    floatingButton: true,
+                    answerComponent: true
+                  }
+                });
+              } catch (e) { console.error('[ScreenLayout.inject failed]', e && e.message, e); }
+
+              injectGameHTML();
+              renderInitialState();
+
+              try {
+                visibilityTracker = new VisibilityTracker({
+                  popupProps: {
+                    title: 'Paused',
+                    description: 'Tap Resume to continue.',
+                    primaryText: 'Resume'
+                  },
+                  onInactive: function () {
+                    try { FeedbackManager.sound.pause(); } catch (e) {}
+                    try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+                    try { if (timer && !gameState.timerIntentionallyPaused) timer.pause(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+                  },
+                  onResume: function () {
+                    try { FeedbackManager.sound.resume(); } catch (e) {}
+                    try { FeedbackManager.stream.resumeAll(); } catch (e) {}
+                    try { if (timer && !gameState.timerIntentionallyPaused) timer.resume(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+                  }
+                });
+              } catch (e) { console.error('[VisibilityTracker ctor failed]', e && e.message, e); }
+
+              try {
+                progressBar = new ProgressBarComponent({
+                  slotId: 'mathai-progress-slot',
+                  totalRounds: 10,
+                  totalLives: 3
+                });
+              } catch (e) { console.error('[ProgressBarComponent ctor failed]', e && e.message, e); }
+
+              try {
+                transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' });
+              } catch (e) { console.error('[TransitionScreenComponent ctor failed]', e && e.message, e); }
+
+              try {
+                previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+              } catch (e) { console.error('[PreviewScreenComponent ctor failed]', e && e.message, e); }
+
+              try {
+                floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+              } catch (e) { console.error('[FloatingButtonComponent ctor failed]', e && e.message, e); }
+
+              try {
+                answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' });
+              } catch (e) { console.error('[AnswerComponentComponent ctor failed]', e && e.message, e); }
+
+              try {
+                if (floatingBtn && floatingBtn.on) {
+                  floatingBtn.on('submit', function () { onSubmit(); });
+                  floatingBtn.on('next', function () {
+                    try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                    try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+                    try { if (floatingBtn) floatingBtn.destroy(); } catch (e) {}
+                  });
+                }
+              } catch (e) {}
+
+              try {
+                FeedbackManager.sound.preload([
+                  { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+                  { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+                  { id: 'sound_level_transition',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+                  { id: 'victory_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+                  { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+                  { id: 'game_over_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+                  { id: 'tap_sound',                url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+                ]);
+              } catch (e) { console.error('[FeedbackManager.preload failed]', e && e.message, e); }
+
+              window.addEventListener('message', handlePostMessage);
+              try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+              setupGame();
+            } catch (e) { console.error('[init inner] ' + (e && e.message), e); }
+          }, function (e) { console.error('[FeedbackManager.init failed]', e && e.message, e); });
+        } catch (e) { console.error('[init outer] ' + (e && e.message), e); }
+      }, function (err) { console.error('[waitForPackages rejected] ' + (err && err.message)); });
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = setupGame;
+      window.renderRound = renderRound;
+      window.loadRound = function (n) { try { renderRound(n); } catch (e) {} };
+    });
+  </script>
+</body>
+</html>

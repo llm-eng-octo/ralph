@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Operator's Maze</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'operators-maze@1.0.0' }));
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-primary: #270f36;
+      --mathai-blue: #3B82F6;
+      --mathai-success: #22c55e;
+      --mathai-amber: #F59E0B;
+      --mathai-cell-bg-amber: #FEF3C7;
+      --mathai-red: #DC2626;
+      --mathai-amber: #F59E0B;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-amber: #FFF3CD;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; overflow-x: hidden; margin: 0; padding: 0; overscroll-behavior: none; }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+      min-height: 100dvh;
+    }
+    @supports not (min-height: 100dvh) { body { min-height: 100vh; } }
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex; flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    @supports not (min-height: 100dvh) { #app { min-height: 100vh; } }
+    button, [role="button"] { min-height: 44px; min-width: 44px; touch-action: manipulation; }
+    input, textarea { -webkit-user-select: text; user-select: text; }
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed; inset: 0; z-index: 99999;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--mathai-white); color: var(--mathai-primary);
+        font-size: 18px; text-align: center; padding: 24px;
+      }
+    }
+
+    #gameContent {
+      width: 100%;
+      padding: 8px 12px 110px 12px;
+      display: flex; flex-direction: column; align-items: center;
+      box-sizing: border-box;
+    }
+
+    .om-wrapper { width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; }
+    .om-wrapper.locked { pointer-events: none; }
+
+    .om-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 56px);
+      grid-template-rows: repeat(5, 56px);
+      grid-gap: 4px;
+      margin: 8px auto;
+    }
+    .om-cell {
+      width: 56px; height: 56px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 800;
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+    .om-cell.empty { background: transparent; }
+    .om-cell.fixed { background: var(--mathai-light-gray); border: 2px solid var(--mathai-gray); color: var(--mathai-primary); }
+    .om-cell.op { background: transparent; color: var(--mathai-blue); font-size: 20px; font-weight: 700; }
+    .om-cell.slot { background: #FAFAFA; border: 2px dashed var(--mathai-gray); color: var(--mathai-text-primary); }
+    .om-cell.slot.match { background: var(--mathai-cell-bg-green); border-color: #22c55e; border-style: solid; }
+    .om-cell.slot.mismatch { background: var(--mathai-cell-bg-red); border-color: var(--mathai-red); border-style: solid; }
+    .om-cell.slot.warn { background: var(--mathai-cell-bg-amber); border-color: var(--mathai-amber); border-style: solid; }
+
+    .om-pool {
+      width: 100%; max-width: 360px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, 50px);
+      gap: 6px;
+      justify-content: center;
+      padding: 10px;
+      background: #F1F5F9;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      margin-top: 8px;
+    }
+    .om-pool-slot {
+      width: 50px; height: 50px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .om-pool-slot.empty { display: none; }
+    .pool-slot.empty { display: none; }
+
+    .om-tile {
+      width: 50px; height: 50px;
+      border-radius: 8px;
+      background: var(--mathai-white);
+      border: 2px solid var(--mathai-primary);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 800; color: var(--mathai-primary);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      box-sizing: border-box;
+    }
+    .om-tile:active { cursor: grabbing; }
+    .om-cell.slot .om-tile { width: 44px; height: 44px; font-size: 18px; }
+
+    .answer-slide { width: 100%; display: flex; flex-direction: column; align-items: center; padding: 8px 4px 12px 4px; }
+    .answer-caption { font-size: 13px; font-weight: 600; color: var(--mathai-text-primary); margin-bottom: 6px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0"></div>
+
+  <script>
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    var gameState = {
+      gameId: 'operators-maze',
+      phase: 'start_screen',
+      currentRound: 1,
+      totalRounds: 10,
+      totalLives: 3,
+      lives: 3,
+      score: 0,
+      stars: 0,
+      starsAccumulated: 0,
+      heartsLost: 0,
+      progress: 0,
+      attempts: [],
+      events: [],
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      startTime: null,
+      roundStartTime: null,
+      duration_data: { startTime: null, preview: [] },
+      content: null,
+      previewResult: null,
+      setIndex: 0,
+      activeRounds: [],
+      placement: {}, // slotId -> tileKey
+      tileLocations: {}, // tileKey -> slotId|'pool'
+      correctAnswer: null
+    };
+    window.gameState = gameState;
+
+    // Round schema:
+    //   grid: array of cells row-major, length = rows*cols. Each cell is one of:
+    //     { type: 'empty' }    — blank cell
+    //     { type: 'fixed', val: 9 }  — pre-filled digit
+    //     { type: 'op', val: '+' }   — operator/equals
+    //     { type: 'slot', id: 's1', correct: 3 }  — drop slot
+    //   pool: array of digit tiles (numbers)
+    //   rows, cols
+    var fallbackContent = {
+      previewInstruction: '<p><strong>Operator\'s Maze</strong></p><p>Drag digits from the pool into the empty grid cells so every horizontal and vertical equation is true. Tap <strong>CHECK</strong> when all slots are filled.</p>',
+      previewAudioText: 'Drag digits into the grid so every horizontal and vertical equation is true.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 10,
+      totalLives: 3,
+      timer: false,
+      rounds: [
+        // Set A
+        // Round 1: simple horizontal "9 - ? = 6" → ? = 3
+        { set: 'A', id: 'A_r1_om', round: 1, stage: 1, rows: 1, cols: 5,
+          grid: [
+            { type: 'fixed', val: 9 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 3 }, { type: 'op', val: '=' }, { type: 'fixed', val: 6 }
+          ],
+          pool: [1, 2, 3, 4, 5],
+          equations: [[0,1,2,3,4]],
+          misconception_tags: ['arithmetic-slip'] },
+        // Round 2: horizontal "5 + ? = 8"
+        { set: 'A', id: 'A_r2_om', round: 2, stage: 1, rows: 1, cols: 5,
+          grid: [
+            { type: 'fixed', val: 5 }, { type: 'op', val: '+' }, { type: 'slot', id: 's1', correct: 3 }, { type: 'op', val: '=' }, { type: 'fixed', val: 8 }
+          ],
+          pool: [1, 2, 3, 4, 7],
+          equations: [[0,1,2,3,4]],
+          misconception_tags: ['arithmetic-slip'] },
+        // Round 3: 2 slots — "? + 4 = ?" requires guess; use "3 + ? = ?" → ? = 4, sum = 7
+        { set: 'A', id: 'A_r3_om', round: 3, stage: 2, rows: 1, cols: 5,
+          grid: [
+            { type: 'slot', id: 's1', correct: 3 }, { type: 'op', val: '+' }, { type: 'fixed', val: 4 }, { type: 'op', val: '=' }, { type: 'slot', id: 's2', correct: 7 }
+          ],
+          pool: [1, 3, 5, 7, 9],
+          equations: [[0,1,2,3,4]],
+          misconception_tags: ['arithmetic-slip','wrong-order'] },
+        // Round 4: cross with intersection — 3x3 effective grid 5x5
+        // Layout (row-major, 5x5):
+        // 9 - s1 = 6      (row 0)
+        //   .   +    .    (row 1: only col 2 has '+')
+        // s2 + 4 = s3     (row 2)
+        //   .   .    .    (row 3 empty)
+        // s4 = s5 - 1     (row 4) — keep simple horizontal — but to demonstrate intersection, vertical eq is col 2: s1 + 4 = s5 → 3 + 4 = 7
+        // Simpler: 3x3 puzzle. Use rows=3 cols=5
+        { set: 'A', id: 'A_r4_om', round: 4, stage: 3, rows: 3, cols: 5,
+          grid: [
+            // row 0: 9 - s1 = 6
+            { type: 'fixed', val: 9 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 3 }, { type: 'op', val: '=' }, { type: 'fixed', val: 6 },
+            // row 1: empty col 0/1/3/4, col 2 has '+'
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            // row 2: empty col 0, '+' col 1, fixed 4 col 2... no wait, vertical at col 2 is "s1 + 4 = ?"
+            // Let's redo: col 2 vertical is s1, +, 4 — actually we need s1 + 4 = something. Let's make vertical equation: row 0 col 2 = s1 (3), row 1 col 2 = '+', row 2 col 2 = 4, but we need '=' and answer too. That overflows the grid.
+            // Simpler: make col 2 vertical = "s1, +, fixed 4" forming "s1 + 4 = 7" but display "7" elsewhere. Let's just make horizontal-only for round 4 with 2 slots.
+            // Actually: row 2 = 8 + s2 = ? where s2 ties to s1 vertically? Forget intersections for stage 3, just two horizontal equations.
+            { type: 'fixed', val: 4 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 5 }, { type: 'op', val: '=' }, { type: 'fixed', val: 9 }
+          ],
+          pool: [3, 4, 5, 7, 8, 2],
+          equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['arithmetic-slip'] },
+        // Round 5: TRUE crossword — 5 cols 5 rows. Horizontal: row 0 "9 - s1 = 6"; vertical at col 2: "s1, +, fixed 4, =, s2" with s2 = 7. Horizontal at row 4: "s2 = 4 + 3"
+        { set: 'A', id: 'A_r5_om', round: 5, stage: 4, rows: 5, cols: 5,
+          grid: [
+            { type: 'fixed', val: 9 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 3, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 6 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'fixed', val: 4 }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '=' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 4 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 7, intersection: true }, { type: 'op', val: '=' }, { type: 'empty' }
+          ],
+          pool: [3, 7, 5, 4, 1, 2],
+          equations: [[0,1,2,3,4]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] },
+        // Round 6: 4 slots, no intersection
+        { set: 'A', id: 'A_r6_om', round: 6, stage: 3, rows: 3, cols: 5,
+          grid: [
+            { type: 'fixed', val: 7 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 4 }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'empty' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'slot', id: 's2', correct: 5 }, { type: 'op', val: '+' }, { type: 'slot', id: 's3', correct: 4 }, { type: 'op', val: '=' }, { type: 'fixed', val: 9 }
+          ],
+          pool: [4, 5, 4, 6, 2, 1], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['arithmetic-slip'] },
+        // Round 7: intersection
+        { set: 'A', id: 'A_r7_om', round: 7, stage: 4, rows: 5, cols: 5,
+          grid: [
+            { type: 'fixed', val: 8 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 5, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'fixed', val: 2 }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '=' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 5 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 7, intersection: true }, { type: 'op', val: '=' }, { type: 'empty' }
+          ],
+          pool: [5, 7, 3, 4, 2, 1], equations: [[0,1,2,3,4]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] },
+        // Round 8: 4 slots, 2 intersections
+        { set: 'A', id: 'A_r8_om', round: 8, stage: 5, rows: 5, cols: 5,
+          grid: [
+            { type: 'fixed', val: 7 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 4, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'slot', id: 's2', correct: 2, intersection: true }, { type: 'op', val: '+' }, { type: 'fixed', val: 5 }, { type: 'op', val: '=' }, { type: 'fixed', val: 7 },
+            { type: 'op', val: '+' }, { type: 'empty' }, { type: 'op', val: '=' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 6 }, { type: 'op', val: '=' }, { type: 'slot', id: 's3', correct: 9, intersection: true }, { type: 'op', val: '+' }, { type: 'fixed', val: 0 }
+          ],
+          pool: [4, 2, 9, 7, 5, 1, 3], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip','wrong-order'] },
+        // Round 9: stretch — 2 intersections
+        { set: 'A', id: 'A_r9_om', round: 9, stage: 5, rows: 3, cols: 5,
+          grid: [
+            { type: 'slot', id: 's1', correct: 3 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 4, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 7 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 5 }, { type: 'op', val: '+' }, { type: 'slot', id: 's3', correct: 4, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 9 }
+          ],
+          pool: [3, 4, 4, 6, 2], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] },
+        // Round 10: max stretch — tight pool
+        { set: 'A', id: 'A_r10_om', round: 10, stage: 5, rows: 3, cols: 5,
+          grid: [
+            { type: 'fixed', val: 9 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 3, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 6 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 1 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 4, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 5 }
+          ],
+          pool: [3, 4, 5, 7], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] },
+        // Set B (parallel to set A)
+        { set: 'B', id: 'B_r1_om', round: 1, stage: 1, rows: 1, cols: 5,
+          grid: [ { type: 'fixed', val: 8 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 5 }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 } ],
+          pool: [1, 2, 5, 4, 6], equations: [[0,1,2,3,4]], misconception_tags: ['arithmetic-slip'] },
+        { set: 'B', id: 'B_r2_om', round: 2, stage: 1, rows: 1, cols: 5,
+          grid: [ { type: 'fixed', val: 6 }, { type: 'op', val: '+' }, { type: 'slot', id: 's1', correct: 2 }, { type: 'op', val: '=' }, { type: 'fixed', val: 8 } ],
+          pool: [1, 2, 3, 4, 5], equations: [[0,1,2,3,4]], misconception_tags: ['arithmetic-slip'] },
+        { set: 'B', id: 'B_r3_om', round: 3, stage: 2, rows: 1, cols: 5,
+          grid: [ { type: 'slot', id: 's1', correct: 4 }, { type: 'op', val: '+' }, { type: 'fixed', val: 5 }, { type: 'op', val: '=' }, { type: 'slot', id: 's2', correct: 9 } ],
+          pool: [1, 4, 7, 9, 2], equations: [[0,1,2,3,4]], misconception_tags: ['arithmetic-slip'] },
+        { set: 'B', id: 'B_r4_om', round: 4, stage: 3, rows: 3, cols: 5,
+          grid: [
+            { type: 'fixed', val: 7 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 2 }, { type: 'op', val: '=' }, { type: 'fixed', val: 5 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 6 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 3 }, { type: 'op', val: '=' }, { type: 'fixed', val: 9 }
+          ],
+          pool: [2, 3, 4, 6, 8], equations: [[0,1,2,3,4],[10,11,12,13,14]], misconception_tags: ['arithmetic-slip'] },
+        { set: 'B', id: 'B_r5_om', round: 5, stage: 4, rows: 5, cols: 5,
+          grid: [
+            { type: 'fixed', val: 8 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 5, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'fixed', val: 2 }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '=' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 5 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 2, intersection: true }, { type: 'op', val: '=' }, { type: 'empty' }
+          ],
+          pool: [5, 2, 7, 3, 1], equations: [[0,1,2,3,4]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] },
+        { set: 'B', id: 'B_r6_om', round: 6, stage: 3, rows: 3, cols: 5,
+          grid: [
+            { type: 'fixed', val: 9 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 6 }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'empty' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'slot', id: 's2', correct: 4 }, { type: 'op', val: '+' }, { type: 'slot', id: 's3', correct: 3 }, { type: 'op', val: '=' }, { type: 'fixed', val: 7 }
+          ],
+          pool: [6, 4, 3, 5, 2, 1], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['arithmetic-slip'] },
+        { set: 'B', id: 'B_r7_om', round: 7, stage: 4, rows: 5, cols: 5,
+          grid: [
+            { type: 'fixed', val: 9 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 5, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 4 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'fixed', val: 3 }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '=' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 6 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 8, intersection: true }, { type: 'op', val: '=' }, { type: 'empty' }
+          ],
+          pool: [5, 8, 4, 3, 2, 1], equations: [[0,1,2,3,4]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] },
+        { set: 'B', id: 'B_r8_om', round: 8, stage: 5, rows: 3, cols: 5,
+          grid: [
+            { type: 'fixed', val: 8 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 5, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 2 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 7, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 9 }
+          ],
+          pool: [5, 7, 4, 3, 2, 1], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip','wrong-order'] },
+        { set: 'B', id: 'B_r9_om', round: 9, stage: 5, rows: 3, cols: 5,
+          grid: [
+            { type: 'slot', id: 's1', correct: 4 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 3, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 7 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 2 }, { type: 'op', val: '+' }, { type: 'slot', id: 's3', correct: 5, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 7 }
+          ],
+          pool: [4, 3, 5, 6, 1], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] },
+        { set: 'B', id: 'B_r10_om', round: 10, stage: 5, rows: 3, cols: 5,
+          grid: [
+            { type: 'fixed', val: 8 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 5, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 1 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 6, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 7 }
+          ],
+          pool: [5, 6, 7, 8], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] },
+        // Set C
+        { set: 'C', id: 'C_r1_om', round: 1, stage: 1, rows: 1, cols: 5,
+          grid: [ { type: 'fixed', val: 7 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 4 }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 } ],
+          pool: [1, 4, 2, 5, 6], equations: [[0,1,2,3,4]], misconception_tags: ['arithmetic-slip'] },
+        { set: 'C', id: 'C_r2_om', round: 2, stage: 1, rows: 1, cols: 5,
+          grid: [ { type: 'fixed', val: 4 }, { type: 'op', val: '+' }, { type: 'slot', id: 's1', correct: 5 }, { type: 'op', val: '=' }, { type: 'fixed', val: 9 } ],
+          pool: [3, 5, 7, 2, 1], equations: [[0,1,2,3,4]], misconception_tags: ['arithmetic-slip'] },
+        { set: 'C', id: 'C_r3_om', round: 3, stage: 2, rows: 1, cols: 5,
+          grid: [ { type: 'slot', id: 's1', correct: 6 }, { type: 'op', val: '+' }, { type: 'fixed', val: 1 }, { type: 'op', val: '=' }, { type: 'slot', id: 's2', correct: 7 } ],
+          pool: [3, 6, 7, 1, 4], equations: [[0,1,2,3,4]], misconception_tags: ['arithmetic-slip'] },
+        { set: 'C', id: 'C_r4_om', round: 4, stage: 3, rows: 3, cols: 5,
+          grid: [
+            { type: 'fixed', val: 8 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 6 }, { type: 'op', val: '=' }, { type: 'fixed', val: 2 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 1 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 7 }, { type: 'op', val: '=' }, { type: 'fixed', val: 8 }
+          ],
+          pool: [2, 6, 7, 4, 9], equations: [[0,1,2,3,4],[10,11,12,13,14]], misconception_tags: ['arithmetic-slip'] },
+        { set: 'C', id: 'C_r5_om', round: 5, stage: 4, rows: 5, cols: 5,
+          grid: [
+            { type: 'fixed', val: 6 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 4, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 2 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'fixed', val: 3 }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '=' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 5 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 2, intersection: true }, { type: 'op', val: '=' }, { type: 'empty' }
+          ],
+          pool: [4, 2, 7, 5, 3], equations: [[0,1,2,3,4]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] },
+        { set: 'C', id: 'C_r6_om', round: 6, stage: 3, rows: 3, cols: 5,
+          grid: [
+            { type: 'fixed', val: 8 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 5 }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'empty' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'slot', id: 's2', correct: 6 }, { type: 'op', val: '+' }, { type: 'slot', id: 's3', correct: 2 }, { type: 'op', val: '=' }, { type: 'fixed', val: 8 }
+          ],
+          pool: [5, 6, 2, 4, 1, 3], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['arithmetic-slip'] },
+        { set: 'C', id: 'C_r7_om', round: 7, stage: 4, rows: 5, cols: 5,
+          grid: [
+            { type: 'fixed', val: 7 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 4, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'fixed', val: 5 }, { type: 'empty' }, { type: 'empty' },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '=' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 4 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 9, intersection: true }, { type: 'op', val: '=' }, { type: 'empty' }
+          ],
+          pool: [4, 9, 6, 5, 1, 2], equations: [[0,1,2,3,4]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] },
+        { set: 'C', id: 'C_r8_om', round: 8, stage: 5, rows: 3, cols: 5,
+          grid: [
+            { type: 'fixed', val: 7 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 4, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 3 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 3 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 7, intersection: true }, { type: 'op', val: '=' }, { type: 'empty' }
+          ],
+          pool: [4, 7, 5, 3, 2, 1], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip','wrong-order'] },
+        { set: 'C', id: 'C_r9_om', round: 9, stage: 5, rows: 3, cols: 5,
+          grid: [
+            { type: 'slot', id: 's1', correct: 2 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 5, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 7 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 4 }, { type: 'op', val: '+' }, { type: 'slot', id: 's3', correct: 3, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 7 }
+          ],
+          pool: [2, 5, 3, 1, 4], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] },
+        { set: 'C', id: 'C_r10_om', round: 10, stage: 5, rows: 3, cols: 5,
+          grid: [
+            { type: 'fixed', val: 9 }, { type: 'op', val: '−' }, { type: 'slot', id: 's1', correct: 4, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 5 },
+            { type: 'empty' }, { type: 'empty' }, { type: 'op', val: '+' }, { type: 'empty' }, { type: 'empty' },
+            { type: 'fixed', val: 2 }, { type: 'op', val: '+' }, { type: 'slot', id: 's2', correct: 5, intersection: true }, { type: 'op', val: '=' }, { type: 'fixed', val: 7 }
+          ],
+          pool: [4, 5, 6, 7], equations: [[0,1,2,3,4],[10,11,12,13,14]],
+          misconception_tags: ['intersection-conflict','arithmetic-slip'] }
+      ]
+    };
+
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+    var dndManager = null;
+    var dndDraggables = [];
+    var dndDroppables = [];
+    var tileEls = {};
+    var poolSlotEls = {};
+    var slotEls = {};
+
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+      app.setAttribute('data-lives', Math.max(0, gameState.lives));
+    }
+
+    function trackEvent(eventName, payload) {
+      try {
+        var ev = { name: eventName, ts: Date.now(), payload: payload || {} };
+        gameState.events.push(ev);
+        if (signalCollector && typeof signalCollector.recordEvent === 'function') {
+          try { signalCollector.recordEvent(eventName, payload || {}); } catch (e) {}
+        }
+      } catch (e) { console.error('[trackEvent]', e && e.message); }
+    }
+
+    function recordAttempt(round, isCorrect, misconceptionTags) {
+      try {
+        var now = Date.now();
+        var userAns = {};
+        Object.keys(gameState.placement).forEach(function (sid) {
+          var tk = gameState.placement[sid];
+          var tEl = tileEls[tk];
+          userAns[sid] = tEl ? tEl.getAttribute('data-value') : '';
+        });
+        var correctAns = {};
+        round.grid.forEach(function (cell) { if (cell.type === 'slot') correctAns[cell.id] = cell.correct; });
+        var attempt = {
+          attempt_number: gameState.attempts.length + 1,
+          round_number: gameState.currentRound,
+          question_id: round && round.id ? round.id : ('r' + gameState.currentRound),
+          question_text: 'Operator\'s Maze — set ' + (round && round.set ? round.set : '?') + ' round ' + gameState.currentRound,
+          user_answer: JSON.stringify(userAns),
+          correct_answer: JSON.stringify(correctAns),
+          is_correct: !!isCorrect,
+          response_time_ms: gameState.roundStartTime ? (now - gameState.roundStartTime) : 0,
+          misconception_tag: (misconceptionTags && misconceptionTags.length > 0) ? misconceptionTags[0] : null,
+          difficulty_level: round && round.stage ? round.stage : 1,
+          hint_used: false,
+          attempt_timestamp: now,
+          set: round && round.set,
+          misconception_tags_all: misconceptionTags || []
+        };
+        gameState.attempts.push(attempt);
+      } catch (e) { console.error('[recordAttempt]', e && e.message); }
+    }
+
+    function getStars(score) {
+      // Per spec: 3★ no hearts lost, 2★ one heart lost, 1★ two hearts lost, 0★ all 3 hearts lost
+      var lost = gameState.heartsLost || 0;
+      if (lost === 0) return 3;
+      if (lost === 1) return 2;
+      if (lost === 2) return 1;
+      return 0;
+    }
+
+    function getAvailableSets(rounds) {
+      var seen = {};
+      for (var i = 0; i < rounds.length; i++) if (rounds[i].set) seen[rounds[i].set] = true;
+      var keys = Object.keys(seen).sort();
+      return keys.length > 0 ? keys : ['A'];
+    }
+    function getRounds() {
+      var source = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(source);
+      var startIdx = gameState.setIndex % sets.length;
+      var setId = sets[startIdx];
+      var setRounds = source.filter(function (r) { return r.set === setId; });
+      if (setRounds.length >= gameState.totalRounds) return setRounds.slice(0, gameState.totalRounds);
+      return source.slice(0, gameState.totalRounds);
+    }
+
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            reject(err);
+            throw new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    function preloadAudio() {
+      if (typeof FeedbackManager === 'undefined' || !FeedbackManager.sound || !FeedbackManager.sound.preload) return;
+      var assets = [
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'sound_life_lost', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+      ];
+      try { FeedbackManager.sound.preload(assets); } catch (e) {}
+    }
+    function safePlaySound(id, options) {
+      try { return FeedbackManager.sound.play(id, options || {}); } catch (e) { return Promise.resolve(); }
+    }
+    function safeDynamic(opts) {
+      try { return FeedbackManager.playDynamicFeedback(opts || {}); } catch (e) { return Promise.resolve(); }
+    }
+
+    function handlePostMessage(event) {
+      try {
+        var msg = event && event.data;
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          gameState.content = msg.data && msg.data.content ? msg.data.content : null;
+          if (msg.data && typeof msg.data.totalRounds === 'number') gameState.totalRounds = msg.data.totalRounds;
+          try {
+            var sc = msg.data && msg.data.signalConfig ? msg.data.signalConfig : {};
+            gameState.signalConfig = sc;
+            if (signalCollector) {
+              signalCollector.flushUrl = sc.flushUrl || signalCollector.flushUrl || '';
+              signalCollector.playId = sc.playId || signalCollector.playId || ('operators-maze-' + Date.now());
+              signalCollector.gameId = sc.gameId || 'operators-maze';
+              signalCollector.sessionId = sc.sessionId || ('session-' + Date.now());
+              signalCollector.contentSetId = sc.contentSetId || 'fallback';
+              signalCollector.studentId = sc.studentId || 'anonymous';
+              if (typeof signalCollector.startFlushing === 'function') {
+                try { signalCollector.startFlushing(); } catch (e2) {}
+              }
+            }
+          } catch (e1) {}
+          syncDOM();
+          setupGame();
+        } else if (msg.type === 'game_pause') {
+          try { FeedbackManager.sound.pause(); } catch (e) {}
+        } else if (msg.type === 'game_resume') {
+          try { FeedbackManager.sound.resume(); } catch (e) {}
+        }
+      } catch (e) { console.error('[handlePostMessage]', e && e.message); }
+    }
+
+    async function endGame(success) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = 'results';
+      gameState.stars = getStars(gameState.score);
+      syncDOM();
+      trackEvent('game_end', { won: !!success, score: gameState.score, stars: gameState.stars });
+      try {
+        var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+        var elapsedSec = Math.round(elapsedMs / 1000);
+        var accuracy = gameState.totalRounds > 0 ? Math.round((gameState.score / gameState.totalRounds) * 100) : 0;
+        var triesArr = [];
+        for (var ai = 0; ai < gameState.attempts.length; ai++) triesArr.push(1);
+        var signalSealed = { event_count: gameState.events.length, metadata: {} };
+        try {
+          if (signalCollector && typeof signalCollector.seal === 'function') {
+            var sealed = signalCollector.seal();
+            if (sealed) {
+              if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+              if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+            }
+          }
+        } catch (e0) {}
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: {
+              score: gameState.score,
+              totalQuestions: gameState.totalRounds,
+              stars: gameState.stars,
+              accuracy: accuracy,
+              time: elapsedSec,
+              timeSpent: elapsedMs,
+              tries: triesArr,
+              attempts: gameState.attempts
+            },
+            completedAt: Date.now(),
+            previewResult: gameState.previewResult || null,
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) { console.error('[endGame postMessage]', e && e.message); }
+      if (gameState.lives <= 0 && !success) { try { showGameOver(); } catch (e) {} }
+      else { try { showVictory(success); } catch (e) {} }
+    }
+    window.endGame = endGame;
+
+    function buildGameDOM() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML = '';
+      var wrap = document.createElement('div');
+      wrap.className = 'om-wrapper';
+      wrap.id = 'om-wrapper';
+      var grid = document.createElement('div');
+      grid.className = 'om-grid';
+      grid.id = 'om-grid';
+      wrap.appendChild(grid);
+      var pool = document.createElement('div');
+      pool.className = 'om-pool';
+      pool.id = 'om-pool';
+      pool.setAttribute('data-zone-id', 'pool');
+      wrap.appendChild(pool);
+      gc.appendChild(wrap);
+    }
+
+    function renderGrid(round) {
+      slotEls = {};
+      var grid = document.getElementById('om-grid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      grid.style.gridTemplateColumns = 'repeat(' + round.cols + ', 56px)';
+      grid.style.gridTemplateRows = 'repeat(' + round.rows + ', 56px)';
+      for (var i = 0; i < round.grid.length; i++) {
+        var cell = round.grid[i];
+        var c = document.createElement('div');
+        c.className = 'om-cell ' + cell.type;
+        if (cell.type === 'fixed') {
+          c.textContent = String(cell.val);
+        } else if (cell.type === 'op') {
+          c.textContent = String(cell.val);
+        } else if (cell.type === 'slot') {
+          c.id = 'om-slot-' + cell.id;
+          c.setAttribute('data-zone-id', cell.id);
+          c.setAttribute('data-slot-id', cell.id);
+          slotEls[cell.id] = c;
+        }
+        grid.appendChild(c);
+      }
+    }
+
+    function buildPool(round) {
+      tileEls = {};
+      poolSlotEls = {};
+      var pool = document.getElementById('om-pool');
+      if (!pool) return;
+      pool.innerHTML = '';
+      var pool2 = round.pool.slice();
+      pool2.forEach(function (val, idx) {
+        var key = 't-' + idx;
+        var slot = document.createElement('div');
+        slot.className = 'om-pool-slot pool-slot';
+        slot.id = 'om-pool-slot-' + key;
+        slot.setAttribute('data-pool-key', key);
+        var tile = makeTile(val, idx);
+        slot.appendChild(tile);
+        pool.appendChild(slot);
+        tileEls[key] = tile;
+        poolSlotEls[key] = slot;
+        gameState.tileLocations[key] = 'pool';
+      });
+    }
+
+    function makeTile(val, idx) {
+      var tile = document.createElement('div');
+      tile.className = 'om-tile';
+      tile.id = 'tile-' + idx;
+      tile.setAttribute('data-tile-id', 't-' + idx);
+      tile.setAttribute('data-value', String(val));
+      tile.textContent = String(val);
+      return tile;
+    }
+
+    function refreshSubmittable() {
+      if (!floatingBtn) return;
+      var round = getCurrentRound();
+      if (!round) { try { floatingBtn.setSubmittable(false); } catch (e) {} return; }
+      var allFilled = true;
+      for (var i = 0; i < round.grid.length; i++) {
+        var cell = round.grid[i];
+        if (cell.type === 'slot') {
+          if (!gameState.placement[cell.id]) { allFilled = false; break; }
+        }
+      }
+      try { floatingBtn.setSubmittable(allFilled && !gameState.isProcessing); } catch (e) {}
+    }
+
+    function placeTileInSlot(tileKey, slotId) {
+      // If slot already has a tile, return that tile to pool first.
+      var prevTileKey = gameState.placement[slotId];
+      if (prevTileKey && prevTileKey !== tileKey) returnTileToPool(prevTileKey);
+      // If this tile was in another slot, vacate that one.
+      var prevSlot = gameState.tileLocations[tileKey];
+      if (prevSlot && prevSlot !== 'pool' && prevSlot !== slotId) {
+        gameState.placement[prevSlot] = null;
+        var psEl = slotEls[prevSlot];
+        if (psEl) psEl.classList.remove('match','mismatch','warn');
+      }
+      var tile = tileEls[tileKey];
+      var slot = slotEls[slotId];
+      if (!tile || !slot) return;
+      slot.appendChild(tile);
+      tile.classList.add('in-slot');
+      if (poolSlotEls[tileKey]) poolSlotEls[tileKey].classList.add('empty');
+      gameState.placement[slotId] = tileKey;
+      gameState.tileLocations[tileKey] = slotId;
+    }
+
+    function returnTileToPool(tileKey) {
+      var tile = tileEls[tileKey];
+      var slot = poolSlotEls[tileKey];
+      if (!tile || !slot) return;
+      slot.appendChild(tile);
+      tile.classList.remove('in-slot');
+      slot.classList.remove('empty');
+      tile.style.position = '';
+      tile.style.left = '';
+      tile.style.top = '';
+      tile.style.transform = '';
+      tile.style.zIndex = '';
+      var prevSlot = gameState.tileLocations[tileKey];
+      if (prevSlot && prevSlot !== 'pool') {
+        gameState.placement[prevSlot] = null;
+        var psEl = slotEls[prevSlot];
+        if (psEl) psEl.classList.remove('match','mismatch','warn');
+      }
+      gameState.tileLocations[tileKey] = 'pool';
+    }
+
+    async function handleCheck() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var round = getCurrentRound();
+      if (!round) return;
+      // Verify all slots filled
+      for (var i = 0; i < round.grid.length; i++) {
+        var cell = round.grid[i];
+        if (cell.type === 'slot' && !gameState.placement[cell.id]) return;
+      }
+      gameState.isProcessing = true;
+      refreshSubmittable();
+      try { var w = document.getElementById('om-wrapper'); if (w) w.classList.add('locked'); } catch (e) {}
+
+      var allCorrect = true;
+      var perSlot = {};
+      var wrongIntersections = [];
+      var wrongNonIntersections = [];
+      round.grid.forEach(function (cell) {
+        if (cell.type !== 'slot') return;
+        var tk = gameState.placement[cell.id];
+        var tile = tileEls[tk];
+        var v = tile ? parseInt(tile.getAttribute('data-value'), 10) : null;
+        var ok = v === cell.correct;
+        perSlot[cell.id] = ok;
+        var sEl = slotEls[cell.id];
+        if (sEl) sEl.classList.remove('match','mismatch','warn');
+        if (ok) {
+          if (sEl) sEl.classList.add('match');
+        } else {
+          allCorrect = false;
+          if (cell.intersection) {
+            // Intersection conflict — amber, no heart, bounce back
+            if (sEl) sEl.classList.add('warn');
+            wrongIntersections.push({ id: cell.id, tileKey: tk });
+          } else {
+            // Confidently wrong — red, costs heart
+            if (sEl) sEl.classList.add('mismatch');
+            wrongNonIntersections.push({ id: cell.id, tileKey: tk });
+          }
+        }
+      });
+
+      var misTags = [];
+      if (!allCorrect) misTags = round.misconception_tags ? round.misconception_tags.slice(0, 1) : [];
+      recordAttempt(round, allCorrect, misTags);
+      trackEvent('answer_submitted', { round: gameState.currentRound, set: round.set, is_correct: allCorrect, perSlot: perSlot, wrongIntersections: wrongIntersections.length, wrongNonIntersections: wrongNonIntersections.length });
+
+      if (allCorrect) {
+        gameState.score += 1;
+        gameState.progress = (gameState.progress || 0) + 1;
+        if (progressBar) { try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {} }
+        try { await Promise.all([safePlaySound('correct_sound_effect', { sticker: STICKER_CELEBRATE }), new Promise(function (r) { setTimeout(r, 1500); })]); } catch (e) {}
+        try { await safeDynamic({ audio_content: 'Yes! Every equation works.', subtitle: 'Yes! Equations true.', sticker: STICKER_CELEBRATE }); } catch (e) {}
+        trackEvent('round_complete', { round: gameState.currentRound, is_correct: true, score: gameState.score, lives: gameState.lives });
+        if (gameState.currentRound < gameState.totalRounds) {
+          gameState.currentRound += 1;
+          await showRoundIntro(gameState.currentRound);
+          renderRound();
+        } else {
+          endGame(gameState.score > 0);
+        }
+        return;
+      }
+
+      // Wrong path. Only NON-intersection wrong drops cost a heart.
+      var lostHeart = false;
+      if (wrongNonIntersections.length > 0) {
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        gameState.heartsLost = (gameState.heartsLost || 0) + 1;
+        lostHeart = true;
+      }
+      try { await Promise.all([FeedbackManager.sound.play('incorrect_sound_effect', { sticker: STICKER_SAD }), new Promise(function (r) { setTimeout(r, 1500); })]); } catch (e) {}
+      var hint;
+      if (wrongNonIntersections.length > 0) {
+        hint = "Almost! At least one equation isn't true yet — check the red slot.";
+      } else {
+        hint = "Watch out — that digit conflicts with another equation. Try a different one.";
+      }
+      try { await safeDynamic({ audio_content: hint, subtitle: hint, sticker: STICKER_SAD }); } catch (e) {}
+
+      // Bounce back wrong tiles to pool (both intersection and non-intersection) so student can retry
+      wrongIntersections.forEach(function (w) { if (w.tileKey) returnTileToPool(w.tileKey); });
+      wrongNonIntersections.forEach(function (w) { if (w.tileKey) returnTileToPool(w.tileKey); });
+
+      if (lostHeart && gameState.lives <= 0) {
+        try { await Promise.all([FeedbackManager.sound.play('incorrect_sound_effect', { sticker: STICKER_SAD }), new Promise(function (r) { setTimeout(r, 200); })]); } catch (e) {}
+        if (progressBar) { try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {} }
+        endGame(false);
+        return;
+      }
+      if (lostHeart && progressBar) { try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {} }
+
+      // Allow retry: unlock and re-render warn states
+      try { var w2 = document.getElementById('om-wrapper'); if (w2) w2.classList.remove('locked'); } catch (e) {}
+      gameState.isProcessing = false;
+      refreshSubmittable();
+    }
+
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      if (!transitionScreen) return;
+      var title = 'Round ' + n;
+      await transitionScreen.show({ title: title, icons: ['🧩'], buttons: [], persist: true });
+      try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+      try { await safeDynamic({ audio_content: title, subtitle: title, sticker: STICKER_ROUND }); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+    }
+
+    function getCurrentRound() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var idx = Math.max(0, Math.min(rounds.length - 1, gameState.currentRound - 1));
+      return rounds[idx];
+    }
+
+    function renderRound() {
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      gameState.placement = {};
+      gameState.tileLocations = {};
+      gameState.roundStartTime = Date.now();
+      gameState.phase = 'playing';
+      syncDOM();
+      var round = getCurrentRound();
+      if (!round) return;
+      var corr = {};
+      round.grid.forEach(function (c) { if (c.type === 'slot') corr[c.id] = c.correct; });
+      gameState.correctAnswer = JSON.stringify(corr);
+      renderGrid(round);
+      buildPool(round);
+      try { var w = document.getElementById('om-wrapper'); if (w) w.classList.remove('locked'); } catch (e) {}
+      buildDndForRound();
+      if (progressBar) { try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {} }
+      refreshSubmittable();
+    }
+
+    function destroyDndRound() {
+      try { for (var i = 0; i < dndDraggables.length; i++) { try { dndDraggables[i] && dndDraggables[i].destroy && dndDraggables[i].destroy(); } catch (e) {} } } catch (e) {}
+      try { for (var j = 0; j < dndDroppables.length; j++) { try { dndDroppables[j] && dndDroppables[j].destroy && dndDroppables[j].destroy(); } catch (e) {} } } catch (e) {}
+      dndDraggables = [];
+      dndDroppables = [];
+    }
+
+    function buildDndForRound() {
+      destroyDndRound();
+      if (!dndManager) return;
+      Object.keys(tileEls).forEach(function (k) {
+        var el = tileEls[k];
+        if (!el) return;
+        try {
+          var draggable = new window.DnDKit.Draggable({ id: 'tile-' + k, element: el, data: { tileKey: k } }, dndManager);
+          dndDraggables.push(draggable);
+        } catch (e) { console.error('[Draggable]', e && e.message); }
+      });
+      Object.keys(slotEls).forEach(function (sid) {
+        var el = slotEls[sid];
+        if (!el) return;
+        try {
+          var droppable = new window.DnDKit.Droppable({ id: 'slot-' + sid, element: el, data: { zoneId: sid } }, dndManager);
+          dndDroppables.push(droppable);
+        } catch (e) {}
+      });
+      var pool = document.getElementById('om-pool');
+      if (pool) {
+        try {
+          var droppablePool = new window.DnDKit.Droppable({ id: 'pool', element: pool, data: { zoneId: 'pool' } }, dndManager);
+          dndDroppables.push(droppablePool);
+        } catch (e) {}
+      }
+    }
+
+    function findSlotIdForTile(tileKey) {
+      // Use gameState.tileLocations / placement maps as source of truth.
+      return gameState.tileLocations && gameState.tileLocations[tileKey] ? gameState.tileLocations[tileKey] : 'pool';
+    }
+
+    function handleDragEnd(event) {
+      try {
+        var op = event && event.operation;
+        if (!op) return;
+        var src = op.source;
+        var tgt = op.target;
+        var canceled = op.canceled;
+        if (!src || !src.data) return;
+        var tileKey = src.data.tileKey;
+        if (!tileKey) return;
+        // P6 §R2 — read source from gameState.placement / tileLocations.
+        var sourceZone = findSlotIdForTile(tileKey);
+        if (gameState.placement) sourceZone = sourceZone;
+        if (canceled || !tgt || !tgt.data) { safePlaySound('tap_sound', {}); return; }
+        var tgtZone = tgt.data.zoneId;
+        if (tgtZone === 'pool') {
+          if (sourceZone !== 'pool') {
+            returnTileToPool(tileKey);
+            safePlaySound('sound_bubble_deselect', {});
+          }
+        } else {
+          placeTileInSlot(tileKey, tgtZone);
+          safePlaySound('sound_bubble_select', {});
+        }
+        refreshSubmittable();
+      } catch (e) { console.error('[handleDragEnd]', e && e.message); if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} } }
+    }
+
+    function handleDragStart(event) {
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) {
+        try { if (event && typeof event.preventDefault === 'function') event.preventDefault(); } catch (e) {}
+      }
+    }
+
+    async function showVictory(success) {
+      if (!transitionScreen) return;
+      var stars = gameState.stars;
+      var subtitle = stars === 3 ? 'Perfect crossword solving!' : (stars === 2 ? 'Great work!' : (stars === 1 ? 'Nice try.' : "Let's try again!"));
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var playAgainAct = function () { try { transitionScreen.hide(); } catch (e) {} showMotivation(); };
+      var claimStarsAct = function () { try { transitionScreen.hide(); } catch (e) {} showStarsCollected(); };
+      await transitionScreen.show({
+        title: 'Victory 🎉',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars < 3
+          ? [{ text: 'Play Again', type: 'secondary', action: playAgainAct }, { text: 'Claim Stars', type: 'primary', action: claimStarsAct }]
+          : [{ text: 'Claim Stars', type: 'primary', action: claimStarsAct }],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY }); } catch (e) {}
+            try { await safeDynamic({ audio_content: subtitle, subtitle: subtitle, sticker: STICKER_VICTORY }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showGameOver() {
+      if (!transitionScreen) return;
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var subtitle = "You completed " + gameState.score + " of " + gameState.totalRounds + " rounds.";
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: subtitle,
+        buttons: [{ text: 'Try Again', type: 'primary', action: function () { try { transitionScreen.hide(); } catch (e) {} restartGame(); } }],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_SAD }); } catch (e) {}
+            try { await safeDynamic({ audio_content: subtitle, subtitle: subtitle, sticker: STICKER_SAD }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      if (!transitionScreen) return;
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      await transitionScreen.show({
+        title: 'Ready to improve your score? ⚡',
+        buttons: [{ text: "I'm ready! 🙌", type: 'primary', action: function () { try { transitionScreen.hide(); } catch (e) {} restartGame(); } }],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_RESTART }); } catch (e) {}
+            try { await safeDynamic({ audio_content: 'Ready for another puzzle?', subtitle: 'Ready for another puzzle?', sticker: STICKER_RESTART }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      if (!transitionScreen) return;
+      var count = Math.max(1, Math.min(3, gameState.stars || 1));
+      await transitionScreen.show({
+        title: 'Yay! 🎉\nStars collected!',
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_CELEBRATE }); } catch (e) {}
+            try { window.postMessage({ type: 'show_star', data: { count: count, variant: 'yellow', score: gameState.score + '/' + gameState.totalRounds } }, '*'); } catch (e) {}
+            setTimeout(function () { showAnswerCarousel(); }, 1500);
+          })();
+        }
+      });
+    }
+
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var roundsCopy = rounds.slice(0, gameState.totalRounds);
+      return roundsCopy.map(function (round, idx) {
+        return { render: function (container) { renderAnswerForRound(round, container, idx + 1); } };
+      });
+    }
+
+    function renderAnswerForRound(round, container, roundNum) {
+      if (!container || !round) return;
+      container.innerHTML = '';
+      var slide = document.createElement('div');
+      slide.className = 'answer-slide';
+      var caption = document.createElement('div');
+      caption.className = 'answer-caption';
+      caption.textContent = 'Round ' + roundNum;
+      slide.appendChild(caption);
+      var grid = document.createElement('div');
+      grid.className = 'om-grid';
+      grid.style.gridTemplateColumns = 'repeat(' + round.cols + ', 44px)';
+      grid.style.gridTemplateRows = 'repeat(' + round.rows + ', 44px)';
+      grid.style.gridGap = '3px';
+      round.grid.forEach(function (cell) {
+        var c = document.createElement('div');
+        c.className = 'om-cell ' + cell.type;
+        c.style.width = '44px';
+        c.style.height = '44px';
+        c.style.fontSize = '18px';
+        if (cell.type === 'fixed') c.textContent = String(cell.val);
+        else if (cell.type === 'op') c.textContent = String(cell.val);
+        else if (cell.type === 'slot') {
+          c.textContent = String(cell.correct);
+          c.classList.add('match');
+        }
+        grid.appendChild(c);
+      });
+      slide.appendChild(grid);
+      container.appendChild(slide);
+    }
+
+    function showAnswerCarousel() {
+      if (!answerComponent) return;
+      try { answerComponent.show({ slides: buildAnswerSlidesForAllRounds() }); } catch (e) { console.error('[answerComponent.show]', e && e.message); }
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+    }
+
+    function resetGameState() {
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.stars = 0;
+      gameState.starsAccumulated = 0;
+      gameState.heartsLost = 0;
+      gameState.progress = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.placement = {};
+      gameState.tileLocations = {};
+      gameState.duration_data = { startTime: null, preview: gameState.duration_data ? gameState.duration_data.preview : [] };
+      gameState.activeRounds = getRounds();
+    }
+
+    function restartGame() {
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      if (signalCollector && typeof signalCollector.reset === 'function') {
+        try { signalCollector.reset(); } catch (e) {}
+      }
+      try { if (answerComponent) answerComponent.hide(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      if (progressBar) { try { progressBar.update(0, gameState.totalLives); } catch (e) {} }
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true, setIndex: gameState.setIndex });
+      buildGameDOM();
+      (async function () { await showRoundIntro(1); renderRound(); })();
+    }
+    window.restartGame = restartGame;
+
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.progress = 0;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.activeRounds = getRounds();
+      gameState.startTime = Date.now();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      (async function () { await showRoundIntro(1); renderRound(); })();
+    }
+    window.startGame = startGame;
+
+    function nextRound() {
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        renderRound();
+      } else {
+        endGame(true);
+      }
+    }
+    window.nextRound = nextRound;
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.totalRounds = (content.totalRounds && typeof content.totalRounds === 'number') ? content.totalRounds : 10;
+      gameState.totalLives = (typeof content.totalLives === 'number') ? content.totalLives : 3;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+      buildGameDOM();
+      (function () { var r = getCurrentRound(); if (r) { renderGrid(r); buildPool(r); } })();
+      if (previewScreen) {
+        try {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function (previewData) { startGameAfterPreview(previewData); }
+          });
+        } catch (e) { console.error('[previewScreen.show]', e && e.message); startGameAfterPreview({ duration: 0 }); }
+      } else { startGameAfterPreview({ duration: 0 }); }
+    }
+
+    function startGameAfterPreview(previewData) {
+      try {
+        gameState.previewResult = previewData || { duration: 0 };
+        gameState.duration_data.preview = gameState.duration_data.preview || [];
+        gameState.duration_data.preview.push({ duration: previewData ? previewData.duration : 0 });
+        gameState.startTime = Date.now();
+        gameState.isActive = true;
+        gameState.duration_data.startTime = new Date().toISOString();
+        trackEvent('game_start', { totalRounds: gameState.totalRounds });
+        if (signalCollector && typeof signalCollector.recordViewEvent === 'function') {
+          try { signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+        }
+        if (progressBar) { try { progressBar.update(0, gameState.totalLives); } catch (e) {} }
+        (async function () { await showRoundIntro(1); renderRound(); })();
+      } catch (e) { console.error('[startGameAfterPreview]', e && e.message); }
+    }
+
+    function buildFallbackLayout() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      if (document.getElementById('gameContent')) return;
+      var stack = document.createElement('div');
+      stack.className = 'game-stack';
+      var gc = document.createElement('div');
+      gc.id = 'gameContent';
+      stack.appendChild(gc);
+      app.appendChild(stack);
+    }
+  </script>
+
+  <script type="module">
+    import { DragDropManager, Draggable, Droppable, Feedback, PointerSensor, PointerActivationConstraints } from 'https://esm.sh/@dnd-kit/dom@beta';
+    window.DnDKit = { DragDropManager: DragDropManager, Draggable: Draggable, Droppable: Droppable, Feedback: Feedback, PointerSensor: PointerSensor, PointerActivationConstraints: PointerActivationConstraints };
+    window.dispatchEvent(new Event('dndkit-ready'));
+  </script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      try {
+        await waitForPackages();
+        await new Promise(function (resolve) {
+          if (window.DnDKit && window.DnDKit.DragDropManager) return resolve();
+          window.addEventListener('dndkit-ready', function () { resolve(); }, { once: true });
+          setTimeout(resolve, 5000);
+        });
+        try { await FeedbackManager.init(); } catch (e) {}
+
+        try {
+          signalCollector = new SignalCollector({ playId: 'operators-maze-' + Date.now(), game: 'operators-maze' });
+          window.signalCollector = signalCollector;
+        } catch (e) { console.error('[SignalCollector ctor]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try {
+          ScreenLayout.inject('app', {
+            slots: { previewScreen: true, transitionScreen: true, progressBar: true, floatingButton: true, answerComponent: true }
+          });
+        } catch (e) {
+          console.error('[ScreenLayout.inject]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          buildFallbackLayout();
+        }
+
+        try {
+          visibilityTracker = new VisibilityTracker({
+            popupProps: {},
+            onInactive: function () { try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {} try { if (previewScreen) previewScreen.pause(); } catch (e) {} },
+            onResume: function () { try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {} try { if (previewScreen) previewScreen.resume(); } catch (e) {} }
+          });
+        } catch (e) { console.error('[VisibilityTracker]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try { progressBar = new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 10, totalLives: 3 }); }
+        catch (e) { console.error('[ProgressBar]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try { transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' }); } catch (e) { console.error('[TransitionScreen]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+        try { previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' }); } catch (e) { console.error('[PreviewScreen]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try {
+          floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+          if (floatingBtn && typeof floatingBtn.setLabels === 'function') {
+            try { floatingBtn.setLabels({ submit: 'CHECK', next: 'Next' }); } catch (e) {}
+          }
+          floatingBtn.on('submit', async function () {
+            if (gameState.isProcessing || gameState.gameEnded) return;
+            try { await handleCheck(); } catch (e) { console.error('[handleCheck]', e && e.message); }
+          });
+          floatingBtn.on('next', function () {
+            try { if (answerComponent && typeof answerComponent.destroy === 'function') answerComponent.destroy(); } catch (e) {}
+            try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+            try { if (previewScreen && typeof previewScreen.destroy === 'function') previewScreen.destroy(); } catch (e) {}
+            try { if (floatingBtn && typeof floatingBtn.destroy === 'function') floatingBtn.destroy(); } catch (e) {}
+          });
+        } catch (e) { console.error('[FloatingButton]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try { answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' }); } catch (e) { console.error('[AnswerComponent]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e); }
+
+        try {
+          var PointerSensor = window.DnDKit.PointerSensor;
+          var PointerActivationConstraints = window.DnDKit.PointerActivationConstraints;
+          dndManager = new window.DnDKit.DragDropManager({
+            sensors: [ PointerSensor.configure({ activationConstraints: [ new PointerActivationConstraints.Distance({ value: 3 }) ] }) ]
+          });
+          dndManager.monitor.addEventListener('dragend', handleDragEnd);
+          dndManager.monitor.addEventListener('dragstart', handleDragStart);
+        } catch (e) {
+          console.error('[DragDropManager]', e && e.message); if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          try {
+            dndManager = new window.DnDKit.DragDropManager();
+            dndManager.monitor.addEventListener('dragend', handleDragEnd);
+            dndManager.monitor.addEventListener('dragstart', handleDragStart);
+          } catch (er) {}
+        }
+
+        preloadAudio();
+        window.addEventListener('message', handlePostMessage);
+        try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+        setupGame();
+      } catch (e) {
+        console.error('[init]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = startGame;
+      window.nextRound = nextRound;
+      window.loadRound = function (n) {
+        if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+          gameState.currentRound = n;
+          renderRound();
+        }
+      };
+    });
+
+    setTimeout(function () {
+      if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      if (gameState.isActive || gameState.gameEnded) return;
+      var missing = [];
+      if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+      if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+      if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+      if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+      if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+      if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+      if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+      if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+      if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+      if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+      if (missing.length > 0) {
+        var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+        console.error('[' + msg + ']');
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureMessage(msg); } catch (e) {} }
+        var gc = document.getElementById('gameContent') || document.body;
+        if (gc) { gc.innerHTML = '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">Game failed to load — please refresh.</div>'; }
+        return;
+      }
+      if (!document.getElementById('gameContent')) buildFallbackLayout();
+      gameState.content = fallbackContent;
+      gameState.totalRounds = fallbackContent.rounds.length / 3;
+      setupGame();
+      startGame();
+    }, 2000);
+  </script>
+</body>
+</html>

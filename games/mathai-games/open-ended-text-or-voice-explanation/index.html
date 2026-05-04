@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Faster Way — Strategy Reflection</title>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-primary: #270f36;
+      --mathai-purple: #9B51E0;
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+    @supports not (height: 100dvh) { html, body { height: 100vh; } }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    @supports not (min-height: 100dvh) { #app { min-height: 100vh; } }
+
+    #gameContent {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      padding: 8px 16px 16px;
+    }
+
+    .scene-block {
+      padding: 18px 12px 8px;
+      text-align: left;
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary);
+    }
+    .scene-block p { margin-bottom: 10px; }
+    .scene-block .question-line {
+      font-weight: 700;
+      color: var(--mathai-primary);
+      margin-top: 12px;
+      font-size: 18px;
+    }
+
+    .reflection-input-panel {
+      background: var(--mathai-light-gray);
+      border-radius: 16px;
+      padding: 14px;
+      margin-top: 10px;
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+    }
+    .reflection-input-panel textarea {
+      width: 100%;
+      min-height: 70px;
+      border: none;
+      background: transparent;
+      font-family: var(--mathai-font-family);
+      font-size: 16px;
+      resize: none;
+      outline: none;
+      color: var(--mathai-text-primary);
+      -webkit-appearance: none;
+      appearance: none;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    .reflection-input-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 6px;
+    }
+    .ric-left { display: flex; align-items: center; }
+    .reflection-icon-btn {
+      min-width: 44px;
+      min-height: 44px;
+      border: 1px solid var(--mathai-border-gray);
+      background: var(--mathai-white);
+      border-radius: 999px;
+      font-size: 18px;
+      margin-right: 8px;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-appearance: none;
+      appearance: none;
+      color: var(--mathai-primary);
+    }
+    .reflection-nudge {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: var(--mathai-cell-bg-yellow);
+      border-radius: 12px;
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-primary);
+      display: none;
+    }
+    .reflection-nudge.visible { display: block; }
+
+    .reflection-spacer { margin-top: 16px; height: 8px; }
+
+    /* Touch targets */
+    button, [role="button"] { min-height: 44px; min-width: 44px; touch-action: manipulation; }
+
+    /* Gesture suppression */
+    #app {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed; inset: 0; z-index: 99999;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--mathai-white); color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center; padding: 24px;
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    .fade-in { animation: fadeIn 0.35s ease; }
+    .shake-wrong { animation: shake 0.5s ease; }
+
+    .answer-card {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      padding: 14px 12px 18px;
+      text-align: left;
+    }
+    .answer-card .scenario {
+      font-weight: 600;
+      color: var(--mathai-primary);
+      margin-bottom: 8px;
+    }
+    .answer-card .accepted {
+      padding: 10px 12px;
+      background: var(--mathai-cell-bg-green);
+      border: 2px solid var(--mathai-cell-border-green);
+      color: var(--mathai-green);
+      border-radius: 12px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .answer-card .strategy-name {
+      font-weight: 700;
+      color: var(--mathai-primary);
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-lives="3"></div>
+  <script>
+    /* Stickers */
+    var STICKER_CORRECT  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_TWO      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_ONE      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_CELEBRATE = STICKER_VICTORY;
+    var STICKER_SAD = STICKER_WRONG;
+    var STICKER_MOTIVATE = STICKER_LEVEL;
+
+    /* fallbackContent: 5 rounds × 3 sets = 15 entries */
+    function buildRound(set, n, scenario, scenarioDesc, slowDesc, question, accepted, hint, miscMap) {
+      var prefix = set + '_r' + n;
+      return {
+        set: set,
+        id: prefix + '_' + scenario.replace(/[^a-z0-9]/gi, '-').toLowerCase(),
+        round: n,
+        stage: n <= 2 ? 1 : (n <= 4 ? 2 : 3),
+        type: 'reflection',
+        scenario: scenario,
+        scenarioDesc: scenarioDesc,
+        slowDesc: slowDesc,
+        question: question,
+        acceptedKeywords: accepted.keywords,
+        strategyName: accepted.strategyName,
+        correctTTS: accepted.correctTTS,
+        correctSubtitle: accepted.correctSubtitle,
+        wrongTTS: hint,
+        wrongSubtitle: hint,
+        misconception_tags: miscMap || {},
+        answer: { scenario: scenario, strategyName: accepted.strategyName, explanation: accepted.explanation }
+      };
+    }
+
+    var fallbackContent = {
+      previewInstruction: '<p><b>Faster Way</b> — type or speak your answer.</p><p>You did the slow thing already. Now name a faster strategy in your own words.</p><p>You have <b>3 lives</b> across <b>5 rounds</b>. Submit any answer that names a useful strategy (division, grouping, multiplication...).</p>',
+      previewAudioText: 'Faster Way. After you do the slow method, name a faster strategy in your own words. Three lives, five rounds.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 5,
+      totalLives: 3,
+      answerComponent: true,
+      rounds: [
+        // Set A
+        buildRound('A', 1, 'sharing-pins',
+          'You tried to give 108 pins to 4 students one at a time.',
+          'Giving out one pin at a time is slow.',
+          'How can you find the pins each student gets in a faster way?',
+          { keywords:['divide','division','divid','/','÷','split','share','group','equal','/4','÷4'], strategyName:'Division',
+            correctTTS:'Yes, dividing 108 by 4 is the faster way.',
+            correctSubtitle:'Division: 108 divided by 4.',
+            explanation:'Use division: 108 ÷ 4 = 27 each, with 0 left over.' },
+          'Think: 108 split equally into 4 groups. What operation does that?',
+          { 'add':'used-addition-instead-of-division', 'count':'still-using-slow-counting' }),
+        buildRound('A', 2, 'cake-cutting',
+          'A cake must be cut into 8 equal pieces by trial and error.',
+          'Trial-and-error cutting is slow.',
+          'What is a faster way to know exactly where to cut?',
+          { keywords:['fraction','divide','division','divid','/','÷','equal','eighth','one-eighth','1/8','split'], strategyName:'Fractions / Division',
+            correctTTS:'Right — divide the cake into eighths.',
+            correctSubtitle:'Cut at each one-eighth mark.',
+            explanation:'Use fractions: each piece is 1/8 of the cake.' },
+          'Think about fractions — how do you mark equal pieces?',
+          { 'guess':'guessing-without-fraction' }),
+        buildRound('A', 3, 'counting-books',
+          'There are 7 shelves with 12 books each, counted one by one.',
+          'Counting each book is slow.',
+          'What is a faster way to find the total?',
+          { keywords:['multiply','multiplication','times','×','x ','*','product','7×12','12×7'], strategyName:'Multiplication',
+            correctTTS:'Yes, multiply 7 times 12.',
+            correctSubtitle:'Multiplication: 7 × 12.',
+            explanation:'Multiply: 7 × 12 = 84 books in total.' },
+          'Think: 7 groups of 12. What operation gives the total?',
+          { 'add':'using-repeated-addition' }),
+        buildRound('A', 4, 'speed-walking',
+          'You walked 30km in 5 hours, asked one km at a time.',
+          'Asking one kilometre at a time is slow.',
+          'How would you find the speed in a faster way?',
+          { keywords:['divide','division','divid','/','÷','rate','speed','per','30/5','30÷5','/5'], strategyName:'Division (rate)',
+            correctTTS:'Right — divide distance by time to get speed.',
+            correctSubtitle:'Division: 30 ÷ 5 = 6 km/h.',
+            explanation:'Speed = distance ÷ time = 30 ÷ 5 = 6 km/h.' },
+          'Think: distance per hour. What operation gives "per"?',
+          { 'add':'misapplied-addition' }),
+        buildRound('A', 5, 'comparing-heights',
+          'Two friends have heights 142cm and 128cm, compared by counting up.',
+          'Counting up to compare is slow.',
+          'What is a faster way to find the difference?',
+          { keywords:['subtract','subtraction','minus','-','take away','difference','142-128'], strategyName:'Subtraction',
+            correctTTS:'Yes, subtract 128 from 142.',
+            correctSubtitle:'Subtraction: 142 - 128 = 14.',
+            explanation:'Subtract: 142 - 128 = 14 cm difference.' },
+          'Think: how much taller is one than the other? What operation?',
+          { 'add':'used-addition-instead-of-subtraction' }),
+        // Set B
+        buildRound('B', 1, 'sharing-toffees',
+          'You shared 96 toffees among 6 friends one at a time.',
+          'Distributing one at a time is slow.',
+          'What is a faster way to share equally?',
+          { keywords:['divide','division','divid','/','÷','split','share','group','96/6','96÷6'], strategyName:'Division',
+            correctTTS:'Yes, dividing 96 by 6 gives 16 each.',
+            correctSubtitle:'Division: 96 ÷ 6.',
+            explanation:'Use division: 96 ÷ 6 = 16 each.' },
+          'Think: 96 split into 6 equal groups. What operation?',
+          { 'add':'used-addition-instead-of-division' }),
+        buildRound('B', 2, 'cutting-rope',
+          'You need to cut rope into 5 equal pieces by trial.',
+          'Trial-and-error cutting is slow.',
+          'What is a faster way to find each piece length?',
+          { keywords:['divide','division','divid','/','÷','fraction','one-fifth','1/5','split'], strategyName:'Division / Fractions',
+            correctTTS:'Right, divide the rope length by 5.',
+            correctSubtitle:'Each piece is one-fifth of the rope.',
+            explanation:'Use division/fractions: each piece is 1/5 of the rope.' },
+          'Think about fractions — what part of the whole is each piece?',
+          { 'guess':'guessing-without-fraction' }),
+        buildRound('B', 3, 'rows-of-chairs',
+          '8 rows have 9 chairs each, counted chair by chair.',
+          'Counting chair by chair is slow.',
+          'What is a faster way to find the total?',
+          { keywords:['multiply','multiplication','times','×','x ','*','product','8×9','9×8'], strategyName:'Multiplication',
+            correctTTS:'Yes, multiply 8 by 9.',
+            correctSubtitle:'Multiplication: 8 × 9 = 72.',
+            explanation:'Multiply: 8 × 9 = 72 chairs.' },
+          'Think: 8 groups of 9. What operation?',
+          { 'add':'using-repeated-addition' }),
+        buildRound('B', 4, 'hourly-pay',
+          'You earn money by working 4 hours and earning 240 rupees, asked one hour at a time.',
+          'Asking hour-by-hour is slow.',
+          'What is a faster way to find pay per hour?',
+          { keywords:['divide','division','divid','/','÷','rate','per','240/4','240÷4'], strategyName:'Division (rate)',
+            correctTTS:'Right — divide 240 by 4 to get pay per hour.',
+            correctSubtitle:'Division: 240 ÷ 4 = 60.',
+            explanation:'Rate = total ÷ hours = 240 ÷ 4 = 60 rupees/hour.' },
+          'Think: rupees per hour. What operation gives "per"?',
+          { 'add':'misapplied-addition' }),
+        buildRound('B', 5, 'comparing-distance',
+          'Two routes are 17km and 23km, compared by counting up.',
+          'Counting up to compare is slow.',
+          'What is a faster way to find the difference?',
+          { keywords:['subtract','subtraction','minus','-','take away','difference','23-17'], strategyName:'Subtraction',
+            correctTTS:'Yes, subtract 17 from 23.',
+            correctSubtitle:'Subtraction: 23 - 17 = 6.',
+            explanation:'Subtract: 23 - 17 = 6 km difference.' },
+          'Think: how much longer is one than the other?',
+          { 'add':'used-addition-instead-of-subtraction' }),
+        // Set C
+        buildRound('C', 1, 'sharing-stickers',
+          'You shared 84 stickers among 7 friends one at a time.',
+          'Sharing one-by-one is slow.',
+          'What is a faster way to share equally?',
+          { keywords:['divide','division','divid','/','÷','split','share','84/7','84÷7'], strategyName:'Division',
+            correctTTS:'Yes, dividing 84 by 7 gives 12 each.',
+            correctSubtitle:'Division: 84 ÷ 7.',
+            explanation:'Use division: 84 ÷ 7 = 12 each.' },
+          'Think: 84 split into 7 equal groups. What operation?',
+          { 'add':'used-addition-instead-of-division' }),
+        buildRound('C', 2, 'pizza-slices',
+          'A pizza needs to be cut into 6 equal slices by guessing.',
+          'Guessing where to cut is slow.',
+          'What is a faster way to know where to cut?',
+          { keywords:['divide','division','divid','/','÷','fraction','one-sixth','1/6','sixth','split'], strategyName:'Division / Fractions',
+            correctTTS:'Right — each slice is one-sixth of the pizza.',
+            correctSubtitle:'Each slice is 1/6 of the whole.',
+            explanation:'Use fractions: each slice is 1/6 of the pizza.' },
+          'Think about fractions — what part of the whole is each slice?',
+          { 'guess':'guessing-without-fraction' }),
+        buildRound('C', 3, 'pencil-boxes',
+          '5 boxes hold 14 pencils each, counted pencil by pencil.',
+          'Counting pencil-by-pencil is slow.',
+          'What is a faster way to find the total?',
+          { keywords:['multiply','multiplication','times','×','x ','*','product','5×14','14×5'], strategyName:'Multiplication',
+            correctTTS:'Yes, multiply 5 by 14.',
+            correctSubtitle:'Multiplication: 5 × 14 = 70.',
+            explanation:'Multiply: 5 × 14 = 70 pencils.' },
+          'Think: 5 groups of 14. What operation?',
+          { 'add':'using-repeated-addition' }),
+        buildRound('C', 4, 'pages-per-day',
+          'You read 120 pages in 6 days, counted day by day.',
+          'Counting day-by-day is slow.',
+          'What is a faster way to find pages per day?',
+          { keywords:['divide','division','divid','/','÷','rate','per','120/6','120÷6'], strategyName:'Division (rate)',
+            correctTTS:'Right — divide 120 by 6 to get pages per day.',
+            correctSubtitle:'Division: 120 ÷ 6 = 20.',
+            explanation:'Rate = total ÷ days = 120 ÷ 6 = 20 pages/day.' },
+          'Think: pages per day. What operation gives "per"?',
+          { 'add':'misapplied-addition' }),
+        buildRound('C', 5, 'comparing-ages',
+          'Two cousins are 14 and 22 years old, compared by counting up.',
+          'Counting up to compare is slow.',
+          'What is a faster way to find the age difference?',
+          { keywords:['subtract','subtraction','minus','-','take away','difference','22-14'], strategyName:'Subtraction',
+            correctTTS:'Yes, subtract 14 from 22.',
+            correctSubtitle:'Subtraction: 22 - 14 = 8.',
+            explanation:'Subtract: 22 - 14 = 8 years difference.' },
+          'Think: how many more years is one than the other?',
+          { 'add':'used-addition-instead-of-subtraction' })
+      ]
+    };
+
+    /* gameState */
+    var SETS = ['A', 'B', 'C'];
+    var gameState = {
+      gameId: 'open-ended-text-or-voice-explanation',
+      gameTitle: 'Faster Way',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 5,
+      score: 0,
+      lives: 3,
+      totalLives: 3,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      duration_data: { startTime: null, endTime: null, preview: [] },
+      correctAnswer: null,
+      stars: 0,
+      setIndex: 0,
+      activeRounds: [],
+      previewResult: null,
+      progress: 0,
+      consecutiveNonAnswers: 0
+    };
+    window.gameState = gameState;
+
+    var timer = null;
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+
+    /* Helpers */
+    function getAvailableSets(rounds) {
+      var seen = {}; var out = [];
+      for (var i = 0; i < rounds.length; i++) {
+        var s = rounds[i].set;
+        if (s && !seen[s]) { seen[s] = true; out.push(s); }
+      }
+      return out.length ? out : ['A'];
+    }
+    function getRounds() {
+      var src = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(src);
+      var setKey = sets[gameState.setIndex % sets.length];
+      var filtered = [];
+      for (var i = 0; i < src.length; i++) if (src[i].set === setKey) filtered.push(src[i]);
+      filtered.sort(function (a, b) { return a.round - b.round; });
+      return filtered;
+    }
+    function getCorrectCount() {
+      var c = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) if (gameState.attempts[i].correct === true) c++;
+      return c;
+    }
+    function getStars() {
+      var n = gameState.totalRounds;
+      var c = getCorrectCount();
+      if (c >= n && gameState.lives === gameState.totalLives) return 3;
+      if (c >= n && gameState.lives >= 1) return 2;
+      if (c >= 1) return 1;
+      return 0;
+    }
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+    }
+    function trackEvent(name, payload) {
+      try { gameState.events.push({ event: name, ts: Date.now(), data: payload || {} }); } catch (e) {}
+      try { if (signalCollector && signalCollector.recordEvent) signalCollector.recordEvent(name, payload || {}); } catch (e) {}
+    }
+    function recordAttempt(input, correct, misconceptionTag, responseMs) {
+      var round = gameState.activeRounds[gameState.currentRound];
+      var qid = round ? round.id : ('r' + (gameState.currentRound + 1));
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) : 0,
+        input_of_user: input,
+        correct: correct === true,
+        round_number: gameState.currentRound + 1,
+        question_id: qid,
+        correct_answer: round ? round.strategyName : null,
+        response_time_ms: typeof responseMs === 'number' ? responseMs : 0,
+        misconception_tag: misconceptionTag || null,
+        difficulty_level: round ? (round.stage || 1) : 1,
+        is_retry: false,
+        metadata: { set: round ? round.set : null }
+      };
+      gameState.attempts.push(attempt);
+      try { if (signalCollector && signalCollector.recordAttempt) signalCollector.recordAttempt(attempt); } catch (e) {}
+    }
+    function postGameComplete() {
+      if (gameState._gameCompletePosted) return;
+      gameState._gameCompletePosted = true;
+      var correctCount = getCorrectCount();
+      var attempted = gameState.attempts.length;
+      var accuracy = attempted === 0 ? 0 : Math.round((correctCount / attempted) * 100);
+      var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+      var triesByRound = gameState.attempts.map(function (a) { return { round: a.round_number, correct: a.correct === true }; });
+      var metrics = {
+        accuracy: accuracy,
+        time: Math.round(elapsedMs / 1000),
+        stars: gameState.stars,
+        attempts: gameState.attempts.slice(),
+        duration_data: gameState.duration_data,
+        totalLives: gameState.lives,
+        tries: triesByRound,
+        score: gameState.score,
+        correctCount: correctCount
+      };
+      var signalSealed = { event_count: gameState.events.length, metadata: {} };
+      try {
+        if (signalCollector && typeof signalCollector.seal === 'function') {
+          var sealed = signalCollector.seal();
+          if (sealed) {
+            if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+            if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+          }
+        }
+      } catch (e0) {}
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            previewResult: gameState.previewResult,
+            completedAt: Date.now(),
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) {}
+    }
+
+    function safePlaySound(id, opts) {
+      try { return FeedbackManager.sound.play(id, opts || {}); } catch (e) { return Promise.resolve(); }
+    }
+    function awaitedFeedbackSound(id, opts) {
+      var p = safePlaySound(id, opts || {});
+      var floor = new Promise(function (r) { setTimeout(r, 1500); });
+      return Promise.all([p, floor]).then(function () {}, function () {});
+    }
+    function playDynamicFeedback(opts) {
+      try { return FeedbackManager.playDynamicFeedback(opts || {}); } catch (e) { return Promise.resolve(); }
+    }
+
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            try { throw new Error('waitForPackages timeout'); } catch (rethrown) { reject(err); return; }
+            return reject(err);
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    /* Round rendering */
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div class="scene-block" id="sceneBlock" data-testid="scene-block">' +
+          '<p id="sceneScenario"></p>' +
+          '<p id="sceneSlow"></p>' +
+          '<p class="question-line" id="sceneQuestion"></p>' +
+        '</div>' +
+        '<div class="reflection-input-panel">' +
+          '<textarea id="reflectionInput" data-testid="reflection-input" placeholder="Your faster strategy..." rows="3" inputmode="text"></textarea>' +
+          '<div class="reflection-input-controls">' +
+            '<div class="ric-left">' +
+              '<button class="reflection-icon-btn" type="button" id="micBtn" data-testid="mic-btn" aria-label="microphone (placeholder)">🎤</button>' +
+              '<button class="reflection-icon-btn" type="button" id="kbdBtn" data-testid="kbd-btn" aria-label="keyboard">⌨️</button>' +
+            '</div>' +
+            '<button class="reflection-icon-btn" type="button" id="undoBtn" data-testid="undo-btn" aria-label="undo">↩</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="reflection-nudge" id="reflectionNudge" aria-live="polite" role="status"></div>' +
+        '<div class="reflection-spacer"></div>';
+    }
+
+    function renderInitialState() {
+      var sc = document.getElementById('sceneScenario');
+      var ss = document.getElementById('sceneSlow');
+      var sq = document.getElementById('sceneQuestion');
+      if (sc) sc.textContent = '';
+      if (ss) ss.textContent = '';
+      if (sq) sq.textContent = '';
+      var ti = document.getElementById('reflectionInput');
+      if (ti) ti.value = '';
+      var hint = document.getElementById('reflectionNudge');
+      if (hint) { hint.textContent = ''; hint.classList.remove('visible'); }
+    }
+
+    function setSubmittableState() {
+      var ti = document.getElementById('reflectionInput');
+      var ok = ti && ti.value.trim().length >= 1;
+      try { if (floatingBtn) floatingBtn.setSubmittable(ok === true); } catch (e) {}
+    }
+
+    function checkKeywordMatch(text, keywords) {
+      var t = String(text || '').toLowerCase();
+      for (var i = 0; i < keywords.length; i++) {
+        var k = String(keywords[i]).toLowerCase();
+        if (t.indexOf(k) !== -1) return true;
+      }
+      return false;
+    }
+
+    function renderRound(roundIdxOneBased) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      gameState.currentRound = roundIdxOneBased - 1;
+      gameState.isActive = true;
+      gameState.phase = 'gameplay';
+      syncDOM();
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) return;
+      gameState.correctAnswer = round.strategyName;
+      gameState.consecutiveNonAnswers = 0;
+
+      var sc = document.getElementById('sceneScenario');
+      var ss = document.getElementById('sceneSlow');
+      var sq = document.getElementById('sceneQuestion');
+      if (sc) sc.textContent = (round.scenario === 'sharing-pins' ? '' : '') + (round.slowDesc ? '' : '');
+      // First paragraph: friendly scenario sentence, derived from slowDesc roots
+      var scenarioMap = {
+        'sharing-pins': 'You tried to give 108 pins to 4 students one at a time.',
+        'cake-cutting': 'A cake must be cut into 8 equal pieces by trial and error.',
+        'counting-books': 'There are 7 shelves with 12 books each, counted one by one.',
+        'speed-walking': 'You walked 30km in 5 hours, asked one km at a time.',
+        'comparing-heights': 'Two friends have heights 142cm and 128cm, compared by counting up.',
+        'sharing-toffees': 'You shared 96 toffees among 6 friends one at a time.',
+        'cutting-rope': 'You need to cut rope into 5 equal pieces by trial.',
+        'rows-of-chairs': '8 rows have 9 chairs each, counted chair by chair.',
+        'hourly-pay': 'You earned 240 rupees in 4 hours, asked one hour at a time.',
+        'comparing-distance': 'Two routes are 17km and 23km, compared by counting up.',
+        'sharing-stickers': 'You shared 84 stickers among 7 friends one at a time.',
+        'pizza-slices': 'A pizza needs to be cut into 6 equal slices by guessing.',
+        'pencil-boxes': '5 boxes hold 14 pencils each, counted pencil by pencil.',
+        'pages-per-day': 'You read 120 pages in 6 days, counted day by day.',
+        'comparing-ages': 'Two cousins are 14 and 22 years old, compared by counting up.'
+      };
+      if (sc) sc.textContent = scenarioMap[round.scenario] || round.scenario;
+      if (ss) ss.textContent = round.slowDesc;
+      if (sq) sq.textContent = round.question;
+
+      var sceneBlock = document.getElementById('sceneBlock');
+      if (sceneBlock) {
+        sceneBlock.classList.remove('fade-in');
+        void sceneBlock.offsetWidth;
+        sceneBlock.classList.add('fade-in');
+      }
+
+      var ti = document.getElementById('reflectionInput');
+      if (ti) {
+        ti.value = '';
+        ti.removeEventListener('input', setSubmittableState);
+        ti.addEventListener('input', setSubmittableState);
+      }
+      var hint = document.getElementById('reflectionNudge');
+      if (hint) { hint.textContent = ''; hint.classList.remove('visible'); }
+      setSubmittableState();
+      gameState.isProcessing = false;
+      gameState.roundStartMs = Date.now();
+      try { if (timer && timer.resume) timer.resume(); } catch (e) {}
+
+      try { var p = safePlaySound('tap_sound', {}); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+      trackEvent('round_start', { round: roundIdxOneBased, scenario: round.scenario });
+    }
+
+    function onConfirmTap() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var ti = document.getElementById('reflectionInput');
+      if (!ti) return;
+      var text = (ti.value || '').trim();
+      if (text.length === 0) return;
+      handleAnswer(text);
+    }
+
+    function handleAnswer(text) {
+      gameState.isProcessing = true;
+      var responseMs = Date.now() - (gameState.roundStartMs || Date.now());
+      var round = gameState.activeRounds[gameState.currentRound];
+      var matches = checkKeywordMatch(text, round.acceptedKeywords);
+
+      var confirmBtn = document.getElementById('reflectionConfirmBtn');
+      if (confirmBtn) confirmBtn.classList.add('disabled');
+      try { if (timer && timer.pause) timer.pause(); } catch (e) {}
+
+      if (matches) {
+        gameState.score += 1;
+        gameState.progress = gameState.currentRound + 1;
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+        syncDOM();
+        recordAttempt(text, true, null, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: true });
+        if (confirmBtn) confirmBtn.classList.add('solved-correct');
+        runCorrectFeedbackAndAdvance(round);
+      } else {
+        // Lenient: first miss is a hint, no life lost. Second miss → life.
+        gameState.consecutiveNonAnswers = (gameState.consecutiveNonAnswers || 0) + 1;
+        if (gameState.consecutiveNonAnswers === 1) {
+          // soft hint, no lives lost, allow retry
+          var hint = document.getElementById('reflectionNudge');
+          if (hint) { hint.textContent = round.wrongTTS; hint.classList.add('visible'); }
+          var sb = document.getElementById('sceneBlock');
+          if (sb) {
+            sb.classList.remove('shake-wrong'); void sb.offsetWidth; sb.classList.add('shake-wrong');
+          }
+          recordAttempt(text, false, 'first-miss-soft-hint', responseMs);
+          trackEvent('soft_miss', { round: gameState.currentRound + 1 });
+          // Soft re-prompt: re-enable input + button
+          if (confirmBtn) confirmBtn.classList.remove('disabled');
+          try { if (timer && timer.resume) timer.resume(); } catch (e) {}
+          gameState.isProcessing = false;
+          return;
+        }
+        // Second consecutive miss: cost a life
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        gameState.progress = gameState.currentRound + 1;
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+        syncDOM();
+        recordAttempt(text, false, 'second-miss-life-lost', responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: false });
+        runWrongFeedbackAndAdvance(round);
+      }
+    }
+
+    function runCorrectFeedbackAndAdvance(round) {
+      (async function () {
+        try { await awaitedFeedbackSound('correct_sound_effect', { sticker: STICKER_CORRECT }); } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.correctTTS,
+            subtitle: round.correctSubtitle,
+            sticker: STICKER_CORRECT
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function runWrongFeedbackAndAdvance(round) {
+      (async function () {
+        try { await awaitedFeedbackSound('incorrect_sound_effect', { sticker: STICKER_SAD }); } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.wrongTTS,
+            subtitle: round.wrongSubtitle,
+            sticker: STICKER_SAD
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+    function advanceAfterFeedback() {
+      var roundJustPlayed = gameState.currentRound + 1;
+      if (gameState.lives === 0) {
+        gameState.stars = getStars();
+        postGameComplete();
+        endGame(false);
+        return;
+      }
+      if (roundJustPlayed === gameState.totalRounds) { endGame(true); return; }
+      showRoundIntro(roundJustPlayed + 1);
+    }
+
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      var ttsText = 'Round ' + n;
+      await transitionScreen.show({
+        title: 'Round ' + n,
+        icons: [],
+        persist: true,
+        buttons: [],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_ROUND }); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          })();
+        }
+      });
+      setTimeout(function () {
+        try {
+          if (gameState.gameEnded) return;
+          if (gameState.currentRound + 1 < n) {
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          }
+        } catch (e) {}
+      }, 9000);
+    }
+
+    function endGame(victory) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      try { if (timer && timer.pause) timer.pause(); } catch (e) {}
+      gameState.stars = getStars();
+      if (victory) {
+        gameState.phase = 'results';
+        syncDOM();
+        postGameComplete();
+        showVictory();
+      } else {
+        gameState.phase = 'game_over';
+        syncDOM();
+        postGameComplete();
+        showGameOver();
+      }
+      trackEvent('game_end', { victory: victory, stars: gameState.stars, score: gameState.score });
+    }
+
+    function _victoryClaimAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showStarsCollected();
+    }
+    function _victoryPlayAgainAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showMotivation();
+    }
+
+    async function showVictory() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var stars = gameState.stars;
+      var subtitle = 'You explained ' + gameState.score + ' of ' + gameState.totalRounds + ' faster strategies!';
+      var ttsText = stars === 3
+        ? 'Victory! Three stars for crisp explanations!'
+        : 'Great work! You got ' + gameState.score + ' out of ' + gameState.totalRounds + '!';
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var sfxSticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_TWO : STICKER_ONE);
+      await transitionScreen.show({
+        title: 'Victory 🎉',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars === 3
+          ? [ { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction } ]
+          : [ { text: 'Play Again', type: 'secondary', action: _victoryPlayAgainAction },
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction } ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound(sfxId, { sticker: sfxSticker }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_CELEBRATE }); } catch (e) {}
+          })();
+        }
+      });
+    }
+    async function showGameOver() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var subtitle = 'You explained ' + gameState.score + '/' + gameState.totalRounds + ' — try again.';
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: subtitle,
+        icons: ['😔'],
+        persist: true,
+        buttons: [{
+          text: 'Try Again',
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showMotivation();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_GAMEOVER }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: subtitle, subtitle: subtitle, sticker: STICKER_GAMEOVER }); } catch (e) {}
+          })();
+        }
+      });
+    }
+    async function showMotivation() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = 'Ready to improve your score?';
+      await transitionScreen.show({
+        title: 'Ready to improve your score?',
+        icons: ['⚡'],
+        persist: true,
+        buttons: [{
+          text: "I'm ready",
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            restartGame();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_MOTIVATE }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_MOTIVATE }); } catch (e) {}
+          })();
+        }
+      });
+    }
+    async function showStarsCollected() {
+      gameState.phase = 'stars_collected';
+      syncDOM();
+      await transitionScreen.show({
+        title: "Yay!\nStars collected!",
+        buttons: [],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY }); } catch (e) {}
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: { count: gameState.stars, variant: 'yellow', score: gameState.score + '/' + gameState.totalRounds }
+              }, '*');
+            } catch (e) {}
+            setTimeout(showAnswerCarousel, 1500);
+          })();
+        }
+      });
+    }
+
+    function renderAnswerSlide(container, round) {
+      if (!container || !round || !round.answer) return;
+      var a = round.answer;
+      var html = '';
+      html += '<div class="answer-card">';
+      html += '<div class="scenario">' + escapeHTML(a.scenario) + '</div>';
+      html += '<div class="accepted">Strategy: <span class="strategy-name">' + escapeHTML(a.strategyName) + '</span></div>';
+      html += '<div>' + escapeHTML(a.explanation) + '</div>';
+      html += '</div>';
+      container.innerHTML = html;
+    }
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds;
+      var slides = [];
+      for (var i = 0; i < rounds.length; i++) {
+        (function (r) { slides.push({ render: function (container) { renderAnswerSlide(container, r); } }); })(rounds[i]);
+      }
+      return slides;
+    }
+    function showAnswerCarousel() {
+      try { answerComponent.show({ slides: buildAnswerSlidesForAllRounds() }); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+      try {
+        setTimeout(function () {
+          var slot = document.getElementById('mathai-answer-slot');
+          if (slot && slot.scrollIntoView) slot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+      } catch (e) {}
+    }
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.content = content;
+      gameState.totalRounds = content.totalRounds || 5;
+      gameState.totalLives = content.totalLives || 3;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+      injectGameHTML();
+      renderInitialState();
+      try {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          onComplete: function (previewData) { startGameAfterPreview(previewData); }
+        });
+      } catch (e) {
+        console.error('[previewScreen.show failed]', e && e.message, e);
+      }
+    }
+
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || {};
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: (previewData && previewData.duration) || 0 });
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try { if (progressBar) { progressBar.show(); progressBar.update(0, gameState.totalLives); } } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex] });
+      try { if (signalCollector && signalCollector.recordViewEvent) signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+      showWelcome();
+    }
+
+    async function showWelcome() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = "Let's play Faster Way! Type or speak a faster strategy.";
+      await transitionScreen.show({
+        title: 'Welcome!',
+        icons: ['👋'],
+        persist: true,
+        buttons: [{
+          text: "Let's go!",
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showRoundIntro(1);
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+            try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_LEVEL }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    function resetGameState() {
+      gameState.phase = 'gameplay';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState._gameCompletePosted = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.progress = 0;
+      gameState.consecutiveNonAnswers = 0;
+      gameState.duration_data = { startTime: null, endTime: null, preview: gameState.duration_data.preview || [] };
+      gameState.activeRounds = getRounds();
+      try { if (timer) { if (timer.reset) timer.reset(); if (timer.pause) timer.pause(); } } catch (e) {}
+      try {
+        if (answerComponent && answerComponent.update) answerComponent.update({ slides: [] });
+        if (answerComponent && answerComponent.hide) answerComponent.hide();
+      } catch (e) {}
+    }
+
+    function restartGame() {
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex], restart: true });
+      showRoundIntro(1);
+    }
+
+    function handlePostMessage(event) {
+      if (!event || !event.data || !event.data.type) return;
+      var t = event.data.type;
+      var data = event.data.data || {};
+      if (t === 'game_init') {
+        gameState.phase = 'playing';
+        if (data.content) gameState.content = data.content;
+        gameState.signalConfig = data.signalConfig || {};
+        if (data.signalConfig && signalCollector && signalCollector.applyConfig) {
+          try { signalCollector.applyConfig(data.signalConfig); } catch (e) {}
+        }
+        try {
+          if (signalCollector) {
+            signalCollector.gameId = 'open-ended-text-or-voice-explanation';
+            if (data.sessionId) signalCollector.sessionId = data.sessionId;
+            if (data.studentId) signalCollector.studentId = data.studentId;
+            if (data.contentSetId) signalCollector.contentSetId = data.contentSetId;
+            if (data.signalConfig && data.signalConfig.flushUrl) signalCollector.flushUrl = data.signalConfig.flushUrl;
+            if (data.signalConfig && data.signalConfig.playId) signalCollector.playId = data.signalConfig.playId;
+            if (signalCollector.startFlushing) { try { signalCollector.startFlushing(); } catch (e) {} }
+          }
+        } catch (e) {}
+        syncDOM();
+        setupGame();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      waitForPackages().then(function () {
+        try {
+          var initP = FeedbackManager.init && FeedbackManager.init();
+          var doInit = initP && initP.then ? initP : Promise.resolve();
+          doInit.then(function () {
+            try {
+              try {
+                signalCollector = new SignalCollector({
+                  sessionId: 'open-ended-text-or-voice-explanation-' + Date.now(),
+                  studentId: 'standalone',
+                  gameId: 'open-ended-text-or-voice-explanation',
+                  contentSetId: 'fallback'
+                });
+                window.signalCollector = signalCollector;
+              } catch (e) { console.error('[SignalCollector ctor failed]', e && e.message); }
+
+              try {
+                ScreenLayout.inject('app', {
+                  slots: {
+                    previewScreen: true,
+                    progressBar: true,
+                    transitionScreen: true,
+                    floatingButton: true,
+                    answerComponent: true
+                  }
+                });
+              } catch (e) { console.error('[ScreenLayout.inject failed]', e && e.message); }
+
+              injectGameHTML();
+              renderInitialState();
+
+              try {
+                timer = new TimerComponent('timer-container', {
+                  timerType: 'increase',
+                  format: 'min',
+                  startTime: 0,
+                  autoStart: false
+                });
+              } catch (e) { console.error('[TimerComponent ctor failed]', e && e.message); }
+
+              try {
+                visibilityTracker = new VisibilityTracker({
+                  popupProps: { title: 'Paused', description: 'Tap Resume to continue.', primaryText: 'Resume' },
+                  onInactive: function () {
+                    try { FeedbackManager.sound.pause(); } catch (e) {}
+                    try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+                    try { if (timer && timer.pause) timer.pause(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+                  },
+                  onResume: function () {
+                    try { FeedbackManager.sound.resume(); } catch (e) {}
+                    try { FeedbackManager.stream.resumeAll(); } catch (e) {}
+                    try { if (timer && timer.resume) timer.resume(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+                  }
+                });
+              } catch (e) { console.error('[VisibilityTracker ctor failed]', e && e.message); }
+
+              try {
+                progressBar = new ProgressBarComponent({
+                  slotId: 'mathai-progress-slot',
+                  totalRounds: 5,
+                  totalLives: 3
+                });
+              } catch (e) { console.error('[ProgressBarComponent ctor failed]', e && e.message); }
+
+              try {
+                transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' });
+              } catch (e) { console.error('[TransitionScreenComponent ctor failed]', e && e.message); }
+              try {
+                previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+              } catch (e) { console.error('[PreviewScreenComponent ctor failed]', e && e.message); }
+              try {
+                floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+              } catch (e) { console.error('[FloatingButtonComponent ctor failed]', e && e.message); }
+              try {
+                answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' });
+              } catch (e) { console.error('[AnswerComponentComponent ctor failed]', e && e.message); }
+
+              try {
+                if (floatingBtn && floatingBtn.on) {
+                  floatingBtn.on('submit', function () { onConfirmTap(); });
+                  floatingBtn.on('next', function () {
+                    try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                    try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+                    try { if (floatingBtn) floatingBtn.destroy(); } catch (e) {}
+                  });
+                }
+              } catch (e) {}
+
+              try {
+                FeedbackManager.sound.preload([
+                  { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+                  { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+                  { id: 'sound_level_transition',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+                  { id: 'victory_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+                  { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+                  { id: 'game_over_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+                  { id: 'tap_sound',                url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+                ]);
+              } catch (e) { console.error('[FeedbackManager.preload failed]', e && e.message); }
+
+              window.addEventListener('message', handlePostMessage);
+              try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+              setupGame();
+            } catch (e) { console.error('[init inner] ' + (e && e.message)); }
+          }, function (e) { console.error('[FeedbackManager.init failed]', e && e.message); });
+        } catch (e) { console.error('[init outer] ' + (e && e.message)); }
+      }, function (err) { console.error('[waitForPackages rejected] ' + (err && err.message)); });
+
+      setTimeout(function () {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+      }, 2000);
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = setupGame;
+      window.renderRound = renderRound;
+      window.loadRound = function (n) { try { renderRound(n); } catch (e) {} };
+    });
+  </script>
+</body>
+</html>

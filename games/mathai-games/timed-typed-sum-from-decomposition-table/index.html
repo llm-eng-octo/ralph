@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Friendly Pairs — Timed Decomposition Sum</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+      --mathai-primary: #270f36;
+      --mathai-purple: #9B51E0;
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+      --fp-tile-turquoise: #B8EAEA;
+      --fp-tile-yellow: #FFEFA8;
+      --fp-tile-purple: #DDC4EC;
+      --fp-tile-orange: #FFD3A8;
+      --fp-tile-pink: #FFC9D6;
+      --fp-tile-green: #C9EBC9;
+      --fp-tile-grey: #E5E5E5;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+    @supports not (height: 100dvh) {
+      html, body { height: 100vh; }
+    }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    #timer-container {
+      position: absolute;
+      top: 0.75rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      pointer-events: none;
+    }
+    #timer-container > * { pointer-events: auto; }
+    #timer-container .timer-wrapper { padding: 0 !important; margin: 0 !important; background: transparent !important; }
+    #timer-container .timer-display {
+      width: auto !important;
+      height: auto !important;
+      min-width: 0 !important;
+      padding: 2px 10px !important;
+      font-size: 16px !important;
+      font-weight: 700 !important;
+      color: var(--mathai-primary) !important;
+      font-family: var(--mathai-font-family) !important;
+      background: var(--mathai-cell-bg-yellow) !important;
+      border-radius: 999px !important;
+      box-shadow: none !important;
+    }
+
+    #gameContent {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      padding: 8px 16px 16px;
+    }
+
+    .fp-stage {
+      text-align: center;
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-gray);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin: 6px 0 4px;
+    }
+
+    .fp-row-wrap {
+      width: 100%;
+      overflow-x: auto;
+      padding: 8px 4px 12px;
+    }
+    .fp-row {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      min-height: 64px;
+    }
+    .fp-tile {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 6px 10px;
+      border-radius: 12px;
+      background: var(--fp-tile-grey);
+      color: var(--mathai-primary);
+      font-size: 22px;
+      font-weight: 800;
+      margin: 4px;
+      border: 2px solid transparent;
+    }
+    .fp-tile.color-turquoise { background: var(--fp-tile-turquoise); }
+    .fp-tile.color-yellow    { background: var(--fp-tile-yellow); }
+    .fp-tile.color-purple    { background: var(--fp-tile-purple); }
+    .fp-tile.color-orange    { background: var(--fp-tile-orange); }
+    .fp-tile.color-pink      { background: var(--fp-tile-pink); }
+    .fp-tile.color-green     { background: var(--fp-tile-green); }
+    .fp-plus {
+      font-size: 20px;
+      color: var(--mathai-gray);
+      font-weight: 700;
+      margin: 0 2px;
+    }
+
+    .fp-input-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 12px 0 8px;
+    }
+    .fp-input-label {
+      font-size: 14px;
+      color: var(--mathai-gray);
+      margin-bottom: 6px;
+    }
+    .fp-input {
+      width: 180px;
+      max-width: 80%;
+      min-height: 48px;
+      padding: 10px 14px;
+      border: 2px solid var(--mathai-border-gray);
+      border-radius: 10px;
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      font-family: var(--mathai-font-family);
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      -webkit-appearance: none;
+      appearance: none;
+      touch-action: manipulation;
+    }
+    .fp-input:focus {
+      outline: none;
+      border-color: var(--mathai-purple);
+    }
+    .fp-input.is-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-green);
+    }
+    .fp-input.is-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-cell-border-red);
+      color: var(--mathai-red);
+      animation: shake 0.5s ease;
+    }
+
+    .fp-submit-row {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .fp-reveal {
+      margin-top: 14px;
+      padding: 10px 12px;
+      background: var(--mathai-cell-bg-yellow);
+      border-radius: 10px;
+      color: var(--mathai-text-primary);
+      font-size: 14px;
+      text-align: center;
+      max-width: 360px;
+    }
+
+    .fp-answer-card {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      padding: 14px 12px 18px;
+      text-align: center;
+    }
+    .fp-answer-prompt {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      margin-bottom: 10px;
+    }
+    .fp-answer-row {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .fp-answer-pair {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      margin: 4px;
+      background: var(--mathai-cell-bg-green);
+      border: 2px solid var(--mathai-cell-border-green);
+      border-radius: 10px;
+      color: var(--mathai-green);
+      font-weight: 700;
+    }
+    .fp-answer-total {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--mathai-primary);
+      margin-top: 8px;
+    }
+
+    button,
+    [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    #app {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.35s ease; }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-lives="3"></div>
+
+  <script>
+    /* Stickers — canonical from feedbackmanager-api.md */
+    var STICKER_CORRECT  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_CELEBRATE = STICKER_VICTORY;
+    var STICKER_SAD      = STICKER_WRONG;
+    var STICKER_MOTIVATE = STICKER_LEVEL;
+
+    /* fallbackContent — 3 sets x 10 rounds = 30 entries */
+    function _mkRound(set, round, stage, tiles, total, wrongHint) {
+      var letters = ['A_r','B_r','C_r'];
+      var letter = set;
+      var id = letter + '_r' + round + '_t' + total;
+      var ttsCorrect = 'Right — pairs in this row sum to ' + total + '.';
+      var ttsWrong = 'Not quite. Pair up the friendly numbers: ' + wrongHint + '. Total is ' + total + '.';
+      return {
+        set: set,
+        id: id,
+        round: round,
+        stage: stage,
+        tiles: tiles,
+        total: total,
+        wrongHint: wrongHint,
+        correctTTS: ttsCorrect,
+        correctSubtitle: 'Total is ' + total + '.',
+        wrongTTS: ttsWrong,
+        wrongSubtitle: 'Total is ' + total + '.',
+        answer: { tiles: tiles, total: total, wrongHint: wrongHint }
+      };
+    }
+
+    var fallbackContent = {
+      previewInstruction: '<p><b>Mentally add the numbers below.</b> Look for friendly pairs that make 10, 20, 30, 40 or 50 — they are colour-coded for you in early rounds.</p><p>Type the total before time runs out. Three lives, ten rounds.</p>',
+      previewAudioText: 'Mentally add the numbers given below. Look for friendly pairs that sum to ten, twenty, thirty, forty or fifty. Type the total before the timer runs out.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 10,
+      totalLives: 3,
+      answerComponent: true,
+      rounds: [
+        // Set A
+        _mkRound('A', 1, 1, [{n:7,c:'turquoise'},{n:3,c:'turquoise'},{n:4,c:'yellow'},{n:6,c:'yellow'},{n:8,c:'purple'},{n:2,c:'purple'}], 30, '7+3=10, 4+6=10, 8+2=10'),
+        _mkRound('A', 2, 1, [{n:9,c:'turquoise'},{n:1,c:'turquoise'},{n:5,c:'yellow'},{n:5,c:'yellow'},{n:6,c:'purple'},{n:4,c:'purple'}], 30, '9+1=10, 5+5=10, 6+4=10'),
+        _mkRound('A', 3, 1, [{n:8,c:'turquoise'},{n:2,c:'turquoise'},{n:7,c:'yellow'},{n:3,c:'yellow'},{n:9,c:'purple'},{n:1,c:'purple'}], 30, '8+2=10, 7+3=10, 9+1=10'),
+        _mkRound('A', 4, 2, [{n:7,c:'turquoise'},{n:3,c:'turquoise'},{n:19,c:'yellow'},{n:1,c:'yellow'},{n:25,c:'purple'},{n:25,c:'purple'},{n:24,c:'orange'},{n:26,c:'orange'}], 130, '7+3=10, 19+1=20, 25+25=50, 24+26=50'),
+        _mkRound('A', 5, 2, [{n:6,c:'turquoise'},{n:4,c:'turquoise'},{n:15,c:'yellow'},{n:5,c:'yellow'},{n:22,c:'purple'},{n:28,c:'purple'},{n:21,c:'orange'},{n:29,c:'orange'}], 130, '6+4=10, 15+5=20, 22+28=50, 21+29=50'),
+        _mkRound('A', 6, 2, [{n:8,c:'turquoise'},{n:2,c:'turquoise'},{n:11,c:'yellow'},{n:9,c:'yellow'},{n:23,c:'purple'},{n:27,c:'purple'},{n:20,c:'orange'},{n:30,c:'orange'}], 130, '8+2=10, 11+9=20, 23+27=50, 20+30=50'),
+        _mkRound('A', 7, 2, [{n:9,c:'turquoise'},{n:1,c:'turquoise'},{n:14,c:'yellow'},{n:6,c:'yellow'},{n:18,c:'purple'},{n:32,c:'purple'},{n:24,c:'orange'},{n:26,c:'orange'}], 130, '9+1=10, 14+6=20, 18+32=50, 24+26=50'),
+        _mkRound('A', 8, 3, [{n:7,c:'grey'},{n:3,c:'grey'},{n:19,c:'grey'},{n:1,c:'grey'},{n:25,c:'grey'},{n:25,c:'grey'},{n:24,c:'grey'},{n:26,c:'grey'}], 130, '7+3=10, 19+1=20, 25+25=50, 24+26=50'),
+        _mkRound('A', 9, 3, [{n:8,c:'grey'},{n:2,c:'grey'},{n:13,c:'grey'},{n:7,c:'grey'},{n:31,c:'grey'},{n:19,c:'grey'},{n:23,c:'grey'},{n:27,c:'grey'}], 130, '8+2=10, 13+7=20, 31+19=50, 23+27=50'),
+        _mkRound('A',10, 3, [{n:6,c:'grey'},{n:4,c:'grey'},{n:11,c:'grey'},{n:9,c:'grey'},{n:22,c:'grey'},{n:28,c:'grey'},{n:21,c:'grey'},{n:29,c:'grey'}], 130, '6+4=10, 11+9=20, 22+28=50, 21+29=50'),
+
+        // Set B
+        _mkRound('B', 1, 1, [{n:6,c:'turquoise'},{n:4,c:'turquoise'},{n:9,c:'yellow'},{n:1,c:'yellow'},{n:7,c:'purple'},{n:3,c:'purple'}], 30, '6+4=10, 9+1=10, 7+3=10'),
+        _mkRound('B', 2, 1, [{n:5,c:'turquoise'},{n:5,c:'turquoise'},{n:8,c:'yellow'},{n:2,c:'yellow'},{n:6,c:'purple'},{n:4,c:'purple'}], 30, '5+5=10, 8+2=10, 6+4=10'),
+        _mkRound('B', 3, 1, [{n:9,c:'turquoise'},{n:1,c:'turquoise'},{n:7,c:'yellow'},{n:3,c:'yellow'},{n:5,c:'purple'},{n:5,c:'purple'}], 30, '9+1=10, 7+3=10, 5+5=10'),
+        _mkRound('B', 4, 2, [{n:8,c:'turquoise'},{n:2,c:'turquoise'},{n:13,c:'yellow'},{n:7,c:'yellow'},{n:21,c:'purple'},{n:29,c:'purple'},{n:23,c:'orange'},{n:27,c:'orange'}], 130, '8+2=10, 13+7=20, 21+29=50, 23+27=50'),
+        _mkRound('B', 5, 2, [{n:7,c:'turquoise'},{n:3,c:'turquoise'},{n:12,c:'yellow'},{n:8,c:'yellow'},{n:22,c:'purple'},{n:28,c:'purple'},{n:20,c:'orange'},{n:30,c:'orange'}], 130, '7+3=10, 12+8=20, 22+28=50, 20+30=50'),
+        _mkRound('B', 6, 2, [{n:6,c:'turquoise'},{n:4,c:'turquoise'},{n:14,c:'yellow'},{n:6,c:'yellow'},{n:18,c:'purple'},{n:32,c:'purple'},{n:25,c:'orange'},{n:25,c:'orange'}], 130, '6+4=10, 14+6=20, 18+32=50, 25+25=50'),
+        _mkRound('B', 7, 2, [{n:9,c:'turquoise'},{n:1,c:'turquoise'},{n:11,c:'yellow'},{n:9,c:'yellow'},{n:24,c:'purple'},{n:26,c:'purple'},{n:21,c:'orange'},{n:29,c:'orange'}], 130, '9+1=10, 11+9=20, 24+26=50, 21+29=50'),
+        _mkRound('B', 8, 3, [{n:6,c:'grey'},{n:4,c:'grey'},{n:11,c:'grey'},{n:9,c:'grey'},{n:24,c:'grey'},{n:26,c:'grey'},{n:21,c:'grey'},{n:29,c:'grey'}], 130, '6+4=10, 11+9=20, 24+26=50, 21+29=50'),
+        _mkRound('B', 9, 3, [{n:9,c:'grey'},{n:1,c:'grey'},{n:14,c:'grey'},{n:6,c:'grey'},{n:25,c:'grey'},{n:25,c:'grey'},{n:22,c:'grey'},{n:28,c:'grey'}], 130, '9+1=10, 14+6=20, 25+25=50, 22+28=50'),
+        _mkRound('B',10, 3, [{n:8,c:'grey'},{n:2,c:'grey'},{n:13,c:'grey'},{n:7,c:'grey'},{n:31,c:'grey'},{n:19,c:'grey'},{n:23,c:'grey'},{n:27,c:'grey'}], 130, '8+2=10, 13+7=20, 31+19=50, 23+27=50'),
+
+        // Set C
+        _mkRound('C', 1, 1, [{n:8,c:'turquoise'},{n:2,c:'turquoise'},{n:6,c:'yellow'},{n:4,c:'yellow'},{n:9,c:'purple'},{n:1,c:'purple'}], 30, '8+2=10, 6+4=10, 9+1=10'),
+        _mkRound('C', 2, 1, [{n:7,c:'turquoise'},{n:3,c:'turquoise'},{n:5,c:'yellow'},{n:5,c:'yellow'},{n:8,c:'purple'},{n:2,c:'purple'}], 30, '7+3=10, 5+5=10, 8+2=10'),
+        _mkRound('C', 3, 1, [{n:6,c:'turquoise'},{n:4,c:'turquoise'},{n:9,c:'yellow'},{n:1,c:'yellow'},{n:7,c:'purple'},{n:3,c:'purple'}], 30, '6+4=10, 9+1=10, 7+3=10'),
+        _mkRound('C', 4, 2, [{n:5,c:'turquoise'},{n:5,c:'turquoise'},{n:18,c:'yellow'},{n:2,c:'yellow'},{n:21,c:'purple'},{n:29,c:'purple'},{n:24,c:'orange'},{n:26,c:'orange'}], 130, '5+5=10, 18+2=20, 21+29=50, 24+26=50'),
+        _mkRound('C', 5, 2, [{n:7,c:'turquoise'},{n:3,c:'turquoise'},{n:16,c:'yellow'},{n:4,c:'yellow'},{n:25,c:'purple'},{n:25,c:'purple'},{n:23,c:'orange'},{n:27,c:'orange'}], 130, '7+3=10, 16+4=20, 25+25=50, 23+27=50'),
+        _mkRound('C', 6, 2, [{n:9,c:'turquoise'},{n:1,c:'turquoise'},{n:11,c:'yellow'},{n:9,c:'yellow'},{n:22,c:'purple'},{n:28,c:'purple'},{n:20,c:'orange'},{n:30,c:'orange'}], 130, '9+1=10, 11+9=20, 22+28=50, 20+30=50'),
+        _mkRound('C', 7, 2, [{n:8,c:'turquoise'},{n:2,c:'turquoise'},{n:14,c:'yellow'},{n:6,c:'yellow'},{n:24,c:'purple'},{n:26,c:'purple'},{n:21,c:'orange'},{n:29,c:'orange'}], 130, '8+2=10, 14+6=20, 24+26=50, 21+29=50'),
+        _mkRound('C', 8, 3, [{n:5,c:'grey'},{n:5,c:'grey'},{n:18,c:'grey'},{n:2,c:'grey'},{n:21,c:'grey'},{n:29,c:'grey'},{n:24,c:'grey'},{n:26,c:'grey'}], 130, '5+5=10, 18+2=20, 21+29=50, 24+26=50'),
+        _mkRound('C', 9, 3, [{n:7,c:'grey'},{n:3,c:'grey'},{n:16,c:'grey'},{n:4,c:'grey'},{n:25,c:'grey'},{n:25,c:'grey'},{n:23,c:'grey'},{n:27,c:'grey'}], 130, '7+3=10, 16+4=20, 25+25=50, 23+27=50'),
+        _mkRound('C',10, 3, [{n:9,c:'grey'},{n:1,c:'grey'},{n:11,c:'grey'},{n:9,c:'grey'},{n:22,c:'grey'},{n:28,c:'grey'},{n:20,c:'grey'},{n:30,c:'grey'}], 130, '9+1=10, 11+9=20, 22+28=50, 20+30=50')
+      ]
+    };
+
+    var SETS = ['A','B','C'];
+
+    var gameState = {
+      gameId: 'timed-typed-sum-from-decomposition-table',
+      gameTitle: 'Friendly Pairs',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 10,
+      score: 0,
+      lives: 3,
+      totalLives: 3,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      duration_data: { startTime: null, endTime: null, preview: [] },
+      correctAnswer: null,
+      stars: 0,
+      setIndex: 0,
+      activeRounds: [],
+      roundStartMs: 0,
+      timerIntentionallyPaused: false,
+      previewResult: null,
+      progress: 0,
+      roundToken: 0
+    };
+    window.gameState = gameState;
+
+    var timer = null;
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+
+    // Cached DOM refs (populated after ScreenLayout.inject)
+    var elGameContent = null;
+    var elInput = null;
+    var elStageLabel = null;
+    var elRow = null;
+    var elReveal = null;
+
+    function getAvailableSets(rounds) {
+      var seen = {}, out = [];
+      for (var i = 0; i < rounds.length; i++) {
+        var s = rounds[i].set;
+        if (s && !seen[s]) { seen[s] = true; out.push(s); }
+      }
+      return out.length ? out : ['A'];
+    }
+
+    function getRounds() {
+      var src = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(src);
+      var setKey = sets[gameState.setIndex % sets.length];
+      var filtered = [];
+      for (var i = 0; i < src.length; i++) {
+        if (src[i].set === setKey) filtered.push(src[i]);
+      }
+      filtered.sort(function (a, b) { return a.round - b.round; });
+      return filtered;
+    }
+
+    function getCorrectCount() {
+      var c = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        if (gameState.attempts[i].correct === true) c++;
+      }
+      return c;
+    }
+
+    function getStars() {
+      var c = getCorrectCount();
+      if (c === 0) return 0;
+      var ratio = c / gameState.totalRounds;
+      if (ratio >= 0.9) return 3;
+      if (ratio >= 0.6) return 2;
+      return 1;
+    }
+
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+    }
+
+    function trackEvent(name, payload) {
+      try { gameState.events.push({ event: name, ts: Date.now(), data: payload || {} }); } catch (e) {}
+      try { if (signalCollector && signalCollector.recordEvent) signalCollector.recordEvent(name, payload || {}); } catch (e) {}
+    }
+
+    function recordAttempt(input, correct, misconceptionTag, responseMs) {
+      var round = gameState.activeRounds[gameState.currentRound];
+      var qid = round ? round.id : ('r' + (gameState.currentRound + 1));
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) : 0,
+        input_of_user: input,
+        correct: correct === true,
+        round_number: gameState.currentRound + 1,
+        question_id: qid,
+        correct_answer: round ? round.total : null,
+        response_time_ms: typeof responseMs === 'number' ? responseMs : 0,
+        misconception_tag: misconceptionTag || null,
+        difficulty_level: round ? (round.stage || 1) : 1,
+        is_retry: false,
+        metadata: { set: round ? round.set : null }
+      };
+      gameState.attempts.push(attempt);
+      try { if (signalCollector && signalCollector.recordAttempt) signalCollector.recordAttempt(attempt); } catch (e) {}
+    }
+
+    function postGameComplete() {
+      if (gameState._gameCompletePosted) return;
+      gameState._gameCompletePosted = true;
+      var correctCount = getCorrectCount();
+      var attempted = gameState.attempts.length;
+      var accuracy = attempted === 0 ? 0 : Math.round((correctCount / attempted) * 100);
+      var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+      var triesByRound = gameState.attempts.map(function (a) { return { round: a.round_number, correct: a.correct === true }; });
+      var metrics = {
+        accuracy: accuracy,
+        time: Math.round(elapsedMs / 1000),
+        stars: gameState.stars,
+        attempts: gameState.attempts.slice(),
+        duration_data: gameState.duration_data,
+        totalLives: gameState.lives,
+        tries: triesByRound,
+        score: gameState.score,
+        correctCount: correctCount,
+        previewResult: gameState.previewResult
+      };
+      var signalSealed = { event_count: gameState.events.length, metadata: {} };
+      try {
+        if (signalCollector && typeof signalCollector.seal === 'function') {
+          var sealed = signalCollector.seal();
+          if (sealed) {
+            if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+            if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+          }
+        }
+      } catch (e0) {}
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: Date.now(),
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) {}
+    }
+
+    function safePlaySound(id, opts) {
+      try { return FeedbackManager.sound.play(id, opts || {}); } catch (e) { return Promise.resolve(); }
+    }
+    function awaitedFeedbackSound(id, opts) {
+      var p = safePlaySound(id, opts || {});
+      var floor = new Promise(function (r) { setTimeout(r, 1500); });
+      return Promise.all([p, floor]).then(function () {}, function () {});
+    }
+    function playDynamicFeedback(opts) {
+      try { return FeedbackManager.playDynamicFeedback(opts || {}); } catch (e) { return Promise.resolve(); }
+    }
+
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            try { throw new Error('waitForPackages timeout'); } catch (rethrown) { reject(err); return; }
+            return reject(err);
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div class="fp-stage" id="fpStageLabel"></div>' +
+        '<div class="fp-row-wrap"><div class="fp-row" id="fpRow"></div></div>' +
+        '<div class="fp-input-block">' +
+          '<input class="fp-input" id="fpInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" data-testid="fp-input" />' +
+        '</div>' +
+        '<div class="fp-submit-row"><div id="fpReveal" class="fp-reveal"></div></div>';
+      elGameContent = gc;
+      elInput = document.getElementById('fpInput');
+      elStageLabel = document.getElementById('fpStageLabel');
+      elRow = document.getElementById('fpRow');
+      elReveal = document.getElementById('fpReveal');
+
+      if (elInput) {
+        elInput.addEventListener('input', onInputChange);
+        elInput.addEventListener('keydown', onInputKey);
+      }
+    }
+
+    function renderInitialState() {
+      if (elStageLabel) elStageLabel.textContent = '';
+      if (elRow) elRow.innerHTML = '';
+      if (elReveal) { elReveal.textContent = ''; elReveal.classList.add('hidden'); }
+      if (elInput) {
+        elInput.value = '';
+        elInput.classList.remove('is-correct','is-wrong');
+        elInput.disabled = false;
+      }
+    }
+
+    function onInputChange() {
+      try {
+        if (floatingBtn && floatingBtn.setSubmittable) {
+          var v = elInput && elInput.value ? elInput.value.trim() : '';
+          floatingBtn.setSubmittable(v.length > 0 && /^[0-9]+$/.test(v));
+        }
+      } catch (e) {}
+    }
+    function onInputKey(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        attemptSubmit();
+      }
+    }
+
+    function getRoundDurationSeconds(roundOneBased) {
+      // Stage 1 (rounds 1-3): 40s; Stage 2/3 (rounds 4-10): 30s
+      return roundOneBased <= 3 ? 40 : 30;
+    }
+
+    function renderRound(roundIdxOneBased) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      gameState.currentRound = roundIdxOneBased - 1;
+      gameState.isActive = true;
+      gameState.phase = 'gameplay';
+      gameState.roundToken = (gameState.roundToken || 0) + 1;
+      syncDOM();
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) return;
+      gameState.correctAnswer = round.total;
+
+      if (elStageLabel) {
+        elStageLabel.textContent = 'Round ' + roundIdxOneBased + ' of ' + gameState.totalRounds + ' · Stage ' + (round.stage || 1);
+      }
+      if (elRow) {
+        elRow.innerHTML = '';
+        for (var i = 0; i < round.tiles.length; i++) {
+          var t = round.tiles[i];
+          var tile = document.createElement('span');
+          tile.className = 'fp-tile color-' + (t.c || 'grey');
+          tile.textContent = String(t.n);
+          elRow.appendChild(tile);
+          if (i < round.tiles.length - 1) {
+            var plus = document.createElement('span');
+            plus.className = 'fp-plus';
+            plus.textContent = '+';
+            elRow.appendChild(plus);
+          }
+        }
+      }
+      if (elInput) {
+        elInput.value = '';
+        elInput.classList.remove('is-correct','is-wrong');
+        elInput.disabled = false;
+      }
+      if (elReveal) { elReveal.textContent = ''; elReveal.classList.add('hidden'); }
+
+      try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode('submit'); } catch (e) {}
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+
+      gameState.roundStartMs = Date.now();
+      gameState.isProcessing = false;
+
+      try {
+        gameState.timerIntentionallyPaused = false;
+        if (timer) {
+          var dur = getRoundDurationSeconds(roundIdxOneBased);
+          try { if (timer.reset) timer.reset(dur); else if (timer.setTime) timer.setTime(dur); } catch (e) {}
+          try { if (timer.start) timer.start(); } catch (e) {}
+          gameState._timerStarted = true;
+        }
+      } catch (e) {}
+
+      try { var p = safePlaySound('tap_sound', { sticker: null }); if (p && p.catch) p.catch(function(){}); } catch (e) {}
+
+      trackEvent('round_start', { round: roundIdxOneBased, set: round.set });
+    }
+
+    function attemptSubmit() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var v = elInput && elInput.value ? elInput.value.trim() : '';
+      if (!/^[0-9]+$/.test(v)) return;
+      handleAnswer(parseInt(v, 10), v);
+    }
+
+    function handleTimeout() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      gameState.isProcessing = true;
+
+      try {
+        gameState.timerIntentionallyPaused = true;
+        if (timer && timer.pause) timer.pause();
+      } catch (e) {}
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) return;
+
+      // Heart-shatter: lose a life and reveal correct decomposition
+      gameState.lives = Math.max(0, gameState.lives - 1);
+
+      if (elInput) {
+        elInput.disabled = true;
+        elInput.classList.remove('is-correct','is-wrong');
+        elInput.classList.add('is-wrong');
+        elInput.value = '';
+      }
+      if (elReveal) {
+        elReveal.textContent = "Time's up! " + round.wrongHint + ' Total: ' + round.total + '.';
+        elReveal.classList.remove('hidden');
+      }
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+
+      gameState.progress = gameState.currentRound + 1;
+      try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+
+      syncDOM();
+
+      var responseMs = Date.now() - gameState.roundStartMs;
+      recordAttempt('__timeout__', false, 'time-pressure', responseMs);
+      trackEvent('round_timeout', { round: gameState.currentRound + 1 });
+
+      (async function () {
+        try {
+          await awaitedFeedbackSound('incorrect_sound_effect', { sticker: STICKER_SAD });
+        } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: "Time's up! " + round.wrongHint + '. Total is ' + round.total + '.',
+            subtitle: "Time's up! Total is " + round.total + '.',
+            sticker: STICKER_SAD
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+
+    function handleAnswer(typedValue, typedStr) {
+      gameState.isProcessing = true;
+      var responseMs = Date.now() - gameState.roundStartMs;
+
+      try {
+        gameState.timerIntentionallyPaused = true;
+        if (timer && timer.pause) timer.pause();
+      } catch (e) {}
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      var isCorrect = typedValue === round.total;
+
+      if (elInput) {
+        elInput.disabled = true;
+        elInput.classList.remove('is-correct','is-wrong');
+        elInput.classList.add(isCorrect ? 'is-correct' : 'is-wrong');
+      }
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(false); } catch (e) {}
+
+      if (isCorrect) {
+        gameState.score += 1;
+      } else {
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        if (elReveal) {
+          elReveal.textContent = round.wrongHint + ' Total: ' + round.total + '.';
+          elReveal.classList.remove('hidden');
+        }
+      }
+
+      gameState.progress = gameState.currentRound + 1;
+      try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+
+      syncDOM();
+
+      var miscTag = isCorrect ? null : 'place-value-or-miscount';
+      recordAttempt(typedStr, isCorrect, miscTag, responseMs);
+      trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: isCorrect, value: typedValue });
+
+      (async function () {
+        try {
+          await awaitedFeedbackSound(isCorrect ? 'correct_sound_effect' : 'incorrect_sound_effect', { sticker: isCorrect ? STICKER_CORRECT : STICKER_SAD });
+        } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: isCorrect ? round.correctTTS : round.wrongTTS,
+            subtitle: isCorrect ? round.correctSubtitle : round.wrongSubtitle,
+            sticker: isCorrect ? STICKER_CORRECT : STICKER_SAD
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+
+    function advanceAfterFeedback() {
+      var roundJustPlayed = gameState.currentRound + 1;
+      if (gameState.lives === 0) {
+        gameState.stars = getStars();
+        endGame(false);
+        return;
+      }
+      if (roundJustPlayed === gameState.totalRounds) {
+        endGame(true);
+        return;
+      }
+      showRoundIntro(roundJustPlayed + 1);
+    }
+
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound.stopAll(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      var ttsText = 'Round ' + n;
+      await transitionScreen.show({
+        title: 'Round ' + n,
+        icons: [],
+        persist: true,
+        buttons: [],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_ROUND
+              });
+            } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          })();
+        }
+      });
+
+      setTimeout(function () {
+        try {
+          if (gameState.gameEnded) return;
+          if (gameState.currentRound + 1 < n) {
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          }
+        } catch (e) {}
+      }, 9000);
+    }
+
+    function endGame(victory) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      try {
+        gameState.timerIntentionallyPaused = true;
+        if (timer && timer.pause) timer.pause();
+      } catch (e) {}
+      gameState.stars = getStars();
+
+      if (victory) {
+        gameState.phase = 'results';
+        syncDOM();
+        postGameComplete();
+        showVictory();
+      } else {
+        gameState.phase = 'game_over';
+        syncDOM();
+        postGameComplete();
+        showGameOver();
+      }
+      trackEvent('game_end', { victory: victory, stars: gameState.stars, score: gameState.score });
+    }
+
+    function _victoryClaimAction() {
+      try { FeedbackManager.sound.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showStarsCollected();
+    }
+    function _victoryPlayAgainAction() {
+      try { FeedbackManager.sound.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showMotivation();
+    }
+
+    async function showVictory() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var stars = gameState.stars;
+      var subtitle = 'You scored ' + gameState.score + '/' + gameState.totalRounds + ' — ' +
+        (stars === 3 ? 'brilliant!' : stars === 2 ? 'great work!' : 'nice run!');
+      var ttsText = 'Victory! You scored ' + gameState.score + ' out of ' + gameState.totalRounds + '.';
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+
+      await transitionScreen.show({
+        title: 'Victory',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars === 3
+          ? [{ text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }]
+          : [
+              { text: 'Play Again', type: 'secondary', action: _victoryPlayAgainAction },
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound(sfxId, { sticker: STICKER_VICTORY }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_CELEBRATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showGameOver() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var subtitle = 'You got ' + gameState.score + '/' + gameState.totalRounds + '. Stars: ' + '★'.repeat(gameState.stars) + '☆'.repeat(3 - gameState.stars);
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: subtitle,
+        icons: [],
+        persist: true,
+        buttons: [{
+          text: 'Try Again', type: 'primary', data_testid: 'btn-restart',
+          action: function () {
+            try { FeedbackManager.sound.stopAll(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showMotivation();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_GAMEOVER }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: subtitle,
+                subtitle: subtitle,
+                sticker: STICKER_GAMEOVER
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = 'Ready to improve your score?';
+      await transitionScreen.show({
+        title: 'Ready to improve your score?',
+        icons: [],
+        persist: true,
+        buttons: [{
+          text: "I'm ready", type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.stopAll(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            restartGame();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_MOTIVATE }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_MOTIVATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      gameState.phase = 'stars_collected';
+      syncDOM();
+      await transitionScreen.show({
+        title: "Yay!\nStars collected!",
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY }); } catch (e) {}
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: { count: gameState.stars, variant: 'yellow', score: gameState.score + '/' + gameState.totalRounds }
+              }, '*');
+            } catch (e) {}
+            setTimeout(showAnswerCarousel, 1500);
+          })();
+        }
+      });
+    }
+
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function renderAnswerSlide(container, round) {
+      if (!container || !round || !round.answer) return;
+      var a = round.answer;
+      var html = '<div class="fp-answer-card">';
+      html += '<div class="fp-answer-prompt">Round ' + round.round + ' — Total: ' + a.total + '</div>';
+      html += '<div class="fp-answer-row">';
+      var pairs = (a.wrongHint || '').split(',');
+      for (var i = 0; i < pairs.length; i++) {
+        html += '<span class="fp-answer-pair">' + escapeHTML(pairs[i].trim()) + '</span>';
+      }
+      html += '</div>';
+      html += '<div class="fp-answer-total">Total: ' + a.total + '</div>';
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds;
+      var slides = [];
+      for (var i = 0; i < rounds.length; i++) {
+        (function (r) {
+          slides.push({ render: function (container) { renderAnswerSlide(container, r); } });
+        })(rounds[i]);
+      }
+      return slides;
+    }
+
+    function showAnswerCarousel() {
+      try { answerComponent.show({ slides: buildAnswerSlidesForAllRounds() }); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+      try {
+        setTimeout(function () {
+          var slot = document.getElementById('mathai-answer-slot');
+          if (slot && slot.scrollIntoView) slot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+      } catch (e) {}
+    }
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.content = content;
+      gameState.totalRounds = content.totalRounds || 10;
+      gameState.totalLives = content.totalLives || 3;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+
+      injectGameHTML();
+      renderInitialState();
+
+      try {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          onComplete: function (previewData) { startGameAfterPreview(previewData); }
+        });
+      } catch (e) {
+        console.error('[previewScreen.show failed]', e && e.message, e);
+      }
+    }
+
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || {};
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: (previewData && previewData.duration) || 0 });
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      try {
+        if (progressBar) {
+          progressBar.show();
+          progressBar.update(0, gameState.totalLives);
+        }
+      } catch (e) {}
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex] });
+      try {
+        if (signalCollector && signalCollector.recordViewEvent) {
+          signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+        }
+      } catch (e) {}
+
+      showWelcome();
+    }
+
+    async function showWelcome() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = "Let's play Friendly Pairs! Find pairs that make 10, 20, 30, 40 or 50.";
+      await transitionScreen.show({
+        title: 'Welcome!',
+        icons: [],
+        persist: true,
+        buttons: [{
+          text: "Let's go!", type: 'primary', data_testid: 'btn-start',
+          action: function () {
+            try { FeedbackManager.sound.stopAll(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showRoundIntro(1);
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_LEVEL
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    function resetGameState() {
+      gameState.phase = 'gameplay';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState._gameCompletePosted = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.progress = 0;
+      gameState.duration_data = { startTime: null, endTime: null, preview: gameState.duration_data.preview || [] };
+      gameState.activeRounds = getRounds();
+      gameState._timerStarted = false;
+      gameState.timerIntentionallyPaused = false;
+
+      try { if (timer) { if (timer.reset) timer.reset(); if (timer.pause) timer.pause(); } } catch (e) {}
+      try {
+        if (answerComponent && answerComponent.update) answerComponent.update({ slides: [] });
+        if (answerComponent && answerComponent.hide) answerComponent.hide();
+      } catch (e) {}
+    }
+
+    function restartGame() {
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex], restart: true });
+      showRoundIntro(1);
+    }
+
+    function handlePostMessage(event) {
+      if (!event || !event.data || !event.data.type) return;
+      var t = event.data.type;
+      var data = event.data.data || {};
+      if (t === 'game_init') {
+        gameState.phase = 'playing';
+        if (data.content) gameState.content = data.content;
+        gameState.signalConfig = data.signalConfig || {};
+        if (data.signalConfig && signalCollector && signalCollector.applyConfig) {
+          try { signalCollector.applyConfig(data.signalConfig); } catch (e) {}
+        }
+        try {
+          if (signalCollector) {
+            signalCollector.gameId = 'timed-typed-sum-from-decomposition-table';
+            if (data.sessionId) signalCollector.sessionId = data.sessionId;
+            if (data.studentId) signalCollector.studentId = data.studentId;
+            if (data.contentSetId) signalCollector.contentSetId = data.contentSetId;
+            if (data.signalConfig && data.signalConfig.flushUrl) signalCollector.flushUrl = data.signalConfig.flushUrl;
+            if (data.signalConfig && data.signalConfig.playId) signalCollector.playId = data.signalConfig.playId;
+            if (signalCollector.startFlushing) { try { signalCollector.startFlushing(); } catch (e) {} }
+          }
+        } catch (e) {}
+        syncDOM();
+        setupGame();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      waitForPackages().then(function () {
+        try {
+          var initP = FeedbackManager.init && FeedbackManager.init();
+          var doInit = initP && initP.then ? initP : Promise.resolve();
+          doInit.then(function () {
+            try {
+              try {
+                signalCollector = new SignalCollector({
+                  sessionId: 'fp-' + Date.now(),
+                  studentId: 'standalone',
+                  gameId: 'timed-typed-sum-from-decomposition-table',
+                  contentSetId: 'fallback'
+                });
+                window.signalCollector = signalCollector;
+              } catch (e) { console.error('[SignalCollector ctor failed]', e && e.message, e); }
+
+              try {
+                ScreenLayout.inject('app', {
+                  slots: {
+                    previewScreen: true,
+                    progressBar: true,
+                    transitionScreen: true,
+                    floatingButton: true,
+                    answerComponent: true
+                  }
+                });
+              } catch (e) { console.error('[ScreenLayout.inject failed]', e && e.message, e); }
+
+              mountTimerInsideHeader();
+
+              injectGameHTML();
+              renderInitialState();
+
+              try {
+                timer = new TimerComponent('timer-container', {
+                  timerType: 'decrease',
+                  format: 'min',
+                  startTime: 40,
+                  autoStart: false,
+                  onTimeout: function () { handleTimeout(); }
+                });
+              } catch (e) { console.error('[TimerComponent ctor failed]', e && e.message, e); }
+
+              try {
+                visibilityTracker = new VisibilityTracker({
+                  popupProps: { title: 'Paused', description: 'Tap Resume to continue.', primaryText: 'Resume' },
+                  onInactive: function () {
+                    try { FeedbackManager.sound.pause(); } catch (e) {}
+                    try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+                    try { if (timer && !gameState.timerIntentionallyPaused) timer.pause(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+                  },
+                  onResume: function () {
+                    try { FeedbackManager.sound.resume(); } catch (e) {}
+                    try { FeedbackManager.stream.resumeAll(); } catch (e) {}
+                    try { if (timer && !gameState.timerIntentionallyPaused) timer.resume(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+                  }
+                });
+              } catch (e) { console.error('[VisibilityTracker ctor failed]', e && e.message, e); }
+
+              try {
+                progressBar = new ProgressBarComponent({
+                  slotId: 'mathai-progress-slot',
+                  totalRounds: 10,
+                  totalLives: 3
+                });
+              } catch (e) { console.error('[ProgressBarComponent ctor failed]', e && e.message, e); }
+
+              try {
+                transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' });
+              } catch (e) { console.error('[TransitionScreenComponent ctor failed]', e && e.message, e); }
+
+              try {
+                previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+              } catch (e) { console.error('[PreviewScreenComponent ctor failed]', e && e.message, e); }
+
+              try {
+                floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+              } catch (e) { console.error('[FloatingButtonComponent ctor failed]', e && e.message, e); }
+
+              try {
+                answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' });
+              } catch (e) { console.error('[AnswerComponentComponent ctor failed]', e && e.message, e); }
+
+              try {
+                if (floatingBtn && floatingBtn.on) {
+                  floatingBtn.on('submit', function () { attemptSubmit(); });
+                  floatingBtn.on('next', function () {
+                    try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                    try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+                    try { if (floatingBtn) floatingBtn.destroy(); } catch (e) {}
+                  });
+                }
+              } catch (e) {}
+
+              try {
+                FeedbackManager.sound.preload([
+                  { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+                  { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+                  { id: 'sound_level_transition',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+                  { id: 'victory_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+                  { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+                  { id: 'game_over_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+                  { id: 'tap_sound',                url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+                ]);
+              } catch (e) { console.error('[FeedbackManager.preload failed]', e && e.message, e); }
+
+              window.addEventListener('message', handlePostMessage);
+
+              try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+
+              setupGame();
+            } catch (e) {
+              console.error('[init inner] ' + (e && e.message), e);
+            }
+          }, function (e) { console.error('[FeedbackManager.init failed]', e && e.message, e); });
+        } catch (e) { console.error('[init outer] ' + (e && e.message), e); }
+      }, function (err) { console.error('[waitForPackages rejected] ' + (err && err.message)); });
+
+      setTimeout(function () {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+        var missing = [];
+        if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+        if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+        if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+        if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+        if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+        if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+        if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+        if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+        if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+        if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+        if (missing.length > 0) {
+          var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+          console.error('[' + msg + ']');
+          var gc = document.getElementById('gameContent') || document.getElementById('app') || document.body;
+          if (gc) {
+            gc.innerHTML = '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">Game failed to load — please refresh.</div>';
+          }
+        }
+      }, 2000);
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = setupGame;
+      window.renderRound = renderRound;
+      window.loadRound = function (n) { try { renderRound(n); } catch (e) {} };
+      window.debugGame = function () { return gameState; };
+    });
+
+    function mountTimerInsideHeader() {
+      var slot = document.getElementById('mathai-preview-slot');
+      if (!slot) return;
+      var existing = document.getElementById('timer-container');
+      if (existing) {
+        if (existing.parentNode !== slot) slot.appendChild(existing);
+        return;
+      }
+      var div = document.createElement('div');
+      div.id = 'timer-container';
+      slot.appendChild(div);
+    }
+  </script>
+</body>
+</html>
