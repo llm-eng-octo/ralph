@@ -134,8 +134,8 @@ Seven puzzles per session across three stages. Each stage adds a structural diff
 - **Star rating (creator-specified, single-attempt accuracy by FIRST-CHECK count, NOT default 90/66/33):**
   - **3⭐** = all 7 rounds solved on first CHECK (perfect run).
   - **2⭐** = 5 or 6 of 7 rounds solved on first CHECK.
-  - **1⭐** = fewer than 5 rounds solved on first CHECK, but the student finished all 7 rounds (i.e. tapped CHECK or NEXT on every round).
-  - **0⭐** = walked away before Round 7 (session ended without reaching the Victory screen).
+  - **1⭐** = 1–4 rounds solved on first CHECK, with all 7 rounds completed (i.e. tapped CHECK or NEXT on every round).
+  - **0⭐** = walked away before Round 7 OR completed all 7 rounds with 0 first-CHECK correct. **Zero correct answers must yield zero stars regardless of completion** — the "completion floor" does NOT apply when accuracy is 0/7.
 - **Input:** Drag-and-drop (P6) on chips and seats; single tap on the CHECK / NEXT FloatingButton. No keyboard, no number input, no voice input.
 - **Feedback:** PART-017 FeedbackManager. Per-CHECK whole-arrangement validation. Per-puzzle solve celebration. No game-over screen (no lives).
 - **previewScreen:** `true` (PART-039 default).
@@ -151,14 +151,15 @@ Seven puzzles per session across three stages. Each stage adds a structural diff
       return a.isCorrect && a.attemptNumber === 1; // attemptNumber is 1 for the only CHECK on each round
     }).length;
     if (gameState.currentRound < gameState.totalRounds) return 0; // walked away before Round 7
+    if (firstCheckCorrect === 0) return 0; // CRITICAL: 0/7 correct yields 0 stars even after completion — no "completion floor" for zero accuracy
     if (firstCheckCorrect === 7) return 3;
     if (firstCheckCorrect >= 5) return 2;
-    return 1; // completed all 7 with < 5 first-CHECK correct
+    return 1; // completed all 7 with 1–4 first-CHECK correct
   }
   ```
   (Note: every round records exactly one attempt — the single CHECK or the implicit "wrong + NEXT" path. `attemptNumber` is always 1.)
 - **Lives:** None. Wrong CHECK does not decrement anything. Game cannot end on lives = 0 (no game-over path).
-- **Partial credit:** None. Each round is binary (correct on first CHECK / not). The "completed all 7" component of 1⭐ is the floor reward for finishing the session even with low accuracy; walking away before Round 7 demotes to 0⭐.
+- **Partial credit:** None. Each round is binary (correct on first CHECK / not). The 1⭐ floor rewards finishing the session with **at least 1** first-CHECK correct; 0/7 correct yields 0⭐ even on full completion. Walking away before Round 7 also yields 0⭐.
 
 ### Star Generosity Audit
 
@@ -170,10 +171,11 @@ Seven puzzles per session across three stages. Each stage adds a structural diff
 | Solved 6 on first CHECK | 7 | 6 | **2⭐** | TIGHT — one mistake demotes from 3⭐. |
 | Solved 5 on first CHECK | 7 | 5 | **2⭐** | TIGHT — same as above. |
 | Solved 4 on first CHECK | 7 | 4 | **1⭐** | NEUTRAL — completed but low accuracy. |
-| Solved 0 on first CHECK | 7 | 0 | **1⭐** | NEUTRAL — completion floor. The student saw all 7 puzzles, didn't bail. |
-| Walked away on Round 4 | 3 | any | **0⭐** | TIGHT — quitting is the only path to 0⭐. |
+| Solved 1 on first CHECK | 7 | 1 | **1⭐** | NEUTRAL — minimum-accuracy completion floor. |
+| Solved 0 on first CHECK | 7 | 0 | **0⭐** | TIGHT — zero correct earns zero stars even on full completion. |
+| Walked away on Round 4 | 3 | any | **0⭐** | TIGHT — quitting also yields 0⭐. |
 
-**Verdict:** The star rule is appropriately tight for L4. 3⭐ requires a flawless 7-of-7. The 1⭐ floor for completing all 7 even with 0 first-CHECK correct is a deliberate generosity to reward persistence — it is not a difficulty failure, it is the "you stuck with it" star. **No generosity inflation detected.**
+**Verdict:** The star rule is appropriately tight for L4. 3⭐ requires a flawless 7-of-7. The 1⭐ floor requires at least 1 first-CHECK correct AND completing all 7 — zero correct answers yield zero stars regardless of completion. **No generosity inflation.**
 
 ## Clue Grammar Reference
 
@@ -786,7 +788,7 @@ The build step in Step 4 inlines the resulting tables into `fallbackContent.roun
 6. **Distractor mechanic CHECK enable rule.** CHECK enables when **all SEATS are filled** (NOT when all chips are placed). This is critical for Stage 3 — the distractor is supposed to remain in the pool. Spec-review should explicitly confirm this rule is correctly stated and that the build step's `isCheckable()` predicate counts filled seats, not placed chips.
 7. **Pre-generation step output format.** Spec author proposes `games/logic-seat-puzzle/pre-generation/puzzles.md` with one section per round (21 sections) listing chips, clues, and solution. The build step inlines the data. Confirm format before Step 3 / Step 4.
 8. **Chip name bank — gender-mixed Indian first names.** Spec author chose Anu, Ravi, Priya, Neha, Meera, Bobby, Tara, Rohan, Kavya, Arjun, Diya, Kabir. Spec-review should confirm cultural-fit and that no name is overloaded (e.g. "Bobby" is a nickname; replace if it feels off-register for the audience).
-9. **Star rule — 1⭐ floor for completing all 7 even at 0 first-CHECK correct.** Creator-specified. Spec author thinks this is appropriate generosity (rewards persistence) but spec-review should confirm. Alternative: 0⭐ for < some threshold of first-CHECK correct.
+9. **Star rule — 1⭐ requires at least 1 first-CHECK correct AND completing all 7.** Updated per creator feedback: completing all 7 with 0 correct must yield 0⭐ (no "completion floor" for zero accuracy). Earlier draft awarded 1⭐ to any full-completion run; spec-review confirmed this was over-generous.
 10. **No retry on the same round — single CHECK per round.** Creator-specified ("no retries"). Spec-review should confirm this is the intended player experience and that the wrong CHECK → NEXT flow (with chips left visible against red-glow seats) is the desired information-not-punishment moment.
 11. **Step 4 (Build) MUST run in `[MAIN CONTEXT]`** per the project root `CLAUDE.md` table for Pattern P6. The orchestrator MUST route accordingly. Spec-review should verify this routing decision is recorded in the orchestration step plan.
 
@@ -830,7 +832,7 @@ The build step in Step 4 inlines the resulting tables into `fallbackContent.roun
 ## Warnings
 
 - **WARNING: P6 drag-and-drop interaction REQUIRES `@dnd-kit/dom@beta`. Step 4 (Build) MUST run in `[MAIN CONTEXT]`** per the project root `CLAUDE.md` table. A sub-agent without context7 access will silently hand-roll a substitute (native `pointerdown`) which `validate-static.js` rule `GEN-DND-KIT` is meant to catch — but routing the step correctly prevents the mistake at the source. Orchestrator MUST verify this routing before Step 4.
-- **WARNING: No lives, no timer, single-attempt scoring is non-standard for L4 Analyze.** Defaults for L4 are "None or 5" lives and no timer, so no-timer matches; but no-lives-AND-no-retry-AND-1⭐-floor-for-completion is a creator-specific scoring shape. Spec-review must confirm the build step's `getStars()` implements the exact rubric (3⭐ = 7/7 first-CHECK, 2⭐ = 5–6/7, 1⭐ = completed all 7, 0⭐ = walked away) and not the default 90/66/33 thresholds.
+- **WARNING: No lives, no timer, single-attempt scoring is non-standard for L4 Analyze.** Defaults for L4 are "None or 5" lives and no timer, so no-timer matches; but no-lives-AND-no-retry-AND-1⭐-floor-for-completion is a creator-specific scoring shape. Spec-review must confirm the build step's `getStars()` implements the exact rubric (3⭐ = 7/7 first-CHECK, 2⭐ = 5–6/7, 1⭐ = completed all 7 with **1–4** first-CHECK correct, 0⭐ = walked away **OR** 0/7 first-CHECK correct) and not the default 90/66/33 thresholds. **Critical: 0/7 correct must yield 0⭐ even on full completion.**
 - **WARNING: No game-over screen.** Lives = 0 means no `game_over` phase exists. The session always reaches Victory unless the player walks away (which is handled by the harness's session-incomplete path, not a game-internal screen). Build step must NOT generate a `game_over` TransitionScreen — including one would be a CRITICAL violation of game-archetypes constraint #5 ("Lives = 0 means no game_over screen").
 - **WARNING: Single CHECK per round (no retry on the same round) terminates the round with chips visible against red-glow seats.** This is creator-intended (informational wrong, not punishing) but is non-standard relative to the typical "wrong → retry on same round" pattern. Build step must implement: wrong CHECK → SFX+TTS awaited → FloatingButton.setMode('next') with copy `Next puzzle →` → student taps NEXT → progressBar bumps → next round transition. NEVER re-enable CHECK on the same round.
 - **WARNING: CHECK-enabled rule is "all SEATS filled" NOT "all chips placed".** This is critical for Stage 3 (the distractor must stay in the pool). The build step's `isCheckable()` predicate must count filled seats, not placed chips. A naïve "all chips placed" rule would prevent the student from ever CHECKing on Stage 3 (since the distractor cannot be seated).

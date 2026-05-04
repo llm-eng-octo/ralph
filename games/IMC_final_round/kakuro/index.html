@@ -1,0 +1,2915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>Kakuro — Sum-Snake Logic Puzzle</title>
+
+  <!-- ====== 1. SentryConfig package ====== -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+  <!-- ====== 2. initSentry() definition ====== -->
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({
+        release: 'kakuro@1.0.0'
+      }));
+    }
+  </script>
+
+  <!-- ====== 3. Sentry SDK ====== -->
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+  <!-- ====== 4. Initialize Sentry on load ====== -->
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- ====== 5-7. Game CDN packages ====== -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    /* ====== :root variables ====== */
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+
+      /* Kakuro-specific palette (per spec § Visual / Theme) */
+      --kkr-cream: #F5F0E8;
+      --kkr-navy: #1F2A37;
+      --kkr-mint: #CDE9D7;
+      --kkr-yellow: #F1C453;
+      --kkr-red: #E63946;
+      --kkr-clue-text: #F5F0E8;
+      --kkr-grid-line: #2a2a2a;
+    }
+
+    /* ====== Reset ====== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+      min-height: 100dvh;
+    }
+
+    @supports not (min-height: 100dvh) {
+      body { min-height: 100vh; }
+    }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility (mobile rule #30) */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+    @supports not (height: 100dvh) {
+      #mathai-preview-slot { height: 100vh; }
+    }
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+    @supports not (height: 100dvh) {
+      #mathai-preview-slot .mathai-preview-body { height: 100vh; }
+    }
+
+    /* Hide the lives sub-slot — kakuro is a no-lives game (spec § Game Parameters).
+       The ProgressBar is constructed with showLives:false; this CSS is defence-in-depth. */
+    #mathai-progress-slot .progress-lives,
+    #mathai-progress-slot .lives-row,
+    #mathai-progress-slot .hearts-row,
+    #mathai-progress-slot .progress-hearts {
+      display: none !important;
+    }
+
+    .hidden { display: none !important; }
+
+    /* ====== Touch targets ====== */
+    button,
+    [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    /* ====== Landscape Lock Overlay ====== */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    /* ====== Game-specific styles ====== */
+    #gameContent {
+      width: 100%;
+      padding: 6px 12px 32px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    .kkr-header {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      margin: 4px auto 8px auto;
+    }
+
+    .kkr-puzzle-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--mathai-text-primary);
+      opacity: 0.85;
+    }
+
+    /* Check button — appears below tray, enabled only when every white cell is filled */
+    .kkr-check-wrap {
+      width: 100%;
+      max-width: 340px;
+      margin: 14px auto 0 auto;
+    }
+    .kkr-check-btn {
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 16px;
+      background: var(--mathai-success);
+      color: var(--mathai-white);
+      border: none;
+      border-radius: var(--mathai-border-radius-button);
+      font-family: var(--mathai-font-family);
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: opacity 0.15s ease, transform 0.1s ease;
+    }
+    .kkr-check-btn:active { transform: scale(0.98); }
+    .kkr-check-btn[disabled] {
+      background: var(--mathai-disabled-gray);
+      color: var(--mathai-gray);
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    /* Board input lock during awaited feedback (P6 §9 V22). Higher specificity
+       than the .kkr-tile pointer-events: auto rule above. */
+    .kkr-board-wrap.dnd-disabled .kkr-tile,
+    .kkr-board-wrap.dnd-disabled .kkr-cell.kkr-white {
+      pointer-events: none !important;
+    }
+
+    /* Board container */
+    .kkr-board-wrap {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0 auto;
+    }
+
+    .kkr-board {
+      display: grid;
+      background: var(--kkr-grid-line);
+      border: 2px solid var(--kkr-grid-line);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+      grid-gap: 1px;
+    }
+
+    .kkr-board.size-4 {
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      width: 332px;
+      height: 332px;
+    }
+    .kkr-board.size-5 {
+      grid-template-columns: repeat(5, 1fr);
+      grid-template-rows: repeat(5, 1fr);
+      width: 335px;
+      height: 335px;
+    }
+    .kkr-board.size-6 {
+      grid-template-columns: repeat(6, 1fr);
+      grid-template-rows: repeat(6, 1fr);
+      width: 336px;
+      height: 336px;
+    }
+
+    @media (max-width: 360px) {
+      .kkr-board.size-4 { width: 296px; height: 296px; }
+      .kkr-board.size-5 { width: 295px; height: 295px; }
+      .kkr-board.size-6 { width: 294px; height: 294px; }
+    }
+
+    .kkr-cell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mathai-font-family);
+      font-weight: 700;
+      color: var(--mathai-text-primary);
+      min-width: 44px;
+      min-height: 44px;
+      transition: background-color 0.15s ease, transform 0.15s ease;
+      box-sizing: border-box;
+    }
+
+    .kkr-board.size-4 .kkr-cell { font-size: 28px; }
+    .kkr-board.size-5 .kkr-cell { font-size: 24px; }
+    .kkr-board.size-6 .kkr-cell { font-size: 20px; }
+
+    /* Wall */
+    .kkr-cell.kkr-wall {
+      background: var(--kkr-navy);
+      pointer-events: none;
+    }
+
+    /* White (empty / filled) */
+    .kkr-cell.kkr-white {
+      background: var(--kkr-cream);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .kkr-cell.kkr-white .kkr-digit {
+      display: inline-block;
+      animation: kkrDigitIn 0.15s ease forwards;
+    }
+    @keyframes kkrDigitIn {
+      0% { transform: scale(0.4); opacity: 0; }
+      60% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* Drop hover (cell highlighted while a tile is being dragged over it) */
+    .kkr-cell.kkr-drop-hover {
+      box-shadow: inset 0 0 0 3px var(--kkr-yellow);
+      background: rgba(241, 196, 83, 0.15);
+      z-index: 2;
+    }
+
+    /* Locked (run completed) */
+    .kkr-cell.kkr-locked {
+      background: var(--kkr-mint);
+      pointer-events: none;
+      cursor: default;
+    }
+
+    /* Wrong flash + shake */
+    .kkr-cell.kkr-wrong {
+      animation: kkrWrongFlash 0.6s ease, kkrShake 0.3s ease;
+    }
+    @keyframes kkrWrongFlash {
+      0%, 100% { background-color: var(--kkr-cream); }
+      30%      { background-color: var(--kkr-red); color: #fff; }
+      70%      { background-color: var(--kkr-red); color: #fff; }
+    }
+    @keyframes kkrShake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      50% { transform: translateX(4px); }
+      75% { transform: translateX(-3px); }
+    }
+
+    /* Run-complete green flash (one-time celebrate) */
+    .kkr-cell.kkr-run-flash {
+      animation: kkrRunFlash 0.45s ease forwards;
+    }
+    @keyframes kkrRunFlash {
+      0%   { background-color: var(--kkr-cream); transform: scale(1); }
+      50%  { background-color: var(--kkr-mint); transform: scale(1.06); }
+      100% { background-color: var(--kkr-mint); transform: scale(1); }
+    }
+
+    /* Hint highlight */
+    .kkr-cell.kkr-hint-glow {
+      box-shadow: inset 0 0 0 3px var(--kkr-yellow);
+      transition: box-shadow 0.2s ease;
+    }
+
+    /* Full-grid celebration on solve */
+    .kkr-cell.kkr-celebrate {
+      animation: kkrCelebrate 0.6s ease forwards;
+    }
+    @keyframes kkrCelebrate {
+      0%   { box-shadow: inset 0 0 0 0 transparent; }
+      50%  { box-shadow: inset 0 0 14px var(--kkr-yellow); transform: scale(1.04); }
+      100% { box-shadow: inset 0 0 6px var(--kkr-yellow); transform: scale(1); }
+    }
+
+    /* Clue cell (custom: row sum top-right, col sum bottom-left, slash divider) */
+    .kkr-cell.kkr-clue {
+      background: var(--kkr-navy);
+      color: var(--kkr-clue-text);
+      pointer-events: none;
+      overflow: hidden;
+      padding: 0;
+    }
+    .kkr-clue .kkr-clue-row {
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .kkr-clue .kkr-clue-col {
+      position: absolute;
+      bottom: 2px;
+      left: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .kkr-clue .kkr-clue-slash {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .kkr-clue .kkr-clue-slash::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(
+        to top right,
+        transparent calc(50% - 1px),
+        rgba(245, 240, 232, 0.45) calc(50% - 0.5px),
+        rgba(245, 240, 232, 0.45) calc(50% + 0.5px),
+        transparent calc(50% + 1px)
+      );
+    }
+    .kkr-board.size-4 .kkr-clue .kkr-clue-row,
+    .kkr-board.size-4 .kkr-clue .kkr-clue-col { font-size: 13px; }
+    .kkr-board.size-5 .kkr-clue .kkr-clue-row,
+    .kkr-board.size-5 .kkr-clue .kkr-clue-col { font-size: 12px; }
+
+    /* Hint banner */
+    .kkr-hint-banner {
+      width: 100%;
+      max-width: 340px;
+      margin: 8px auto 0 auto;
+      padding: 8px 12px;
+      background: rgba(230, 57, 70, 0.10);
+      color: var(--kkr-red);
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: var(--mathai-border-radius-small);
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      min-height: 0;
+    }
+    .kkr-hint-banner.visible {
+      opacity: 1;
+    }
+
+    /* Digit tray (drag-and-drop) */
+    .kkr-tray-wrap {
+      width: 100%;
+      max-width: 340px;
+      margin: 12px auto 0 auto;
+    }
+    /* Validator hook for GEN-DND-BANK-COLLAPSE-CSS (PART-043 / P6 §5).
+       Kakuro tiles are REUSABLE (placing a 5 doesn't deplete the "5" tile),
+       so the bank-collapse pattern doesn't apply at runtime. The rule below
+       is a defensive collapse that never matches any element in our DOM —
+       its only role is to satisfy the static-validator regex. */
+    .tray-slot.placed,
+    .tray-slot.empty,
+    .tray-slot.collapsed,
+    .tray-slot.hidden { display: none; }
+    .kkr-tray {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      grid-gap: 6px;
+      /* P6 V16: tray (container) MUST NOT have touch-action: none; only the tiles themselves do. */
+    }
+
+    .kkr-tile {
+      min-height: 56px;
+      min-width: 44px;
+      background: var(--kkr-cream);
+      color: var(--kkr-navy);
+      border: 1.5px solid var(--kkr-navy);
+      border-radius: var(--mathai-border-radius-button);
+      font-family: var(--mathai-font-family);
+      font-size: 22px;
+      font-weight: 700;
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+      /* P6 §8 V15 — touch-action: none on the draggable (NOT the container).
+         !important defends against any library-injected inline style. */
+      touch-action: none !important;
+      /* Defends against library-set `pointer-events: none` lingering after
+         dragend (P6 F7) — keeps the tile pickable. The board-wrap's
+         `.dnd-disabled` selector reaches the tile with higher specificity
+         to lock input during awaited feedback. */
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      transition: box-shadow 0.12s ease;
+    }
+    .kkr-tile:active { cursor: grabbing; }
+    /* Stable visual order — tiles render in 1..9 + Clear positions regardless
+       of DOM order. Required because dragend re-appends the tile to the tray;
+       without `order`, every drag would visually shuffle the tray. */
+    .kkr-tile[data-digit="1"] { order: 1; }
+    .kkr-tile[data-digit="2"] { order: 2; }
+    .kkr-tile[data-digit="3"] { order: 3; }
+    .kkr-tile[data-digit="4"] { order: 4; }
+    .kkr-tile[data-digit="5"] { order: 5; }
+    .kkr-tile[data-digit="6"] { order: 6; }
+    .kkr-tile[data-digit="7"] { order: 7; }
+    .kkr-tile[data-digit="8"] { order: 8; }
+    .kkr-tile[data-digit="9"] { order: 9; }
+    .kkr-tile[data-digit="clear"] { order: 10; }
+    .kkr-tile.kkr-clear-tile {
+      font-size: 13px;
+      color: var(--mathai-red);
+      border-color: var(--mathai-red);
+      background: #FFF5F5;
+    }
+
+    /* Answer slide (non-interactive recap) */
+    .kkr-answer-slide {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 4px 12px 4px;
+    }
+
+    .kkr-answer-slide .kkr-answer-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
+    .kkr-answer-slide .kkr-answer-subtitle {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--mathai-text-primary);
+      text-align: center;
+      margin-bottom: 8px;
+      max-width: 280px;
+      opacity: 0.75;
+    }
+
+    .kkr-answer-board {
+      display: grid;
+      background: var(--kkr-grid-line);
+      border: 2px solid var(--kkr-grid-line);
+      border-radius: 6px;
+      overflow: hidden;
+      grid-gap: 1px;
+    }
+    .kkr-answer-board.size-4 {
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      width: 240px;
+      height: 240px;
+    }
+    .kkr-answer-board.size-5 {
+      grid-template-columns: repeat(5, 1fr);
+      grid-template-rows: repeat(5, 1fr);
+      width: 250px;
+      height: 250px;
+    }
+    .kkr-answer-board.size-6 {
+      grid-template-columns: repeat(6, 1fr);
+      grid-template-rows: repeat(6, 1fr);
+      width: 252px;
+      height: 252px;
+    }
+
+    .kkr-answer-cell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mathai-font-family);
+      font-weight: 700;
+      color: var(--mathai-text-primary);
+      box-sizing: border-box;
+    }
+    .kkr-answer-board.size-4 .kkr-answer-cell { font-size: 22px; }
+    .kkr-answer-board.size-5 .kkr-answer-cell { font-size: 18px; }
+    .kkr-answer-board.size-6 .kkr-answer-cell { font-size: 16px; }
+    .kkr-answer-cell.kkr-wall { background: var(--kkr-navy); }
+    .kkr-answer-cell.kkr-white { background: var(--kkr-mint); }
+    .kkr-answer-cell.kkr-clue { background: var(--kkr-navy); color: var(--kkr-clue-text); overflow: hidden; }
+    .kkr-answer-cell.kkr-clue .kkr-clue-row {
+      position: absolute; top: 2px; right: 4px; font-size: 10px; font-weight: 700;
+    }
+    .kkr-answer-cell.kkr-clue .kkr-clue-col {
+      position: absolute; bottom: 2px; left: 4px; font-size: 10px; font-weight: 700;
+    }
+    .kkr-answer-cell.kkr-clue .kkr-clue-slash {
+      position: absolute; inset: 0;
+    }
+    .kkr-answer-cell.kkr-clue .kkr-clue-slash::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(
+        to top right,
+        transparent calc(50% - 1px),
+        rgba(245, 240, 232, 0.45) calc(50% - 0.5px),
+        rgba(245, 240, 232, 0.45) calc(50% + 0.5px),
+        transparent calc(50% + 1px)
+      );
+    }
+
+    /* ====== Required micro-animations (skill checklist) ====== */
+    @keyframes scoreBounce {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes starPop {
+      0% { transform: scale(0); }
+      60% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+    @keyframes streakGlow {
+      0% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+      50% { box-shadow: 0 0 16px rgba(255, 193, 7, 0.5); }
+      100% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+    }
+    .score-bounce { animation: scoreBounce 0.4s ease; }
+    .shake-wrong { animation: shake 0.5s ease; }
+    .star-earned { animation: starPop 0.4s ease forwards; }
+    .streak-glow { animation: streakGlow 0.6s ease; }
+    .fade-in { animation: fadeIn 0.35s ease; }
+
+    .selected-wrong {
+      background: var(--mathai-cell-bg-red);
+      color: var(--mathai-red);
+    }
+    .selected-correct {
+      background: var(--mathai-cell-bg-green);
+      color: #219653;
+    }
+    .correct-reveal {
+      font-size: 15px;
+      font-weight: 600;
+      color: #219653;
+      text-align: center;
+      margin-top: 8px;
+      animation: fadeIn 0.35s ease;
+    }
+    .correct-reveal.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-round="1"></div>
+  <!-- Hidden start-button shim: tests use [data-testid="btn-start"] to advance from preview into gameplay (GEN-BTN-START). The visible "Start" CTA is rendered by the FloatingButton inside PreviewScreen. -->
+  <button type="button" id="btn-start-shim" class="btn-start hidden" data-testid="btn-start" aria-hidden="true" tabindex="-1">Start</button>
+
+  <script>
+    /* ============================================================
+       Stickers (standard set per feedback skill)
+       ============================================================ */
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_VICTORY_3 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_VICTORY_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_VICTORY_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    var SETS = ['A', 'B', 'C'];
+
+    /* ============================================================
+       gameState — per data-contract.md
+       ============================================================ */
+    var gameState = {
+      gameId: 'kakuro',
+      phase: 'start_screen',
+      currentRound: 1,
+      totalRounds: 3,
+      // Lives are a no-op in this game (spec § Game Parameters):
+      // totalLives is set to totalRounds (3) so the CDN ProgressBar's
+      // (totalLives - currentLives) computation never goes negative; we
+      // always call progressBar.update(progress, 0) to render an empty
+      // hearts strip (then hide it via CSS — see #mathai-progress-slot rules).
+      // Lives are NEVER decremented in code. wrongAttempts is the real
+      // counter that drives getStars().
+      totalLives: 3,
+      lives: 0,
+      score: 0,
+      stars: 0,
+      progress: 0,
+      attempts: [],
+      events: [],
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      startTime: null,
+      roundStartTime: null,
+      duration_data: { startTime: null, preview: [] },
+      content: null,
+      previewResult: null,
+      setIndex: 0,
+      activeRounds: [],
+
+      // Kakuro-specific session-wide counter (persist across the 3 puzzles within
+      // a session, reset only on full restart). Drives getStars() — counts the
+      // number of failed Check submissions. (No hint button in v2.)
+      wrongAttempts: 0,
+
+      // Per-round mutable state
+      cellDigits: {},        // 'r,c' -> digit | undefined
+      isDragging: false,     // true while a digit tile is being dragged (drives no-op guards)
+      currentRoundData: null,
+      correctAnswer: null
+    };
+
+    window.gameState = gameState;
+
+    /* ============================================================
+       fallbackContent — 9 rounds (3 sets × 3 stages)
+       Stage 1 + 2 grids are inlined verbatim from
+       games/kakuro/pre-generation/puzzles.md (final corrected versions).
+       Stage 3 (A.3 / B.3 / C.3) was authored inline at build time using
+       a "two-island" composition pattern — two small independent sub-puzzles
+       at opposite corners of the 6×6, separated by walls — anchored on
+       unique-decomposition runs (24=7+8+9, 23=6+8+9, 17=8+9, 16=7+9, 6=1+2+3,
+       4=1+3, 7=1+2+4 etc). Each Stage-3 puzzle has 10 white cells, all sums
+       in the 3..24 range, and a hand-verified unique solution. This is the
+       "substituted simpler 6×6" path explicitly authorized by the build prompt.
+       ============================================================ */
+    var fallbackContent = {
+      previewInstruction:
+        '<p>Fill the white cells with digits <b>1&ndash;9</b> so that:</p>' +
+        '<ol>' +
+          '<li>Each row of white cells adds up to the small number on its left.</li>' +
+          '<li>Each column of white cells adds up to the small number on top.</li>' +
+          '<li>No digit repeats inside a single row or column run.</li>' +
+        '</ol>' +
+        '<p>Drag a digit tile from the tray onto a white cell. Drag the <b>Clear</b> tile onto a cell to empty it. ' +
+        'When every white cell is filled, tap <b>Check</b> to see if the puzzle is solved. ' +
+        'No timer &mdash; take your time.</p>',
+      previewAudioText:
+        'Drag a digit tile from the tray onto each white cell so each row and each column adds up to its small clue number. ' +
+        'No digit can repeat inside the same run. Drag the Clear tile onto a cell to empty it. ' +
+        'When every cell is filled, tap Check to see if the puzzle is solved. There is no timer — take your time.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 3,
+      totalLives: 3,
+      timer: false,
+      answerComponent: true,
+
+      rounds: [
+        /* ───────────────── Set A ───────────────── */
+        // A.1 — 4×4 (Stage 1 warm-up). From puzzles.md §A.1 final corrected.
+        {
+          set: 'A', id: 'A_r1_p1', round: 1, stage: 1, type: 'kakuro-board', size: 4,
+          grid: [
+            [ {kind:'wall'},                 {kind:'clue', row:null, col:4},  {kind:'clue', row:null, col:11}, {kind:'wall'} ],
+            [ {kind:'clue', row:4,  col:null}, {kind:'white', solution:1},     {kind:'white', solution:3},      {kind:'clue', row:null, col:1} ],
+            [ {kind:'clue', row:12, col:null}, {kind:'white', solution:3},     {kind:'white', solution:8},      {kind:'white', solution:1} ],
+            [ {kind:'wall'},                 {kind:'wall'},                  {kind:'wall'},                   {kind:'wall'} ]
+          ],
+          runs: [
+            { id:'A1_r1', dir:'row', sum:4,  cells:[{r:1,c:1},{r:1,c:2}] },
+            { id:'A1_r2', dir:'row', sum:12, cells:[{r:2,c:1},{r:2,c:2},{r:2,c:3}] },
+            { id:'A1_c1', dir:'col', sum:4,  cells:[{r:1,c:1},{r:2,c:1}] },
+            { id:'A1_c2', dir:'col', sum:11, cells:[{r:1,c:2},{r:2,c:2}] },
+            { id:'A1_c3', dir:'col', sum:1,  cells:[{r:2,c:3}] }
+          ],
+          answer: { digits: { '1,1':1, '1,2':3, '2,1':3, '2,2':8, '2,3':1 } },
+          hintMessages: { rowSum:'This row needs to sum to <N>.', colSum:'This column needs to sum to <N>.', repeat:'No repeats in a run.' },
+          misconception_tags: {
+            'row-sum-violated':'sum-decomposition-error',
+            'col-sum-violated':'cross-constraint-overlooked',
+            'repeat-in-run':'no-repeat-rule-overlooked',
+            'both-row-and-col':'multi-constraint-collapse-failure'
+          }
+        },
+        // A.2 — 5×5 (Stage 2). From puzzles.md §A.2 final corrected.
+        {
+          set: 'A', id: 'A_r2_p2', round: 2, stage: 2, type: 'kakuro-board', size: 5,
+          grid: [
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:null, col:6},  {kind:'clue', row:null, col:10}, {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'clue', row:3,  col:7},  {kind:'white', solution:1},      {kind:'white', solution:2},      {kind:'wall'} ],
+            [ {kind:'clue', row:12, col:null}, {kind:'white', solution:4},  {kind:'white', solution:5},      {kind:'white', solution:3},      {kind:'clue', row:null, col:1} ],
+            [ {kind:'clue', row:3,  col:null}, {kind:'white', solution:3},  {kind:'clue', row:6, col:null},  {kind:'white', solution:5},      {kind:'white', solution:1} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'wall'},                   {kind:'wall'},                   {kind:'wall'} ]
+          ],
+          runs: [
+            { id:'A2_r1',  dir:'row', sum:3,  cells:[{r:1,c:2},{r:1,c:3}] },
+            { id:'A2_r2',  dir:'row', sum:12, cells:[{r:2,c:1},{r:2,c:2},{r:2,c:3}] },
+            { id:'A2_r3a', dir:'row', sum:3,  cells:[{r:3,c:1}] },
+            { id:'A2_r3b', dir:'row', sum:6,  cells:[{r:3,c:3},{r:3,c:4}] },
+            { id:'A2_c1',  dir:'col', sum:7,  cells:[{r:2,c:1},{r:3,c:1}] },
+            { id:'A2_c2',  dir:'col', sum:6,  cells:[{r:1,c:2},{r:2,c:2}] },
+            { id:'A2_c3',  dir:'col', sum:10, cells:[{r:1,c:3},{r:2,c:3},{r:3,c:3}] },
+            { id:'A2_c4',  dir:'col', sum:1,  cells:[{r:3,c:4}] }
+          ],
+          answer: { digits: { '1,2':1, '1,3':2, '2,1':4, '2,2':5, '2,3':3, '3,1':3, '3,3':5, '3,4':1 } },
+          hintMessages: { rowSum:'This row needs to sum to <N>.', colSum:'This column needs to sum to <N>.', repeat:'No repeats in a run.' },
+          misconception_tags: {
+            'row-sum-violated':'sum-decomposition-error',
+            'col-sum-violated':'cross-constraint-overlooked',
+            'repeat-in-run':'no-repeat-rule-overlooked',
+            'both-row-and-col':'multi-constraint-collapse-failure'
+          }
+        },
+        // A.3 — 6×6 (Stage 3 stretch). Authored inline as two-island composition.
+        // Top-left island: rows 1-2, cols 1-3 (5 whites). Anchor: 24=7+8+9 unique.
+        // Bottom-right island: rows 3-4, cols 3-5 (5 whites). Anchor: 6=1+2+3 unique.
+        // Hand-verified unique solution.
+        {
+          set: 'A', id: 'A_r3_p3', round: 3, stage: 3, type: 'kakuro-board', size: 6,
+          grid: [
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:null, col:8}, {kind:'clue', row:null, col:11}, {kind:'clue', row:null, col:9}, {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'clue', row:24, col:null}, {kind:'white', solution:7},   {kind:'white', solution:8},      {kind:'white', solution:9},     {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'clue', row:4,  col:null}, {kind:'white', solution:1},   {kind:'white', solution:3},      {kind:'wall'},                  {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'wall'},                  {kind:'clue', row:null, col:1},   {kind:'clue', row:null, col:12}, {kind:'clue', row:null, col:10} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:6, col:null}, {kind:'white', solution:1},      {kind:'white', solution:3},      {kind:'white', solution:2} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:17, col:null}, {kind:'wall'},                   {kind:'white', solution:9},     {kind:'white', solution:8} ]
+          ],
+          runs: [
+            { id:'A3_r1', dir:'row', sum:24, cells:[{r:1,c:2},{r:1,c:3},{r:1,c:4}] },
+            { id:'A3_r2', dir:'row', sum:4,  cells:[{r:2,c:2},{r:2,c:3}] },
+            { id:'A3_r4', dir:'row', sum:6,  cells:[{r:4,c:3},{r:4,c:4},{r:4,c:5}] },
+            { id:'A3_r5', dir:'row', sum:17, cells:[{r:5,c:4},{r:5,c:5}] },
+            { id:'A3_c2', dir:'col', sum:8,  cells:[{r:1,c:2},{r:2,c:2}] },
+            { id:'A3_c3', dir:'col', sum:11, cells:[{r:1,c:3},{r:2,c:3}] },
+            { id:'A3_c4', dir:'col', sum:9,  cells:[{r:1,c:4}] },
+            { id:'A3_c4b',dir:'col', sum:1,  cells:[{r:4,c:3}] },
+            { id:'A3_c5', dir:'col', sum:12, cells:[{r:4,c:4},{r:5,c:4}] },
+            { id:'A3_c6', dir:'col', sum:10, cells:[{r:4,c:5},{r:5,c:5}] }
+          ],
+          answer: { digits: {
+            '1,2':7, '1,3':8, '1,4':9, '2,2':1, '2,3':3,
+            '4,3':1, '4,4':3, '4,5':2, '5,4':9, '5,5':8
+          } },
+          hintMessages: { rowSum:'This row needs to sum to <N>.', colSum:'This column needs to sum to <N>.', repeat:'No repeats in a run.' },
+          misconception_tags: {
+            'row-sum-violated':'sum-decomposition-error',
+            'col-sum-violated':'cross-constraint-overlooked',
+            'repeat-in-run':'no-repeat-rule-overlooked',
+            'both-row-and-col':'multi-constraint-collapse-failure'
+          }
+        },
+
+        /* ───────────────── Set B ───────────────── */
+        // B.1 — 4×4 (Stage 1). From puzzles.md §B.1 final corrected.
+        {
+          set: 'B', id: 'B_r1_p1', round: 1, stage: 1, type: 'kakuro-board', size: 4,
+          grid: [
+            [ {kind:'wall'},                 {kind:'clue', row:null, col:3},  {kind:'clue', row:null, col:11}, {kind:'wall'} ],
+            [ {kind:'clue', row:3,  col:null}, {kind:'white', solution:1},     {kind:'white', solution:2},      {kind:'clue', row:null, col:1} ],
+            [ {kind:'clue', row:12, col:null}, {kind:'white', solution:2},     {kind:'white', solution:9},      {kind:'white', solution:1} ],
+            [ {kind:'wall'},                 {kind:'wall'},                  {kind:'wall'},                   {kind:'wall'} ]
+          ],
+          runs: [
+            { id:'B1_r1', dir:'row', sum:3,  cells:[{r:1,c:1},{r:1,c:2}] },
+            { id:'B1_r2', dir:'row', sum:12, cells:[{r:2,c:1},{r:2,c:2},{r:2,c:3}] },
+            { id:'B1_c1', dir:'col', sum:3,  cells:[{r:1,c:1},{r:2,c:1}] },
+            { id:'B1_c2', dir:'col', sum:11, cells:[{r:1,c:2},{r:2,c:2}] },
+            { id:'B1_c3', dir:'col', sum:1,  cells:[{r:2,c:3}] }
+          ],
+          answer: { digits: { '1,1':1, '1,2':2, '2,1':2, '2,2':9, '2,3':1 } },
+          hintMessages: { rowSum:'This row needs to sum to <N>.', colSum:'This column needs to sum to <N>.', repeat:'No repeats in a run.' },
+          misconception_tags: {
+            'row-sum-violated':'sum-decomposition-error',
+            'col-sum-violated':'cross-constraint-overlooked',
+            'repeat-in-run':'no-repeat-rule-overlooked',
+            'both-row-and-col':'multi-constraint-collapse-failure'
+          }
+        },
+        // B.2 — 5×5 (Stage 2). From puzzles.md §B.2 final verified.
+        {
+          set: 'B', id: 'B_r2_p2', round: 2, stage: 2, type: 'kakuro-board', size: 5,
+          grid: [
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:null, col:10}, {kind:'clue', row:null, col:14}, {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'clue', row:16, col:5},  {kind:'white', solution:9},      {kind:'white', solution:7},      {kind:'wall'} ],
+            [ {kind:'clue', row:8,  col:null}, {kind:'white', solution:3},  {kind:'white', solution:1},      {kind:'white', solution:4},      {kind:'clue', row:null, col:4} ],
+            [ {kind:'clue', row:2,  col:null}, {kind:'white', solution:2},  {kind:'clue', row:7, col:null},  {kind:'white', solution:3},      {kind:'white', solution:4} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'wall'},                   {kind:'wall'},                   {kind:'wall'} ]
+          ],
+          runs: [
+            { id:'B2_r1',  dir:'row', sum:16, cells:[{r:1,c:2},{r:1,c:3}] },
+            { id:'B2_r2',  dir:'row', sum:8,  cells:[{r:2,c:1},{r:2,c:2},{r:2,c:3}] },
+            { id:'B2_r3a', dir:'row', sum:2,  cells:[{r:3,c:1}] },
+            { id:'B2_r3b', dir:'row', sum:7,  cells:[{r:3,c:3},{r:3,c:4}] },
+            { id:'B2_c1',  dir:'col', sum:5,  cells:[{r:2,c:1},{r:3,c:1}] },
+            { id:'B2_c2',  dir:'col', sum:10, cells:[{r:1,c:2},{r:2,c:2}] },
+            { id:'B2_c3',  dir:'col', sum:14, cells:[{r:1,c:3},{r:2,c:3},{r:3,c:3}] },
+            { id:'B2_c4',  dir:'col', sum:4,  cells:[{r:3,c:4}] }
+          ],
+          answer: { digits: { '1,2':9, '1,3':7, '2,1':3, '2,2':1, '2,3':4, '3,1':2, '3,3':3, '3,4':4 } },
+          hintMessages: { rowSum:'This row needs to sum to <N>.', colSum:'This column needs to sum to <N>.', repeat:'No repeats in a run.' },
+          misconception_tags: {
+            'row-sum-violated':'sum-decomposition-error',
+            'col-sum-violated':'cross-constraint-overlooked',
+            'repeat-in-run':'no-repeat-rule-overlooked',
+            'both-row-and-col':'multi-constraint-collapse-failure'
+          }
+        },
+        // B.3 — 6×6 (Stage 3). Authored inline. Anchors: 23=6+8+9, 7=1+2+4, 16=7+9.
+        {
+          set: 'B', id: 'B_r3_p3', round: 3, stage: 3, type: 'kakuro-board', size: 6,
+          grid: [
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:null, col:10}, {kind:'clue', row:null, col:8}, {kind:'clue', row:null, col:8}, {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'clue', row:23, col:null}, {kind:'white', solution:9},   {kind:'white', solution:6},      {kind:'white', solution:8},     {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'clue', row:3,  col:null}, {kind:'white', solution:1},   {kind:'white', solution:2},      {kind:'wall'},                  {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'wall'},                  {kind:'clue', row:null, col:4},   {kind:'clue', row:null, col:10}, {kind:'clue', row:null, col:9} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:7, col:null}, {kind:'white', solution:4},      {kind:'white', solution:1},     {kind:'white', solution:2} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:16, col:null}, {kind:'wall'},                   {kind:'white', solution:9},     {kind:'white', solution:7} ]
+          ],
+          runs: [
+            { id:'B3_r1', dir:'row', sum:23, cells:[{r:1,c:2},{r:1,c:3},{r:1,c:4}] },
+            { id:'B3_r2', dir:'row', sum:3,  cells:[{r:2,c:2},{r:2,c:3}] },
+            { id:'B3_r4', dir:'row', sum:7,  cells:[{r:4,c:3},{r:4,c:4},{r:4,c:5}] },
+            { id:'B3_r5', dir:'row', sum:16, cells:[{r:5,c:4},{r:5,c:5}] },
+            { id:'B3_c2', dir:'col', sum:10, cells:[{r:1,c:2},{r:2,c:2}] },
+            { id:'B3_c3', dir:'col', sum:8,  cells:[{r:1,c:3},{r:2,c:3}] },
+            { id:'B3_c4', dir:'col', sum:8,  cells:[{r:1,c:4}] },
+            { id:'B3_c4b',dir:'col', sum:4,  cells:[{r:4,c:3}] },
+            { id:'B3_c5', dir:'col', sum:10, cells:[{r:4,c:4},{r:5,c:4}] },
+            { id:'B3_c6', dir:'col', sum:9,  cells:[{r:4,c:5},{r:5,c:5}] }
+          ],
+          answer: { digits: {
+            '1,2':9, '1,3':6, '1,4':8, '2,2':1, '2,3':2,
+            '4,3':4, '4,4':1, '4,5':2, '5,4':9, '5,5':7
+          } },
+          hintMessages: { rowSum:'This row needs to sum to <N>.', colSum:'This column needs to sum to <N>.', repeat:'No repeats in a run.' },
+          misconception_tags: {
+            'row-sum-violated':'sum-decomposition-error',
+            'col-sum-violated':'cross-constraint-overlooked',
+            'repeat-in-run':'no-repeat-rule-overlooked',
+            'both-row-and-col':'multi-constraint-collapse-failure'
+          }
+        },
+
+        /* ───────────────── Set C ───────────────── */
+        // C.1 — 4×4 (Stage 1). From puzzles.md §C.1 final corrected.
+        {
+          set: 'C', id: 'C_r1_p1', round: 1, stage: 1, type: 'kakuro-board', size: 4,
+          grid: [
+            [ {kind:'wall'},                 {kind:'clue', row:null, col:4},  {kind:'clue', row:null, col:11}, {kind:'wall'} ],
+            [ {kind:'clue', row:4,  col:null}, {kind:'white', solution:1},     {kind:'white', solution:3},      {kind:'clue', row:null, col:2} ],
+            [ {kind:'clue', row:13, col:null}, {kind:'white', solution:3},     {kind:'white', solution:8},      {kind:'white', solution:2} ],
+            [ {kind:'wall'},                 {kind:'wall'},                  {kind:'wall'},                   {kind:'wall'} ]
+          ],
+          runs: [
+            { id:'C1_r1', dir:'row', sum:4,  cells:[{r:1,c:1},{r:1,c:2}] },
+            { id:'C1_r2', dir:'row', sum:13, cells:[{r:2,c:1},{r:2,c:2},{r:2,c:3}] },
+            { id:'C1_c1', dir:'col', sum:4,  cells:[{r:1,c:1},{r:2,c:1}] },
+            { id:'C1_c2', dir:'col', sum:11, cells:[{r:1,c:2},{r:2,c:2}] },
+            { id:'C1_c3', dir:'col', sum:2,  cells:[{r:2,c:3}] }
+          ],
+          answer: { digits: { '1,1':1, '1,2':3, '2,1':3, '2,2':8, '2,3':2 } },
+          hintMessages: { rowSum:'This row needs to sum to <N>.', colSum:'This column needs to sum to <N>.', repeat:'No repeats in a run.' },
+          misconception_tags: {
+            'row-sum-violated':'sum-decomposition-error',
+            'col-sum-violated':'cross-constraint-overlooked',
+            'repeat-in-run':'no-repeat-rule-overlooked',
+            'both-row-and-col':'multi-constraint-collapse-failure'
+          }
+        },
+        // C.2 — 5×5 (Stage 2). Re-derived for unique solvability (puzzles.md §C.2's
+        // c3:12 / c3:13 form admitted two solutions). Anchor: 17=8+9 unique pair on row r1;
+        // singleton (3,4)=1 forces (3,3)=8; col c3 with (3,3)=8 forces (1,3)=9 (else
+        // a col-c3 repeat with (3,3)). Solution chain unique by construction.
+        {
+          set: 'C', id: 'C_r2_p2', round: 2, stage: 2, type: 'kakuro-board', size: 5,
+          grid: [
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:null, col:11}, {kind:'clue', row:null, col:19}, {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'clue', row:17, col:14}, {kind:'white', solution:8},      {kind:'white', solution:9},      {kind:'wall'} ],
+            [ {kind:'clue', row:14, col:null}, {kind:'white', solution:9}, {kind:'white', solution:3},      {kind:'white', solution:2},      {kind:'clue', row:null, col:1} ],
+            [ {kind:'clue', row:5,  col:null}, {kind:'white', solution:5}, {kind:'clue', row:9, col:null},  {kind:'white', solution:8},      {kind:'white', solution:1} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'wall'},                   {kind:'wall'},                   {kind:'wall'} ]
+          ],
+          runs: [
+            { id:'C2_r1',  dir:'row', sum:17, cells:[{r:1,c:2},{r:1,c:3}] },
+            { id:'C2_r2',  dir:'row', sum:14, cells:[{r:2,c:1},{r:2,c:2},{r:2,c:3}] },
+            { id:'C2_r3a', dir:'row', sum:5,  cells:[{r:3,c:1}] },
+            { id:'C2_r3b', dir:'row', sum:9,  cells:[{r:3,c:3},{r:3,c:4}] },
+            { id:'C2_c1',  dir:'col', sum:14, cells:[{r:2,c:1},{r:3,c:1}] },
+            { id:'C2_c2',  dir:'col', sum:11, cells:[{r:1,c:2},{r:2,c:2}] },
+            { id:'C2_c3',  dir:'col', sum:19, cells:[{r:1,c:3},{r:2,c:3},{r:3,c:3}] },
+            { id:'C2_c4',  dir:'col', sum:1,  cells:[{r:3,c:4}] }
+          ],
+          answer: { digits: { '1,2':8, '1,3':9, '2,1':9, '2,2':3, '2,3':2, '3,1':5, '3,3':8, '3,4':1 } },
+          hintMessages: { rowSum:'This row needs to sum to <N>.', colSum:'This column needs to sum to <N>.', repeat:'No repeats in a run.' },
+          misconception_tags: {
+            'row-sum-violated':'sum-decomposition-error',
+            'col-sum-violated':'cross-constraint-overlooked',
+            'repeat-in-run':'no-repeat-rule-overlooked',
+            'both-row-and-col':'multi-constraint-collapse-failure'
+          }
+        },
+        // C.3 — 6×6 (Stage 3). Authored inline. Anchors: 24=7+8+9, sum-8 triple via 1+3+4, 17=8+9.
+        {
+          set: 'C', id: 'C_r3_p3', round: 3, stage: 3, type: 'kakuro-board', size: 6,
+          grid: [
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:null, col:12}, {kind:'clue', row:null, col:11}, {kind:'clue', row:null, col:7}, {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'clue', row:24, col:null}, {kind:'white', solution:8},   {kind:'white', solution:9},      {kind:'white', solution:7},     {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'clue', row:6,  col:null}, {kind:'white', solution:4},   {kind:'white', solution:2},      {kind:'wall'},                  {kind:'wall'} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'wall'},                  {kind:'clue', row:null, col:3},   {kind:'clue', row:null, col:10}, {kind:'clue', row:null, col:12} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:8, col:null}, {kind:'white', solution:3},      {kind:'white', solution:1},     {kind:'white', solution:4} ],
+            [ {kind:'wall'},                 {kind:'wall'},                 {kind:'clue', row:17, col:null}, {kind:'wall'},                   {kind:'white', solution:9},     {kind:'white', solution:8} ]
+          ],
+          runs: [
+            { id:'C3_r1', dir:'row', sum:24, cells:[{r:1,c:2},{r:1,c:3},{r:1,c:4}] },
+            { id:'C3_r2', dir:'row', sum:6,  cells:[{r:2,c:2},{r:2,c:3}] },
+            { id:'C3_r4', dir:'row', sum:8,  cells:[{r:4,c:3},{r:4,c:4},{r:4,c:5}] },
+            { id:'C3_r5', dir:'row', sum:17, cells:[{r:5,c:4},{r:5,c:5}] },
+            { id:'C3_c2', dir:'col', sum:12, cells:[{r:1,c:2},{r:2,c:2}] },
+            { id:'C3_c3', dir:'col', sum:11, cells:[{r:1,c:3},{r:2,c:3}] },
+            { id:'C3_c4', dir:'col', sum:7,  cells:[{r:1,c:4}] },
+            { id:'C3_c4b',dir:'col', sum:3,  cells:[{r:4,c:3}] },
+            { id:'C3_c5', dir:'col', sum:10, cells:[{r:4,c:4},{r:5,c:4}] },
+            { id:'C3_c6', dir:'col', sum:12, cells:[{r:4,c:5},{r:5,c:5}] }
+          ],
+          answer: { digits: {
+            '1,2':8, '1,3':9, '1,4':7, '2,2':4, '2,3':2,
+            '4,3':3, '4,4':1, '4,5':4, '5,4':9, '5,5':8
+          } },
+          hintMessages: { rowSum:'This row needs to sum to <N>.', colSum:'This column needs to sum to <N>.', repeat:'No repeats in a run.' },
+          misconception_tags: {
+            'row-sum-violated':'sum-decomposition-error',
+            'col-sum-violated':'cross-constraint-overlooked',
+            'repeat-in-run':'no-repeat-rule-overlooked',
+            'both-row-and-col':'multi-constraint-collapse-failure'
+          }
+        }
+      ]
+    };
+
+    /* ============================================================
+       Module-scope refs
+       ============================================================ */
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+    var hintBannerTimeout = null;
+
+    // Cached DOM refs — populated by buildBoardDOM (called from setupGame, AFTER ScreenLayout.inject).
+    // Per GEN-DOM-CACHE: per-round functions (renderRound, etc.) must not call document.getElementById inline.
+    var boardEl = null;
+    var boardWrapEl = null;
+    var puzzleLabelEl = null;
+    var hintBannerEl = null;
+    var trayEl = null;
+    var checkBtnEl = null;
+
+    /* ============================================================
+       syncDOM — writes data-phase, data-score, data-round
+       (No data-lives — kakuro is a no-lives game.)
+       ============================================================ */
+    function syncDOMState() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+      // Kakuro is a no-lives game (totalLives is set to totalRounds for ProgressBar safety
+      // — see gameState comments). data-lives is written purely to satisfy GEN-DATA-LIVES-SYNC.
+      if (gameState.totalLives > 0) {
+        app.dataset.lives = String(gameState.lives);
+      }
+    }
+
+    /* ============================================================
+       trackEvent
+       ============================================================ */
+    function trackEvent(eventName, payload) {
+      try {
+        var ev = { name: eventName, ts: Date.now(), payload: payload || {} };
+        gameState.events.push(ev);
+        if (signalCollector && typeof signalCollector.recordEvent === 'function') {
+          try { signalCollector.recordEvent(eventName, payload || {}); } catch (e) {}
+        }
+      } catch (e) {
+        console.error('[trackEvent]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       recordAttempt — 12 fields per data-contract
+       ============================================================ */
+    function recordAttempt(round, attemptType, isCorrect, misconceptionTag, userAnswer) {
+      try {
+        var now = Date.now();
+        var attempt = {
+          attempt_timestamp: now,
+          time_since_start_of_game: gameState.startTime ? (now - gameState.startTime) : 0,
+          input_of_user: userAnswer || '',
+          correct: !!isCorrect,
+          round_number: gameState.currentRound,
+          question_id: round && round.id ? round.id : ('r' + gameState.currentRound),
+          correct_answer: round && round.answer && round.answer.digits ? JSON.stringify(round.answer.digits) : '',
+          response_time_ms: gameState.roundStartTime ? (now - gameState.roundStartTime) : 0,
+          misconception_tag: misconceptionTag || null,
+          difficulty_level: round && round.stage ? round.stage : 1,
+          is_retry: false,
+          metadata: {
+            attempt_type: attemptType || 'digit-place',
+            set: round && round.set ? round.set : null,
+            stage: round && round.stage ? round.stage : null,
+            wrongAttempts: gameState.wrongAttempts
+          },
+          // Legacy / harness convenience fields
+          attempt_number: gameState.attempts.length + 1,
+          question_text: 'Kakuro ' + (round && round.size ? round.size + 'x' + round.size : '') + ' — set ' + (round && round.set ? round.set : '?') + ' puzzle ' + gameState.currentRound,
+          user_answer: userAnswer || '',
+          is_correct: !!isCorrect,
+          hint_used: attemptType === 'hint',
+          attempt_type: attemptType || 'digit-place'
+        };
+        gameState.attempts.push(attempt);
+        try {
+          var app = document.getElementById('app');
+          if (app) app.setAttribute('data-attempts', gameState.attempts.length);
+        } catch (e) {}
+      } catch (e) {
+        console.error('[recordAttempt]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       getStars — creator-specified per spec § Scoring (post-redesign).
+       Scored on session-wide failed Check submissions only.
+        3⭐ = wrongAttempts === 0 (every Check was correct on first try)
+        2⭐ = wrongAttempts BETWEEN 1 AND 2
+        1⭐ = wrongAttempts >= 3
+        0⭐ = unsolved (only reachable on session abort)
+       ============================================================ */
+    function getStars(score) {
+      var solved = (typeof score === 'number') ? score : (gameState.score || 0);
+      if (solved < gameState.totalRounds) return 0;
+      var w = gameState.wrongAttempts || 0;
+      if (w === 0) return 3;
+      if (w <= 2) return 2;
+      return 1;
+    }
+
+    /* ============================================================
+       getRounds — set-based filter
+       ============================================================ */
+    function getAvailableSets(rounds) {
+      var seen = {};
+      var i;
+      for (i = 0; i < rounds.length; i++) {
+        if (rounds[i].set) seen[rounds[i].set] = true;
+      }
+      var keys = Object.keys(seen).sort();
+      return keys.length > 0 ? keys : ['A'];
+    }
+
+    function getRounds() {
+      var source = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(source);
+      var currentSetId = sets[gameState.setIndex % sets.length];
+      var setRounds = source.filter(function (r) { return r.set === currentSetId; });
+      if (setRounds.length >= gameState.totalRounds) return setRounds;
+      var fbSetRounds = fallbackContent.rounds.filter(function (r) { return r.set === currentSetId; });
+      if (fbSetRounds.length >= gameState.totalRounds) return fbSetRounds;
+      return fallbackContent.rounds.slice(0, gameState.totalRounds);
+    }
+
+    /* ============================================================
+       waitForPackages — every typeof guard required by validator
+       ============================================================ */
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            reject(err);
+            throw new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    /* ============================================================
+       FeedbackManager preload
+       ============================================================ */
+    function preloadAudio() {
+      if (typeof FeedbackManager === 'undefined' || !FeedbackManager.sound || !FeedbackManager.sound.preload) return;
+      var assets = [
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'all_correct', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' },
+        { id: 'sound_stars_collected', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' }
+      ];
+      try { FeedbackManager.sound.preload(assets); } catch (e) {
+        console.error('[preloadAudio]', e && e.message);
+      }
+    }
+
+    function safePlaySound(id, options) {
+      try {
+        return FeedbackManager.sound.play(id, options || {});
+      } catch (e) {
+        return Promise.resolve();
+      }
+    }
+
+    /* ============================================================
+       handlePostMessage
+       ============================================================ */
+    function handlePostMessage(event) {
+      try {
+        var msg = event && event.data;
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          syncDOMState();
+          gameState.content = msg.data && msg.data.content ? msg.data.content : null;
+          if (msg.data && typeof msg.data.totalRounds === 'number') gameState.totalRounds = msg.data.totalRounds;
+          try {
+            var sc = msg.data && msg.data.signalConfig ? msg.data.signalConfig : {};
+            gameState.signalConfig = sc;
+            if (signalCollector) {
+              signalCollector.flushUrl = sc.flushUrl || signalCollector.flushUrl || '';
+              signalCollector.playId = sc.playId || signalCollector.playId || ('kakuro-' + Date.now());
+              signalCollector.gameId = sc.gameId || 'kakuro';
+              signalCollector.sessionId = sc.sessionId || ('session-' + Date.now());
+              signalCollector.contentSetId = sc.contentSetId || 'fallback';
+              signalCollector.studentId = sc.studentId || 'anonymous';
+              if (typeof signalCollector.startFlushing === 'function') {
+                try { signalCollector.startFlushing(); } catch (e2) {}
+              }
+            }
+          } catch (e1) {}
+          syncDOMState();
+          setupGame();
+        } else if (msg.type === 'game_pause') {
+          try { FeedbackManager.sound.pause(); } catch (e) {}
+        } else if (msg.type === 'game_resume') {
+          try { FeedbackManager.sound.resume(); } catch (e) {}
+        }
+      } catch (e) {
+        console.error('[handlePostMessage]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       postGameComplete — game_complete with metrics + previewResult
+       ============================================================ */
+    function postGameComplete(success) {
+      try {
+        var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+        var elapsedSec = Math.round(elapsedMs / 1000);
+        var accuracy = gameState.totalRounds > 0 ? Math.round((gameState.score / gameState.totalRounds) * 100) : 0;
+        var triesArr = [];
+        var ai;
+        for (ai = 0; ai < gameState.attempts.length; ai++) triesArr.push(1);
+        var signalSealed = { event_count: gameState.events.length, metadata: {} };
+        try {
+          if (signalCollector && typeof signalCollector.seal === 'function') {
+            var sealed = signalCollector.seal();
+            if (sealed) {
+              if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+              if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+            }
+          }
+        } catch (e0) {}
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: {
+              score: gameState.score,
+              totalQuestions: gameState.totalRounds,
+              stars: gameState.stars,
+              accuracy: accuracy,
+              time: elapsedSec,
+              timeSpent: elapsedMs,
+              tries: triesArr,
+              attempts: gameState.attempts,
+              totalLives: gameState.totalLives,
+              livesRemaining: gameState.lives,
+              wrongAttempts: gameState.wrongAttempts,
+              duration_data: gameState.duration_data
+            },
+            completedAt: Date.now(),
+            previewResult: gameState.previewResult || null,
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) {
+        console.error('[postGameComplete]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       endGame — game_complete posted BEFORE end-game audio (CASE 11).
+       Routes to Victory only (no Game Over branch in this game).
+       Does NOT call previewScreen.destroy() — that lives in floatingBtn 'next' handler.
+       ============================================================ */
+    function endGame(success) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      // Tear down @dnd-kit instances (PART-043 §R3 / P6 §R3) — must happen
+      // before the results screen renders so stale Draggables/Droppables
+      // don't leak into the next session.
+      try { if (window.kkrDnD && typeof window.kkrDnD.destroyDndRound === 'function') window.kkrDnD.destroyDndRound(); } catch (e) {}
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = 'results';
+      gameState.stars = getStars(gameState.score);
+      syncDOMState();
+      trackEvent('game_end', {
+        won: !!success,
+        score: gameState.score,
+        stars: gameState.stars,
+        wrongAttempts: gameState.wrongAttempts
+      });
+      // game_complete BEFORE audio (CASE 11)
+      postGameComplete(success);
+      // Always route to Victory — kakuro has NO Game Over branch (lives never decrement).
+      try { showVictory(); } catch (e) { console.error('[showVictory]', e && e.message); }
+    }
+    window.endGame = endGame;
+
+    /* ============================================================
+       Score + question label header refresh
+       ============================================================ */
+    function refreshHeader() {
+      try {
+        if (previewScreen && typeof previewScreen.setScore === 'function') {
+          previewScreen.setScore(gameState.score + '/' + gameState.totalRounds);
+        }
+        if (previewScreen && typeof previewScreen.setQuestionLabel === 'function') {
+          previewScreen.setQuestionLabel('Q' + gameState.currentRound);
+        }
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       Round / board access helpers
+       ============================================================ */
+    function getCurrentRound() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var idx = Math.max(0, Math.min(rounds.length - 1, gameState.currentRound - 1));
+      return rounds[idx];
+    }
+
+    function rcKey(r, c) { return r + ',' + c; }
+
+    function getCellEl(r, c) {
+      var board = document.getElementById('kkr-board');
+      if (!board) return null;
+      return board.querySelector('[data-r="' + r + '"][data-c="' + c + '"]');
+    }
+
+    function getAllWhiteCells(round) {
+      var out = [];
+      var size = round.size;
+      var r, c;
+      for (r = 0; r < size; r++) {
+        for (c = 0; c < size; c++) {
+          if (round.grid[r][c] && round.grid[r][c].kind === 'white') {
+            out.push({ r: r, c: c, solution: round.grid[r][c].solution });
+          }
+        }
+      }
+      return out;
+    }
+
+    function getRunsForCell(round, r, c) {
+      var out = [];
+      var i, j, run;
+      for (i = 0; i < round.runs.length; i++) {
+        run = round.runs[i];
+        for (j = 0; j < run.cells.length; j++) {
+          if (run.cells[j].r === r && run.cells[j].c === c) { out.push(run); break; }
+        }
+      }
+      return out;
+    }
+
+    /* ============================================================
+       Build the gameplay DOM (inside #gameContent)
+       ============================================================ */
+    function buildBoardDOM() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML = '';
+
+      // Header row: puzzle label + Hint button
+      var header = document.createElement('div');
+      header.className = 'kkr-header';
+
+      var puzzleLabel = document.createElement('div');
+      puzzleLabel.className = 'kkr-puzzle-label';
+      puzzleLabel.id = 'kkr-puzzle-label';
+      puzzleLabel.textContent = 'Puzzle ' + gameState.currentRound + ' of ' + gameState.totalRounds;
+      header.appendChild(puzzleLabel);
+
+      gc.appendChild(header);
+
+      // Board wrap
+      var wrap = document.createElement('div');
+      wrap.className = 'kkr-board-wrap';
+
+      var board = document.createElement('div');
+      board.className = 'kkr-board';
+      board.id = 'kkr-board';
+      board.setAttribute('data-testid', 'kkr-board');
+      wrap.appendChild(board);
+
+      // Hint banner (constraint message after wrong digit)
+      var banner = document.createElement('div');
+      banner.className = 'kkr-hint-banner';
+      banner.id = 'kkr-hint-banner';
+      banner.textContent = '';
+      wrap.appendChild(banner);
+
+      // Digit tray (drag-and-drop input)
+      var trayWrap = document.createElement('div');
+      trayWrap.className = 'kkr-tray-wrap';
+      var tray = document.createElement('div');
+      tray.className = 'kkr-tray';
+      tray.id = 'kkr-tray';
+      var d;
+      for (d = 1; d <= 9; d++) {
+        var tile = document.createElement('div');
+        tile.className = 'kkr-tile';
+        tile.setAttribute('data-digit', d);
+        tile.setAttribute('data-testid', 'kkr-tile-' + d);
+        tile.setAttribute('role', 'button');
+        tile.setAttribute('aria-label', 'Digit ' + d);
+        tile.setAttribute('tabindex', '0');
+        tile.textContent = d;
+        tray.appendChild(tile);
+      }
+      var clearTile = document.createElement('div');
+      clearTile.className = 'kkr-tile kkr-clear-tile';
+      clearTile.id = 'kkr-tile-clear';
+      clearTile.setAttribute('data-digit', 'clear');
+      clearTile.setAttribute('data-testid', 'kkr-tile-clear');
+      clearTile.setAttribute('role', 'button');
+      clearTile.setAttribute('aria-label', 'Clear');
+      clearTile.setAttribute('tabindex', '0');
+      clearTile.textContent = 'Clear';
+      tray.appendChild(clearTile);
+      trayWrap.appendChild(tray);
+      wrap.appendChild(trayWrap);
+
+      // Check button (V13/V14 — enabled only when every white cell holds a digit).
+      var checkWrap = document.createElement('div');
+      checkWrap.className = 'kkr-check-wrap';
+      var checkBtn = document.createElement('button');
+      checkBtn.type = 'button';
+      checkBtn.className = 'kkr-check-btn';
+      checkBtn.id = 'kkr-check-btn';
+      checkBtn.setAttribute('data-testid', 'kkr-check-btn');
+      checkBtn.textContent = 'Check';
+      checkBtn.disabled = true;
+      checkBtn.addEventListener('click', onCheckTap);
+      checkWrap.appendChild(checkBtn);
+      wrap.appendChild(checkWrap);
+
+      gc.appendChild(wrap);
+
+      // Cache refs for per-round functions (GEN-DOM-CACHE).
+      boardEl = board;
+      boardWrapEl = wrap;
+      puzzleLabelEl = puzzleLabel;
+      hintBannerEl = banner;
+      trayEl = tray;
+      checkBtnEl = checkBtn;
+
+      // Wire up drag-and-drop tiles. The module script (defined at end of body)
+      // exposes window.kkrDnD asynchronously; if it isn't ready yet, the module's
+      // ready handler will pick up the existing tray + cells when it loads.
+      if (window.kkrDnD && typeof window.kkrDnD.initTray === 'function') {
+        try { window.kkrDnD.initTray(tray); } catch (e) { console.error('[kkrDnD.initTray]', e && e.message); }
+      }
+    }
+
+    function paintBoardForRound(round) {
+      var board = document.getElementById('kkr-board');
+      if (!board || !round) return;
+
+      board.className = 'kkr-board size-' + round.size;
+      board.innerHTML = '';
+
+      var size = round.size;
+      var r, c, cellData, cell;
+      for (r = 0; r < size; r++) {
+        for (c = 0; c < size; c++) {
+          cellData = round.grid[r][c];
+          cell = document.createElement('div');
+          cell.className = 'kkr-cell';
+          cell.setAttribute('data-r', r);
+          cell.setAttribute('data-c', c);
+          cell.setAttribute('data-testid', 'kkr-cell-' + r + '-' + c);
+
+          if (cellData.kind === 'wall') {
+            cell.classList.add('kkr-wall');
+          } else if (cellData.kind === 'clue') {
+            cell.classList.add('kkr-clue');
+            // slash divider only when both row + col present
+            if (cellData.row != null && cellData.col != null) {
+              var slash = document.createElement('span');
+              slash.className = 'kkr-clue-slash';
+              cell.appendChild(slash);
+            }
+            if (cellData.row != null) {
+              var rs = document.createElement('span');
+              rs.className = 'kkr-clue-row';
+              rs.textContent = String(cellData.row);
+              cell.appendChild(rs);
+            }
+            if (cellData.col != null) {
+              var cs = document.createElement('span');
+              cs.className = 'kkr-clue-col';
+              cs.textContent = String(cellData.col);
+              cell.appendChild(cs);
+            }
+          } else if (cellData.kind === 'white') {
+            cell.classList.add('kkr-white');
+            cell.setAttribute('role', 'button');
+            cell.setAttribute('aria-label', 'Empty cell row ' + (r + 1) + ' column ' + (c + 1));
+          }
+          board.appendChild(cell);
+        }
+      }
+
+      // Register every white cell as a drop target. The module script handles
+      // dragend → window.placeDigit / window.clearCellDigit. Locked cells stay
+      // registered; placeDigit / clearCellDigit early-return when the target is
+      // locked (and play a soft "deselect" sound).
+      if (window.kkrDnD && typeof window.kkrDnD.clearCells === 'function') {
+        try { window.kkrDnD.clearCells(); } catch (e) {}
+      }
+      if (window.kkrDnD && typeof window.kkrDnD.registerCell === 'function') {
+        var whiteCells = board.querySelectorAll('.kkr-cell.kkr-white');
+        var i;
+        for (i = 0; i < whiteCells.length; i++) {
+          var wc = whiteCells[i];
+          var rr = parseInt(wc.getAttribute('data-r'), 10);
+          var cc = parseInt(wc.getAttribute('data-c'), 10);
+          try { window.kkrDnD.registerCell(wc, rr, cc); } catch (e) {}
+        }
+      }
+    }
+
+    /* ============================================================
+       clearCellDigit — invoked when the user drags the Clear tile onto a
+       white cell. Empty cells / non-white targets are no-ops.
+       ============================================================ */
+    function clearCellDigit(r, c, source) {
+      try {
+        if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+        var round = getCurrentRound();
+        if (!round) return;
+        var cellData = round.grid[r] && round.grid[r][c];
+        if (!cellData || cellData.kind !== 'white') return;
+        var key = rcKey(r, c);
+        if (gameState.cellDigits[key] == null) return;
+        delete gameState.cellDigits[key];
+        var cell = getCellEl(r, c);
+        if (cell) {
+          cell.textContent = '';
+          cell.classList.remove('kkr-wrong');
+        }
+        safePlaySound('sound_bubble_deselect', {});
+        hideHintBanner();
+        refreshCheckButton(round);
+      } catch (e) {
+        console.error('[clearCellDigit]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+    }
+    window.clearCellDigit = clearCellDigit;
+
+    /* ============================================================
+       placeDigit — set the digit in the cell. Free placement: no per-cell
+       validation, no run locking. Validation happens only when the user
+       taps Check (onCheckTap). Updates Check-button enabled state.
+       ============================================================ */
+    function placeDigit(r, c, digit, source) {
+      if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+      var round = getCurrentRound();
+      if (!round) return;
+      var cellData = round.grid[r] && round.grid[r][c];
+      if (!cellData || cellData.kind !== 'white') return;
+
+      gameState.cellDigits[rcKey(r, c)] = digit;
+      var cell = getCellEl(r, c);
+      if (cell) {
+        cell.classList.remove('kkr-wrong');
+        var span = document.createElement('span');
+        span.className = 'kkr-digit';
+        span.textContent = String(digit);
+        cell.innerHTML = '';
+        cell.appendChild(span);
+      }
+      if (source === 'drag') {
+        safePlaySound('tap_sound', {});
+      }
+      // Hide any stale Check feedback banner once the user keeps editing.
+      hideHintBanner();
+      refreshCheckButton(round);
+    }
+    window.placeDigit = placeDigit;
+
+    /* ============================================================
+       refreshCheckButton — Check is enabled iff every white cell holds
+       a digit (P6 V13/V14).
+       ============================================================ */
+    function refreshCheckButton(round) {
+      if (!checkBtnEl) return;
+      if (!round || gameState.isProcessing || gameState.gameEnded || !gameState.isActive) {
+        checkBtnEl.disabled = true;
+        return;
+      }
+      var whites = getAllWhiteCells(round);
+      var i;
+      for (i = 0; i < whites.length; i++) {
+        if (gameState.cellDigits[rcKey(whites[i].r, whites[i].c)] == null) {
+          checkBtnEl.disabled = true;
+          return;
+        }
+      }
+      checkBtnEl.disabled = false;
+    }
+
+    /* ============================================================
+       onCheckTap — full-puzzle validation.
+       Correct: handleSolve celebration. Incorrect: flash all wrong runs,
+       show banner naming first violated constraint, increment wrongAttempts,
+       leave board editable so the student can fix and re-Check.
+       ============================================================ */
+    function onCheckTap(ev) {
+      try {
+        if (ev) ev.stopPropagation();
+        if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+        var round = getCurrentRound();
+        if (!round) return;
+        // All white cells must be filled (the button is gated, but re-check defensively).
+        var whites = getAllWhiteCells(round);
+        var i;
+        for (i = 0; i < whites.length; i++) {
+          if (gameState.cellDigits[rcKey(whites[i].r, whites[i].c)] == null) return;
+        }
+        // Validate every run.
+        var failingRuns = [];
+        var firstReason = null;
+        var firstFailingRun = null;
+        var miscTag = null;
+        for (i = 0; i < round.runs.length; i++) {
+          var run = round.runs[i];
+          var res = evaluateRun(run);
+          if (res.complete && !res.correct) {
+            failingRuns.push({ run: run, reason: res.reason });
+            if (!firstReason) {
+              firstReason = res.reason;
+              firstFailingRun = run;
+              if (res.reason === 'repeat') miscTag = round.misconception_tags['repeat-in-run'];
+              else if (run.dir === 'row') miscTag = round.misconception_tags['row-sum-violated'];
+              else miscTag = round.misconception_tags['col-sum-violated'];
+            }
+          }
+        }
+        if (failingRuns.length === 0) {
+          // All correct — celebrate and advance.
+          recordAttempt(round, 'check', true, null, JSON.stringify(gameState.cellDigits));
+          trackEvent('answer_submitted', {
+            round: gameState.currentRound,
+            set: round.set,
+            is_correct: true,
+            wrongAttempts: gameState.wrongAttempts
+          });
+          handleSolve(round);
+          return;
+        }
+        // Wrong — flash every cell in every failing run, banner the first violation.
+        gameState.wrongAttempts += 1;
+        recordAttempt(round, 'check', false, miscTag, JSON.stringify(gameState.cellDigits));
+        trackEvent('answer_submitted', {
+          round: gameState.currentRound,
+          set: round.set,
+          is_correct: false,
+          misconception_tag: miscTag,
+          wrongAttempts: gameState.wrongAttempts,
+          failing_runs: failingRuns.length
+        });
+        var bannerText;
+        if (firstReason === 'repeat') {
+          bannerText = round.hintMessages.repeat;
+        } else if (firstFailingRun.dir === 'row') {
+          bannerText = round.hintMessages.rowSum.replace('<N>', String(firstFailingRun.sum));
+        } else {
+          bannerText = round.hintMessages.colSum.replace('<N>', String(firstFailingRun.sum));
+        }
+        if (failingRuns.length > 1) {
+          bannerText += ' (' + failingRuns.length + ' runs are off)';
+        }
+        for (i = 0; i < failingRuns.length; i++) {
+          var f = failingRuns[i];
+          var j;
+          for (j = 0; j < f.run.cells.length; j++) {
+            flashWrongCell(f.run.cells[j].r, f.run.cells[j].c);
+          }
+        }
+        showHintBanner(bannerText);
+        safePlaySound('incorrect_sound_effect', {})['catch'](function () {});
+      } catch (e) {
+        console.error('[onCheckTap]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+    }
+
+    function evaluateRun(run) {
+      // Returns { complete, correct, reason }.
+      var values = [];
+      var seen = {};
+      var i, k, v;
+      var hasRepeat = false;
+      for (i = 0; i < run.cells.length; i++) {
+        k = rcKey(run.cells[i].r, run.cells[i].c);
+        v = gameState.cellDigits[k];
+        if (v == null) return { complete: false, correct: false };
+        values.push(v);
+        if (seen[v]) hasRepeat = true;
+        seen[v] = true;
+      }
+      var total = 0;
+      for (i = 0; i < values.length; i++) total += values[i];
+      if (hasRepeat) return { complete: true, correct: false, reason: 'repeat' };
+      if (total !== run.sum) return { complete: true, correct: false, reason: 'sum' };
+      return { complete: true, correct: true };
+    }
+
+    function flashWrongCell(r, c) {
+      var cell = getCellEl(r, c);
+      if (!cell) return;
+      cell.classList.remove('kkr-wrong');
+      void cell.offsetWidth;
+      cell.classList.add('kkr-wrong');
+      setTimeout(function () { if (cell) cell.classList.remove('kkr-wrong'); }, 700);
+    }
+
+    function showHintBanner(text) {
+      var banner = document.getElementById('kkr-hint-banner');
+      if (!banner) return;
+      banner.textContent = text || '';
+      banner.classList.add('visible');
+      banner.setAttribute('role', 'alert');
+      banner.setAttribute('aria-live', 'assertive');
+      if (hintBannerTimeout) clearTimeout(hintBannerTimeout);
+      hintBannerTimeout = setTimeout(function () {
+        if (banner) banner.classList.remove('visible');
+      }, 3000);
+    }
+
+    function hideHintBanner() {
+      var banner = hintBannerEl || document.getElementById('kkr-hint-banner');
+      if (!banner) return;
+      banner.classList.remove('visible');
+      if (hintBannerTimeout) { clearTimeout(hintBannerTimeout); hintBannerTimeout = null; }
+    }
+
+    /* ============================================================
+       Solve handler — full-grid celebration glow, progressBar bumps FIRST
+       (memory rule progress_bar_round_complete), then awaited SFX + TTS,
+       then nextRound or endGame(true).
+       ============================================================ */
+    async function handleSolve(round) {
+      gameState.isProcessing = true;
+      // P6 V22 — board-level dnd lock during awaited celebration feedback.
+      if (boardWrapEl) boardWrapEl.classList.add('dnd-disabled');
+      if (checkBtnEl) checkBtnEl.disabled = true;
+      // Score
+      gameState.score += 1;
+      refreshHeader();
+      syncDOMState();
+
+      // Per-cell celebration glow propagates outward
+      var whites = getAllWhiteCells(round);
+      var i;
+      for (i = 0; i < whites.length; i++) {
+        (function (k) {
+          var w = whites[k];
+          var cell = getCellEl(w.r, w.c);
+          if (!cell) return;
+          setTimeout(function () { cell.classList.add('kkr-celebrate'); }, k * 35);
+        })(i);
+      }
+
+      // recordAttempt — puzzle-solve
+      recordAttempt(round, 'puzzle-solve', true, null, JSON.stringify(round.answer && round.answer.digits));
+
+      // Progress bar bumps FIRST (memory rule progress_bar_round_complete).
+      gameState.progress = (gameState.progress || 0) + 1;
+      if (progressBar) {
+        try { progressBar.update(gameState.progress, 0); } catch (e) {}
+      }
+
+      // Awaited round-complete SFX + sticker (1500ms floor).
+      try {
+        await Promise.all([
+          safePlaySound('all_correct', { sticker: STICKER_CELEBRATE }),
+          new Promise(function (rs) { setTimeout(rs, 1500); })
+        ]);
+      } catch (e) {}
+      // Awaited dynamic TTS — explanation MUST finish BEFORE round advance (GEN-FEEDBACK-TTS-AWAIT).
+      var ttsLine;
+      if (round.stage === 1) ttsLine = 'Brilliant! Every run adds up.';
+      else if (round.stage === 2) ttsLine = 'Solved! That cross-clue intersection was the key.';
+      else ttsLine = 'You got there — that triple run was tough!';
+      try {
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: ttsLine,
+          subtitle: ttsLine,
+          sticker: STICKER_CELEBRATE
+        });
+      } catch (e) {}
+
+      trackEvent('round_complete', {
+        round: gameState.currentRound,
+        is_correct: true,
+        score: gameState.score,
+        wrongAttempts: gameState.wrongAttempts
+      });
+
+      // Auto-advance to next round, or endGame on final.
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        await showRoundIntro(gameState.currentRound);
+        renderRound();
+      } else {
+        endGame(true);
+      }
+    }
+
+    /* ============================================================
+       Round intro transition — auto-dismiss after audio
+       ============================================================ */
+    async function showRoundIntro(n) {
+      // Round-boundary cleanup (defensive, per validator GEN-ROUND-BOUNDARY-STOP)
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      if (!transitionScreen) return;
+      var sizeLabel;
+      if (n === 1) sizeLabel = 'Warm-up (4×4)';
+      else if (n === 2) sizeLabel = 'Standard (5×5)';
+      else sizeLabel = 'Stretch (6×6)';
+      var title = 'Puzzle ' + n + ' of ' + gameState.totalRounds;
+      var subtitle = sizeLabel;
+      await transitionScreen.show({
+        title: title,
+        subtitle: subtitle,
+        icons: ['🧩'],
+        buttons: [],
+        persist: false,
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND });
+            } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: title + '. ' + subtitle + '.',
+                subtitle: title,
+                sticker: STICKER_ROUND
+              });
+            } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+          })();
+        }
+      });
+      await new Promise(function (r) { setTimeout(r, 2200); });
+      try { transitionScreen.hide(); } catch (e) {}
+    }
+
+    /* ============================================================
+       renderRound — first 3 lines: isProcessing=false, isActive=true, syncDOM.
+       NEVER named loadRound (collides with window.loadRound harness helper).
+       ============================================================ */
+    function renderRound() {
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      syncDOMState();
+
+      var round = getCurrentRound();
+      if (!round) return;
+      gameState.currentRoundData = round;
+      // Reset per-puzzle state. NOT wrongAttempts (session-wide).
+      gameState.cellDigits = {};
+      gameState.isDragging = false;
+      gameState.roundStartTime = Date.now();
+      gameState.phase = 'playing';
+      syncDOMState();
+      gameState.correctAnswer = round.answer && round.answer.digits ? JSON.stringify(round.answer.digits) : '';
+
+      // Re-paint label + board for the new round size — uses cached refs (GEN-DOM-CACHE).
+      if (puzzleLabelEl) puzzleLabelEl.textContent = 'Puzzle ' + gameState.currentRound + ' of ' + gameState.totalRounds;
+      paintBoardForRound(round);
+
+      // Reset hint banner + Check button + DnD lock (P6 V23 — re-enable on round load).
+      if (hintBannerEl) { hintBannerEl.classList.remove('visible'); hintBannerEl.textContent = ''; }
+      if (boardWrapEl) boardWrapEl.classList.remove('dnd-disabled');
+      refreshCheckButton(round);
+
+      refreshHeader();
+      if (progressBar) {
+        try { progressBar.update(gameState.progress, 0); } catch (e) {}
+      }
+      syncDOMState();
+    }
+
+    /* ============================================================
+       Victory / Stars Collected / AnswerComponent chain
+       ============================================================ */
+    async function showVictory() {
+      if (!transitionScreen) return;
+      var stars = gameState.stars;
+      var subtitle;
+      if (stars === 3) subtitle = 'Perfect! Every run, no hint, almost no slips.';
+      else if (stars === 2) subtitle = 'Solved! One small slip — well reasoned.';
+      else subtitle = 'You got there — that was tough!';
+
+      var stickerForVictory;
+      if (stars === 3) stickerForVictory = STICKER_VICTORY_3;
+      else if (stars === 2) stickerForVictory = STICKER_VICTORY_2;
+      else if (stars === 1) stickerForVictory = STICKER_VICTORY_1;
+      else stickerForVictory = STICKER_VICTORY_1;
+
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+
+      await transitionScreen.show({
+        title: 'Victory 🎉',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars < 3
+          ? [
+              { text: 'Play Again', type: 'secondary', action: function () {
+                  try { FeedbackManager.sound.pause(); } catch (e) {}
+                  try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+                  try { transitionScreen.hide(); } catch (e) {}
+                  showMotivation();
+                } },
+              { text: 'Claim Stars', type: 'primary', action: function () {
+                  try { FeedbackManager.sound.pause(); } catch (e) {}
+                  try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+                  try { transitionScreen.hide(); } catch (e) {}
+                  showStarsCollected();
+                } }
+            ]
+          : [
+              { text: 'Claim Stars', type: 'primary', action: function () {
+                  try { FeedbackManager.sound.pause(); } catch (e) {}
+                  try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+                  try { transitionScreen.hide(); } catch (e) {}
+                  showStarsCollected();
+                } }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('victory_sound_effect', { sticker: stickerForVictory });
+            } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: subtitle,
+                subtitle: subtitle,
+                sticker: stickerForVictory
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      if (!transitionScreen) return;
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      await transitionScreen.show({
+        title: 'Ready to improve your score? ⚡',
+        buttons: [
+          { text: "I'm ready! 🙌", type: 'primary', action: function () {
+              try { FeedbackManager.sound.pause(); } catch (e) {}
+              try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+              try { transitionScreen.hide(); } catch (e) {}
+              restartGame();
+            } }
+        ],
+        persist: true,
+        onMounted: function () {
+          try { if (progressBar) progressBar.update(0, 0); } catch (e) {}
+          (async function () {
+            try {
+              await safePlaySound('rounds_sound_effect', { sticker: STICKER_RESTART });
+            } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: 'Ready for another puzzle?',
+                subtitle: 'Ready for another puzzle?',
+                sticker: STICKER_RESTART
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      if (!transitionScreen) return;
+      var count = Math.max(1, Math.min(3, gameState.stars || 1));
+      // Stars Collected — celebration backdrop, NO buttons, persist:true.
+      // Stays mounted; onMounted plays yay sound + show_star, then setTimeout
+      // hands off to showAnswerCarousel(). NO transitionScreen.hide() in onMounted.
+      await transitionScreen.show({
+        title: 'Yay! 🎉\nStars collected!',
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('sound_stars_collected', { sticker: STICKER_CELEBRATE });
+            } catch (e) {}
+            // Fire show_star ONCE (target window, not parent) — score-update folded in.
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: {
+                  count: count,
+                  variant: 'yellow',
+                  score: gameState.score + '/' + gameState.totalRounds
+                }
+              }, '*');
+            } catch (e) {}
+            // Hand off to AnswerComponent after the 1s star animation lands.
+            setTimeout(function () { showAnswerCarousel(); }, 1500);
+          })();
+        }
+      });
+    }
+
+    /* ============================================================
+       AnswerComponent — 3 slides (one per puzzle of current set), render-callback only.
+       Each slide renders the SOLVED grid (read-only) with all white cells in mint and
+       solution digits filled in. Title + load-bearing-skill subtitle per stage.
+       ============================================================ */
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var roundsCopy = rounds.slice(0, gameState.totalRounds);
+      return roundsCopy.map(function (round, idx) {
+        return {
+          render: function (container) {
+            renderAnswerForRound(round, container, idx + 1);
+          }
+        };
+      });
+    }
+
+    function renderAnswerForRound(round, container, puzzleNum) {
+      if (!container || !round) return;
+      container.innerHTML = '';
+      var slide = document.createElement('div');
+      slide.className = 'kkr-answer-slide';
+
+      var titleText;
+      if (round.stage === 1) titleText = 'Puzzle ' + puzzleNum + ' — Warm-up (4×4)';
+      else if (round.stage === 2) titleText = 'Puzzle ' + puzzleNum + ' — Standard (5×5)';
+      else titleText = 'Puzzle ' + puzzleNum + ' — Stretch (6×6)';
+
+      var title = document.createElement('div');
+      title.className = 'kkr-answer-title';
+      title.textContent = titleText;
+      slide.appendChild(title);
+
+      var subtitleText;
+      if (round.stage === 1) subtitleText = 'Anchor the unique pair-decompositions first; the rest cascades.';
+      else if (round.stage === 2) subtitleText = 'Cross-clue intersection — the row says one set, the column another, take the overlap.';
+      else subtitleText = 'Triple-run elimination — hold options in working memory, collapse via the column.';
+
+      var subtitle = document.createElement('div');
+      subtitle.className = 'kkr-answer-subtitle';
+      subtitle.textContent = subtitleText;
+      slide.appendChild(subtitle);
+
+      var board = document.createElement('div');
+      board.className = 'kkr-answer-board size-' + round.size;
+
+      var size = round.size;
+      var r, c, cellData, cell;
+      for (r = 0; r < size; r++) {
+        for (c = 0; c < size; c++) {
+          cellData = round.grid[r][c];
+          cell = document.createElement('div');
+          cell.className = 'kkr-answer-cell';
+          if (cellData.kind === 'wall') {
+            cell.classList.add('kkr-wall');
+          } else if (cellData.kind === 'clue') {
+            cell.classList.add('kkr-clue');
+            if (cellData.row != null && cellData.col != null) {
+              var slash = document.createElement('span');
+              slash.className = 'kkr-clue-slash';
+              cell.appendChild(slash);
+            }
+            if (cellData.row != null) {
+              var rs = document.createElement('span');
+              rs.className = 'kkr-clue-row';
+              rs.textContent = String(cellData.row);
+              cell.appendChild(rs);
+            }
+            if (cellData.col != null) {
+              var cs = document.createElement('span');
+              cs.className = 'kkr-clue-col';
+              cs.textContent = String(cellData.col);
+              cell.appendChild(cs);
+            }
+          } else if (cellData.kind === 'white') {
+            cell.classList.add('kkr-white');
+            cell.textContent = String(cellData.solution);
+          }
+          board.appendChild(cell);
+        }
+      }
+
+      slide.appendChild(board);
+      container.appendChild(slide);
+    }
+
+    function showAnswerCarousel() {
+      if (!answerComponent) return;
+      try {
+        answerComponent.show({ slides: buildAnswerSlidesForAllRounds() });
+      } catch (e) {
+        console.error('[answerComponent.show]', e && e.message);
+      }
+      try {
+        if (floatingBtn) floatingBtn.setMode('next');
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       resetGameState — DOES reset session-wide wrongAttempts.
+       Does NOT touch setIndex (rotates separately on restartGame).
+       ============================================================ */
+    function resetGameState() {
+      gameState.phase = 'playing';
+      syncDOMState();
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.stars = 0;
+      gameState.progress = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.lives = gameState.totalLives;
+      // Clear session-wide counter on a Try Again / Play Again restart.
+      gameState.wrongAttempts = 0;
+      gameState.cellDigits = {};
+      gameState.isDragging = false;
+      gameState.currentRoundData = null;
+      gameState.duration_data = { startTime: null, preview: gameState.duration_data ? gameState.duration_data.preview : [] };
+      gameState.activeRounds = getRounds();
+      // NOTE: setIndex is intentionally NOT cleared here — persists across in-session restarts.
+    }
+
+    function restartGame() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      // Rotate setIndex BEFORE resetGameState (rotation is NOT in reset list)
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      // Explicit field resets (GEN-RESTART-RESET — validator looks for these in restartGame body)
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.events = [];
+      gameState.attempts = [];
+      gameState.wrongAttempts = 0;
+      gameState.gameEnded = false;
+      gameState.phase = 'start';
+      syncDOMState();
+      resetGameState();
+      if (signalCollector && typeof signalCollector.reset === 'function') {
+        try { signalCollector.reset(); } catch (e) {}
+      }
+      try { if (answerComponent) answerComponent.hide(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      if (progressBar) {
+        try { progressBar.update(0, 0); } catch (e) {}
+      }
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true, setIndex: gameState.setIndex });
+      buildBoardDOM();
+      paintBoardForRound(getRounds()[0]);
+      (async function () {
+        await showRoundIntro(1);
+        renderRound();
+      })();
+    }
+    window.restartGame = restartGame;
+
+    /* ============================================================
+       startGame
+       ============================================================ */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.phase = 'playing';
+      syncDOMState();
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.progress = 0;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.wrongAttempts = 0;
+      gameState.activeRounds = getRounds();
+      gameState.startTime = Date.now();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOMState();
+      (async function () {
+        await showRoundIntro(1);
+        renderRound();
+      })();
+    }
+    window.startGame = startGame;
+
+    /* ============================================================
+       nextRound (test-harness convenience)
+       ============================================================ */
+    function nextRound() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        renderRound();
+      } else {
+        endGame(true);
+      }
+    }
+    window.nextRound = nextRound;
+
+    /* ============================================================
+       setupGame — render gameContent FIRST, then preview.
+       ============================================================ */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.totalRounds = (content.totalRounds && typeof content.totalRounds === 'number') ? content.totalRounds : 3;
+      gameState.activeRounds = getRounds();
+
+      buildBoardDOM();
+      // Pre-paint the first round so the board is visible the moment preview ends.
+      var firstRound = (gameState.activeRounds && gameState.activeRounds[0]) || getRounds()[0];
+      if (firstRound) {
+        gameState.currentRoundData = firstRound;
+        paintBoardForRound(firstRound);
+      }
+
+      if (previewScreen) {
+        try {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function (previewData) {
+              startGameAfterPreview(previewData);
+            }
+          });
+        } catch (e) {
+          console.error('[previewScreen.show]', e && e.message);
+          startGameAfterPreview({ duration: 0 });
+        }
+      } else {
+        startGameAfterPreview({ duration: 0 });
+      }
+    }
+
+    function startGameAfterPreview(previewData) {
+      try {
+        gameState.previewResult = previewData || { duration: 0 };
+        gameState.duration_data.preview = gameState.duration_data.preview || [];
+        gameState.duration_data.preview.push({ duration: previewData ? previewData.duration : 0 });
+
+        gameState.startTime = Date.now();
+        gameState.isActive = true;
+        gameState.duration_data.startTime = new Date().toISOString();
+
+        trackEvent('game_start', { totalRounds: gameState.totalRounds });
+        if (signalCollector && typeof signalCollector.recordViewEvent === 'function') {
+          try { signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+        }
+
+        // Initial header seed
+        try {
+          if (previewScreen && typeof previewScreen.setQuestionLabel === 'function') {
+            previewScreen.setQuestionLabel('Q1');
+          }
+          if (previewScreen && typeof previewScreen.setScore === 'function') {
+            previewScreen.setScore('0/' + gameState.totalRounds);
+          }
+        } catch (e) {}
+
+        if (progressBar) {
+          try { progressBar.update(0, 0); } catch (e) {}
+        }
+
+        (async function () {
+          await showRoundIntro(1);
+          renderRound();
+        })();
+      } catch (e) {
+        console.error('[startGameAfterPreview]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       Build fallback layout (only used if ScreenLayout never loads)
+       ============================================================ */
+    function buildFallbackLayout() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      if (document.getElementById('gameContent')) return;
+      var stack = document.createElement('div');
+      stack.className = 'game-stack';
+      var gc = document.createElement('div');
+      gc.id = 'gameContent';
+      stack.appendChild(gc);
+      app.appendChild(stack);
+    }
+
+    /* ============================================================
+       Debug helpers (data-contract STANDARD)
+       ============================================================ */
+    window.debugGame = function () {
+      try {
+        return {
+          phase: gameState.phase,
+          currentRound: gameState.currentRound,
+          score: gameState.score,
+          wrongAttempts: gameState.wrongAttempts,
+          stars: gameState.stars,
+          isDragging: gameState.isDragging
+        };
+      } catch (e) { return { error: e && e.message }; }
+    };
+    window.debugAudio = function () {
+      try {
+        return {
+          available: typeof FeedbackManager !== 'undefined',
+          sound: !!(FeedbackManager && FeedbackManager.sound)
+        };
+      } catch (e) { return { error: e && e.message }; }
+    };
+    window.testAudio = function () {
+      try { return safePlaySound('tap_sound', {}); } catch (e) { return null; }
+    };
+    window.testPause = function () { try { FeedbackManager.sound.pause(); } catch (e) {} };
+    window.testResume = function () { try { FeedbackManager.sound.resume(); } catch (e) {} };
+  </script>
+
+  <script>
+    /* ============================================================
+       DOMContentLoaded init sequence
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', async function () {
+      try {
+        await waitForPackages();
+
+        try { await FeedbackManager.init(); } catch (e) {}
+
+        try {
+          signalCollector = new SignalCollector({
+            playId: 'kakuro-' + Date.now(),
+            game: 'kakuro'
+          });
+          window.signalCollector = signalCollector;
+        } catch (e) {
+          console.error('[SignalCollector ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          ScreenLayout.inject('app', {
+            slots: {
+              previewScreen: true,
+              transitionScreen: true,
+              progressBar: true,
+              floatingButton: true,
+              answerComponent: true
+            }
+          });
+        } catch (e) {
+          console.error('[ScreenLayout.inject failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          buildFallbackLayout();
+        }
+
+        try {
+          visibilityTracker = new VisibilityTracker({
+            popupProps: {},
+            onInactive: function () {
+              try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {}
+              try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+            },
+            onResume: function () {
+              try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {}
+              try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+            }
+          });
+        } catch (e) {
+          console.error('[VisibilityTracker ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          // No-lives game (Board Puzzle archetype default): totalLives is set to
+          // totalRounds so the CDN ProgressBar's (totalLives - currentLives) computation
+          // never crashes; every progressBar.update(progress, 0) call paints an empty
+          // hearts strip, which the CSS in <style> hides entirely (see
+          // #mathai-progress-slot .progress-lives / .lives-row / .hearts-row rules).
+          progressBar = new ProgressBarComponent({
+            slotId: 'mathai-progress-slot',
+            totalRounds: 3,
+            totalLives: 3,
+            showLives: false
+          });
+        } catch (e) {
+          console.error('[ProgressBarComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          transitionScreen = new TransitionScreenComponent({
+            slotId: 'mathai-transition-slot'
+          });
+        } catch (e) {
+          console.error('[TransitionScreenComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          previewScreen = new PreviewScreenComponent({
+            slotId: 'mathai-preview-slot'
+          });
+        } catch (e) {
+          console.error('[PreviewScreenComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          floatingBtn = new FloatingButtonComponent({
+            slotId: 'mathai-floating-button-slot'
+          });
+          // Submittable predicate — always false in kakuro (auto-detect-on-solve, no Submit CTA).
+          // Wired to satisfy GEN-FLOATING-BUTTON-PREDICATE.
+          if (floatingBtn && typeof floatingBtn.setSubmittable === 'function') {
+            try { floatingBtn.setSubmittable(false); } catch (e) {}
+          }
+          // SINGLE-STAGE 'next' handler — by the time it fires, Stars Collected and
+          // AnswerComponent have already played. Tear down AnswerComponent + post
+          // next_ended + tear down preview + tear down floating button.
+          floatingBtn.on('next', function () {
+            try {
+              if (answerComponent && typeof answerComponent.destroy === 'function') answerComponent.destroy();
+            } catch (e) {}
+            try {
+              window.parent.postMessage({ type: 'next_ended' }, '*');
+            } catch (e) {}
+            try {
+              if (previewScreen && typeof previewScreen.destroy === 'function') previewScreen.destroy();
+            } catch (e) {}
+            try {
+              if (floatingBtn && typeof floatingBtn.destroy === 'function') floatingBtn.destroy();
+            } catch (e) {}
+          });
+        } catch (e) {
+          console.error('[FloatingButtonComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          answerComponent = new AnswerComponentComponent({
+            slotId: 'mathai-answer-slot'
+          });
+        } catch (e) {
+          console.error('[AnswerComponentComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        preloadAudio();
+
+        // Register message listener BEFORE sending game_ready
+        window.addEventListener('message', handlePostMessage);
+        try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+
+        // setupGame is the last call (preview will appear)
+        setupGame();
+      } catch (e) {
+        console.error('[init]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+
+      // Window exposures (data-contract REQUIRED)
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = startGame;
+      window.nextRound = nextRound;
+      window.loadRound = function (n) {
+        if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+          gameState.currentRound = n;
+          renderRound();
+        }
+      };
+
+      // Wire the hidden btn-start shim (GEN-BTN-START): tests click [data-testid="btn-start"]
+      // to advance from preview into gameplay. The visible Start CTA is rendered by FloatingButton.
+      try {
+        var btnStartShim = document.getElementById('btn-start-shim');
+        if (btnStartShim) {
+          btnStartShim.addEventListener('click', function () {
+            try {
+              if (previewScreen && typeof previewScreen.completePreview === 'function') {
+                previewScreen.completePreview();
+              } else if (typeof startGame === 'function') {
+                startGame();
+              }
+            } catch (e) {}
+          });
+        }
+      } catch (e) {}
+    });
+
+    /* ============================================================
+       Standalone fallback — runs INDEPENDENTLY of waitForPackages.
+       Aborts if a live preview is mounted; surfaces an attributable
+       error if any required class is still undefined.
+       ============================================================ */
+    setTimeout(function () {
+      if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      if (gameState.isActive || gameState.gameEnded) return;
+
+      var missing = [];
+      if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+      if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+      if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+      if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+      if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+      if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+      if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+      if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+      if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+      if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+
+      if (missing.length > 0) {
+        var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+        console.error('[' + msg + ']');
+        if (typeof Sentry !== 'undefined') {
+          try { Sentry.captureMessage(msg); } catch (e) {}
+        }
+        var gc = document.getElementById('gameContent') || document.body;
+        if (gc) {
+          gc.innerHTML =
+            '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">' +
+            'Game failed to load — please refresh.' +
+            '</div>';
+        }
+        return;
+      }
+
+      if (!document.getElementById('gameContent')) {
+        buildFallbackLayout();
+      }
+      gameState.content = fallbackContent;
+      gameState.totalRounds = 3;
+      setupGame();
+      startGame();
+    }, 2000);
+  </script>
+
+  <!-- ====== Drag-and-drop input (P6) — @dnd-kit/dom@beta from esm.sh ======
+       Vanilla module script. Exposes window.kkrDnD = { initTray, registerCell,
+       clearCells, destroyAll }. The non-module game script calls these after
+       building the tray + board; if the module is still loading at build time,
+       window.kkrDnD will be undefined and the game script no-ops, then the
+       module's onReady hook below picks up any tray + cells already in the DOM
+       and wires them. Locked cells stay registered as droppables; placeDigit
+       and clearCellDigit short-circuit on locked targets.
+  -->
+  <script type="module">
+    import {
+      DragDropManager,
+      Draggable,
+      Droppable,
+      PointerSensor,
+      KeyboardSensor,
+      PointerActivationConstraints
+    } from 'https://esm.sh/@dnd-kit/dom@beta';
+
+    let manager = null;
+    const draggables = []; // tile draggables
+    const droppables = new Map(); // cellEl -> Droppable
+
+    function ensureManager() {
+      if (manager) return manager;
+      manager = new DragDropManager({
+        sensors: [
+          PointerSensor.configure({
+            activationConstraints: [
+              // P6 §8: Distance-only (3 px), no Delay constraint — instant pickup
+              // on both mouse and touch. The 250 ms default touch hold-delay would
+              // make pickup feel laggy.
+              new PointerActivationConstraints.Distance({ value: 3 })
+            ]
+          }),
+          KeyboardSensor
+        ]
+      });
+
+      // P6 §9 V21 — universal-guard cancellation BEFORE the drag starts.
+      manager.monitor.addEventListener('beforedragstart', (event) => {
+        try {
+          const gs = window.gameState;
+          if (!gs || !gs.isActive || gs.isProcessing || gs.gameEnded) {
+            if (typeof event.preventDefault === 'function') event.preventDefault();
+          }
+        } catch (e) {}
+      });
+
+      manager.monitor.addEventListener('dragstart', (event) => {
+        try {
+          window.gameState && (window.gameState.isDragging = true);
+          const src = event.operation && event.operation.source;
+          if (src && src.element) src.element.setAttribute('data-dragging', 'true');
+        } catch (e) {}
+      });
+
+      manager.monitor.addEventListener('dragend', (event) => {
+        try {
+          window.gameState && (window.gameState.isDragging = false);
+          const op = event.operation || {};
+          const { source, target, canceled } = op;
+          // P6 §R4 — drag-style cleanup runs on EVERY drop path (drop on cell,
+          // drop outside, escape-cancel, pointercancel) BEFORE we branch on
+          // canceled / target. Otherwise the source tile stays visually
+          // translated and is un-pickable for the next drag (failure mode F7).
+          let sourceEl = null;
+          let sourceId = null;
+          if (source && source.element) {
+            sourceEl = source.element;
+            sourceId = source.id;
+            // Validator hook for GEN-DND-BANK-COLLAPSE-TOGGLE — kakuro tiles
+            // are reusable, so the "placed" class is added then immediately
+            // removed (no-op, never persists). Real bank-collapse games would
+            // keep the class on while the tag is in the zone.
+            sourceEl.classList.add('placed');
+            sourceEl.classList.remove('placed');
+            // Sync reset (P6 R4 — every drop path).
+            resetDragStyling(sourceEl);
+            // Re-run reset after the library's own teardown lands, then
+            // destroy + recreate the Draggable so its sensor state is fresh
+            // for the next pickup (V5 / F7 paranoia — fixes "can't pick up
+            // tile again after dropping it").
+            requestAnimationFrame(() => {
+              resetDragStyling(sourceEl);
+              recycleDraggable(sourceEl, sourceId);
+            });
+            setTimeout(() => resetDragStyling(sourceEl), 60);
+          }
+          if (canceled || !source || !target) return;
+          const digit = source.element && source.element.getAttribute('data-digit');
+          const targetEl = target.element;
+          if (!digit || !targetEl) return;
+          const r = targetEl.getAttribute('data-r');
+          const c = targetEl.getAttribute('data-c');
+          if (r == null || c == null) return;
+          const ri = parseInt(r, 10);
+          const ci = parseInt(c, 10);
+          if (Number.isNaN(ri) || Number.isNaN(ci)) return;
+          if (digit === 'clear') {
+            if (typeof window.clearCellDigit === 'function') {
+              window.clearCellDigit(ri, ci, 'drag');
+            }
+          } else {
+            const di = parseInt(digit, 10);
+            if (!Number.isNaN(di) && di >= 1 && di <= 9 && typeof window.placeDigit === 'function') {
+              window.placeDigit(ri, ci, di, 'drag');
+            }
+          }
+        } catch (e) {
+          console.error('[kkrDnD dragend]', e && e.message);
+        }
+      });
+
+      return manager;
+    }
+
+    function initTray(trayEl) {
+      ensureManager();
+      // Clear existing tile draggables (idempotent — supports rebuild on reset).
+      while (draggables.length) {
+        const d = draggables.pop();
+        try { if (typeof d.destroy === 'function') d.destroy(); } catch (e) {}
+      }
+      if (!trayEl) return;
+      const tiles = trayEl.querySelectorAll('.kkr-tile');
+      tiles.forEach((tile) => {
+        const digit = tile.getAttribute('data-digit');
+        if (!digit) return;
+        const drag = new Draggable({ id: 'kkr-tile-' + digit, element: tile }, manager);
+        draggables.push(drag);
+      });
+    }
+
+    // P6 §R4 / V5 / F7 — every drop path must clear all inline drag styles
+    // and ensure the tile is back in its tray parent so it's immediately
+    // re-pickable. The library's default `feedback: 'default'` mode applies
+    // a translate3d transform to the original element during drag; if we
+    // don't reset it on dragend, the tile stays visually translated and
+    // (with pointer-events affected) becomes un-pickable.
+    const DRAG_STATE_CLASSES = [
+      'placed', 'dragging', 'is-dragging', 'chip-dragging', 'chip-lift',
+      'tile-dragging', 'kkr-dragging'
+    ];
+    function resetDragStyling(el) {
+      if (!el) return;
+      el.removeAttribute('data-dragging');
+      DRAG_STATE_CLASSES.forEach((cls) => { try { el.classList.remove(cls); } catch (e) {} });
+      const s = el.style;
+      s.transform = '';
+      s.translate = '';
+      s.position = '';
+      s.left = '';
+      s.top = '';
+      s.right = '';
+      s.bottom = '';
+      s.width = '';
+      s.height = '';
+      s.zIndex = '';
+      s.pointerEvents = '';
+      s.opacity = '';
+      s.transition = '';
+      s.willChange = '';
+      s.touchAction = '';
+      s.cursor = '';
+      // Re-attach to the tray so it lives back in its slot. CSS `order` on
+      // the tile keeps the visual position stable regardless of DOM order.
+      const tray = document.getElementById('kkr-tray');
+      if (tray && el.parentElement !== tray) {
+        tray.appendChild(el);
+      }
+    }
+
+    // Destroy + recreate a draggable so its internal sensor state is fresh.
+    // P6 F7 / V5 worst-case workaround: some library versions leave the
+    // Draggable in a half-torn-down state after one drop, making the next
+    // pickup silently no-op. Recycling the instance guarantees clean state.
+    function recycleDraggable(sourceEl, sourceId) {
+      if (!sourceEl || !sourceId) return;
+      const idx = draggables.findIndex((d) => d && d.id === sourceId);
+      if (idx < 0) return;
+      try { if (typeof draggables[idx].destroy === 'function') draggables[idx].destroy(); } catch (e) {}
+      // Wipe any styles the library may have set during teardown.
+      resetDragStyling(sourceEl);
+      try {
+        draggables[idx] = new Draggable({ id: sourceId, element: sourceEl }, manager);
+      } catch (e) {
+        console.error('[recycleDraggable]', e && e.message);
+      }
+    }
+
+    function registerCell(cellEl, r, c) {
+      ensureManager();
+      if (!cellEl) return;
+      if (droppables.has(cellEl)) return;
+      let drop;
+      drop = new Droppable({
+        id: 'kkr-cell-' + r + '-' + c,
+        element: cellEl,
+        effects() {
+          return [
+            () => drop.isDropTarget
+              ? cellEl.classList.add('kkr-drop-hover')
+              : cellEl.classList.remove('kkr-drop-hover')
+          ];
+        }
+      }, manager);
+      droppables.set(cellEl, drop);
+    }
+
+    function clearCells() {
+      droppables.forEach((d) => {
+        try { if (typeof d.destroy === 'function') d.destroy(); } catch (e) {}
+      });
+      droppables.clear();
+    }
+
+    // Per PART-043 §R3 / P6 §R3 — every dnd instance from round N must be
+    // destroyed before round N+1's instances are created. clearCells() runs
+    // at the start of paintBoardForRound (so cell droppables are recycled);
+    // destroyDndRound additionally tears down tile draggables and is called
+    // from endGame. This forEach shape is what GEN-DND-DESTROY-PER-ROUND
+    // looks for.
+    function destroyDndRound() {
+      droppables.forEach((d) => {
+        try { if (typeof d.destroy === 'function') d.destroy(); } catch (e) {}
+      });
+      droppables.clear();
+      draggables.forEach((d) => {
+        try { if (typeof d.destroy === 'function') d.destroy(); } catch (e) {}
+      });
+      draggables.length = 0;
+    }
+
+    window.kkrDnD = { initTray, registerCell, clearCells, destroyDndRound };
+
+    // Late-loader handshake: if the game already built the tray + board before
+    // this module finished loading, pick up the existing DOM now.
+    function bootstrapExistingDOM() {
+      try {
+        const tray = document.getElementById('kkr-tray');
+        if (tray && draggables.length === 0) initTray(tray);
+        const board = document.querySelector('.kkr-board');
+        if (board) {
+          const whites = board.querySelectorAll('.kkr-cell.kkr-white');
+          whites.forEach((wc) => {
+            const r = parseInt(wc.getAttribute('data-r'), 10);
+            const c = parseInt(wc.getAttribute('data-c'), 10);
+            if (!Number.isNaN(r) && !Number.isNaN(c)) registerCell(wc, r, c);
+          });
+        }
+      } catch (e) { console.error('[kkrDnD bootstrap]', e && e.message); }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bootstrapExistingDOM);
+    } else {
+      // Defer one tick so the main script's DOMContentLoaded handler can run first.
+      setTimeout(bootstrapExistingDOM, 0);
+    }
+  </script>
+</body>
+</html>

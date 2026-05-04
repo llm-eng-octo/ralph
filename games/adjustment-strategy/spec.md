@@ -13,7 +13,7 @@
 - **Title:** Adjustment Strategy
 - **Game ID:** game_adjustment_strategy
 - **Type:** standard
-- **Description:** Two numbers are shown with independent +/− buttons. The user adjusts numbers to make mental addition easier (e.g., 47+33 → 50+30), then types the sum in an input field and taps Check. The answer is always the original sum. 9 rounds across 3 levels (3 rounds per level), 3 lives. Stars based on average time per level.
+- **Description:** Two numbers are shown with independent +/− buttons. The user adjusts numbers to make mental addition easier (e.g., 47+33 → 50+30), then types the sum in an input field and taps Check. The answer is **the sum of the user-adjusted values** — i.e., `(numberA + deltaA) + (numberB + deltaB)`. The game evaluates whatever the user has currently adjusted; it does NOT force the original sum. 9 rounds across 3 levels (3 rounds per level), 3 lives. Stars based on average time per level.
 
 ---
 
@@ -33,7 +33,7 @@
 | PART-010 | Event Tracking                | YES             | Custom events: adjust_number, reset_adjustments, check_answer, correct_answer, wrong_answer, round_complete, level_complete, life_lost                |
 | PART-011 | End Game & Metrics            | YES             | Custom star logic: avg time/level <15s = 3★, <25s = 2★, ≥25s = 1★, game-over = 0★                                                                     |
 | PART-012 | Debug Functions               | YES             | —                                                                                                                                                     |
-| PART-013 | Validation Fixed              | YES             | Rule: parseInt(input) === numberA + numberB                                                                                                           |
+| PART-013 | Validation Fixed              | YES             | Rule: parseInt(input) === (numberA + deltaA) + (numberB + deltaB) — evaluate against the user-adjusted sum, NOT the original sum                      |
 | PART-014 | Validation Function           | NO              | —                                                                                                                                                     |
 | PART-015 | Validation LLM                | NO              | —                                                                                                                                                     |
 | PART-016 | StoriesComponent              | NO              | —                                                                                                                                                     |
@@ -83,7 +83,7 @@ window.gameState = {
   totalLives: 3,
   numberA: 0,                // Original first number
   numberB: 0,                // Original second number
-  correctAnswer: 0,          // numberA + numberB
+  correctAnswer: 0,          // numberA + numberB (kept for analytics/logging only — DO NOT use this for validation; validation uses the live adjusted sum)
   deltaA: 0,                 // Current adjustment delta for number A
   deltaB: 0,                 // Current adjustment delta for number B
   roundStartTime: null,      // Timestamp when current round started
@@ -672,7 +672,8 @@ body {
      - If input non-empty → show Check button
      - If input empty → hide Check button
    - Tap "Check" → checkAnswer()
-     - If parseInt(input) === correctAnswer → CORRECT
+     - Compute `expectedAnswer = (numberA + deltaA) + (numberB + deltaB)` at check-time (NOT `correctAnswer` from round data)
+     - If parseInt(input) === expectedAnswer → CORRECT
        - Play correct sound + dynamic audio ("Correct! Try to be faster next time.")
        - After 400ms → roundComplete()
      - Else → WRONG
@@ -819,14 +820,19 @@ body {
   - gameState.isProcessing = false
   - return
 -
-- trackEvent('check_answer', 'input', { userAnswer, correctAnswer: gameState.correctAnswer, round: gameState.currentRound + 1 })
+- // CRITICAL: compute the expected answer from the CURRENT adjusted values, not from the round's pre-baked correctAnswer.
+- // The user can choose any adjustment; the game evaluates whatever sum they have actually constructed.
+- // Do NOT compare against gameState.correctAnswer here — that would force the original sum and override the user's adjustment.
+- const expectedAnswer = (gameState.numberA + gameState.deltaA) + (gameState.numberB + gameState.deltaB)
 -
-- If userAnswer === gameState.correctAnswer:
+- trackEvent('check_answer', 'input', { userAnswer, expectedAnswer, originalSum: gameState.correctAnswer, deltaA: gameState.deltaA, deltaB: gameState.deltaB, round: gameState.currentRound + 1 })
+-
+- If userAnswer === expectedAnswer:
   - // CORRECT
   - try { await FeedbackManager.sound.play('correct_tap'); } catch(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
   - try { await FeedbackManager.playDynamicFeedback({ audio_content: getCorrectPhrase(), subtitle: getCorrectPhrase() }); } catch(e) {}
-  - trackEvent('correct_answer', 'input', { userAnswer, round: gameState.currentRound + 1 })
-  - recordAttempt({ input_of_user: { action: 'check_answer', answer: userAnswer, deltaA: gameState.deltaA, deltaB: gameState.deltaB }, correct: true, metadata: { round: gameState.currentRound + 1, question: `${gameState.numberA} + ${gameState.numberB}`, correctAnswer: gameState.correctAnswer, validationType: 'fixed' } })
+  - trackEvent('correct_answer', 'input', { userAnswer, expectedAnswer, round: gameState.currentRound + 1 })
+  - recordAttempt({ input_of_user: { action: 'check_answer', answer: userAnswer, deltaA: gameState.deltaA, deltaB: gameState.deltaB }, correct: true, metadata: { round: gameState.currentRound + 1, question: `${gameState.numberA} + ${gameState.numberB}`, adjustedQuestion: `${gameState.numberA + gameState.deltaA} + ${gameState.numberB + gameState.deltaB}`, expectedAnswer, originalSum: gameState.correctAnswer, validationType: 'adjusted-sum' } })
   - // CRITICAL: Reset isProcessing BEFORE scheduling roundComplete.
   - // If isProcessing stays true across the setTimeout, the next round's loadRound() resets it, but
   - // any rapid user interaction during the 400ms window gets blocked. Worse: if FeedbackManager
@@ -840,9 +846,9 @@ body {
   - progressBar.update(gameState.currentRound, gameState.lives)
   - try { await FeedbackManager.sound.play('wrong_tap'); } catch(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
   - try { await FeedbackManager.playDynamicFeedback({ audio_content: 'Not quite. Check your calculations and try again!', subtitle: 'Not quite. Try again!' }); } catch(e) {}
-  - trackEvent('wrong_answer', 'input', { userAnswer, correctAnswer: gameState.correctAnswer, round: gameState.currentRound + 1 })
+  - trackEvent('wrong_answer', 'input', { userAnswer, expectedAnswer, originalSum: gameState.correctAnswer, deltaA: gameState.deltaA, deltaB: gameState.deltaB, round: gameState.currentRound + 1 })
   - trackEvent('life_lost', 'game', { livesRemaining: gameState.lives })
-  - recordAttempt({ input_of_user: { action: 'check_answer', answer: userAnswer, deltaA: gameState.deltaA, deltaB: gameState.deltaB }, correct: false, metadata: { round: gameState.currentRound + 1, question: `${gameState.numberA} + ${gameState.numberB}`, correctAnswer: gameState.correctAnswer, validationType: 'fixed' } })
+  - recordAttempt({ input_of_user: { action: 'check_answer', answer: userAnswer, deltaA: gameState.deltaA, deltaB: gameState.deltaB }, correct: false, metadata: { round: gameState.currentRound + 1, question: `${gameState.numberA} + ${gameState.numberB}`, adjustedQuestion: `${gameState.numberA + gameState.deltaA} + ${gameState.numberB + gameState.deltaB}`, expectedAnswer, originalSum: gameState.correctAnswer, validationType: 'adjusted-sum' } })
   - // Clear input only, keep adjustments
   - input.value = ''
   - document.getElementById('btn-check').classList.add('hidden')
@@ -1105,19 +1111,40 @@ ASSERT:
   gameState.score == 9, results visible, 3 stars if avg <15s per level
 ```
 
-### Scenario: Use adjustment aid then answer
+### Scenario: Use adjustment aid then answer (compensated — same sum)
 
 ```
-SETUP: Round 1 (47 + 33), game active
+SETUP: Round 1 (47 + 33 = 80), game active
 ACTIONS:
-  click adj-plus on number A 3 times → deltaA = +3, adjusted = 50, badge "+3"
-  click adj-minus on number B 3 times → deltaB = -3, adjusted = 30, badge "-3"
+  click adj-plus on number A 3 times → deltaA = +3, adjusted A = 50, badge "+3"
+  click adj-minus on number B 3 times → deltaB = -3, adjusted B = 30, badge "-3"
+  // Adjusted sum: 50 + 30 = 80 (matches original)
   type "80" in #answer-input
   click #btn-check
 ASSERT:
   correct sound plays
   gameState.deltaA == 3, gameState.deltaB == -3 (recorded in attempt)
   advance to round 2
+```
+
+### Scenario: Adjustment changes the expected sum (uncompensated)
+
+```
+SETUP: Round 1 (47 + 33), game active
+ACTIONS:
+  click adj-plus on number A 3 times → deltaA = +3, adjusted A = 50
+  // deltaB stays 0, adjusted B = 33
+  // Adjusted sum: 50 + 33 = 83 (NOT 80)
+  type "83" in #answer-input
+  click #btn-check
+ASSERT:
+  correct sound plays — game evaluates adjusted sum, not original sum
+  advance to round 2
+
+ALTERNATIVE ACTIONS (typing original sum 80 should now be WRONG):
+  same +3 adjustment on A, type "80", click #btn-check
+ASSERT:
+  wrong sound plays, life lost — because the adjusted sum is 83, not 80
 ```
 
 ### Scenario: Wrong answer → lose life, retry same round
@@ -1279,7 +1306,7 @@ ASSERT: all state reset, level=1, transition screen shows
 - [ ] Reset button resets both deltas to 0, clears input
 - [ ] Input field with "?" placeholder, number-only
 - [ ] Check button appears only when input is non-empty
-- [ ] Correct answer = original numberA + numberB (not adjusted values)
+- [ ] Correct answer = `(numberA + deltaA) + (numberB + deltaB)` — the user-adjusted sum, computed live at check-time. **NEVER compare against `gameState.correctAnswer` (the original sum) in checkAnswer().** The original sum is kept in state only for analytics.
 - [ ] No red/green background change — audio-only feedback
 - [ ] Wrong answer: lose life, clear input, retry same round (adjustments preserved)
 - [ ] 9 rounds, 3 levels (3 per level), 3 lives

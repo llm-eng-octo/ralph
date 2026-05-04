@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "doubles content",
+  "type": "object",
+  "required": [
+    "previewInstruction",
+    "previewAudioText",
+    "previewAudio",
+    "showGameOnPreview",
+    "totalRounds",
+    "totalLives",
+    "answerComponent",
+    "rounds"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "previewInstruction": { "type": "string" },
+    "previewAudioText": { "type": "string" },
+    "previewAudio": { "type": ["string", "null"] },
+    "showGameOnPreview": { "type": "boolean" },
+    "totalRounds": { "type": "integer", "minimum": 1 },
+    "totalLives": { "type": "integer", "minimum": 1 },
+    "answerComponent": { "type": "boolean" },
+    "rounds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "set",
+          "id",
+          "round",
+          "stage",
+          "type",
+          "n",
+          "prompt",
+          "options",
+          "correctIndex",
+          "correctValue",
+          "correctTTS",
+          "correctSubtitle",
+          "wrongTTS",
+          "wrongSubtitle",
+          "misconception_tags",
+          "answer"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "set": { "type": "string", "enum": ["A", "B", "C"] },
+          "id": { "type": "string" },
+          "round": { "type": "integer", "minimum": 1 },
+          "stage": { "type": "integer", "minimum": 1 },
+          "type": { "type": "string" },
+          "n": { "type": "integer" },
+          "prompt": { "type": "string" },
+          "options": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": { "type": "integer" }
+          },
+          "correctIndex": { "type": "integer", "minimum": 0 },
+          "correctValue": { "type": "integer" },
+          "correctTTS": { "type": "string" },
+          "correctSubtitle": { "type": "string" },
+          "wrongTTS": { "type": "string" },
+          "wrongSubtitle": { "type": "string" },
+          "misconception_tags": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "answer": {
+            "type": "object",
+            "required": [
+              "prompt",
+              "options",
+              "correctIndex",
+              "correctValue",
+              "explanation"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "prompt": { "type": "string" },
+              "options": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": { "type": "integer" }
+              },
+              "correctIndex": { "type": "integer", "minimum": 0 },
+              "correctValue": { "type": "integer" },
+              "explanation": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

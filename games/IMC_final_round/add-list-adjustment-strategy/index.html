@@ -1,0 +1,2399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>The Compensation Workout</title>
+
+  <!-- ====== 1. SentryConfig package ====== -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+  <!-- ====== 2. initSentry() definition ====== -->
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({
+        release: 'add-list-adjustment-strategy@1.0.0'
+      }));
+    }
+  </script>
+
+  <!-- ====== 3. Sentry SDK ====== -->
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+  <!-- ====== 4. Initialize Sentry on load ====== -->
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- ====== 5-7. Game CDN packages ====== -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    /* ====== :root variables ====== */
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+
+      --mathai-blue: #667eea;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+      --mathai-color-info: #3B82F6;
+
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+
+      /* Game-specific palette */
+      --comp-minus-bg: #FCDDE0;
+      --comp-minus-text: #E63946;
+      --comp-plus-bg: #D4EFDF;
+      --comp-plus-text: #2A9D8F;
+      --comp-box-bg: #FFFFFF;
+      --comp-box-border-default: #E0E0E0;
+      --comp-box-border-stage2: #3B82F6;
+      --comp-input-border: #E0E0E0;
+      --comp-input-border-correct: #219653;
+      --comp-input-border-wrong: #E35757;
+    }
+
+    /* ====== Reset ====== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+      min-height: 100dvh;
+    }
+
+    @supports not (min-height: 100dvh) {
+      body { min-height: 100vh; }
+    }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility — single scroll owner */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    @supports not (height: 100dvh) {
+      #mathai-preview-slot { height: 100vh; }
+    }
+
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    @supports not (height: 100dvh) {
+      #mathai-preview-slot .mathai-preview-body { height: 100vh; }
+    }
+
+    .hidden { display: none !important; }
+
+    /* ====== Touch targets ====== */
+    button,
+    [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    /* Re-enable selection on inputs */
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    /* ====== Landscape Lock Overlay ====== */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    /* ====== Game-specific styles ====== */
+    #gameContent {
+      width: 100%;
+      padding: 8px 12px 110px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    .comp-workspace {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 18px auto 0 auto;
+      position: relative;
+    }
+
+    /* Reset pill — floated top-right of workspace */
+    .comp-reset-row {
+      width: 100%;
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 8px;
+    }
+
+    .comp-reset-pill {
+      height: 32px;
+      padding: 0 14px;
+      border-radius: 8px;
+      background: #6E7077;
+      color: #FFFFFF;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--mathai-font-family);
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+
+    .comp-reset-pill:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* The pair row — addend stack | + operator | addend stack */
+    .comp-pair-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .comp-addend-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      width: 96px;
+    }
+
+    .comp-nudge-btn {
+      width: 96px;
+      height: 28px;
+      border: 1.5px solid;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: transform 100ms ease, background 200ms ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .comp-nudge-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .comp-nudge-btn.minus {
+      background: #FDECEC;
+      color: #B66A6A;
+      border-color: #F2C7C7;
+      border-radius: 10px 10px 0 0;
+      border-bottom: none;
+    }
+
+    .comp-nudge-btn.plus {
+      background: #ECF7EE;
+      color: #6FA876;
+      border-color: #C9E5CD;
+      border-radius: 0 0 10px 10px;
+      border-top: none;
+    }
+
+    .comp-nudge-btn.is-pressed {
+      transform: scale(0.96);
+    }
+
+    .comp-addend-box {
+      width: 96px;
+      height: 64px;
+      background: #F7F8FA;
+      border: 1.5px solid #E5E7EB;
+      border-top: none;
+      border-bottom: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+
+    /* Stage 2 — soft blue border (still no top/bottom) */
+    .comp-workspace[data-stage="2"] .comp-addend-box {
+      border-color: #9EC3E8;
+    }
+    .comp-workspace[data-stage="2"] .comp-nudge-btn.minus {
+      border-color: #9EC3E8;
+    }
+    .comp-workspace[data-stage="2"] .comp-nudge-btn.plus {
+      border-color: #9EC3E8;
+    }
+
+    /* Stage 3 — bolder digits */
+    .comp-workspace[data-stage="3"] .comp-addend-box {
+      font-weight: 800;
+    }
+
+    /* Plus operator — small muted */
+    .comp-plus-operator {
+      font-size: 20px;
+      font-weight: 600;
+      color: #9CA3AF;
+      pointer-events: none;
+      align-self: center;
+      min-width: 18px;
+      text-align: center;
+    }
+
+    /* Numeric input */
+    .comp-input-row {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin-top: 36px;
+    }
+
+    .comp-sum-input {
+      width: 84px;
+      height: 64px;
+      border: 1.5px solid #2A2A33;
+      border-radius: 6px;
+      background: #FAFAFB;
+      color: var(--mathai-primary);
+      font-family: var(--mathai-font-family);
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+
+    .comp-sum-input::placeholder {
+      color: #B5B5B5;
+      font-weight: 500;
+      font-size: 18px;
+    }
+
+    .comp-sum-input.input-correct {
+      border: 2px solid var(--comp-input-border-correct);
+      background: var(--mathai-cell-bg-green);
+      color: var(--mathai-success);
+    }
+
+    .comp-sum-input.input-wrong {
+      border: 2px solid var(--comp-input-border-wrong);
+      background: var(--mathai-cell-bg-red);
+      color: var(--mathai-error);
+    }
+
+    /* Tick badge between boxes (correct reveal) */
+    .comp-tick-badge {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--mathai-success);
+      color: var(--mathai-white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+      align-self: center;
+      animation: tickPop 0.3s ease forwards;
+    }
+
+    /* Round prompt — visually hidden subtitle space (kept off-screen since CASE 3 fire-and-forget) */
+
+    /* Animations */
+    @keyframes tickPop {
+      0% { transform: scale(0); }
+      60% { transform: scale(1.25); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes shakeWrong {
+      0%, 100% { transform: translateX(0); }
+      15% { transform: translateX(-6px); }
+      30% { transform: translateX(6px); }
+      45% { transform: translateX(-6px); }
+      60% { transform: translateX(6px); }
+      75% { transform: translateX(-3px); }
+      90% { transform: translateX(3px); }
+    }
+
+    .shake-wrong {
+      animation: shakeWrong 0.6s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in { animation: fadeIn 0.35s ease; }
+
+    /* Disabled states while feedback */
+    .comp-workspace.is-processing .comp-nudge-btn,
+    .comp-workspace.is-processing .comp-reset-pill {
+      pointer-events: none;
+      opacity: 0.55;
+    }
+
+    /* Answer slide (PART-051) */
+    .answer-slide {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 4px 12px 4px;
+    }
+
+    .answer-slide .answer-strategy-banner {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--mathai-primary);
+      text-align: center;
+      margin: 0 12px 12px 12px;
+      padding: 8px 12px;
+      background: var(--mathai-cell-bg-green);
+      border-radius: 8px;
+      line-height: 1.4;
+      max-width: 320px;
+    }
+
+    .answer-pair-row {
+      display: grid;
+      grid-template-columns: auto auto auto;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      margin: 6px 0;
+    }
+
+    .answer-pair-row .answer-plus {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      width: 32px;
+      text-align: center;
+    }
+
+    .answer-box {
+      width: 88px;
+      height: 64px;
+      background: var(--comp-box-bg);
+      border: 1px solid var(--comp-box-border-default);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+    }
+
+    .answer-box.friendly {
+      border: 2px solid var(--mathai-success);
+      background: var(--mathai-cell-bg-green);
+    }
+
+    .answer-arrow-down {
+      font-size: 22px;
+      color: var(--mathai-gray);
+      margin: 4px 0;
+      text-align: center;
+      width: 100%;
+    }
+
+    .answer-correct-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .answer-correct-tick {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--mathai-success);
+      color: var(--mathai-white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .answer-correct-sum {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--mathai-success);
+    }
+
+    .answer-slide-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--mathai-text-primary);
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-lives="3"></div>
+
+  <script>
+    /* ============================================================
+       Constants & Stickers
+       ============================================================ */
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_NEUTRAL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_WAVE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_VICTORY_3 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_VICTORY_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_VICTORY_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_MOTIVATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    var SETS = ['A', 'B', 'C'];
+
+    /* ============================================================
+       gameState
+       ============================================================ */
+    var gameState = {
+      gameId: 'add-list-adjustment-strategy',
+      phase: 'start_screen',
+      currentRound: 1,
+      totalRounds: 9,
+      totalLives: 3,
+      lives: 3,
+      score: 0,
+      stars: 0,
+      progress: 0,
+      firstTryCorrect: 0,
+      attemptsOnThisRound: 0,
+      addend1Display: 0,
+      addend2Display: 0,
+      attempts: [],
+      events: [],
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      startTime: null,
+      roundStartTime: null,
+      duration_data: { startTime: null, preview: [] },
+      content: null,
+      previewResult: null,
+      setIndex: 0,
+      activeRounds: [],
+      correctAnswer: null,
+      signalConfig: null
+    };
+
+    window.gameState = gameState;
+
+    /* ============================================================
+       fallbackContent — 27 rounds (3 sets × 9 rounds)
+       ============================================================ */
+    var fallbackContent = {
+      previewInstruction:
+        '<p><strong>The Compensation Workout</strong></p>' +
+        '<p>You\'ll see two awkward two-digit numbers to add. Use the <strong>+ and − buttons</strong> on each box to nudge them into a <em>friendlier</em> pair (like 60 + 70).</p>' +
+        '<p>Then <strong>type the sum</strong> and tap <strong>Next Round</strong>.</p>' +
+        '<p>Tip: what you add to one box, you can subtract from the other — the sum stays the same!</p>' +
+        '<p>9 rounds. 3 lives. No timer.</p>',
+      previewAudioText:
+        'The Compensation Workout. You will see two awkward two-digit numbers to add. ' +
+        'Use the plus and minus buttons on each box to nudge them into a friendlier pair, like 60 plus 70. ' +
+        'Then type the sum and tap Next Round. ' +
+        'Tip: what you add to one box, you can subtract from the other — the sum stays the same. ' +
+        'Nine rounds. Three lives. No timer.',
+      previewAudio: null,
+      showGameOnPreview: false,
+
+      totalRounds: 9,
+      totalLives: 3,
+
+      rounds: [
+        // ─────────────── SET A ───────────────
+        // Stage 1
+        { set: 'A', id: 'A_r1_58_72', round: 1, stage: 1, type: 'adjust-and-add',
+          addend1Start: 58, addend2Start: 72, addend1Friendly: 60, addend2Friendly: 70, correct: 130,
+          successAudio: 'Nice! 58 plus 72 is the same as 60 plus 70, which is 130.',
+          successSubtitle: '58 + 72 = 60 + 70 = 130',
+          failAudio: 'Not quite — the sum of 58 and 72 is 130.',
+          failSubtitle: 'Sum of 58 and 72 is 130',
+          misconception_tags: { '132':'compensation-applied-only-to-addend1', '128':'compensation-applied-only-to-addend2', '120':'tens-only-no-ones-add', '140':'arithmetic-error-on-friendly-pair', '134':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 58, addend2Start: 72, addend1Friendly: 60, addend2Friendly: 70, correct: 130,
+            strategyStatement: '58 + 72 = 60 + 70 = 130. Add 2 to 58, subtract 2 from 72 — the sum stays the same.' } },
+        { set: 'A', id: 'A_r2_61_69', round: 2, stage: 1, type: 'adjust-and-add',
+          addend1Start: 61, addend2Start: 69, addend1Friendly: 60, addend2Friendly: 70, correct: 130,
+          successAudio: 'Nice! 61 plus 69 is the same as 60 plus 70, which is 130.',
+          successSubtitle: '61 + 69 = 60 + 70 = 130',
+          failAudio: 'Not quite — the sum of 61 and 69 is 130.',
+          failSubtitle: 'Sum of 61 and 69 is 130',
+          misconception_tags: { '129':'compensation-applied-only-to-addend1', '131':'compensation-applied-only-to-addend2', '120':'tens-only-no-ones-add', '140':'arithmetic-error-on-friendly-pair', '128':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 61, addend2Start: 69, addend1Friendly: 60, addend2Friendly: 70, correct: 130,
+            strategyStatement: '61 + 69 = 60 + 70 = 130. Subtract 1 from 61, add 1 to 69 — the sum stays the same.' } },
+        { set: 'A', id: 'A_r3_47_73', round: 3, stage: 1, type: 'adjust-and-add',
+          addend1Start: 47, addend2Start: 73, addend1Friendly: 50, addend2Friendly: 70, correct: 120,
+          successAudio: 'Nice! 47 plus 73 is the same as 50 plus 70, which is 120.',
+          successSubtitle: '47 + 73 = 50 + 70 = 120',
+          failAudio: 'Not quite — the sum of 47 and 73 is 120.',
+          failSubtitle: 'Sum of 47 and 73 is 120',
+          misconception_tags: { '123':'compensation-applied-only-to-addend1', '117':'compensation-applied-only-to-addend2', '110':'tens-only-no-ones-add', '130':'arithmetic-error-on-friendly-pair', '126':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 47, addend2Start: 73, addend1Friendly: 50, addend2Friendly: 70, correct: 120,
+            strategyStatement: '47 + 73 = 50 + 70 = 120. Add 3 to 47, subtract 3 from 73 — the sum stays the same.' } },
+        // Stage 2
+        { set: 'A', id: 'A_r4_62_68', round: 4, stage: 2, type: 'adjust-and-add',
+          addend1Start: 62, addend2Start: 68, addend1Friendly: 60, addend2Friendly: 70, correct: 130,
+          successAudio: 'Great! 62 plus 68 is the same as 60 plus 70, which is 130.',
+          successSubtitle: '62 + 68 = 60 + 70 = 130',
+          failAudio: 'Not quite — the sum of 62 and 68 is 130.',
+          failSubtitle: 'Sum of 62 and 68 is 130',
+          misconception_tags: { '128':'compensation-applied-only-to-addend1', '132':'compensation-applied-only-to-addend2', '120':'tens-only-no-ones-add', '140':'arithmetic-error-on-friendly-pair', '134':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 62, addend2Start: 68, addend1Friendly: 60, addend2Friendly: 70, correct: 130,
+            strategyStatement: '62 + 68 = 60 + 70 = 130. Subtract 2 from 62, add 2 to 68 — the sum stays the same.' } },
+        { set: 'A', id: 'A_r5_53_77', round: 5, stage: 2, type: 'adjust-and-add',
+          addend1Start: 53, addend2Start: 77, addend1Friendly: 50, addend2Friendly: 80, correct: 130,
+          successAudio: 'Great! 53 plus 77 is the same as 50 plus 80, which is 130.',
+          successSubtitle: '53 + 77 = 50 + 80 = 130',
+          failAudio: 'Not quite — the sum of 53 and 77 is 130.',
+          failSubtitle: 'Sum of 53 and 77 is 130',
+          misconception_tags: { '127':'compensation-applied-only-to-addend1', '133':'compensation-applied-only-to-addend2', '120':'tens-only-no-ones-add', '140':'arithmetic-error-on-friendly-pair', '136':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 53, addend2Start: 77, addend1Friendly: 50, addend2Friendly: 80, correct: 130,
+            strategyStatement: '53 + 77 = 50 + 80 = 130. Subtract 3 from 53, add 3 to 77 — the sum stays the same.' } },
+        { set: 'A', id: 'A_r6_38_82', round: 6, stage: 2, type: 'adjust-and-add',
+          addend1Start: 38, addend2Start: 82, addend1Friendly: 40, addend2Friendly: 80, correct: 120,
+          successAudio: 'Great! 38 plus 82 is the same as 40 plus 80, which is 120.',
+          successSubtitle: '38 + 82 = 40 + 80 = 120',
+          failAudio: 'Not quite — the sum of 38 and 82 is 120.',
+          failSubtitle: 'Sum of 38 and 82 is 120',
+          misconception_tags: { '122':'compensation-applied-only-to-addend1', '118':'compensation-applied-only-to-addend2', '110':'tens-only-no-ones-add', '130':'arithmetic-error-on-friendly-pair', '124':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 38, addend2Start: 82, addend1Friendly: 40, addend2Friendly: 80, correct: 120,
+            strategyStatement: '38 + 82 = 40 + 80 = 120. Add 2 to 38, subtract 2 from 82 — the sum stays the same.' } },
+        // Stage 3
+        { set: 'A', id: 'A_r7_66_74', round: 7, stage: 3, type: 'adjust-and-add',
+          addend1Start: 66, addend2Start: 74, addend1Friendly: 70, addend2Friendly: 70, correct: 140,
+          successAudio: 'Excellent! 66 plus 74 is the same as 70 plus 70, which is 140.',
+          successSubtitle: '66 + 74 = 70 + 70 = 140',
+          failAudio: 'Not quite — the sum of 66 and 74 is 140.',
+          failSubtitle: 'Sum of 66 and 74 is 140',
+          misconception_tags: { '144':'compensation-applied-only-to-addend1', '136':'compensation-applied-only-to-addend2', '130':'tens-only-no-ones-add', '150':'arithmetic-error-on-friendly-pair', '148':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 66, addend2Start: 74, addend1Friendly: 70, addend2Friendly: 70, correct: 140,
+            strategyStatement: '66 + 74 = 70 + 70 = 140. Add 4 to 66, subtract 4 from 74 — the sum stays the same.' } },
+        { set: 'A', id: 'A_r8_64_76', round: 8, stage: 3, type: 'adjust-and-add',
+          addend1Start: 64, addend2Start: 76, addend1Friendly: 70, addend2Friendly: 70, correct: 140,
+          successAudio: 'Excellent! 64 plus 76 is the same as 70 plus 70, which is 140.',
+          successSubtitle: '64 + 76 = 70 + 70 = 140',
+          failAudio: 'Not quite — the sum of 64 and 76 is 140.',
+          failSubtitle: 'Sum of 64 and 76 is 140',
+          misconception_tags: { '146':'compensation-applied-only-to-addend1', '134':'compensation-applied-only-to-addend2', '130':'tens-only-no-ones-add', '150':'arithmetic-error-on-friendly-pair', '152':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 64, addend2Start: 76, addend1Friendly: 70, addend2Friendly: 70, correct: 140,
+            strategyStatement: '64 + 76 = 70 + 70 = 140. Add 6 to 64, subtract 6 from 76 — the sum stays the same.' } },
+        { set: 'A', id: 'A_r9_43_78', round: 9, stage: 3, type: 'adjust-and-add',
+          addend1Start: 43, addend2Start: 78, addend1Friendly: 40, addend2Friendly: 81, correct: 121,
+          successAudio: 'Excellent! 43 plus 78 is the same as 40 plus 81, which is 121.',
+          successSubtitle: '43 + 78 = 40 + 81 = 121',
+          failAudio: 'Not quite — the sum of 43 and 78 is 121.',
+          failSubtitle: 'Sum of 43 and 78 is 121',
+          misconception_tags: { '118':'compensation-applied-only-to-addend1', '124':'compensation-applied-only-to-addend2', '110':'tens-only-no-ones-add', '120':'arithmetic-error-on-friendly-pair', '111':'off-by-ten-place-value-slip', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 43, addend2Start: 78, addend1Friendly: 40, addend2Friendly: 81, correct: 121,
+            strategyStatement: '43 + 78 = 40 + 81 = 121. Subtract 3 from 43, add 3 to 78 — the sum stays the same.' } },
+
+        // ─────────────── SET B ───────────────
+        // Stage 1
+        { set: 'B', id: 'B_r1_59_71', round: 1, stage: 1, type: 'adjust-and-add',
+          addend1Start: 59, addend2Start: 71, addend1Friendly: 60, addend2Friendly: 70, correct: 130,
+          successAudio: 'Nice! 59 plus 71 is the same as 60 plus 70, which is 130.',
+          successSubtitle: '59 + 71 = 60 + 70 = 130',
+          failAudio: 'Not quite — the sum of 59 and 71 is 130.',
+          failSubtitle: 'Sum of 59 and 71 is 130',
+          misconception_tags: { '131':'compensation-applied-only-to-addend1', '129':'compensation-applied-only-to-addend2', '120':'tens-only-no-ones-add', '140':'arithmetic-error-on-friendly-pair', '132':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 59, addend2Start: 71, addend1Friendly: 60, addend2Friendly: 70, correct: 130,
+            strategyStatement: '59 + 71 = 60 + 70 = 130. Add 1 to 59, subtract 1 from 71 — the sum stays the same.' } },
+        { set: 'B', id: 'B_r2_42_68', round: 2, stage: 1, type: 'adjust-and-add',
+          addend1Start: 42, addend2Start: 68, addend1Friendly: 40, addend2Friendly: 70, correct: 110,
+          successAudio: 'Nice! 42 plus 68 is the same as 40 plus 70, which is 110.',
+          successSubtitle: '42 + 68 = 40 + 70 = 110',
+          failAudio: 'Not quite — the sum of 42 and 68 is 110.',
+          failSubtitle: 'Sum of 42 and 68 is 110',
+          misconception_tags: { '108':'compensation-applied-only-to-addend1', '112':'compensation-applied-only-to-addend2', '100':'tens-only-no-ones-add', '120':'arithmetic-error-on-friendly-pair', '114':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 42, addend2Start: 68, addend1Friendly: 40, addend2Friendly: 70, correct: 110,
+            strategyStatement: '42 + 68 = 40 + 70 = 110. Subtract 2 from 42, add 2 to 68 — the sum stays the same.' } },
+        { set: 'B', id: 'B_r3_57_83', round: 3, stage: 1, type: 'adjust-and-add',
+          addend1Start: 57, addend2Start: 83, addend1Friendly: 60, addend2Friendly: 80, correct: 140,
+          successAudio: 'Nice! 57 plus 83 is the same as 60 plus 80, which is 140.',
+          successSubtitle: '57 + 83 = 60 + 80 = 140',
+          failAudio: 'Not quite — the sum of 57 and 83 is 140.',
+          failSubtitle: 'Sum of 57 and 83 is 140',
+          misconception_tags: { '143':'compensation-applied-only-to-addend1', '137':'compensation-applied-only-to-addend2', '130':'tens-only-no-ones-add', '150':'arithmetic-error-on-friendly-pair', '146':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 57, addend2Start: 83, addend1Friendly: 60, addend2Friendly: 80, correct: 140,
+            strategyStatement: '57 + 83 = 60 + 80 = 140. Add 3 to 57, subtract 3 from 83 — the sum stays the same.' } },
+        // Stage 2
+        { set: 'B', id: 'B_r4_63_67', round: 4, stage: 2, type: 'adjust-and-add',
+          addend1Start: 63, addend2Start: 67, addend1Friendly: 60, addend2Friendly: 70, correct: 130,
+          successAudio: 'Great! 63 plus 67 is the same as 60 plus 70, which is 130.',
+          successSubtitle: '63 + 67 = 60 + 70 = 130',
+          failAudio: 'Not quite — the sum of 63 and 67 is 130.',
+          failSubtitle: 'Sum of 63 and 67 is 130',
+          misconception_tags: { '127':'compensation-applied-only-to-addend1', '133':'compensation-applied-only-to-addend2', '120':'tens-only-no-ones-add', '140':'arithmetic-error-on-friendly-pair', '136':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 63, addend2Start: 67, addend1Friendly: 60, addend2Friendly: 70, correct: 130,
+            strategyStatement: '63 + 67 = 60 + 70 = 130. Subtract 3 from 63, add 3 to 67 — the sum stays the same.' } },
+        { set: 'B', id: 'B_r5_54_76', round: 5, stage: 2, type: 'adjust-and-add',
+          addend1Start: 54, addend2Start: 76, addend1Friendly: 50, addend2Friendly: 80, correct: 130,
+          successAudio: 'Great! 54 plus 76 is the same as 50 plus 80, which is 130.',
+          successSubtitle: '54 + 76 = 50 + 80 = 130',
+          failAudio: 'Not quite — the sum of 54 and 76 is 130.',
+          failSubtitle: 'Sum of 54 and 76 is 130',
+          misconception_tags: { '126':'compensation-applied-only-to-addend1', '134':'compensation-applied-only-to-addend2', '120':'tens-only-no-ones-add', '140':'arithmetic-error-on-friendly-pair', '138':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 54, addend2Start: 76, addend1Friendly: 50, addend2Friendly: 80, correct: 130,
+            strategyStatement: '54 + 76 = 50 + 80 = 130. Subtract 4 from 54, add 4 to 76 — the sum stays the same.' } },
+        { set: 'B', id: 'B_r6_36_84', round: 6, stage: 2, type: 'adjust-and-add',
+          addend1Start: 36, addend2Start: 84, addend1Friendly: 40, addend2Friendly: 80, correct: 120,
+          successAudio: 'Great! 36 plus 84 is the same as 40 plus 80, which is 120.',
+          successSubtitle: '36 + 84 = 40 + 80 = 120',
+          failAudio: 'Not quite — the sum of 36 and 84 is 120.',
+          failSubtitle: 'Sum of 36 and 84 is 120',
+          misconception_tags: { '124':'compensation-applied-only-to-addend1', '116':'compensation-applied-only-to-addend2', '110':'tens-only-no-ones-add', '130':'arithmetic-error-on-friendly-pair', '128':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 36, addend2Start: 84, addend1Friendly: 40, addend2Friendly: 80, correct: 120,
+            strategyStatement: '36 + 84 = 40 + 80 = 120. Add 4 to 36, subtract 4 from 84 — the sum stays the same.' } },
+        // Stage 3
+        { set: 'B', id: 'B_r7_67_73', round: 7, stage: 3, type: 'adjust-and-add',
+          addend1Start: 67, addend2Start: 73, addend1Friendly: 70, addend2Friendly: 70, correct: 140,
+          successAudio: 'Excellent! 67 plus 73 is the same as 70 plus 70, which is 140.',
+          successSubtitle: '67 + 73 = 70 + 70 = 140',
+          failAudio: 'Not quite — the sum of 67 and 73 is 140.',
+          failSubtitle: 'Sum of 67 and 73 is 140',
+          misconception_tags: { '143':'compensation-applied-only-to-addend1', '137':'compensation-applied-only-to-addend2', '130':'tens-only-no-ones-add', '150':'arithmetic-error-on-friendly-pair', '146':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 67, addend2Start: 73, addend1Friendly: 70, addend2Friendly: 70, correct: 140,
+            strategyStatement: '67 + 73 = 70 + 70 = 140. Add 3 to 67, subtract 3 from 73 — the sum stays the same.' } },
+        { set: 'B', id: 'B_r8_55_85', round: 8, stage: 3, type: 'adjust-and-add',
+          addend1Start: 55, addend2Start: 85, addend1Friendly: 50, addend2Friendly: 90, correct: 140,
+          successAudio: 'Excellent! 55 plus 85 is the same as 50 plus 90, which is 140.',
+          successSubtitle: '55 + 85 = 50 + 90 = 140',
+          failAudio: 'Not quite — the sum of 55 and 85 is 140.',
+          failSubtitle: 'Sum of 55 and 85 is 140',
+          misconception_tags: { '135':'compensation-applied-only-to-addend1', '145':'compensation-applied-only-to-addend2', '130':'tens-only-no-ones-add', '150':'arithmetic-error-on-friendly-pair', '148':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 55, addend2Start: 85, addend1Friendly: 50, addend2Friendly: 90, correct: 140,
+            strategyStatement: '55 + 85 = 50 + 90 = 140. Subtract 5 from 55, add 5 to 85 — the sum stays the same.' } },
+        { set: 'B', id: 'B_r9_46_77', round: 9, stage: 3, type: 'adjust-and-add',
+          addend1Start: 46, addend2Start: 77, addend1Friendly: 50, addend2Friendly: 73, correct: 123,
+          successAudio: 'Excellent! 46 plus 77 is the same as 50 plus 73, which is 123.',
+          successSubtitle: '46 + 77 = 50 + 73 = 123',
+          failAudio: 'Not quite — the sum of 46 and 77 is 123.',
+          failSubtitle: 'Sum of 46 and 77 is 123',
+          misconception_tags: { '127':'compensation-applied-only-to-addend1', '119':'compensation-applied-only-to-addend2', '110':'tens-only-no-ones-add', '120':'arithmetic-error-on-friendly-pair', '113':'off-by-ten-place-value-slip', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 46, addend2Start: 77, addend1Friendly: 50, addend2Friendly: 73, correct: 123,
+            strategyStatement: '46 + 77 = 50 + 73 = 123. Add 4 to 46, subtract 4 from 77 — the sum stays the same.' } },
+
+        // ─────────────── SET C ───────────────
+        // Stage 1
+        { set: 'C', id: 'C_r1_48_62', round: 1, stage: 1, type: 'adjust-and-add',
+          addend1Start: 48, addend2Start: 62, addend1Friendly: 50, addend2Friendly: 60, correct: 110,
+          successAudio: 'Nice! 48 plus 62 is the same as 50 plus 60, which is 110.',
+          successSubtitle: '48 + 62 = 50 + 60 = 110',
+          failAudio: 'Not quite — the sum of 48 and 62 is 110.',
+          failSubtitle: 'Sum of 48 and 62 is 110',
+          misconception_tags: { '112':'compensation-applied-only-to-addend1', '108':'compensation-applied-only-to-addend2', '100':'tens-only-no-ones-add', '120':'arithmetic-error-on-friendly-pair', '114':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 48, addend2Start: 62, addend1Friendly: 50, addend2Friendly: 60, correct: 110,
+            strategyStatement: '48 + 62 = 50 + 60 = 110. Add 2 to 48, subtract 2 from 62 — the sum stays the same.' } },
+        { set: 'C', id: 'C_r2_29_81', round: 2, stage: 1, type: 'adjust-and-add',
+          addend1Start: 29, addend2Start: 81, addend1Friendly: 30, addend2Friendly: 80, correct: 110,
+          successAudio: 'Nice! 29 plus 81 is the same as 30 plus 80, which is 110.',
+          successSubtitle: '29 + 81 = 30 + 80 = 110',
+          failAudio: 'Not quite — the sum of 29 and 81 is 110.',
+          failSubtitle: 'Sum of 29 and 81 is 110',
+          misconception_tags: { '111':'compensation-applied-only-to-addend1', '109':'compensation-applied-only-to-addend2', '100':'tens-only-no-ones-add', '120':'arithmetic-error-on-friendly-pair', '112':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 29, addend2Start: 81, addend1Friendly: 30, addend2Friendly: 80, correct: 110,
+            strategyStatement: '29 + 81 = 30 + 80 = 110. Add 1 to 29, subtract 1 from 81 — the sum stays the same.' } },
+        { set: 'C', id: 'C_r3_56_64', round: 3, stage: 1, type: 'adjust-and-add',
+          addend1Start: 56, addend2Start: 64, addend1Friendly: 60, addend2Friendly: 60, correct: 120,
+          successAudio: 'Nice! 56 plus 64 is the same as 60 plus 60, which is 120.',
+          successSubtitle: '56 + 64 = 60 + 60 = 120',
+          failAudio: 'Not quite — the sum of 56 and 64 is 120.',
+          failSubtitle: 'Sum of 56 and 64 is 120',
+          misconception_tags: { '124':'compensation-applied-only-to-addend1', '116':'compensation-applied-only-to-addend2', '110':'tens-only-no-ones-add', '130':'arithmetic-error-on-friendly-pair', '128':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 56, addend2Start: 64, addend1Friendly: 60, addend2Friendly: 60, correct: 120,
+            strategyStatement: '56 + 64 = 60 + 60 = 120. Add 4 to 56, subtract 4 from 64 — the sum stays the same.' } },
+        // Stage 2
+        { set: 'C', id: 'C_r4_71_69', round: 4, stage: 2, type: 'adjust-and-add',
+          addend1Start: 71, addend2Start: 69, addend1Friendly: 70, addend2Friendly: 70, correct: 140,
+          successAudio: 'Great! 71 plus 69 is the same as 70 plus 70, which is 140.',
+          successSubtitle: '71 + 69 = 70 + 70 = 140',
+          failAudio: 'Not quite — the sum of 71 and 69 is 140.',
+          failSubtitle: 'Sum of 71 and 69 is 140',
+          misconception_tags: { '139':'compensation-applied-only-to-addend1', '141':'compensation-applied-only-to-addend2', '130':'tens-only-no-ones-add', '150':'arithmetic-error-on-friendly-pair', '142':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 71, addend2Start: 69, addend1Friendly: 70, addend2Friendly: 70, correct: 140,
+            strategyStatement: '71 + 69 = 70 + 70 = 140. Subtract 1 from 71, add 1 to 69 — the sum stays the same.' } },
+        { set: 'C', id: 'C_r5_47_85', round: 5, stage: 2, type: 'adjust-and-add',
+          addend1Start: 47, addend2Start: 85, addend1Friendly: 50, addend2Friendly: 82, correct: 132,
+          successAudio: 'Great! 47 plus 85 is the same as 50 plus 82, which is 132.',
+          successSubtitle: '47 + 85 = 50 + 82 = 132',
+          failAudio: 'Not quite — the sum of 47 and 85 is 132.',
+          failSubtitle: 'Sum of 47 and 85 is 132',
+          misconception_tags: { '135':'compensation-applied-only-to-addend1', '129':'compensation-applied-only-to-addend2', '120':'tens-only-no-ones-add', '130':'arithmetic-error-on-friendly-pair', '138':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 47, addend2Start: 85, addend1Friendly: 50, addend2Friendly: 82, correct: 132,
+            strategyStatement: '47 + 85 = 50 + 82 = 132. Add 3 to 47, subtract 3 from 85 — the sum stays the same.' } },
+        { set: 'C', id: 'C_r6_28_94', round: 6, stage: 2, type: 'adjust-and-add',
+          addend1Start: 28, addend2Start: 94, addend1Friendly: 30, addend2Friendly: 92, correct: 122,
+          successAudio: 'Great! 28 plus 94 is the same as 30 plus 92, which is 122.',
+          successSubtitle: '28 + 94 = 30 + 92 = 122',
+          failAudio: 'Not quite — the sum of 28 and 94 is 122.',
+          failSubtitle: 'Sum of 28 and 94 is 122',
+          misconception_tags: { '124':'compensation-applied-only-to-addend1', '120':'compensation-applied-only-to-addend2', '110':'tens-only-no-ones-add', '130':'arithmetic-error-on-friendly-pair', '126':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 28, addend2Start: 94, addend1Friendly: 30, addend2Friendly: 92, correct: 122,
+            strategyStatement: '28 + 94 = 30 + 92 = 122. Add 2 to 28, subtract 2 from 94 — the sum stays the same.' } },
+        // Stage 3
+        { set: 'C', id: 'C_r7_65_75', round: 7, stage: 3, type: 'adjust-and-add',
+          addend1Start: 65, addend2Start: 75, addend1Friendly: 70, addend2Friendly: 70, correct: 140,
+          successAudio: 'Excellent! 65 plus 75 is the same as 70 plus 70, which is 140.',
+          successSubtitle: '65 + 75 = 70 + 70 = 140',
+          failAudio: 'Not quite — the sum of 65 and 75 is 140.',
+          failSubtitle: 'Sum of 65 and 75 is 140',
+          misconception_tags: { '145':'compensation-applied-only-to-addend1', '135':'compensation-applied-only-to-addend2', '130':'tens-only-no-ones-add', '150':'arithmetic-error-on-friendly-pair', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 65, addend2Start: 75, addend1Friendly: 70, addend2Friendly: 70, correct: 140,
+            strategyStatement: '65 + 75 = 70 + 70 = 140. Add 5 to 65, subtract 5 from 75 — the sum stays the same.' } },
+        { set: 'C', id: 'C_r8_44_86', round: 8, stage: 3, type: 'adjust-and-add',
+          addend1Start: 44, addend2Start: 86, addend1Friendly: 40, addend2Friendly: 90, correct: 130,
+          successAudio: 'Excellent! 44 plus 86 is the same as 40 plus 90, which is 130.',
+          successSubtitle: '44 + 86 = 40 + 90 = 130',
+          failAudio: 'Not quite — the sum of 44 and 86 is 130.',
+          failSubtitle: 'Sum of 44 and 86 is 130',
+          misconception_tags: { '126':'compensation-applied-only-to-addend1', '134':'compensation-applied-only-to-addend2', '120':'tens-only-no-ones-add', '140':'arithmetic-error-on-friendly-pair', '138':'wrong-direction-compensation', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 44, addend2Start: 86, addend1Friendly: 40, addend2Friendly: 90, correct: 130,
+            strategyStatement: '44 + 86 = 40 + 90 = 130. Subtract 4 from 44, add 4 to 86 — the sum stays the same.' } },
+        { set: 'C', id: 'C_r9_37_88', round: 9, stage: 3, type: 'adjust-and-add',
+          addend1Start: 37, addend2Start: 88, addend1Friendly: 40, addend2Friendly: 85, correct: 125,
+          successAudio: 'Excellent! 37 plus 88 is the same as 40 plus 85, which is 125.',
+          successSubtitle: '37 + 88 = 40 + 85 = 125',
+          failAudio: 'Not quite — the sum of 37 and 88 is 125.',
+          failSubtitle: 'Sum of 37 and 88 is 125',
+          misconception_tags: { '128':'compensation-applied-only-to-addend1', '122':'compensation-applied-only-to-addend2', '110':'tens-only-no-ones-add', '120':'arithmetic-error-on-friendly-pair', '115':'off-by-ten-place-value-slip', 'whole-rule-mismatch':'whole-rule-mismatch' },
+          answer: { addend1Start: 37, addend2Start: 88, addend1Friendly: 40, addend2Friendly: 85, correct: 125,
+            strategyStatement: '37 + 88 = 40 + 85 = 125. Add 3 to 37, subtract 3 from 88 — the sum stays the same.' } }
+      ]
+    };
+
+    /* ============================================================
+       Module-scope refs
+       ============================================================ */
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+
+    var inputEl = null;
+    var box1El = null;
+    var box2El = null;
+    var workspaceEl = null;
+    var minus1Btn = null, plus1Btn = null, minus2Btn = null, plus2Btn = null;
+    var resetBtn = null;
+    var tickBadgeEl = null;
+
+    /* ============================================================
+       syncDOM
+       ============================================================ */
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', Math.max(0, gameState.lives));
+      app.setAttribute('data-round', gameState.currentRound);
+    }
+
+    /* ============================================================
+       trackEvent
+       ============================================================ */
+    function trackEvent(eventName, payload) {
+      try {
+        var ev = { name: eventName, ts: Date.now(), payload: payload || {} };
+        gameState.events.push(ev);
+        if (signalCollector && typeof signalCollector.recordEvent === 'function') {
+          try { signalCollector.recordEvent(eventName, payload || {}); } catch (e) {}
+        }
+      } catch (e) { console.error('[trackEvent]', e && e.message); }
+    }
+
+    /* ============================================================
+       recordAttempt — 12-field schema
+       ============================================================ */
+    function recordAttempt(round, typedRaw, isCorrect, misconceptionTag) {
+      try {
+        var now = Date.now();
+        var attempt = {
+          attempt_number: gameState.attempts.length + 1,
+          attempt_timestamp: now,
+          time_since_start_of_game: gameState.startTime ? (now - gameState.startTime) : 0,
+          round_number: gameState.currentRound,
+          question_id: round && round.id ? round.id : ('r' + gameState.currentRound),
+          question_text: 'The Compensation Workout — set ' + (round && round.set ? round.set : '?') + ' round ' + gameState.currentRound + ' (' + (round ? (round.addend1Start + '+' + round.addend2Start) : '') + ')',
+          input_of_user: String(typedRaw),
+          user_answer: String(typedRaw),
+          correct: !!isCorrect,
+          is_correct: !!isCorrect,
+          correct_answer: round && typeof round.correct === 'number' ? String(round.correct) : '',
+          response_time_ms: gameState.roundStartTime ? (now - gameState.roundStartTime) : 0,
+          misconception_tag: misconceptionTag || null,
+          difficulty_level: round && round.stage ? round.stage : 1,
+          is_retry: gameState.attemptsOnThisRound > 0,
+          hint_used: false,
+          metadata: {
+            set: round && round.set ? round.set : null,
+            stage: round && round.stage ? round.stage : null,
+            attempts_on_round: gameState.attemptsOnThisRound + 1,
+            addend1Start: round ? round.addend1Start : null,
+            addend2Start: round ? round.addend2Start : null,
+            addend1Display: gameState.addend1Display,
+            addend2Display: gameState.addend2Display
+          }
+        };
+        gameState.attempts.push(attempt);
+      } catch (e) { console.error('[recordAttempt]', e && e.message); }
+    }
+
+    /* ============================================================
+       getStars — first-try-correct count + lives (creator-specified)
+       ============================================================ */
+    function getStars() {
+      if (gameState.lives <= 0) return 0;
+      if (gameState.firstTryCorrect >= 9) return 3;
+      if (gameState.firstTryCorrect >= 7) return 2;
+      return 1;
+    }
+
+    /* ============================================================
+       getAvailableSets / getRounds — round-set cycling
+       ============================================================ */
+    function getAvailableSets(rounds) {
+      var seen = {};
+      var i;
+      for (i = 0; i < rounds.length; i++) {
+        if (rounds[i].set) seen[rounds[i].set] = true;
+      }
+      var keys = Object.keys(seen).sort();
+      return keys.length > 0 ? keys : ['A'];
+    }
+
+    function getRounds() {
+      var source = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(source);
+      var currentSetId = sets[gameState.setIndex % sets.length];
+      var setRounds = source.filter(function (r) { return r.set === currentSetId; });
+      if (setRounds.length >= gameState.totalRounds) return setRounds;
+      var fbSetRounds = fallbackContent.rounds.filter(function (r) { return r.set === currentSetId; });
+      if (fbSetRounds.length >= gameState.totalRounds) return fbSetRounds;
+      return fallbackContent.rounds.slice(0, gameState.totalRounds);
+    }
+
+    function getCurrentRound() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var idx = Math.max(0, Math.min(rounds.length - 1, gameState.currentRound - 1));
+      return rounds[idx];
+    }
+
+    /* ============================================================
+       waitForPackages
+       ============================================================ */
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            reject(new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms'));
+            throw new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    /* ============================================================
+       FeedbackManager preload + helper
+       ============================================================ */
+    function preloadAudio() {
+      if (typeof FeedbackManager === 'undefined' || !FeedbackManager.sound || !FeedbackManager.sound.preload) return;
+      var assets = [
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+      ];
+      try { FeedbackManager.sound.preload(assets); } catch (e) { console.error('[preloadAudio]', e && e.message); }
+    }
+
+    function safePlaySound(id, options) {
+      try {
+        if (typeof FeedbackManager === 'undefined' || !FeedbackManager.sound) return Promise.resolve();
+        return FeedbackManager.sound.play(id, options || {});
+      } catch (e) { return Promise.resolve(); }
+    }
+
+    /* ============================================================
+       handlePostMessage
+       ============================================================ */
+    function handlePostMessage(event) {
+      try {
+        var msg = event && event.data;
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          gameState.content = msg.data && msg.data.content ? msg.data.content : null;
+          if (msg.data && typeof msg.data.totalRounds === 'number') gameState.totalRounds = msg.data.totalRounds;
+          try {
+            var sc = msg.data && msg.data.signalConfig ? msg.data.signalConfig : {};
+            gameState.signalConfig = msg.data && msg.data.signalConfig ? msg.data.signalConfig : {};
+            if (signalCollector) {
+              signalCollector.flushUrl = sc.flushUrl || signalCollector.flushUrl || '';
+              signalCollector.playId = sc.playId || signalCollector.playId || ('add-list-adjustment-strategy-' + Date.now());
+              signalCollector.gameId = sc.gameId || 'add-list-adjustment-strategy';
+              signalCollector.sessionId = sc.sessionId || ('session-' + Date.now());
+              signalCollector.contentSetId = sc.contentSetId || 'fallback';
+              signalCollector.studentId = sc.studentId || 'anonymous';
+              if (typeof signalCollector.startFlushing === 'function') {
+                try { signalCollector.startFlushing(); } catch (e2) {}
+              }
+            }
+          } catch (e1) {}
+          syncDOM();
+          setupGame();
+        } else if (msg.type === 'game_pause') {
+          try { FeedbackManager.sound.pause(); } catch (e) {}
+        } else if (msg.type === 'game_resume') {
+          try { FeedbackManager.sound.resume(); } catch (e) {}
+        }
+      } catch (e) { console.error('[handlePostMessage]', e && e.message); }
+    }
+
+    /* ============================================================
+       endGame — posts game_complete on BOTH victory and game-over paths
+       ============================================================ */
+    function endGame(success) {
+      if (gameState.gameEnded) return;
+
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = 'results';
+      gameState.stars = getStars();
+      syncDOM();
+
+      trackEvent('game_end', { won: !!success, score: gameState.score, stars: gameState.stars, lives: gameState.lives, firstTryCorrect: gameState.firstTryCorrect });
+
+      try {
+        var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+        var elapsedSec = Math.round(elapsedMs / 1000);
+        // accuracy = firstTryCorrect / totalRounds * 100 — integer 0-100
+        var accuracy = gameState.totalRounds > 0 ? Math.round((gameState.firstTryCorrect / gameState.totalRounds) * 100) : 0;
+        var triesArr = [];
+        for (var ai = 0; ai < gameState.attempts.length; ai++) triesArr.push(1);
+        var signalSealed = { event_count: gameState.events.length, metadata: {} };
+        try {
+          if (signalCollector && typeof signalCollector.seal === 'function') {
+            var sealed = signalCollector.seal();
+            if (sealed) {
+              if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+              if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+            }
+          }
+        } catch (e0) {}
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: {
+              score: gameState.score,
+              totalQuestions: gameState.totalRounds,
+              stars: gameState.stars,
+              accuracy: accuracy,
+              time: elapsedSec,
+              timeSpent: elapsedMs,
+              tries: triesArr,
+              attempts: gameState.attempts,
+              totalLives: gameState.totalLives,
+              firstTryCorrect: gameState.firstTryCorrect,
+              duration_data: gameState.duration_data
+            },
+            completedAt: Date.now(),
+            previewResult: gameState.previewResult || null,
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) { console.error('[endGame postMessage]', e && e.message); }
+
+      try {
+        if (gameState.lives <= 0) {
+          showGameOver();
+        } else {
+          showVictory(success);
+        }
+      } catch (e) { console.error('[endGame route]', e && e.message); }
+    }
+    window.endGame = endGame;
+
+    /* ============================================================
+       Header refresh helpers
+       ============================================================ */
+    function refreshHeader() {
+      try {
+        if (previewScreen && typeof previewScreen.setScore === 'function') {
+          previewScreen.setScore(gameState.score + '/' + gameState.totalRounds);
+        }
+        if (previewScreen && typeof previewScreen.setQuestionLabel === 'function') {
+          previewScreen.setQuestionLabel('Q' + gameState.currentRound);
+        }
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       Build the workspace DOM (one-time)
+       ============================================================ */
+    function buildWorkspaceDOM() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML = '';
+
+      var workspace = document.createElement('div');
+      workspace.className = 'comp-workspace';
+      workspace.id = 'comp-workspace';
+      workspace.setAttribute('data-stage', '1');
+      workspaceEl = workspace;
+
+      // Reset pill — top-right of workspace
+      var resetRow = document.createElement('div');
+      resetRow.className = 'comp-reset-row';
+      resetBtn = document.createElement('button');
+      resetBtn.className = 'comp-reset-pill';
+      resetBtn.type = 'button';
+      resetBtn.id = 'resetBtn';
+      resetBtn.setAttribute('aria-label', 'Reset addends to starting values');
+      resetBtn.innerHTML = '<span aria-hidden="true">↺</span> Reset';
+      resetRow.appendChild(resetBtn);
+      workspace.appendChild(resetRow);
+
+      // Pair row — addend1 stack | + operator | addend2 stack
+      var pairRow = document.createElement('div');
+      pairRow.className = 'comp-pair-row';
+
+      // Stack 1: minus / box / plus
+      var stack1 = document.createElement('div');
+      stack1.className = 'comp-addend-stack';
+      minus1Btn = document.createElement('button');
+      minus1Btn.className = 'comp-nudge-btn minus';
+      minus1Btn.type = 'button';
+      minus1Btn.id = 'minus1Btn';
+      minus1Btn.setAttribute('aria-label', 'Subtract 1 from first number');
+      minus1Btn.textContent = '−';
+      stack1.appendChild(minus1Btn);
+
+      box1El = document.createElement('div');
+      box1El.className = 'comp-addend-box';
+      box1El.id = 'addendBox1';
+      box1El.textContent = '0';
+      stack1.appendChild(box1El);
+
+      plus1Btn = document.createElement('button');
+      plus1Btn.className = 'comp-nudge-btn plus';
+      plus1Btn.type = 'button';
+      plus1Btn.id = 'plus1Btn';
+      plus1Btn.setAttribute('aria-label', 'Add 1 to first number');
+      plus1Btn.textContent = '+';
+      stack1.appendChild(plus1Btn);
+      pairRow.appendChild(stack1);
+
+      // Center: plus operator OR tick badge
+      var opCol = document.createElement('div');
+      opCol.className = 'comp-plus-operator';
+      opCol.id = 'compPlusOp';
+      opCol.textContent = '+';
+      pairRow.appendChild(opCol);
+
+      // Stack 2
+      var stack2 = document.createElement('div');
+      stack2.className = 'comp-addend-stack';
+      minus2Btn = document.createElement('button');
+      minus2Btn.className = 'comp-nudge-btn minus';
+      minus2Btn.type = 'button';
+      minus2Btn.id = 'minus2Btn';
+      minus2Btn.setAttribute('aria-label', 'Subtract 1 from second number');
+      minus2Btn.textContent = '−';
+      stack2.appendChild(minus2Btn);
+
+      box2El = document.createElement('div');
+      box2El.className = 'comp-addend-box';
+      box2El.id = 'addendBox2';
+      box2El.textContent = '0';
+      stack2.appendChild(box2El);
+
+      plus2Btn = document.createElement('button');
+      plus2Btn.className = 'comp-nudge-btn plus';
+      plus2Btn.type = 'button';
+      plus2Btn.id = 'plus2Btn';
+      plus2Btn.setAttribute('aria-label', 'Add 1 to second number');
+      plus2Btn.textContent = '+';
+      stack2.appendChild(plus2Btn);
+      pairRow.appendChild(stack2);
+
+      workspace.appendChild(pairRow);
+
+      // Numeric input row
+      var inputRow = document.createElement('div');
+      inputRow.className = 'comp-input-row';
+      inputEl = document.createElement('input');
+      inputEl.className = 'comp-sum-input';
+      inputEl.id = 'compSumInput';
+      inputEl.type = 'text';
+      inputEl.setAttribute('inputmode', 'numeric');
+      inputEl.setAttribute('pattern', '[0-9]*');
+      inputEl.setAttribute('maxlength', '3');
+      inputEl.setAttribute('autocomplete', 'off');
+      inputEl.setAttribute('autocorrect', 'off');
+      inputEl.setAttribute('autocapitalize', 'off');
+      inputEl.placeholder = '?';
+      inputRow.appendChild(inputEl);
+      workspace.appendChild(inputRow);
+
+      gc.appendChild(workspace);
+
+      attachWorkspaceListeners();
+    }
+
+    function attachWorkspaceListeners() {
+      if (minus1Btn) {
+        minus1Btn.addEventListener('click', function () { onNudge(1, -1); });
+      }
+      if (plus1Btn) {
+        plus1Btn.addEventListener('click', function () { onNudge(1, +1); });
+      }
+      if (minus2Btn) {
+        minus2Btn.addEventListener('click', function () { onNudge(2, -1); });
+      }
+      if (plus2Btn) {
+        plus2Btn.addEventListener('click', function () { onNudge(2, +1); });
+      }
+      if (resetBtn) {
+        resetBtn.addEventListener('click', onResetTap);
+      }
+      if (inputEl) {
+        inputEl.addEventListener('input', onInputChange);
+        inputEl.addEventListener('keydown', onInputKeydown);
+      }
+    }
+
+    function pressBounce(btn) {
+      if (!btn) return;
+      btn.classList.remove('is-pressed');
+      void btn.offsetWidth;
+      btn.classList.add('is-pressed');
+      setTimeout(function () {
+        if (btn) btn.classList.remove('is-pressed');
+      }, 120);
+    }
+
+    /* ============================================================
+       +/- nudge tap handlers
+       ============================================================ */
+    function onNudge(which, delta) {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      if (which === 1) {
+        var v1 = gameState.addend1Display + delta;
+        if (v1 < 0) v1 = 0;
+        gameState.addend1Display = v1;
+        if (box1El) box1El.textContent = String(v1);
+        pressBounce(delta < 0 ? minus1Btn : plus1Btn);
+      } else {
+        var v2 = gameState.addend2Display + delta;
+        if (v2 < 0) v2 = 0;
+        gameState.addend2Display = v2;
+        if (box2El) box2El.textContent = String(v2);
+        pressBounce(delta < 0 ? minus2Btn : plus2Btn);
+      }
+      // Soft tick SFX (fire-and-forget, no sticker, no TTS) — CASE 9 ambient
+      try { safePlaySound('tap_sound', {}); } catch (e) {}
+    }
+
+    /* ============================================================
+       Reset pill handler
+       ============================================================ */
+    function onResetTap() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var round = getCurrentRound();
+      if (!round) return;
+      gameState.addend1Display = round.addend1Start;
+      gameState.addend2Display = round.addend2Start;
+      if (box1El) box1El.textContent = String(round.addend1Start);
+      if (box2El) box2El.textContent = String(round.addend2Start);
+      // input is NOT cleared by Reset (per spec Decision-Point #4)
+      try { safePlaySound('tap_sound', {}); } catch (e) {}
+    }
+
+    /* ============================================================
+       Numeric input handlers
+       ============================================================ */
+    function onInputChange() {
+      if (gameState.gameEnded) return;
+      if (!inputEl) return;
+      var v = (inputEl.value || '').replace(/[^0-9]/g, '');
+      if (v !== inputEl.value) inputEl.value = v;
+      // Clear any visual state from previous wrong/correct flash
+      inputEl.classList.remove('input-correct');
+      inputEl.classList.remove('input-wrong');
+      refreshSubmittable();
+    }
+
+    function onInputKeydown(ev) {
+      if (gameState.gameEnded) return;
+      if (ev.key === 'Enter' || ev.keyCode === 13) {
+        ev.preventDefault();
+        if (gameState.isProcessing) return;
+        var v = (inputEl && inputEl.value ? inputEl.value : '').replace(/[^0-9]/g, '').trim();
+        if (v.length === 0) return;
+        try { inputEl.blur(); } catch (e) {}
+        handleSubmit();
+      }
+    }
+
+    function getInputValue() {
+      if (!inputEl) return '';
+      return (inputEl.value || '').replace(/[^0-9]/g, '').trim();
+    }
+
+    function refreshSubmittable() {
+      if (!floatingBtn) return;
+      try {
+        var v = getInputValue();
+        floatingBtn.setSubmittable(v.length > 0 && !gameState.isProcessing && !gameState.gameEnded);
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       Misconception evaluator
+       ============================================================ */
+    function resolveMisconception(round, typedValue) {
+      if (typedValue === null || isNaN(typedValue)) return 'whole-rule-mismatch';
+      var key = String(typedValue);
+      if (round && round.misconception_tags && round.misconception_tags[key]) {
+        return round.misconception_tags[key];
+      }
+      return 'whole-rule-mismatch';
+    }
+
+    /* ============================================================
+       handleSubmit — round-complete handler
+       (ProgressBar.update FIRST, BEFORE any await)
+       ============================================================ */
+    async function handleSubmit() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var typed = getInputValue();
+      if (typed.length === 0) return;
+      gameState.isProcessing = true;
+      try { if (floatingBtn) floatingBtn.setSubmittable(false); } catch (e) {}
+      if (workspaceEl) workspaceEl.classList.add('is-processing');
+
+      var round = getCurrentRound();
+      if (!round) { gameState.isProcessing = false; return; }
+
+      var typedNum = parseInt(typed, 10);
+      var isCorrect = (typedNum === round.correct);
+      var misTag = isCorrect ? null : resolveMisconception(round, typedNum);
+
+      // Record BEFORE audio
+      recordAttempt(round, typed, isCorrect, misTag);
+      trackEvent('answer_submitted', {
+        round: gameState.currentRound,
+        set: round.set,
+        is_correct: isCorrect,
+        typed: typed,
+        correct: round.correct,
+        misconception_tag: misTag,
+        attempts_on_round_before: gameState.attemptsOnThisRound
+      });
+
+      if (isCorrect) {
+        // ──────────── CORRECT ────────────
+        if (inputEl) inputEl.classList.add('input-correct');
+
+        // Friendly-pair reveal — animate addend boxes to friendly values + green tick badge
+        animateBoxesToValues(round.addend1Friendly, round.addend2Friendly, 500);
+        showTickBadge();
+
+        // ProgressBar bumps FIRST (memory: progress_bar_round_complete)
+        gameState.progress = (gameState.progress || 0) + 1;
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+
+        gameState.score += 1;
+        if (gameState.attemptsOnThisRound === 0) {
+          gameState.firstTryCorrect += 1;
+        }
+        refreshHeader();
+        // Per-round score bump on header (no animation — show_star is end-of-game only)
+        try { if (previewScreen && typeof previewScreen.setScore === 'function') previewScreen.setScore(gameState.score + '/' + gameState.totalRounds); } catch (e) {}
+        syncDOM();
+
+        try {
+          await Promise.all([
+            safePlaySound('correct_sound_effect', { sticker: STICKER_CELEBRATE }),
+            new Promise(function (r) { setTimeout(r, 1500); })
+          ]);
+        } catch (e) {}
+        try {
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: round.successAudio,
+            subtitle: round.successSubtitle,
+            sticker: STICKER_CELEBRATE
+          });
+        } catch (e) {}
+
+        trackEvent('round_complete', {
+          round: gameState.currentRound,
+          is_correct: true,
+          score: gameState.score,
+          firstTryCorrect: gameState.firstTryCorrect,
+          lives: gameState.lives
+        });
+
+        // Auto-advance
+        if (gameState.currentRound < gameState.totalRounds) {
+          gameState.currentRound += 1;
+          await showRoundIntro(gameState.currentRound);
+          renderRound();
+        } else {
+          endGame(true);
+        }
+      } else {
+        // ──────────── WRONG ────────────
+        // Input flash red + shake
+        if (inputEl) {
+          inputEl.classList.add('input-wrong');
+          inputEl.classList.remove('shake-wrong');
+          void inputEl.offsetWidth;
+          inputEl.classList.add('shake-wrong');
+        }
+        await new Promise(function (r) { setTimeout(r, 600); });
+
+        // ProgressBar bumps FIRST (decrement heart visually before audio).
+        // Use gameState.progress (NOT currentRound) — wrong submit does not complete the round, so
+        // progress stays at the same value as before this attempt; only the heart count decrements.
+        try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives - 1)); } catch (e) {}
+
+        // Now decrement lives
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        syncDOM();
+
+        // Animate addends back to start values, clear input
+        animateBoxesToValues(round.addend1Start, round.addend2Start, 300);
+        hideTickBadge();
+        if (inputEl) {
+          inputEl.value = '';
+          inputEl.classList.remove('input-wrong');
+          inputEl.classList.remove('shake-wrong');
+        }
+
+        // Wrong feedback chain — awaited SFX (1500ms floor) + awaited TTS (CASE 7 / CASE 8)
+        try {
+          await Promise.all([
+            safePlaySound('incorrect_sound_effect', { sticker: STICKER_SAD }),
+            new Promise(function (r) { setTimeout(r, 1500); })
+          ]);
+        } catch (e) {}
+        try {
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: round.failAudio,
+            subtitle: round.failSubtitle,
+            sticker: STICKER_SAD
+          });
+        } catch (e) {}
+
+        gameState.attemptsOnThisRound += 1;
+
+        if (gameState.lives <= 0) {
+          // CASE 8 — wrong feedback completed first; now end game
+          trackEvent('round_complete', {
+            round: gameState.currentRound,
+            is_correct: false,
+            score: gameState.score,
+            lives: 0,
+            attempts_on_round: gameState.attemptsOnThisRound
+          });
+          endGame(false);
+          return;
+        }
+
+        trackEvent('round_complete', {
+          round: gameState.currentRound,
+          is_correct: false,
+          score: gameState.score,
+          lives: gameState.lives,
+          attempts_on_round: gameState.attemptsOnThisRound,
+          retry: true
+        });
+
+        // RETRY-SAME-ROUND — currentRound NOT incremented
+        resetRoundForRetry();
+      }
+    }
+
+    /* ============================================================
+       resetRoundForRetry — wrong-with-lives handler
+       ============================================================ */
+    function resetRoundForRetry() {
+      var round = getCurrentRound();
+      if (!round) {
+        gameState.isProcessing = false;
+        if (workspaceEl) workspaceEl.classList.remove('is-processing');
+        return;
+      }
+      // Defensive — addends may already be reset by handleSubmit's wrong branch
+      gameState.addend1Display = round.addend1Start;
+      gameState.addend2Display = round.addend2Start;
+      if (box1El) box1El.textContent = String(round.addend1Start);
+      if (box2El) box2El.textContent = String(round.addend2Start);
+      hideTickBadge();
+      if (inputEl) {
+        inputEl.value = '';
+        inputEl.classList.remove('input-wrong');
+        inputEl.classList.remove('input-correct');
+        inputEl.classList.remove('shake-wrong');
+      }
+      try { if (floatingBtn) floatingBtn.setSubmittable(false); } catch (e) {}
+      // attemptsOnThisRound is NOT reset — it KEEPS the bump from handleSubmit (so retry-correct is NOT first-try)
+      gameState.isProcessing = false;
+      if (workspaceEl) workspaceEl.classList.remove('is-processing');
+    }
+
+    /* ============================================================
+       Animate addend boxes between values (smooth count)
+       ============================================================ */
+    function animateBoxesToValues(target1, target2, durationMs) {
+      var start1 = gameState.addend1Display;
+      var start2 = gameState.addend2Display;
+      var startTime = Date.now();
+      function tick() {
+        var t = Math.min(1, (Date.now() - startTime) / Math.max(1, durationMs));
+        // Ease-out cubic
+        var eased = 1 - Math.pow(1 - t, 3);
+        var v1 = Math.round(start1 + (target1 - start1) * eased);
+        var v2 = Math.round(start2 + (target2 - start2) * eased);
+        if (box1El) box1El.textContent = String(v1);
+        if (box2El) box2El.textContent = String(v2);
+        if (t < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          gameState.addend1Display = target1;
+          gameState.addend2Display = target2;
+          if (box1El) box1El.textContent = String(target1);
+          if (box2El) box2El.textContent = String(target2);
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function showTickBadge() {
+      var op = document.getElementById('compPlusOp');
+      if (!op) return;
+      op.innerHTML = '';
+      var badge = document.createElement('span');
+      badge.className = 'comp-tick-badge';
+      badge.textContent = '✓';
+      op.appendChild(badge);
+      tickBadgeEl = badge;
+    }
+
+    function hideTickBadge() {
+      var op = document.getElementById('compPlusOp');
+      if (!op) return;
+      op.innerHTML = '+';
+      tickBadgeEl = null;
+    }
+
+    /* ============================================================
+       Round Intro (TransitionScreen, auto-advance — CASE 2 Variant A)
+       ============================================================ */
+    async function showRoundIntro(n) {
+      // Round-boundary cleanup (defensive — TTS is awaited per GEN-FEEDBACK-TTS-AWAIT,
+      // but a streaming timeout or swallowed rejection can still leave audio playing)
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      if (!transitionScreen) return;
+      var title = 'Round ' + n;
+      await transitionScreen.show({
+        title: title,
+        icons: ['⭐'],
+        buttons: [],
+        persist: false,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_NEUTRAL }); } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: title,
+                subtitle: title,
+                sticker: STICKER_NEUTRAL
+              });
+            } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+          })();
+        }
+      });
+      // Wait roughly for SFX (1.5s) + TTS (~1s) before continuing into renderRound
+      await new Promise(function (r) { setTimeout(r, 2400); });
+      try { transitionScreen.hide(); } catch (e) {}
+    }
+
+    /* ============================================================
+       renderRound — render the current round (NOT named loadRound!)
+       ============================================================ */
+    function renderRound() {
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      gameState.roundStartTime = Date.now();
+      gameState.phase = 'playing';
+      syncDOM();
+
+      var round = getCurrentRound();
+      if (!round) return;
+
+      gameState.correctAnswer = String(round.correct);
+      gameState.addend1Display = round.addend1Start;
+      gameState.addend2Display = round.addend2Start;
+      gameState.attemptsOnThisRound = 0;
+
+      // Apply per-stage visual surface
+      if (workspaceEl) {
+        workspaceEl.setAttribute('data-stage', String(round.stage || 1));
+        workspaceEl.classList.remove('is-processing');
+      }
+      if (box1El) box1El.textContent = String(round.addend1Start);
+      if (box2El) box2El.textContent = String(round.addend2Start);
+      hideTickBadge();
+      if (inputEl) {
+        inputEl.value = '';
+        inputEl.classList.remove('input-correct');
+        inputEl.classList.remove('input-wrong');
+        inputEl.classList.remove('shake-wrong');
+      }
+
+      refreshHeader();
+      try { if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+
+      // FloatingButton state
+      try {
+        if (floatingBtn) {
+          floatingBtn.setMode('submit');
+          floatingBtn.setSubmittable(false);
+          if (typeof floatingBtn.setLabels === 'function') {
+            try { floatingBtn.setLabels({ submit: 'Next Round', next: 'Next' }); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+
+      // Round prompt TTS — fire-and-forget (CASE 3, does NOT block input)
+      try {
+        FeedbackManager.playDynamicFeedback({
+          audio_content: 'Add ' + round.addend1Start + ' and ' + round.addend2Start + '.',
+          subtitle: 'Add ' + round.addend1Start + ' and ' + round.addend2Start + '.',
+          sticker: STICKER_NEUTRAL
+        }).catch(function () {});
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       Victory / Game Over / Motivation / Stars Collected / AnswerComponent
+       ============================================================ */
+    async function showVictory(success) {
+      if (!transitionScreen) return;
+      var stars = gameState.stars;
+      var subtitle;
+      if (stars === 3) subtitle = 'Perfect compensation — all 9 first try!';
+      else if (stars === 2) subtitle = 'Great work! ' + gameState.firstTryCorrect + ' of 9 first try.';
+      else if (stars === 1) subtitle = 'You finished — keep practising!';
+      else subtitle = 'Great effort — let\'s try again.';
+
+      var stickerForVictory;
+      if (stars === 3) stickerForVictory = STICKER_VICTORY_3;
+      else if (stars === 2) stickerForVictory = STICKER_VICTORY_2;
+      else if (stars === 1) stickerForVictory = STICKER_VICTORY_1;
+      else stickerForVictory = STICKER_VICTORY_1;
+
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+
+      var playAgainAct = function () {
+        try { transitionScreen.hide(); } catch (e) {}
+        try { FeedbackManager.sound.pause(); FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+        showMotivation();
+      };
+      var claimStarsAct = function () {
+        try { transitionScreen.hide(); } catch (e) {}
+        try { FeedbackManager.sound.pause(); FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+        showStarsCollected();
+      };
+
+      await transitionScreen.show({
+        title: 'Victory 🎉',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars < 3
+          ? [
+              { text: 'Play Again', type: 'secondary', action: playAgainAct },
+              { text: 'Claim Stars', type: 'primary', action: claimStarsAct }
+            ]
+          : [
+              { text: 'Play Again', type: 'secondary', action: playAgainAct, hidden: true },
+              { text: 'Claim Stars', type: 'primary', action: claimStarsAct }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound(stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect', { sticker: stickerForVictory });
+            } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: subtitle,
+                subtitle: subtitle,
+                sticker: stickerForVictory
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showGameOver() {
+      if (!transitionScreen) return;
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: 'You ran out of lives!',
+        icons: ['😔'],
+        buttons: [{ text: 'Try Again', type: 'primary', action: function () {
+          try { transitionScreen.hide(); } catch (e) {}
+          try { FeedbackManager.sound.pause(); FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+          showMotivation();
+        }}],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('game_over_sound_effect', { sticker: STICKER_GAMEOVER }); } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      if (!transitionScreen) return;
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      await transitionScreen.show({
+        title: 'Ready to improve your score? ⚡',
+        buttons: [{ text: "I'm ready! 🙌", type: 'primary', action: function () {
+          try { transitionScreen.hide(); } catch (e) {}
+          try { FeedbackManager.sound.pause(); FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+          restartGame();
+        }}],
+        persist: true,
+        onMounted: function () {
+          // Restart-path reset BEFORE awaited audio — bar visibly resets to 0/9 + 3 hearts
+          try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_MOTIVATE }); } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: 'Ready to improve your score?',
+                subtitle: 'Ready to improve your score?',
+                sticker: STICKER_MOTIVATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      if (!transitionScreen) return;
+      var count = Math.max(1, Math.min(3, gameState.stars || 1));
+      await transitionScreen.show({
+        title: 'Yay! 🎉\nStars collected!',
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: STICKER_CELEBRATE }); } catch (e) {}
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: {
+                  count: count,
+                  variant: 'yellow',
+                  score: gameState.score + '/' + gameState.totalRounds
+                }
+              }, '*');
+            } catch (e) {}
+            // After star animation lands, reveal answer carousel.
+            // DO NOT call transitionScreen.hide() here — Stars Collected stays mounted as backdrop.
+            setTimeout(function () { showAnswerCarousel(); }, 1500);
+          })();
+        }
+      });
+    }
+
+    /* ============================================================
+       AnswerComponent — 9-slide carousel, one slide per played round
+       ============================================================ */
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var capped = rounds.slice(0, gameState.totalRounds);
+      return capped.map(function (round, idx) {
+        return {
+          render: function (container) {
+            renderAnswerForRound(round, container, idx + 1);
+          }
+        };
+      });
+    }
+
+    function renderAnswerForRound(round, container, roundNum) {
+      if (!container || !round) return;
+      container.innerHTML = '';
+
+      var slide = document.createElement('div');
+      slide.className = 'answer-slide';
+
+      var title = document.createElement('div');
+      title.className = 'answer-slide-title';
+      title.textContent = 'Round ' + roundNum;
+      slide.appendChild(title);
+
+      // Starting pair row
+      var startRow = document.createElement('div');
+      startRow.className = 'answer-pair-row';
+      var sb1 = document.createElement('div'); sb1.className = 'answer-box'; sb1.textContent = String(round.answer.addend1Start);
+      var sp = document.createElement('div'); sp.className = 'answer-plus'; sp.textContent = '+';
+      var sb2 = document.createElement('div'); sb2.className = 'answer-box'; sb2.textContent = String(round.answer.addend2Start);
+      startRow.appendChild(sb1); startRow.appendChild(sp); startRow.appendChild(sb2);
+      slide.appendChild(startRow);
+
+      // Arrow down
+      var arrow = document.createElement('div');
+      arrow.className = 'answer-arrow-down';
+      arrow.textContent = '↓';
+      slide.appendChild(arrow);
+
+      // Friendly pair row
+      var friendlyRow = document.createElement('div');
+      friendlyRow.className = 'answer-pair-row';
+      var fb1 = document.createElement('div'); fb1.className = 'answer-box friendly'; fb1.textContent = String(round.answer.addend1Friendly);
+      var fp = document.createElement('div'); fp.className = 'answer-plus'; fp.textContent = '+';
+      var fb2 = document.createElement('div'); fb2.className = 'answer-box friendly'; fb2.textContent = String(round.answer.addend2Friendly);
+      friendlyRow.appendChild(fb1); friendlyRow.appendChild(fp); friendlyRow.appendChild(fb2);
+      slide.appendChild(friendlyRow);
+
+      // Correct sum row (tick + sum)
+      var correctRow = document.createElement('div');
+      correctRow.className = 'answer-correct-row';
+      var tick = document.createElement('div'); tick.className = 'answer-correct-tick'; tick.textContent = '✓';
+      var sumEl = document.createElement('div'); sumEl.className = 'answer-correct-sum'; sumEl.textContent = String(round.answer.correct);
+      correctRow.appendChild(tick); correctRow.appendChild(sumEl);
+      slide.appendChild(correctRow);
+
+      // Strategy banner
+      var banner = document.createElement('div');
+      banner.className = 'answer-strategy-banner';
+      banner.textContent = round.answer.strategyStatement;
+      slide.appendChild(banner);
+
+      container.appendChild(slide);
+    }
+
+    function showAnswerCarousel() {
+      if (!answerComponent) return;
+      try {
+        answerComponent.show({
+          slides: buildAnswerSlidesForAllRounds()
+        });
+      } catch (e) {
+        console.error('[answerComponent.show]', e && e.message);
+      }
+      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+    }
+
+    /* ============================================================
+       resetGameState + restartGame
+       (setIndex rotated BEFORE resetGameState; setIndex NOT in reset list)
+       ============================================================ */
+    function resetGameState() {
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.stars = 0;
+      gameState.progress = 0;
+      gameState.firstTryCorrect = 0;
+      gameState.attemptsOnThisRound = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.duration_data = { startTime: null, preview: gameState.duration_data ? gameState.duration_data.preview : [] };
+      gameState.activeRounds = getRounds();
+      if (gameState.activeRounds && gameState.activeRounds.length > 0) {
+        gameState.addend1Display = gameState.activeRounds[0].addend1Start;
+        gameState.addend2Display = gameState.activeRounds[0].addend2Start;
+      }
+      // setIndex MUST NOT be reset here — it persists across in-session restarts.
+    }
+
+    function restartGame() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      // STEP 1 — rotate setIndex BEFORE resetGameState
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+
+      // STEP 2 — reset (setIndex NOT in list)
+      resetGameState();
+
+      if (signalCollector && typeof signalCollector.reset === 'function') {
+        try { signalCollector.reset(); } catch (e) {}
+      }
+      try { if (answerComponent && typeof answerComponent.hide === 'function') answerComponent.hide(); } catch (e) {}
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      // STEP 3 — safety-net progressBar reset (idempotent with motivation onMounted)
+      try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true, setIndex: gameState.setIndex });
+      syncDOM();
+      refreshHeader();
+
+      // STEP 4 — render Round 1 Intro (skips Preview + Welcome)
+      buildWorkspaceDOM();
+      // Pre-paint Round 1 starting values so the workspace is correct when intro auto-dismisses
+      try {
+        var firstRound = getCurrentRound();
+        if (firstRound) {
+          if (workspaceEl) workspaceEl.setAttribute('data-stage', String(firstRound.stage || 1));
+          if (box1El) box1El.textContent = String(firstRound.addend1Start);
+          if (box2El) box2El.textContent = String(firstRound.addend2Start);
+        }
+      } catch (e) {}
+      (async function () {
+        await showRoundIntro(1);
+        renderRound();
+      })();
+    }
+    window.restartGame = restartGame;
+
+    /* ============================================================
+       startGame — initial entry (from preview onComplete or fallback)
+       ============================================================ */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.stars = 0;
+      gameState.progress = 0;
+      gameState.firstTryCorrect = 0;
+      gameState.attemptsOnThisRound = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.activeRounds = getRounds();
+      if (gameState.activeRounds && gameState.activeRounds.length > 0) {
+        gameState.addend1Display = gameState.activeRounds[0].addend1Start;
+        gameState.addend2Display = gameState.activeRounds[0].addend2Start;
+      }
+      gameState.startTime = Date.now();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      (async function () {
+        await showRoundIntro(1);
+        renderRound();
+      })();
+    }
+    window.startGame = startGame;
+
+    /* ============================================================
+       nextRound — test-harness convenience
+       ============================================================ */
+    function nextRound() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        renderRound();
+      } else {
+        endGame(true);
+      }
+    }
+    window.nextRound = nextRound;
+
+    /* ============================================================
+       setupGame — entered after game_init OR standalone fallback
+       ============================================================ */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.totalRounds = (content.totalRounds && typeof content.totalRounds === 'number') ? content.totalRounds : 9;
+      gameState.totalLives = (typeof content.totalLives === 'number') ? content.totalLives : 3;
+      if (typeof gameState.lives !== 'number' || gameState.lives === 0) gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+      if (gameState.activeRounds && gameState.activeRounds.length > 0) {
+        gameState.addend1Display = gameState.activeRounds[0].addend1Start;
+        gameState.addend2Display = gameState.activeRounds[0].addend2Start;
+      }
+
+      // Build the workspace FIRST so preview overlay covers real content
+      buildWorkspaceDOM();
+      try {
+        var r = getCurrentRound();
+        if (r) {
+          if (workspaceEl) workspaceEl.setAttribute('data-stage', String(r.stage || 1));
+          if (box1El) box1El.textContent = String(r.addend1Start);
+          if (box2El) box2El.textContent = String(r.addend2Start);
+        }
+      } catch (e) {}
+
+      if (previewScreen) {
+        try {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function (previewData) { startGameAfterPreview(previewData); }
+          });
+        } catch (e) {
+          console.error('[previewScreen.show]', e && e.message);
+          startGameAfterPreview({ duration: 0 });
+        }
+      } else {
+        startGameAfterPreview({ duration: 0 });
+      }
+    }
+
+    function startGameAfterPreview(previewData) {
+      try {
+        gameState.previewResult = previewData || { duration: 0 };
+        gameState.duration_data.preview = gameState.duration_data.preview || [];
+        gameState.duration_data.preview.push({ duration: previewData ? previewData.duration : 0 });
+
+        gameState.startTime = Date.now();
+        gameState.isActive = true;
+        gameState.duration_data.startTime = new Date().toISOString();
+
+        trackEvent('game_start', { totalRounds: gameState.totalRounds });
+        if (signalCollector && typeof signalCollector.recordViewEvent === 'function') {
+          try { signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+        }
+
+        // Seed header (PART-040 — direct method calls, never re-post game_init)
+        try {
+          if (previewScreen && typeof previewScreen.setQuestionLabel === 'function') previewScreen.setQuestionLabel('Q1');
+          if (previewScreen && typeof previewScreen.setScore === 'function') previewScreen.setScore('0/' + gameState.totalRounds);
+        } catch (e) {}
+
+        // ProgressBar — start-at-0 invariant
+        try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+
+        (async function () {
+          await showRoundIntro(1);
+          renderRound();
+        })();
+      } catch (e) { console.error('[startGameAfterPreview]', e && e.message); }
+    }
+
+    /* ============================================================
+       buildFallbackLayout — only if ScreenLayout never loads
+       ============================================================ */
+    function buildFallbackLayout() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      if (document.getElementById('gameContent')) return;
+      var stack = document.createElement('div');
+      stack.className = 'game-stack';
+      var gc = document.createElement('div');
+      gc.id = 'gameContent';
+      stack.appendChild(gc);
+      app.appendChild(stack);
+    }
+
+    /* ============================================================
+       Debug functions
+       ============================================================ */
+    function debugGame() {
+      return {
+        gameId: gameState.gameId,
+        phase: gameState.phase,
+        currentRound: gameState.currentRound,
+        score: gameState.score,
+        firstTryCorrect: gameState.firstTryCorrect,
+        attemptsOnThisRound: gameState.attemptsOnThisRound,
+        lives: gameState.lives,
+        stars: gameState.stars,
+        setIndex: gameState.setIndex,
+        attempts: gameState.attempts.length,
+        addend1Display: gameState.addend1Display,
+        addend2Display: gameState.addend2Display
+      };
+    }
+    function debugAudio() {
+      try {
+        return { canPlay: typeof FeedbackManager !== 'undefined' && FeedbackManager.canPlayAudio ? FeedbackManager.canPlayAudio() : false };
+      } catch (e) { return { error: e.message }; }
+    }
+    function testAudio() {
+      try { return safePlaySound('correct_sound_effect', { sticker: STICKER_CELEBRATE }); } catch (e) { return Promise.resolve(); }
+    }
+    function testPause() { try { FeedbackManager.sound.pause(); } catch (e) {} }
+    function testResume() { try { FeedbackManager.sound.resume(); } catch (e) {} }
+
+    window.debugGame = debugGame;
+    window.debugAudio = debugAudio;
+    window.testAudio = testAudio;
+    window.testPause = testPause;
+    window.testResume = testResume;
+  </script>
+
+  <script>
+    /* ============================================================
+       DOMContentLoaded init sequence
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', async function () {
+      try {
+        await waitForPackages();
+
+        try { await FeedbackManager.init(); } catch (e) {}
+
+        try {
+          signalCollector = new SignalCollector({
+            playId: 'add-list-adjustment-strategy-' + Date.now(),
+            game: 'add-list-adjustment-strategy'
+          });
+          window.signalCollector = signalCollector;
+        } catch (e) {
+          console.error('[SignalCollector ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+        }
+
+        try {
+          ScreenLayout.inject('app', {
+            slots: {
+              previewScreen: true,
+              transitionScreen: true,
+              progressBar: true,
+              floatingButton: true,
+              answerComponent: true
+            }
+          });
+        } catch (e) {
+          console.error('[ScreenLayout.inject failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+          buildFallbackLayout();
+        }
+
+        try {
+          visibilityTracker = new VisibilityTracker({
+            popupProps: {},
+            onInactive: function () {
+              try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {}
+              try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+            },
+            onResume: function () {
+              try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {}
+              try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+            }
+          });
+        } catch (e) {
+          console.error('[VisibilityTracker ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+        }
+
+        try {
+          progressBar = new ProgressBarComponent({
+            slotId: 'mathai-progress-slot',
+            totalRounds: 9,
+            totalLives: 3,
+            showLives: true
+          });
+        } catch (e) {
+          console.error('[ProgressBarComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+        }
+
+        try {
+          transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' });
+        } catch (e) {
+          console.error('[TransitionScreenComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+        }
+
+        try {
+          previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+        } catch (e) {
+          console.error('[PreviewScreenComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+        }
+
+        try {
+          floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+          if (floatingBtn && typeof floatingBtn.setLabels === 'function') {
+            try { floatingBtn.setLabels({ submit: 'Next Round', next: 'Next' }); } catch (e) {}
+          }
+          floatingBtn.on('submit', async function () {
+            if (gameState.isProcessing || gameState.gameEnded) return;
+            try { await handleSubmit(); } catch (e) { console.error('[handleSubmit]', e && e.message); }
+          });
+          floatingBtn.on('next', function () {
+            // Single-stage end-game exit (PART-051 + PART-050)
+            try { if (answerComponent && typeof answerComponent.destroy === 'function') answerComponent.destroy(); } catch (e) {}
+            try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+            try { if (previewScreen && typeof previewScreen.destroy === 'function') previewScreen.destroy(); } catch (e) {}
+            try { if (floatingBtn && typeof floatingBtn.destroy === 'function') floatingBtn.destroy(); } catch (e) {}
+          });
+        } catch (e) {
+          console.error('[FloatingButtonComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+        }
+
+        try {
+          answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' });
+        } catch (e) {
+          console.error('[AnswerComponentComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+        }
+
+        preloadAudio();
+
+        // Register message listener BEFORE sending game_ready
+        window.addEventListener('message', handlePostMessage);
+        try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+
+        // visualViewport listener — keeps the workspace visible when keyboard opens (Mobile rule #14)
+        try {
+          if (window.visualViewport) {
+            var lastVH = window.visualViewport.height;
+            var debounceTimer = null;
+            window.visualViewport.addEventListener('resize', function () {
+              if (debounceTimer) clearTimeout(debounceTimer);
+              debounceTimer = setTimeout(function () {
+                var vh = window.visualViewport.height;
+                if (vh < lastVH - 100) {
+                  var workspace = document.getElementById('comp-workspace');
+                  if (workspace && workspace.scrollIntoView) {
+                    try { workspace.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+                  }
+                }
+                lastVH = vh;
+              }, 100);
+            });
+          }
+        } catch (e) {}
+      } catch (e) {
+        console.error('[init]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+
+      // Window exposures
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = startGame;
+      window.nextRound = nextRound;
+      window.loadRound = function (n) {
+        if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+          gameState.currentRound = n;
+          renderRound();
+        }
+      };
+    });
+
+    /* ============================================================
+       Standalone fallback — runs INDEPENDENTLY of waitForPackages
+       (does not nest inside .then; fires regardless of CDN status)
+       ============================================================ */
+    setTimeout(function () {
+      // Abort if a live preview is mounted (waitForPackages succeeded)
+      if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      if (gameState.isActive || gameState.gameEnded) return;
+
+      var missing = [];
+      if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+      if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+      if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+      if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+      if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+      if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+      if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+      if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+      if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+      if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+
+      if (missing.length > 0) {
+        var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+        console.error('[' + msg + ']');
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureMessage(msg); } catch (e) {} }
+        var gc = document.getElementById('gameContent') || document.body;
+        if (gc) {
+          gc.innerHTML =
+            '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">' +
+            'Game failed to load — please refresh.' +
+            '</div>';
+        }
+        return;
+      }
+
+      if (!document.getElementById('gameContent')) {
+        buildFallbackLayout();
+      }
+      gameState.content = fallbackContent;
+      gameState.totalRounds = 9;
+      gameState.totalLives = 3;
+      gameState.lives = 3;
+      setupGame();
+    }, 2000);
+  </script>
+</body>
+</html>

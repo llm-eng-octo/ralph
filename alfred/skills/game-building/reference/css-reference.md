@@ -108,22 +108,14 @@ body {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
-/* Preview-wrapper scroll compatibility.
-   Until every deployed components bundle includes the preview-body fix,
-   emit this block in every previewScreen:true game so gameplay can scroll
-   from grids, banks, and other large touch surfaces. */
-#mathai-preview-slot {
-  height: 100dvh;
-  overflow: hidden;
-}
-
-#mathai-preview-slot .mathai-preview-body {
-  height: 100dvh;
-  box-sizing: border-box;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-}
+/* Scroll ownership is handled by the components bundle now — the
+   ScreenLayout package emits its own critical CSS that locks
+   .mathai-preview-body as the inner scroller on touch devices and lets
+   the document scroll natively on desktop (via a (hover:hover) and
+   (pointer:fine) media query). Do NOT add per-game rules for
+   #mathai-preview-slot or .mathai-preview-body height/overflow — they
+   will fight with the package CSS and break either mobile gestures or
+   desktop wheel scroll. */
 
 /* dvh fallback for older browsers */
 @supports not (min-height: 100dvh) {

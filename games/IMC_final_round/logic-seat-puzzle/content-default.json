@@ -1,0 +1,2976 @@
+{
+  "previewInstruction": "<p><b>Read the clues.</b> Drag each friend onto a seat so all the clues are true at the same time. Then tap <b>CHECK</b>.</p><p style=\"font-size:0.9em;color:#666;\">Tip: <b>Left</b> and <b>right</b> are from <b>your</b> view, looking at the picture.</p>",
+  "previewAudioText": "Read the clues, then drag each friend onto a seat so that every clue is true at the same time. When all the seats are full, tap CHECK. Left and right are from your view, looking at the picture.",
+  "previewAudio": null,
+  "showGameOnPreview": false,
+  "totalRounds": 7,
+  "timer": false,
+  "answerComponent": true,
+  "rounds": [
+    {
+      "set": "A",
+      "id": "A_r1",
+      "round": 1,
+      "stage": 1,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          1,
+          3
+        ]
+      },
+      "acrossFrom": {
+        "1": 3,
+        "2": 4,
+        "3": 1,
+        "4": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 1
+      },
+      "headSeat": null,
+      "chips": [
+        {
+          "id": "anu",
+          "name": "Anu",
+          "avatar": "👧"
+        },
+        {
+          "id": "ravi",
+          "name": "Ravi",
+          "avatar": "👦"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Anu sits in seat 1.",
+          "kind": "seat-pin",
+          "args": [
+            "anu",
+            1
+          ]
+        },
+        {
+          "text": "Ravi is across from Anu.",
+          "kind": "across-from",
+          "args": [
+            "ravi",
+            "anu"
+          ]
+        },
+        {
+          "text": "Priya sits to the left of Ravi.",
+          "kind": "left-of",
+          "args": [
+            "priya",
+            "ravi"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "anu",
+        "2": "neha",
+        "3": "ravi",
+        "4": "priya"
+      },
+      "answer": {
+        "seating": {
+          "1": "anu",
+          "2": "neha",
+          "3": "ravi",
+          "4": "priya"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r2",
+      "round": 2,
+      "stage": 1,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          1,
+          3
+        ]
+      },
+      "acrossFrom": {
+        "1": 3,
+        "2": 4,
+        "3": 1,
+        "4": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 1
+      },
+      "headSeat": null,
+      "chips": [
+        {
+          "id": "anu",
+          "name": "Anu",
+          "avatar": "👧"
+        },
+        {
+          "id": "ravi",
+          "name": "Ravi",
+          "avatar": "👦"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Ravi sits in seat 2.",
+          "kind": "seat-pin",
+          "args": [
+            "ravi",
+            2
+          ]
+        },
+        {
+          "text": "Anu sits to the left of Ravi.",
+          "kind": "left-of",
+          "args": [
+            "anu",
+            "ravi"
+          ]
+        },
+        {
+          "text": "Priya is across from Ravi.",
+          "kind": "across-from",
+          "args": [
+            "priya",
+            "ravi"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "neha",
+        "2": "ravi",
+        "3": "anu",
+        "4": "priya"
+      },
+      "answer": {
+        "seating": {
+          "1": "neha",
+          "2": "ravi",
+          "3": "anu",
+          "4": "priya"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r3",
+      "round": 3,
+      "stage": 2,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        5,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          5
+        ],
+        "4": [
+          1,
+          5
+        ],
+        "5": [
+          3,
+          4
+        ]
+      },
+      "acrossFrom": {
+        "1": null,
+        "2": 4,
+        "3": 5,
+        "4": 2,
+        "5": 3
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 5,
+        "4": 1,
+        "5": 4
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "meera",
+          "name": "Meera",
+          "avatar": "👧"
+        },
+        {
+          "id": "anu",
+          "name": "Anu",
+          "avatar": "👧"
+        },
+        {
+          "id": "ravi",
+          "name": "Ravi",
+          "avatar": "👦"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Meera is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "meera"
+          ]
+        },
+        {
+          "text": "Anu sits next to Meera.",
+          "kind": "next-to",
+          "args": [
+            "anu",
+            "meera"
+          ]
+        },
+        {
+          "text": "Ravi sits between Anu and Priya.",
+          "kind": "between",
+          "args": [
+            "ravi",
+            "anu",
+            "priya"
+          ]
+        },
+        {
+          "text": "Neha sits to the left of Meera.",
+          "kind": "left-of",
+          "args": [
+            "neha",
+            "meera"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "meera",
+        "2": "neha",
+        "3": "priya",
+        "4": "anu",
+        "5": "ravi"
+      },
+      "answer": {
+        "seating": {
+          "1": "meera",
+          "2": "neha",
+          "3": "priya",
+          "4": "anu",
+          "5": "ravi"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r4",
+      "round": 4,
+      "stage": 2,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        5,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          5
+        ],
+        "4": [
+          1,
+          5
+        ],
+        "5": [
+          3,
+          4
+        ]
+      },
+      "acrossFrom": {
+        "1": null,
+        "2": 4,
+        "3": 5,
+        "4": 2,
+        "5": 3
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 5,
+        "4": 1,
+        "5": 4
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "anu",
+          "name": "Anu",
+          "avatar": "👧"
+        },
+        {
+          "id": "meera",
+          "name": "Meera",
+          "avatar": "👧"
+        },
+        {
+          "id": "ravi",
+          "name": "Ravi",
+          "avatar": "👦"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Anu is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "anu"
+          ]
+        },
+        {
+          "text": "Meera sits to the left of Anu.",
+          "kind": "left-of",
+          "args": [
+            "meera",
+            "anu"
+          ]
+        },
+        {
+          "text": "Ravi sits between Meera and Neha.",
+          "kind": "between",
+          "args": [
+            "ravi",
+            "meera",
+            "neha"
+          ]
+        },
+        {
+          "text": "Priya sits next to Neha.",
+          "kind": "next-to",
+          "args": [
+            "priya",
+            "neha"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "anu",
+        "2": "meera",
+        "3": "ravi",
+        "4": "priya",
+        "5": "neha"
+      },
+      "answer": {
+        "seating": {
+          "1": "anu",
+          "2": "meera",
+          "3": "ravi",
+          "4": "priya",
+          "5": "neha"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r5",
+      "round": 5,
+      "stage": 2,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        5,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          5
+        ],
+        "4": [
+          1,
+          5
+        ],
+        "5": [
+          3,
+          4
+        ]
+      },
+      "acrossFrom": {
+        "1": null,
+        "2": 4,
+        "3": 5,
+        "4": 2,
+        "5": 3
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 5,
+        "4": 1,
+        "5": 4
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "anu",
+          "name": "Anu",
+          "avatar": "👧"
+        },
+        {
+          "id": "meera",
+          "name": "Meera",
+          "avatar": "👧"
+        },
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        },
+        {
+          "id": "ravi",
+          "name": "Ravi",
+          "avatar": "👦"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Priya is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "priya"
+          ]
+        },
+        {
+          "text": "Anu sits between Priya and Meera.",
+          "kind": "between",
+          "args": [
+            "anu",
+            "priya",
+            "meera"
+          ]
+        },
+        {
+          "text": "Neha is across from Anu.",
+          "kind": "across-from",
+          "args": [
+            "neha",
+            "anu"
+          ]
+        },
+        {
+          "text": "Ravi sits to the left of Meera.",
+          "kind": "left-of",
+          "args": [
+            "ravi",
+            "meera"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "priya",
+        "2": "anu",
+        "3": "meera",
+        "4": "neha",
+        "5": "ravi"
+      },
+      "answer": {
+        "seating": {
+          "1": "priya",
+          "2": "anu",
+          "3": "meera",
+          "4": "neha",
+          "5": "ravi"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r6",
+      "round": 6,
+      "stage": 3,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          6
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          3,
+          5
+        ],
+        "5": [
+          4,
+          6
+        ],
+        "6": [
+          1,
+          5
+        ]
+      },
+      "acrossFrom": {
+        "1": 4,
+        "2": 6,
+        "3": 5,
+        "4": 1,
+        "5": 3,
+        "6": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 5,
+        "5": 6,
+        "6": 1
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "meera",
+          "name": "Meera",
+          "avatar": "👧"
+        },
+        {
+          "id": "anu",
+          "name": "Anu",
+          "avatar": "👧"
+        },
+        {
+          "id": "ravi",
+          "name": "Ravi",
+          "avatar": "👦"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        },
+        {
+          "id": "bobby",
+          "name": "Bobby",
+          "avatar": "👦"
+        },
+        {
+          "id": "tara",
+          "name": "Tara",
+          "avatar": "🧒"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Meera is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "meera"
+          ]
+        },
+        {
+          "text": "Anu is across from Meera.",
+          "kind": "across-from",
+          "args": [
+            "anu",
+            "meera"
+          ]
+        },
+        {
+          "text": "Ravi sits between Bobby and Anu.",
+          "kind": "between",
+          "args": [
+            "ravi",
+            "bobby",
+            "anu"
+          ]
+        },
+        {
+          "text": "Priya is NOT next to Anu.",
+          "kind": "not-next-to",
+          "args": [
+            "priya",
+            "anu"
+          ]
+        },
+        {
+          "text": "Neha sits to the left of Anu.",
+          "kind": "left-of",
+          "args": [
+            "neha",
+            "anu"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "meera",
+        "2": "bobby",
+        "3": "ravi",
+        "4": "anu",
+        "5": "neha",
+        "6": "priya"
+      },
+      "answer": {
+        "seating": {
+          "1": "meera",
+          "2": "bobby",
+          "3": "ravi",
+          "4": "anu",
+          "5": "neha",
+          "6": "priya"
+        },
+        "distractor": "tara"
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r7",
+      "round": 7,
+      "stage": 3,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          6
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          3,
+          5
+        ],
+        "5": [
+          4,
+          6
+        ],
+        "6": [
+          1,
+          5
+        ]
+      },
+      "acrossFrom": {
+        "1": 4,
+        "2": 6,
+        "3": 5,
+        "4": 1,
+        "5": 3,
+        "6": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 5,
+        "5": 6,
+        "6": 1
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "anu",
+          "name": "Anu",
+          "avatar": "👧"
+        },
+        {
+          "id": "ravi",
+          "name": "Ravi",
+          "avatar": "👦"
+        },
+        {
+          "id": "meera",
+          "name": "Meera",
+          "avatar": "👧"
+        },
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        },
+        {
+          "id": "tara",
+          "name": "Tara",
+          "avatar": "🧒"
+        },
+        {
+          "id": "bobby",
+          "name": "Bobby",
+          "avatar": "👦"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Priya is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "priya"
+          ]
+        },
+        {
+          "text": "Ravi is across from Priya.",
+          "kind": "across-from",
+          "args": [
+            "ravi",
+            "priya"
+          ]
+        },
+        {
+          "text": "Meera sits between Anu and Ravi.",
+          "kind": "between",
+          "args": [
+            "meera",
+            "anu",
+            "ravi"
+          ]
+        },
+        {
+          "text": "Tara sits to the left of Neha.",
+          "kind": "left-of",
+          "args": [
+            "tara",
+            "neha"
+          ]
+        },
+        {
+          "text": "Neha is NOT next to Priya.",
+          "kind": "not-next-to",
+          "args": [
+            "neha",
+            "priya"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "priya",
+        "2": "anu",
+        "3": "meera",
+        "4": "ravi",
+        "5": "neha",
+        "6": "tara"
+      },
+      "answer": {
+        "seating": {
+          "1": "priya",
+          "2": "anu",
+          "3": "meera",
+          "4": "ravi",
+          "5": "neha",
+          "6": "tara"
+        },
+        "distractor": "bobby"
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r1",
+      "round": 1,
+      "stage": 1,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          1,
+          3
+        ]
+      },
+      "acrossFrom": {
+        "1": 3,
+        "2": 4,
+        "3": 1,
+        "4": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 1
+      },
+      "headSeat": null,
+      "chips": [
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "kavya",
+          "name": "Kavya",
+          "avatar": "👧"
+        },
+        {
+          "id": "arjun",
+          "name": "Arjun",
+          "avatar": "👦"
+        },
+        {
+          "id": "diya",
+          "name": "Diya",
+          "avatar": "🧒"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Rohan sits in seat 3.",
+          "kind": "seat-pin",
+          "args": [
+            "rohan",
+            3
+          ]
+        },
+        {
+          "text": "Kavya sits to the left of Rohan.",
+          "kind": "left-of",
+          "args": [
+            "kavya",
+            "rohan"
+          ]
+        },
+        {
+          "text": "Arjun is across from Rohan.",
+          "kind": "across-from",
+          "args": [
+            "arjun",
+            "rohan"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "arjun",
+        "2": "diya",
+        "3": "rohan",
+        "4": "kavya"
+      },
+      "answer": {
+        "seating": {
+          "1": "arjun",
+          "2": "diya",
+          "3": "rohan",
+          "4": "kavya"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r2",
+      "round": 2,
+      "stage": 1,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          1,
+          3
+        ]
+      },
+      "acrossFrom": {
+        "1": 3,
+        "2": 4,
+        "3": 1,
+        "4": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 1
+      },
+      "headSeat": null,
+      "chips": [
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "kavya",
+          "name": "Kavya",
+          "avatar": "👧"
+        },
+        {
+          "id": "arjun",
+          "name": "Arjun",
+          "avatar": "👦"
+        },
+        {
+          "id": "diya",
+          "name": "Diya",
+          "avatar": "🧒"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Diya sits in seat 1.",
+          "kind": "seat-pin",
+          "args": [
+            "diya",
+            1
+          ]
+        },
+        {
+          "text": "Arjun is across from Diya.",
+          "kind": "across-from",
+          "args": [
+            "arjun",
+            "diya"
+          ]
+        },
+        {
+          "text": "Kavya sits to the left of Diya.",
+          "kind": "left-of",
+          "args": [
+            "kavya",
+            "diya"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "diya",
+        "2": "kavya",
+        "3": "arjun",
+        "4": "rohan"
+      },
+      "answer": {
+        "seating": {
+          "1": "diya",
+          "2": "kavya",
+          "3": "arjun",
+          "4": "rohan"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r3",
+      "round": 3,
+      "stage": 2,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        5,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          5
+        ],
+        "4": [
+          1,
+          5
+        ],
+        "5": [
+          3,
+          4
+        ]
+      },
+      "acrossFrom": {
+        "1": null,
+        "2": 4,
+        "3": 5,
+        "4": 2,
+        "5": 3
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 5,
+        "4": 1,
+        "5": 4
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "kabir",
+          "name": "Kabir",
+          "avatar": "👦"
+        },
+        {
+          "id": "arjun",
+          "name": "Arjun",
+          "avatar": "👦"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "diya",
+          "name": "Diya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "kavya",
+          "name": "Kavya",
+          "avatar": "👧"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Kabir is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "kabir"
+          ]
+        },
+        {
+          "text": "Arjun sits to the left of Kabir.",
+          "kind": "left-of",
+          "args": [
+            "arjun",
+            "kabir"
+          ]
+        },
+        {
+          "text": "Rohan sits between Kabir and Diya.",
+          "kind": "between",
+          "args": [
+            "rohan",
+            "kabir",
+            "diya"
+          ]
+        },
+        {
+          "text": "Kavya is across from Diya.",
+          "kind": "across-from",
+          "args": [
+            "kavya",
+            "diya"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "kabir",
+        "2": "arjun",
+        "3": "kavya",
+        "4": "rohan",
+        "5": "diya"
+      },
+      "answer": {
+        "seating": {
+          "1": "kabir",
+          "2": "arjun",
+          "3": "kavya",
+          "4": "rohan",
+          "5": "diya"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r4",
+      "round": 4,
+      "stage": 2,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        5,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          5
+        ],
+        "4": [
+          1,
+          5
+        ],
+        "5": [
+          3,
+          4
+        ]
+      },
+      "acrossFrom": {
+        "1": null,
+        "2": 4,
+        "3": 5,
+        "4": 2,
+        "5": 3
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 5,
+        "4": 1,
+        "5": 4
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "kavya",
+          "name": "Kavya",
+          "avatar": "👧"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "arjun",
+          "name": "Arjun",
+          "avatar": "👦"
+        },
+        {
+          "id": "diya",
+          "name": "Diya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "kabir",
+          "name": "Kabir",
+          "avatar": "👦"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Kavya is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "kavya"
+          ]
+        },
+        {
+          "text": "Rohan sits to the left of Kavya.",
+          "kind": "left-of",
+          "args": [
+            "rohan",
+            "kavya"
+          ]
+        },
+        {
+          "text": "Arjun sits between Diya and Kabir.",
+          "kind": "between",
+          "args": [
+            "arjun",
+            "diya",
+            "kabir"
+          ]
+        },
+        {
+          "text": "Diya is across from Rohan.",
+          "kind": "across-from",
+          "args": [
+            "diya",
+            "rohan"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "kavya",
+        "2": "rohan",
+        "3": "kabir",
+        "4": "diya",
+        "5": "arjun"
+      },
+      "answer": {
+        "seating": {
+          "1": "kavya",
+          "2": "rohan",
+          "3": "kabir",
+          "4": "diya",
+          "5": "arjun"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r5",
+      "round": 5,
+      "stage": 2,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        5,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          5
+        ],
+        "4": [
+          1,
+          5
+        ],
+        "5": [
+          3,
+          4
+        ]
+      },
+      "acrossFrom": {
+        "1": null,
+        "2": 4,
+        "3": 5,
+        "4": 2,
+        "5": 3
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 5,
+        "4": 1,
+        "5": 4
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "diya",
+          "name": "Diya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "kabir",
+          "name": "Kabir",
+          "avatar": "👦"
+        },
+        {
+          "id": "arjun",
+          "name": "Arjun",
+          "avatar": "👦"
+        },
+        {
+          "id": "kavya",
+          "name": "Kavya",
+          "avatar": "👧"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Diya is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "diya"
+          ]
+        },
+        {
+          "text": "Rohan sits to the left of Diya.",
+          "kind": "left-of",
+          "args": [
+            "rohan",
+            "diya"
+          ]
+        },
+        {
+          "text": "Kabir sits between Diya and Arjun.",
+          "kind": "between",
+          "args": [
+            "kabir",
+            "diya",
+            "arjun"
+          ]
+        },
+        {
+          "text": "Kavya is across from Arjun.",
+          "kind": "across-from",
+          "args": [
+            "kavya",
+            "arjun"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "diya",
+        "2": "rohan",
+        "3": "kavya",
+        "4": "kabir",
+        "5": "arjun"
+      },
+      "answer": {
+        "seating": {
+          "1": "diya",
+          "2": "rohan",
+          "3": "kavya",
+          "4": "kabir",
+          "5": "arjun"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r6",
+      "round": 6,
+      "stage": 3,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          6
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          3,
+          5
+        ],
+        "5": [
+          4,
+          6
+        ],
+        "6": [
+          1,
+          5
+        ]
+      },
+      "acrossFrom": {
+        "1": 4,
+        "2": 6,
+        "3": 5,
+        "4": 1,
+        "5": 3,
+        "6": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 5,
+        "5": 6,
+        "6": 1
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "diya",
+          "name": "Diya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "arjun",
+          "name": "Arjun",
+          "avatar": "👦"
+        },
+        {
+          "id": "kavya",
+          "name": "Kavya",
+          "avatar": "👧"
+        },
+        {
+          "id": "meera",
+          "name": "Meera",
+          "avatar": "👧"
+        },
+        {
+          "id": "kabir",
+          "name": "Kabir",
+          "avatar": "👦"
+        },
+        {
+          "id": "anu",
+          "name": "Anu",
+          "avatar": "👧"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Diya is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "diya"
+          ]
+        },
+        {
+          "text": "Arjun is across from Diya.",
+          "kind": "across-from",
+          "args": [
+            "arjun",
+            "diya"
+          ]
+        },
+        {
+          "text": "Rohan sits to the left of Diya.",
+          "kind": "left-of",
+          "args": [
+            "rohan",
+            "diya"
+          ]
+        },
+        {
+          "text": "Kavya sits between Rohan and Arjun.",
+          "kind": "between",
+          "args": [
+            "kavya",
+            "rohan",
+            "arjun"
+          ]
+        },
+        {
+          "text": "Meera is across from Kavya.",
+          "kind": "across-from",
+          "args": [
+            "meera",
+            "kavya"
+          ]
+        },
+        {
+          "text": "Kabir sits to the left of Meera.",
+          "kind": "left-of",
+          "args": [
+            "kabir",
+            "meera"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "diya",
+        "2": "rohan",
+        "3": "kavya",
+        "4": "arjun",
+        "5": "meera",
+        "6": "kabir"
+      },
+      "answer": {
+        "seating": {
+          "1": "diya",
+          "2": "rohan",
+          "3": "kavya",
+          "4": "arjun",
+          "5": "meera",
+          "6": "kabir"
+        },
+        "distractor": "anu"
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r7",
+      "round": 7,
+      "stage": 3,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          6
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          3,
+          5
+        ],
+        "5": [
+          4,
+          6
+        ],
+        "6": [
+          1,
+          5
+        ]
+      },
+      "acrossFrom": {
+        "1": 4,
+        "2": 6,
+        "3": 5,
+        "4": 1,
+        "5": 3,
+        "6": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 5,
+        "5": 6,
+        "6": 1
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "anu",
+          "name": "Anu",
+          "avatar": "👧"
+        },
+        {
+          "id": "meera",
+          "name": "Meera",
+          "avatar": "👧"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "diya",
+          "name": "Diya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "arjun",
+          "name": "Arjun",
+          "avatar": "👦"
+        },
+        {
+          "id": "kavya",
+          "name": "Kavya",
+          "avatar": "👧"
+        },
+        {
+          "id": "kabir",
+          "name": "Kabir",
+          "avatar": "👦"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Anu is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "anu"
+          ]
+        },
+        {
+          "text": "Meera is across from Anu.",
+          "kind": "across-from",
+          "args": [
+            "meera",
+            "anu"
+          ]
+        },
+        {
+          "text": "Rohan sits to the left of Anu.",
+          "kind": "left-of",
+          "args": [
+            "rohan",
+            "anu"
+          ]
+        },
+        {
+          "text": "Diya sits between Meera and Arjun.",
+          "kind": "between",
+          "args": [
+            "diya",
+            "meera",
+            "arjun"
+          ]
+        },
+        {
+          "text": "Kavya is NOT next to Anu.",
+          "kind": "not-next-to",
+          "args": [
+            "kavya",
+            "anu"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "anu",
+        "2": "rohan",
+        "3": "kavya",
+        "4": "meera",
+        "5": "diya",
+        "6": "arjun"
+      },
+      "answer": {
+        "seating": {
+          "1": "anu",
+          "2": "rohan",
+          "3": "kavya",
+          "4": "meera",
+          "5": "diya",
+          "6": "arjun"
+        },
+        "distractor": "kabir"
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r1",
+      "round": 1,
+      "stage": 1,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          1,
+          3
+        ]
+      },
+      "acrossFrom": {
+        "1": 3,
+        "2": 4,
+        "3": 1,
+        "4": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 1
+      },
+      "headSeat": null,
+      "chips": [
+        {
+          "id": "tara",
+          "name": "Tara",
+          "avatar": "🧒"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "bobby",
+          "name": "Bobby",
+          "avatar": "👦"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Tara sits in seat 4.",
+          "kind": "seat-pin",
+          "args": [
+            "tara",
+            4
+          ]
+        },
+        {
+          "text": "Bobby is across from Tara.",
+          "kind": "across-from",
+          "args": [
+            "bobby",
+            "tara"
+          ]
+        },
+        {
+          "text": "Priya sits to the left of Bobby.",
+          "kind": "left-of",
+          "args": [
+            "priya",
+            "bobby"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "rohan",
+        "2": "bobby",
+        "3": "priya",
+        "4": "tara"
+      },
+      "answer": {
+        "seating": {
+          "1": "rohan",
+          "2": "bobby",
+          "3": "priya",
+          "4": "tara"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r2",
+      "round": 2,
+      "stage": 1,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          1,
+          3
+        ]
+      },
+      "acrossFrom": {
+        "1": 3,
+        "2": 4,
+        "3": 1,
+        "4": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 1
+      },
+      "headSeat": null,
+      "chips": [
+        {
+          "id": "tara",
+          "name": "Tara",
+          "avatar": "🧒"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "bobby",
+          "name": "Bobby",
+          "avatar": "👦"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Priya sits in seat 2.",
+          "kind": "seat-pin",
+          "args": [
+            "priya",
+            2
+          ]
+        },
+        {
+          "text": "Rohan is across from Priya.",
+          "kind": "across-from",
+          "args": [
+            "rohan",
+            "priya"
+          ]
+        },
+        {
+          "text": "Bobby sits to the left of Priya.",
+          "kind": "left-of",
+          "args": [
+            "bobby",
+            "priya"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "tara",
+        "2": "priya",
+        "3": "bobby",
+        "4": "rohan"
+      },
+      "answer": {
+        "seating": {
+          "1": "tara",
+          "2": "priya",
+          "3": "bobby",
+          "4": "rohan"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r3",
+      "round": 3,
+      "stage": 2,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        5,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          5
+        ],
+        "4": [
+          1,
+          5
+        ],
+        "5": [
+          3,
+          4
+        ]
+      },
+      "acrossFrom": {
+        "1": null,
+        "2": 4,
+        "3": 5,
+        "4": 2,
+        "5": 3
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 5,
+        "4": 1,
+        "5": 4
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "bobby",
+          "name": "Bobby",
+          "avatar": "👦"
+        },
+        {
+          "id": "tara",
+          "name": "Tara",
+          "avatar": "🧒"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Bobby is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "bobby"
+          ]
+        },
+        {
+          "text": "Tara sits to the left of Bobby.",
+          "kind": "left-of",
+          "args": [
+            "tara",
+            "bobby"
+          ]
+        },
+        {
+          "text": "Priya sits between Bobby and Neha.",
+          "kind": "between",
+          "args": [
+            "priya",
+            "bobby",
+            "neha"
+          ]
+        },
+        {
+          "text": "Rohan is across from Neha.",
+          "kind": "across-from",
+          "args": [
+            "rohan",
+            "neha"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "bobby",
+        "2": "tara",
+        "3": "rohan",
+        "4": "priya",
+        "5": "neha"
+      },
+      "answer": {
+        "seating": {
+          "1": "bobby",
+          "2": "tara",
+          "3": "rohan",
+          "4": "priya",
+          "5": "neha"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r4",
+      "round": 4,
+      "stage": 2,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        5,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          5
+        ],
+        "4": [
+          1,
+          5
+        ],
+        "5": [
+          3,
+          4
+        ]
+      },
+      "acrossFrom": {
+        "1": null,
+        "2": 4,
+        "3": 5,
+        "4": 2,
+        "5": 3
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 5,
+        "4": 1,
+        "5": 4
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "tara",
+          "name": "Tara",
+          "avatar": "🧒"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "bobby",
+          "name": "Bobby",
+          "avatar": "👦"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Neha is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "neha"
+          ]
+        },
+        {
+          "text": "Priya sits to the left of Neha.",
+          "kind": "left-of",
+          "args": [
+            "priya",
+            "neha"
+          ]
+        },
+        {
+          "text": "Bobby sits between Tara and Rohan.",
+          "kind": "between",
+          "args": [
+            "bobby",
+            "tara",
+            "rohan"
+          ]
+        },
+        {
+          "text": "Rohan is across from Priya.",
+          "kind": "across-from",
+          "args": [
+            "rohan",
+            "priya"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "neha",
+        "2": "priya",
+        "3": "tara",
+        "4": "rohan",
+        "5": "bobby"
+      },
+      "answer": {
+        "seating": {
+          "1": "neha",
+          "2": "priya",
+          "3": "tara",
+          "4": "rohan",
+          "5": "bobby"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r5",
+      "round": 5,
+      "stage": 2,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        5,
+        4
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          4
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          5
+        ],
+        "4": [
+          1,
+          5
+        ],
+        "5": [
+          3,
+          4
+        ]
+      },
+      "acrossFrom": {
+        "1": null,
+        "2": 4,
+        "3": 5,
+        "4": 2,
+        "5": 3
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 5,
+        "4": 1,
+        "5": 4
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "tara",
+          "name": "Tara",
+          "avatar": "🧒"
+        },
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "bobby",
+          "name": "Bobby",
+          "avatar": "👦"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Tara is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "tara"
+          ]
+        },
+        {
+          "text": "Neha sits to the left of Tara.",
+          "kind": "left-of",
+          "args": [
+            "neha",
+            "tara"
+          ]
+        },
+        {
+          "text": "Priya sits between Tara and Bobby.",
+          "kind": "between",
+          "args": [
+            "priya",
+            "tara",
+            "bobby"
+          ]
+        },
+        {
+          "text": "Rohan is across from Bobby.",
+          "kind": "across-from",
+          "args": [
+            "rohan",
+            "bobby"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "tara",
+        "2": "neha",
+        "3": "rohan",
+        "4": "priya",
+        "5": "bobby"
+      },
+      "answer": {
+        "seating": {
+          "1": "tara",
+          "2": "neha",
+          "3": "rohan",
+          "4": "priya",
+          "5": "bobby"
+        },
+        "distractor": null
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r6",
+      "round": 6,
+      "stage": 3,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          6
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          3,
+          5
+        ],
+        "5": [
+          4,
+          6
+        ],
+        "6": [
+          1,
+          5
+        ]
+      },
+      "acrossFrom": {
+        "1": 4,
+        "2": 6,
+        "3": 5,
+        "4": 1,
+        "5": 3,
+        "6": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 5,
+        "5": 6,
+        "6": 1
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "tara",
+          "name": "Tara",
+          "avatar": "🧒"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "bobby",
+          "name": "Bobby",
+          "avatar": "👦"
+        },
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        },
+        {
+          "id": "ravi",
+          "name": "Ravi",
+          "avatar": "👦"
+        },
+        {
+          "id": "kavya",
+          "name": "Kavya",
+          "avatar": "👧"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Tara is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "tara"
+          ]
+        },
+        {
+          "text": "Bobby is across from Tara.",
+          "kind": "across-from",
+          "args": [
+            "bobby",
+            "tara"
+          ]
+        },
+        {
+          "text": "Rohan sits to the left of Tara.",
+          "kind": "left-of",
+          "args": [
+            "rohan",
+            "tara"
+          ]
+        },
+        {
+          "text": "Neha sits between Bobby and Ravi.",
+          "kind": "between",
+          "args": [
+            "neha",
+            "bobby",
+            "ravi"
+          ]
+        },
+        {
+          "text": "Kavya is across from Neha.",
+          "kind": "across-from",
+          "args": [
+            "kavya",
+            "neha"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "tara",
+        "2": "rohan",
+        "3": "kavya",
+        "4": "bobby",
+        "5": "neha",
+        "6": "ravi"
+      },
+      "answer": {
+        "seating": {
+          "1": "tara",
+          "2": "rohan",
+          "3": "kavya",
+          "4": "bobby",
+          "5": "neha",
+          "6": "ravi"
+        },
+        "distractor": "priya"
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r7",
+      "round": 7,
+      "stage": 3,
+      "type": "seating-puzzle",
+      "seats": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "adjacency": {
+        "1": [
+          2,
+          6
+        ],
+        "2": [
+          1,
+          3
+        ],
+        "3": [
+          2,
+          4
+        ],
+        "4": [
+          3,
+          5
+        ],
+        "5": [
+          4,
+          6
+        ],
+        "6": [
+          1,
+          5
+        ]
+      },
+      "acrossFrom": {
+        "1": 4,
+        "2": 6,
+        "3": 5,
+        "4": 1,
+        "5": 3,
+        "6": 2
+      },
+      "leftNeighbour": {
+        "1": 2,
+        "2": 3,
+        "3": 4,
+        "4": 5,
+        "5": 6,
+        "6": 1
+      },
+      "headSeat": 1,
+      "chips": [
+        {
+          "id": "ravi",
+          "name": "Ravi",
+          "avatar": "👦"
+        },
+        {
+          "id": "neha",
+          "name": "Neha",
+          "avatar": "👧"
+        },
+        {
+          "id": "kavya",
+          "name": "Kavya",
+          "avatar": "👧"
+        },
+        {
+          "id": "tara",
+          "name": "Tara",
+          "avatar": "🧒"
+        },
+        {
+          "id": "priya",
+          "name": "Priya",
+          "avatar": "🧒"
+        },
+        {
+          "id": "rohan",
+          "name": "Rohan",
+          "avatar": "👦"
+        },
+        {
+          "id": "bobby",
+          "name": "Bobby",
+          "avatar": "👦"
+        }
+      ],
+      "clues": [
+        {
+          "text": "Ravi is at the head of the table.",
+          "kind": "head-of-table",
+          "args": [
+            "ravi"
+          ]
+        },
+        {
+          "text": "Tara is across from Ravi.",
+          "kind": "across-from",
+          "args": [
+            "tara",
+            "ravi"
+          ]
+        },
+        {
+          "text": "Neha sits to the left of Ravi.",
+          "kind": "left-of",
+          "args": [
+            "neha",
+            "ravi"
+          ]
+        },
+        {
+          "text": "Kavya sits between Neha and Tara.",
+          "kind": "between",
+          "args": [
+            "kavya",
+            "neha",
+            "tara"
+          ]
+        },
+        {
+          "text": "Rohan is NOT next to Tara.",
+          "kind": "not-next-to",
+          "args": [
+            "rohan",
+            "tara"
+          ]
+        },
+        {
+          "text": "Priya sits to the left of Tara.",
+          "kind": "left-of",
+          "args": [
+            "priya",
+            "tara"
+          ]
+        }
+      ],
+      "solution": {
+        "1": "ravi",
+        "2": "neha",
+        "3": "kavya",
+        "4": "tara",
+        "5": "priya",
+        "6": "rohan"
+      },
+      "answer": {
+        "seating": {
+          "1": "ravi",
+          "2": "neha",
+          "3": "kavya",
+          "4": "tara",
+          "5": "priya",
+          "6": "rohan"
+        },
+        "distractor": "bobby"
+      },
+      "misconception_tags": {
+        "next-to": "next-to-constraint-overlooked",
+        "across-from": "across-from-constraint-overlooked",
+        "left-of": "left-right-orientation-confused",
+        "between": "between-constraint-misread",
+        "head-of-table": "head-anchor-overlooked",
+        "not-next-to": "negation-clue-misread",
+        "seat-pin": "absolute-seat-pin-overlooked",
+        "distractor-not-recognised": "distractor-not-recognised"
+      }
+    }
+  ]
+}

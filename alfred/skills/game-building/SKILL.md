@@ -201,7 +201,7 @@ Before outputting, verify against every check:
 - [ ] Landscape overlay present
 - [ ] `overscroll-behavior: none` on `html` and `body`
 - [ ] `touch-action: manipulation` on all interactive elements
-- [ ] When `previewScreen: true`, emit the preview-wrapper scroll compatibility CSS so `.mathai-preview-body` is the single vertical scroll owner
+- [ ] When `previewScreen: true`, do NOT author per-game `height` / `overflow` rules for `html` / `body` / `.page-center` / `#mathai-preview-slot` / `.mathai-preview-body` — the components bundle owns scroll selection (inner on touch, document on desktop)
 - [ ] `-webkit-touch-callout: none` on game wrapper
 - [ ] HTML under 500KB
 - [ ] No continuous CSS animations during gameplay
@@ -287,7 +287,7 @@ Write the complete `index.html` file. No placeholder comments. No TODO markers. 
 27. **STANDARD** -- Every `-webkit-` property must have the unprefixed standard property.
 28. **STANDARD** -- `-webkit-appearance: none; appearance: none` on all inputs.
 29. **ADVISORY** -- Debounce resize and scroll handlers.
-30. **CRITICAL** -- In preview-wrapper mode (`slots.previewScreen: true`), ship the compatibility CSS that makes `#mathai-preview-slot .mathai-preview-body` the explicit vertical scroll owner. Do NOT rely on root-page scrolling, and do NOT create nested `overflow-y:auto` descendants inside `.game-stack`.
+30. **CRITICAL** -- In preview-wrapper mode (`slots.previewScreen: true`), the components bundle owns scroll selection — inner (`.mathai-preview-body`) on touch devices, document-level on desktop (via `(hover:hover) and (pointer:fine)`). Game CSS MUST NOT set `height` / `overflow` on `html`, `body`, `.page-center`, `#mathai-preview-slot`, or `.mathai-preview-body`, and MUST NOT create nested `overflow-y:auto` descendants inside `.game-stack`.
 
 ### From feedback/SKILL.md
 

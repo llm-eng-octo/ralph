@@ -31,7 +31,7 @@ It has two states:
 
 The header bar (back button, avatar, question label, score, star) is **fixed at top** and visible in BOTH states.
 
-The instruction area and the game content share a **single scroll area** below the fixed header — there is NO nested scrolling.
+The instruction area and the game content share a **single scroll area** — on touch devices that's `.mathai-preview-body` (inner scroller) below the fixed header; on desktop the document itself scrolls and the header is `position: sticky`. The components bundle's `mathai-preview-critical-css` picks between the two via `@media (hover:hover) and (pointer:fine)` — game code does not need to (and MUST NOT) re-author `html` / `body` / `.page-center` / `#mathai-preview-slot` / `.mathai-preview-body` height or overflow. There is NO nested scrolling inside `.game-stack` either way.
 
 ---
 

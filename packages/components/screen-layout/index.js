@@ -215,12 +215,28 @@
           +     '#' + slotIds.previewSlot + '{min-height:100dvh;height:100dvh;background:#fff;overflow:hidden;}'
           +     '#' + slotIds.previewSlot + ' .mathai-preview-body{height:100dvh;box-sizing:border-box;overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch;}'
           +     '#' + slotIds.previewSlot + ' .game-stack{overflow:visible!important;height:auto!important;}'
-          // Keep a single explicit scroll owner in preview-wrapper mode:
-          // the preview body. Allowing root-page scrolling here sounds simpler,
-          // but in practice touch gestures that start on gameplay surfaces
-          // (grids, banks, drag targets) can fail to pan the page at all.
+          // Mobile/touch default above: a single inner scroll owner (.mathai-preview-body)
+          // because gameplay surfaces (grids, banks, drag targets) otherwise eat the
+          // touch gesture and the page never pans. On desktop (fine pointer) the same
+          // setup forces the user to aim the wheel at the centered column — the rest
+          // of the window is dead space. Switch to native document scroll there.
           +     '.page-center{height:100dvh!important;min-height:100dvh!important;overflow:hidden!important;display:block!important;}'
           +     'html,body{overflow-x:hidden!important;overflow-y:hidden!important;height:100dvh!important;min-height:100dvh!important;}'
+          +     '@media (hover:hover) and (pointer:fine){'
+          // html is the scroll container at fixed viewport height; body grows with content
+          // but stays overflow:visible (NOT a scroll container). The naive symmetric
+          // `html, body { overflow-y: visible; height: auto }` triggers Chromium's
+          // root-element overflow propagation and resolves body's used overflow-y
+          // to `auto`. Body then becomes a scroll container whose content height
+          // equals its own height — wheel events get eaten with nothing to scroll
+          // and the page becomes drag-the-scrollbar-only.
+          +       'html{height:100dvh!important;min-height:100dvh!important;overflow-x:hidden!important;overflow-y:auto!important;}'
+          +       'body{height:auto!important;min-height:100dvh!important;overflow:visible!important;}'
+          +       '.page-center{height:auto!important;min-height:100dvh!important;overflow:visible!important;}'
+          +       '#' + slotIds.previewSlot + '{height:auto!important;min-height:100dvh!important;overflow:visible!important;}'
+          +       '#' + slotIds.previewSlot + ' .mathai-preview-body{height:auto!important;min-height:0!important;overflow:visible!important;padding-top:72px!important;}'
+          +       '#' + slotIds.previewSlot + ' .mathai-preview-header{position:sticky!important;left:auto!important;right:auto!important;width:100%!important;max-width:var(--mathai-game-max-width,480px)!important;margin:0 auto!important;}'
+          +     '}'
           +   '</style>';
         html += '<div id="' + slotIds.previewSlot + '" class="mathai-preview-slot">';
 

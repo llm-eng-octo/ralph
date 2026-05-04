@@ -1,0 +1,3566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Age Matters</title>
+
+  <!-- ====== 1. SentryConfig package ====== -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+  <!-- ====== 2. initSentry() definition ====== -->
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'age-matters@1.0.0' }));
+    }
+  </script>
+
+  <!-- ====== 3. Sentry SDK ====== -->
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+  <!-- ====== 4. Initialize Sentry on load ====== -->
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- ====== 5-7. Game CDN packages ====== -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-color-accent: #9B51E0;
+
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-color-card-bg: #FAF7FE;
+      --mathai-color-border: #E1DDF0;
+
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 24px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 22px;
+
+      --mathai-padding-medium: 16px 20px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 18px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+      min-height: 100dvh;
+    }
+
+    @supports not (min-height: 100dvh) {
+      body { min-height: 100vh; }
+    }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility (mobile rule #39) */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    @supports not (height: 100dvh) {
+      #mathai-preview-slot { height: 100vh; }
+    }
+
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    @supports not (height: 100dvh) {
+      #mathai-preview-slot .mathai-preview-body { height: 100vh; }
+    }
+
+    .hidden { display: none !important; }
+
+    button, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    /* ====== Game-specific ====== */
+    #gameContent {
+      width: 100%;
+      padding: 6px 12px 28px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      box-sizing: border-box;
+    }
+
+    .am-first-tap-chip {
+      display: inline-block;
+      align-self: center;
+      padding: 4px 12px;
+      margin: 4px 0 8px 0;
+      border-radius: 999px;
+      background: var(--mathai-cell-bg-yellow);
+      color: var(--mathai-primary);
+      font-size: 14px;
+      font-weight: 600;
+      min-height: 28px;
+      line-height: 20px;
+    }
+
+    .am-first-tap-chip.first-tap-chip-bump {
+      animation: scoreBounce 0.2s ease;
+    }
+
+    .am-problem-panel {
+      width: 100%;
+      max-width: 420px;
+      margin: 4px auto 8px auto;
+      padding: 12px 14px;
+      background: var(--mathai-color-card-bg);
+      border: 1px solid var(--mathai-color-border);
+      border-radius: var(--mathai-border-radius-card);
+      font-size: 16px;
+      line-height: 1.45;
+      color: var(--mathai-primary);
+    }
+
+    .am-problem-panel p { margin: 0 0 4px 0; }
+    .am-problem-panel p:last-child { margin-bottom: 0; }
+
+    .am-step-chip {
+      display: inline-block;
+      align-self: center;
+      padding: 4px 12px;
+      margin: 0 0 10px 0;
+      border-radius: 999px;
+      background: var(--mathai-cell-bg-grey);
+      color: var(--mathai-primary);
+      font-size: 14px;
+      font-weight: 600;
+      min-height: 28px;
+      line-height: 20px;
+    }
+
+    .am-banner {
+      width: 100%;
+      max-width: 420px;
+      margin: 0 auto 8px auto;
+      padding: 8px 12px;
+      background: var(--mathai-cell-bg-yellow);
+      border-radius: var(--mathai-border-radius-small);
+      font-size: 14px;
+      color: var(--mathai-primary);
+      text-align: center;
+    }
+
+    .am-step-area {
+      width: 100%;
+      max-width: 420px;
+      margin: 0 auto 6px auto;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .am-step-area.hidden { display: none; }
+
+    .am-tile-row {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .am-tile {
+      min-height: 48px;
+      min-width: 120px;
+      padding: 10px 16px;
+      margin: 6px;
+      background: var(--mathai-color-card-bg);
+      border: 2px solid var(--mathai-color-border);
+      border-radius: var(--mathai-border-radius-button);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--mathai-primary);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      text-align: center;
+      transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .am-tile.selected-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-green);
+    }
+
+    .am-tile.selected-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-cell-border-red);
+      color: var(--mathai-red);
+    }
+
+    .am-tile.glow-nudge {
+      box-shadow: 0 0 12px var(--mathai-color-accent), inset 0 0 0 2px var(--mathai-color-accent);
+      animation: glowPulse 1.5s ease-in-out infinite alternate;
+    }
+
+    .am-slot-row {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      padding: 6px 4px;
+      margin-bottom: 8px;
+      background: var(--mathai-white);
+      border: 1px dashed var(--mathai-color-border);
+      border-radius: var(--mathai-border-radius-small);
+      min-height: 56px;
+    }
+
+    .am-slot {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
+      margin: 4px;
+      padding: 4px 8px;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--mathai-primary);
+    }
+
+    .am-slot.am-slot-pinned {
+      background: var(--mathai-color-card-bg);
+      border-radius: var(--mathai-border-radius-small);
+      cursor: default;
+    }
+
+    .am-slot.am-slot-empty {
+      border: 2px dashed var(--mathai-color-border);
+      border-radius: var(--mathai-border-radius-small);
+      color: transparent;
+      background: transparent;
+    }
+
+    .am-slot.am-slot-filled {
+      background: var(--mathai-cell-bg-green);
+      border: 2px solid var(--mathai-cell-border-green);
+      color: var(--mathai-green);
+      border-radius: var(--mathai-border-radius-small);
+      cursor: pointer;
+      touch-action: manipulation;
+      animation: pieceScaleIn 0.25s ease;
+    }
+
+    .am-slot.am-slot-token {
+      cursor: default;
+      background: transparent;
+      color: var(--mathai-primary);
+    }
+
+    .am-slot.shake-wrong {
+      background: var(--mathai-cell-bg-red);
+      border: 2px solid var(--mathai-cell-border-red);
+      color: var(--mathai-red);
+      animation: shake 0.5s ease;
+    }
+
+    .am-piece-bank {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      padding: 6px 4px;
+      margin-bottom: 8px;
+    }
+
+    .am-piece {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
+      margin: 4px;
+      padding: 4px 10px;
+      background: var(--mathai-color-card-bg);
+      border: 2px solid var(--mathai-color-border);
+      border-radius: var(--mathai-border-radius-small);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--mathai-primary);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .am-piece.consumed {
+      opacity: 0.35;
+      pointer-events: none;
+    }
+
+    .am-piece.shake-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-cell-border-red);
+      color: var(--mathai-red);
+      animation: shake 0.5s ease;
+    }
+
+    .am-piece.glow-nudge {
+      box-shadow: 0 0 12px var(--mathai-color-accent), inset 0 0 0 2px var(--mathai-color-accent);
+      animation: glowPulse 1.5s ease-in-out infinite alternate;
+    }
+
+    .am-answer-area {
+      width: 100%;
+      max-width: 420px;
+      margin: 16px auto 8px auto;
+      padding: 16px;
+      background: var(--mathai-color-card-bg);
+      border: 1px solid var(--mathai-color-border);
+      border-radius: var(--mathai-border-radius-card);
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+    .am-answer-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--mathai-primary);
+      letter-spacing: 0.02em;
+    }
+    .am-answer-input {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 22px;
+      font-weight: 600;
+      text-align: center;
+      border: 2px solid var(--mathai-color-border);
+      border-radius: var(--mathai-border-radius-small);
+      background: #fff;
+      color: var(--mathai-primary);
+      box-sizing: border-box;
+      -moz-appearance: textfield;
+    }
+    .am-answer-input::-webkit-outer-spin-button,
+    .am-answer-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .am-answer-input:focus {
+      outline: none;
+      border-color: #5b6cff;
+      box-shadow: 0 0 0 3px rgba(91,108,255,0.15);
+    }
+    .am-answer-input.input-correct {
+      border-color: #2e9c4a;
+      background: #e9f9ee;
+      color: #1f7a37;
+    }
+    .am-answer-input.input-wrong {
+      border-color: #d33b3b;
+      background: #fdecec;
+      color: #a52727;
+      animation: shakeWrong 0.45s ease;
+    }
+    @keyframes shakeWrong {
+      0%,100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    .am-check-btn {
+      padding: 14px 18px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      background: #2e9c4a;
+      border: none;
+      border-radius: var(--mathai-border-radius-small);
+      cursor: pointer;
+      min-height: 48px;
+    }
+    .am-check-btn:active { transform: scale(0.98); }
+    .am-check-btn[disabled] { opacity: 0.5; cursor: default; }
+
+    .am-hint {
+      width: 100%;
+      max-width: 420px;
+      margin: 4px auto 8px auto;
+      padding: 8px 12px;
+      background: var(--mathai-cell-bg-yellow);
+      border-radius: var(--mathai-border-radius-small);
+      font-size: 14px;
+      color: var(--mathai-primary);
+      min-height: 36px;
+    }
+
+    .am-hint.hidden { display: none; }
+
+    .am-solve-area {
+      width: 100%;
+      max-width: 420px;
+      margin: 8px auto;
+      padding: 12px;
+      background: var(--mathai-color-card-bg);
+      border: 1px solid var(--mathai-color-border);
+      border-radius: var(--mathai-border-radius-card);
+      text-align: center;
+    }
+
+    .am-solve-area.hidden { display: none; }
+
+    .am-solve-line {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--mathai-primary);
+      margin: 4px 0;
+      opacity: 0;
+      transform: translateY(8px);
+    }
+
+    .am-solve-line.fade-in {
+      animation: solveFadeIn 0.6s ease forwards;
+    }
+
+    .am-bubble-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .am-bubble {
+      display: inline-block;
+      padding: 6px 12px;
+      margin: 4px;
+      border-radius: 999px;
+      background: var(--mathai-color-accent);
+      color: var(--mathai-white);
+      font-size: 14px;
+      font-weight: 600;
+      opacity: 0;
+      animation: bubblePop 0.4s ease forwards;
+    }
+
+    .am-celebrate-glow {
+      animation: celebrateGlow 0.6s ease;
+    }
+
+    /* Answer slide (carousel) */
+    .answer-slide {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 8px 6px 12px 6px;
+    }
+
+    .answer-slide-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
+    .answer-slide-problem {
+      font-size: 13px;
+      color: var(--mathai-text-primary);
+      margin-bottom: 6px;
+      padding: 6px 8px;
+      background: var(--mathai-color-card-bg);
+      border-radius: 6px;
+      line-height: 1.35;
+    }
+
+    .answer-slide-problem p { margin: 0; }
+
+    .answer-slide-equation {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      text-align: center;
+      margin: 6px 0;
+    }
+
+    .answer-slide-solve {
+      text-align: center;
+      margin: 4px 0 6px 0;
+    }
+
+    .answer-slide-solve-line {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--mathai-text-primary);
+      margin: 2px 0;
+    }
+
+    .answer-slide-bubbles {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 4px;
+    }
+
+    .answer-slide-bubble {
+      display: inline-block;
+      padding: 4px 10px;
+      margin: 3px;
+      border-radius: 999px;
+      background: var(--mathai-color-accent);
+      color: var(--mathai-white);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .answer-slide-explanation {
+      font-size: 12px;
+      color: var(--mathai-text-primary);
+      text-align: center;
+      margin-top: 6px;
+      opacity: 0.8;
+      line-height: 1.4;
+    }
+
+    /* ====== Required micro-animations ====== */
+    @keyframes scoreBounce {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.25); }
+      100% { transform: scale(1); }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pieceScaleIn {
+      0% { transform: scale(0.6); opacity: 0; }
+      60% { transform: scale(1.12); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes glowPulse {
+      from { box-shadow: 0 0 6px var(--mathai-color-accent), inset 0 0 0 2px var(--mathai-color-accent); }
+      to   { box-shadow: 0 0 16px var(--mathai-color-accent), inset 0 0 0 2px var(--mathai-color-accent); }
+    }
+    @keyframes solveFadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes bubblePop {
+      0%   { opacity: 0; transform: scale(0.6); }
+      60%  { opacity: 1; transform: scale(1.12); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes celebrateGlow {
+      0%   { box-shadow: 0 0 0 rgba(155, 81, 224, 0); }
+      50%  { box-shadow: 0 0 18px rgba(155, 81, 224, 0.65); }
+      100% { box-shadow: 0 0 0 rgba(155, 81, 224, 0); }
+    }
+    @keyframes starPop {
+      0% { transform: scale(0); }
+      60% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+    @keyframes heartBreak {
+      0% { transform: scale(1); opacity: 1; }
+      30% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.5); opacity: 0; color: var(--mathai-red); }
+    }
+    @keyframes streakGlow {
+      0% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+      50% { box-shadow: 0 0 16px rgba(255, 193, 7, 0.5); }
+      100% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+    }
+    @keyframes confettiFall {
+      0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+
+    .fade-in { animation: fadeIn 0.35s ease; }
+    .star-earned { animation: starPop 0.4s ease forwards; }
+    .heart-break { animation: heartBreak 0.6s ease forwards; }
+    .streak-glow { animation: streakGlow 0.6s ease; }
+    .selected-wrong { background: var(--mathai-cell-bg-red); }
+    .selected-correct { background: var(--mathai-cell-bg-green); }
+
+    .correct-reveal {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--mathai-green);
+      text-align: center;
+      margin-top: 8px;
+      animation: fadeIn 0.35s ease;
+    }
+    .correct-reveal.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0"></div>
+
+  <script>
+    /* ============================================================
+       Stickers
+       ============================================================ */
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_VICTORY_3 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_VICTORY_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_VICTORY_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    var SETS = ['A', 'B', 'C'];
+
+    /* ============================================================
+       gameState
+       ============================================================ */
+    var gameState = {
+      gameId: 'age-matters',
+      phase: 'start_screen',
+      currentRound: 1,
+      currentStep: 1,
+      totalRounds: 10,
+      totalLives: 10,
+      lives: 0,
+      score: 0,
+      firstTapCorrect: 0,
+      stars: 0,
+      progress: 0,
+      attempts: [],
+      events: [],
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      startTime: null,
+      roundStartTime: null,
+      duration_data: { startTime: null, preview: [] },
+      content: null,
+      previewResult: null,
+      setIndex: 0,
+      activeRounds: [],
+      // Per-round / per-step state
+      currentRoundData: null,
+      stepFirstTapDirty: false,
+      idleNudgeFiredForStep: false,
+      currentSlotState: [],
+      pieceBankState: [],
+      idleNudgeTimer: null,
+      correctAnswer: null
+    };
+
+    window.gameState = gameState;
+
+    /* ============================================================
+       fallbackContent — 30 rounds (3 sets × 10)
+       ============================================================ */
+    var fallbackContent = {
+      previewInstruction:
+        '<p><b>Solve the age word problem.</b></p>' +
+        '<p>Read each problem, type the answer in the box, and tap <b>Submit</b>. ' +
+        'Three stars for getting most answers right on the first try.</p>',
+      previewAudioText:
+        'Solve the age word problem. Read each problem, type the answer, and tap submit. ' +
+        'Three stars for getting most answers right on the first try.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 10,
+      totalLives: 10,
+      timer: false,
+      answerComponent: true,
+      rounds: [
+        // ────────── SET A ──────────
+        // Stage 1 — Type A
+        { set: 'A', id: 'A_r1_aman_past', round: 1, stage: 1, type: 'A',
+          problemText: '<p>Five years ago, Aman was 12. How old is he now?</p>',
+          problemAudioText: 'Five years ago, Aman was twelve. How old is he now?',
+          people: [{ name: 'Aman' }], timeDelta: -5, preferredVariable: 'Aman',
+          step2: { kind: 'directionTiles', tiles: [
+            { label: 'x − 5', correct: true,  misconception: null },
+            { label: 'x + 5', correct: false, misconception: 'time-shift-direction-flip' }
+          ]},
+          step3: {
+            slotTemplate: ['__slot__', '__slot__', '__slot__', '__slot__', '__slot__'],
+            pieceBank: ['x', '−', '+', 5, '=', 12, 4],
+            correctPieces: ['x', '−', 5, '=', 12],
+            pieceMisconceptions: { '+': 'time-shift-direction-flip', 4: 'time-shift-wrong-delta' }
+          },
+          solution: {
+            variableValue: 17,
+            solveLines: ['x − 5 = 12', 'x = 12 + 5', 'x = 17'],
+            captionedAnswers: [{ name: 'Aman (now)', value: 17 }],
+            successSubtitle: 'Aman is 17 now.',
+            successAudio: 'Aman is seventeen now.'
+          },
+          answer: {
+            problemText: '<p>Five years ago, Aman was 12. How old is he now?</p>',
+            canonicalEquationDisplay: 'x − 5 = 12',
+            solveLines: ['x − 5 = 12', 'x = 17'],
+            captionedAnswers: [{ name: 'Aman (now)', value: 17 }],
+            explanation: '"Five years ago" subtracts 5 from his current age x. So x − 5 = 12 means x = 17.'
+          }
+        },
+        { set: 'A', id: 'A_r2_sara_future', round: 2, stage: 1, type: 'A',
+          problemText: '<p>Sara is 8 now. How old will she be in 6 years?</p>',
+          problemAudioText: 'Sara is eight now. How old will she be in six years?',
+          people: [{ name: 'Sara' }], timeDelta: 6, preferredVariable: 'Sara',
+          step2: { kind: 'directionTiles', tiles: [
+            { label: 'x + 6', correct: true,  misconception: null },
+            { label: 'x − 6', correct: false, misconception: 'time-shift-direction-flip' }
+          ]},
+          step3: {
+            slotTemplate: ['__slot__', '__slot__', '__slot__', '__slot__', '__slot__'],
+            pieceBank: ['x', '+', '−', 6, 8, '=', 14],
+            correctPieces: ['x', '+', 6, '=', 14],
+            pieceMisconceptions: { 8: 'distractor-number-confusion', '−': 'time-shift-direction-flip' }
+          },
+          solution: {
+            variableValue: 8,
+            expectedAnswer: 14,
+            solveLines: ['x = 8', 'x + 6 = 14'],
+            captionedAnswers: [
+              { name: 'Sara (now)', value: 8 },
+              { name: 'Sara (in 6 yr)', value: 14 }
+            ],
+            successSubtitle: 'Sara is 8 now, and 14 in six years.',
+            successAudio: 'Sara is eight now, and fourteen in six years.'
+          },
+          answer: {
+            problemText: '<p>Sara is 8 now. How old will she be in 6 years?</p>',
+            canonicalEquationDisplay: 'x + 6 = 14',
+            solveLines: ['x = 8', 'x + 6 = 14'],
+            captionedAnswers: [{ name: 'Sara (now)', value: 8 }, { name: 'Sara (in 6 yr)', value: 14 }],
+            explanation: 'x is Sara\'s age now. The problem gives x = 8, and "in 6 years" adds 6 to give 14.'
+          }
+        },
+        { set: 'A', id: 'A_r3_ravi_mixed', round: 3, stage: 1, type: 'A',
+          problemText: '<p>Three years ago, Ravi was 9. How old is he now?</p>',
+          problemAudioText: 'Three years ago, Ravi was nine. How old is he now?',
+          people: [{ name: 'Ravi' }], timeDelta: -3, preferredVariable: 'Ravi',
+          step2: { kind: 'directionTiles', tiles: [
+            { label: 'x − 3', correct: true,  misconception: null },
+            { label: 'x + 3', correct: false, misconception: 'time-shift-direction-flip' }
+          ]},
+          step3: {
+            slotTemplate: ['__slot__', '__slot__', '__slot__', '__slot__', '__slot__'],
+            pieceBank: ['x', '−', '+', 3, '=', 9, 12],
+            correctPieces: ['x', '−', 3, '=', 9],
+            pieceMisconceptions: { '+': 'time-shift-direction-flip', 12: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 12,
+            solveLines: ['x − 3 = 9', 'x = 9 + 3', 'x = 12'],
+            captionedAnswers: [{ name: 'Ravi (now)', value: 12 }],
+            successSubtitle: 'Ravi is 12 now.',
+            successAudio: 'Ravi is twelve now.'
+          },
+          answer: {
+            problemText: '<p>Three years ago, Ravi was 9. How old is he now?</p>',
+            canonicalEquationDisplay: 'x − 3 = 9',
+            solveLines: ['x − 3 = 9', 'x = 12'],
+            captionedAnswers: [{ name: 'Ravi (now)', value: 12 }],
+            explanation: '"Three years ago" subtracts 3 from his current age x. So x − 3 = 9 means x = 12.'
+          }
+        },
+        // Stage 2 — Type B
+        { set: 'A', id: 'A_r4_mira_brother', round: 4, stage: 2, type: 'B',
+          problemText: '<p>Mira is 3 years younger than her brother Ravi. Together their ages sum to 25. How old is Mira?</p>',
+          problemAudioText: 'Mira is three years younger than her brother Ravi. Together their ages sum to twenty-five. How old is Mira?',
+          people: [{ name: 'Mira' }, { name: 'Ravi' }], timeDelta: null, preferredVariable: 'Mira',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 3, 25, 4],
+            correctPieces: ['+', 3],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 25: 'distractor-number-confusion', 4: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '+', '__slot__', '__slot__', '__slot__', '=', '25'],
+            pieceBank: ['x', '+', '−', '·', 3, 25, 28, 22, '='],
+            correctPieces: ['x', '+', 3],
+            pieceMisconceptions: { '−': 'operation-mismatch', '·': 'operation-mismatch', 28: 'distractor-number-confusion', 22: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 11,
+            solveLines: ['x + (x + 3) = 25', '2x + 3 = 25', '2x = 22', 'x = 11'],
+            captionedAnswers: [{ name: 'Mira', value: 11 }, { name: 'Ravi', value: 14 }],
+            successSubtitle: 'Mira is 11 and Ravi is 14.',
+            successAudio: 'Mira is eleven and Ravi is fourteen.'
+          },
+          answer: {
+            problemText: '<p>Mira is 3 years younger than Ravi. Their ages sum to 25.</p>',
+            canonicalEquationDisplay: 'x + (x + 3) = 25',
+            solveLines: ['x + (x + 3) = 25', '2x + 3 = 25', 'x = 11'],
+            captionedAnswers: [{ name: 'Mira', value: 11 }, { name: 'Ravi', value: 14 }],
+            explanation: 'Mira (younger) is x. Ravi is x + 3. Sum = 25 gives 2x + 3 = 25, so x = 11.'
+          }
+        },
+        { set: 'A', id: 'A_r5_aman_father', round: 5, stage: 2, type: 'B',
+          problemText: '<p>Aman is 4 years older than his cousin Bobby. Their ages add up to 22. How old is Bobby?</p>',
+          problemAudioText: 'Aman is four years older than his cousin Bobby. Their ages add up to twenty-two. How old is Bobby?',
+          people: [{ name: 'Bobby' }, { name: 'Aman' }], timeDelta: null, preferredVariable: 'Bobby',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 4, 22, 3],
+            correctPieces: ['+', 4],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 22: 'distractor-number-confusion', 3: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '+', '__slot__', '__slot__', '__slot__', '=', '22'],
+            pieceBank: ['x', '+', '−', 4, 22, 18, '='],
+            correctPieces: ['x', '+', 4],
+            pieceMisconceptions: { '−': 'operation-mismatch', 18: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 9,
+            solveLines: ['x + (x + 4) = 22', '2x + 4 = 22', '2x = 18', 'x = 9'],
+            captionedAnswers: [{ name: 'Bobby', value: 9 }, { name: 'Aman', value: 13 }],
+            successSubtitle: 'Bobby is 9 and Aman is 13.',
+            successAudio: 'Bobby is nine and Aman is thirteen.'
+          },
+          answer: {
+            problemText: '<p>Aman is 4 years older than Bobby. Their ages sum to 22.</p>',
+            canonicalEquationDisplay: 'x + (x + 4) = 22',
+            solveLines: ['x + (x + 4) = 22', '2x = 18', 'x = 9'],
+            captionedAnswers: [{ name: 'Bobby', value: 9 }, { name: 'Aman', value: 13 }],
+            explanation: 'Bobby (younger) is x, Aman is x + 4. Sum 22 gives x = 9.'
+          }
+        },
+        { set: 'A', id: 'A_r6_anita_twice', round: 6, stage: 2, type: 'B',
+          problemText: '<p>Anita is twice as old as her cousin Sara. Their ages sum to 18. How old is Sara?</p>',
+          problemAudioText: 'Anita is twice as old as her cousin Sara. Their ages sum to eighteen. How old is Sara?',
+          people: [{ name: 'Sara' }, { name: 'Anita' }], timeDelta: null, preferredVariable: 'Sara',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['__slot__', '·', 'x'],
+            pieceBank: [2, 3, '+', '·', 18],
+            correctPieces: [2],
+            pieceMisconceptions: { 3: 'distractor-number-confusion', '+': 'operation-mismatch', 18: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '+', '__slot__', '__slot__', '__slot__', '=', '18'],
+            pieceBank: ['x', '+', '−', '·', 2, 3, 18, '='],
+            correctPieces: [2, '·', 'x'],
+            pieceMisconceptions: { 3: 'distractor-number-confusion', '−': 'operation-mismatch' }
+          },
+          solution: {
+            variableValue: 6,
+            solveLines: ['x + 2x = 18', '3x = 18', 'x = 6'],
+            captionedAnswers: [{ name: 'Sara', value: 6 }, { name: 'Anita', value: 12 }],
+            successSubtitle: 'Sara is 6 and Anita is 12.',
+            successAudio: 'Sara is six and Anita is twelve.'
+          },
+          answer: {
+            problemText: '<p>Anita is twice as old as Sara. Their ages sum to 18.</p>',
+            canonicalEquationDisplay: 'x + 2x = 18',
+            solveLines: ['x + 2x = 18', '3x = 18', 'x = 6'],
+            captionedAnswers: [{ name: 'Sara', value: 6 }, { name: 'Anita', value: 12 }],
+            explanation: 'Sara is x, Anita is 2x. Sum 18 gives 3x = 18, so x = 6.'
+          }
+        },
+        { set: 'A', id: 'A_r7_bobby_diff', round: 7, stage: 2, type: 'B',
+          problemText: '<p>Bobby is 5 years older than Mira. Mira is 7. How old is Bobby?</p>',
+          problemAudioText: 'Bobby is five years older than Mira. Mira is seven. How old is Bobby?',
+          people: [{ name: 'Mira' }, { name: 'Bobby' }], timeDelta: null, preferredVariable: 'Mira',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 5, 7, 12],
+            correctPieces: ['+', 5],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 7: 'distractor-number-confusion', 12: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '=', '__slot__'],
+            pieceBank: ['x', '+', '−', 5, 7, 12, '='],
+            correctPieces: [7],
+            pieceMisconceptions: { 12: 'distractor-number-confusion', 5: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 7,
+            expectedAnswer: 12,
+            solveLines: ['x = 7', 'Bobby = x + 5 = 12'],
+            captionedAnswers: [{ name: 'Mira', value: 7 }, { name: 'Bobby', value: 12 }],
+            successSubtitle: 'Mira is 7 and Bobby is 12.',
+            successAudio: 'Mira is seven and Bobby is twelve.'
+          },
+          answer: {
+            problemText: '<p>Bobby is 5 years older than Mira. Mira is 7.</p>',
+            canonicalEquationDisplay: 'x = 7, Bobby = x + 5',
+            solveLines: ['x = 7', 'Bobby = x + 5 = 12'],
+            captionedAnswers: [{ name: 'Mira', value: 7 }, { name: 'Bobby', value: 12 }],
+            explanation: 'Mira is x = 7. Bobby is x + 5 = 12.'
+          }
+        },
+        // Stage 3 — Type C
+        { set: 'A', id: 'A_r8_anita_bobby_future', round: 8, stage: 3, type: 'C',
+          problemText: '<p>Anita is twice as old as Bobby. In 6 years, the sum of their ages will be 33. How old is Bobby now?</p>',
+          problemAudioText: 'Anita is twice as old as Bobby. In six years, the sum of their ages will be thirty-three. How old is Bobby now?',
+          people: [{ name: 'Bobby' }, { name: 'Anita' }], timeDelta: 6, preferredVariable: 'Bobby',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['__slot__', '·', 'x'],
+            pieceBank: [2, 3, 6, '+', 33],
+            correctPieces: [2],
+            pieceMisconceptions: { 3: 'distractor-number-confusion', 6: 'time-shift-omission', 33: 'distractor-number-confusion', '+': 'operation-mismatch' }
+          },
+          step3: {
+            slotTemplate: ['(', 'x', '+', '__slot__', ')', '+', '(', '__slot__', '+', '__slot__', ')', '=', '33'],
+            pieceBank: ['x', '2x', '+', '−', 6, 6, 33, '=', 27],
+            correctPieces: [6, '2x', 6],
+            pieceMisconceptions: { '−': 'time-shift-direction-flip', 27: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 7,
+            solveLines: ['(x + 6) + (2x + 6) = 33', '3x + 12 = 33', '3x = 21', 'x = 7'],
+            captionedAnswers: [{ name: 'Bobby (now)', value: 7 }, { name: 'Anita (now)', value: 14 }],
+            successSubtitle: 'Bobby is 7 now, Anita is 14.',
+            successAudio: 'Bobby is seven now, and Anita is fourteen.'
+          },
+          answer: {
+            problemText: '<p>Anita is twice as old as Bobby. In 6 years, the sum will be 33.</p>',
+            canonicalEquationDisplay: '(x + 6) + (2x + 6) = 33',
+            solveLines: ['(x + 6) + (2x + 6) = 33', '3x = 21', 'x = 7'],
+            captionedAnswers: [{ name: 'Bobby', value: 7 }, { name: 'Anita', value: 14 }],
+            explanation: 'Bobby is x, Anita is 2x. In 6 years both add 6. Sum 33 gives x = 7.'
+          }
+        },
+        { set: 'A', id: 'A_r9_sara_ravi_past', round: 9, stage: 3, type: 'C',
+          problemText: '<p>Sara is 4 years older than Ravi. In 3 years, the sum of their ages will be 22. How old is Ravi now?</p>',
+          problemAudioText: 'Sara is four years older than Ravi. In three years, the sum of their ages will be twenty-two. How old is Ravi now?',
+          people: [{ name: 'Ravi' }, { name: 'Sara' }], timeDelta: 3, preferredVariable: 'Ravi',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 4, 3, 22],
+            correctPieces: ['+', 4],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 3: 'time-shift-omission', 22: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['(', 'x', '+', '__slot__', ')', '+', '(', 'x', '+', '4', '+', '__slot__', ')', '=', '22'],
+            pieceBank: ['x', '+', '−', 3, 3, 4, 22, '=', 7],
+            correctPieces: [3, 3],
+            pieceMisconceptions: { '−': 'time-shift-direction-flip', 7: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 6,
+            solveLines: ['(x + 3) + (x + 4 + 3) = 22', '2x + 10 = 22', '2x = 12', 'x = 6'],
+            captionedAnswers: [{ name: 'Ravi (now)', value: 6 }, { name: 'Sara (now)', value: 10 }],
+            successSubtitle: 'Ravi is 6 now, Sara is 10.',
+            successAudio: 'Ravi is six now, and Sara is ten.'
+          },
+          answer: {
+            problemText: '<p>Sara is 4 years older than Ravi. In 3 years, sum will be 22.</p>',
+            canonicalEquationDisplay: '(x + 3) + (x + 4 + 3) = 22',
+            solveLines: ['(x + 3) + (x + 7) = 22', '2x = 12', 'x = 6'],
+            captionedAnswers: [{ name: 'Ravi', value: 6 }, { name: 'Sara', value: 10 }],
+            explanation: 'Ravi is x, Sara is x + 4. In 3 years both add 3. Sum 22 gives x = 6.'
+          }
+        },
+        { set: 'A', id: 'A_r10_mira_aman_thrice', round: 10, stage: 3, type: 'C',
+          problemText: '<p>Aman is three times as old as Mira. In 4 years, the sum of their ages will be 32. How old is Mira now?</p>',
+          problemAudioText: 'Aman is three times as old as Mira. In four years, the sum of their ages will be thirty-two. How old is Mira now?',
+          people: [{ name: 'Mira' }, { name: 'Aman' }], timeDelta: 4, preferredVariable: 'Mira',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['__slot__', '·', 'x'],
+            pieceBank: [2, 3, 4, '+', 32],
+            correctPieces: [3],
+            pieceMisconceptions: { 2: 'distractor-number-confusion', 4: 'time-shift-omission', 32: 'distractor-number-confusion', '+': 'operation-mismatch' }
+          },
+          step3: {
+            slotTemplate: ['(', 'x', '+', '__slot__', ')', '+', '(', '__slot__', '+', '__slot__', ')', '=', '32'],
+            pieceBank: ['x', '3x', '+', '−', 4, 4, 32, '=', 24],
+            correctPieces: [4, '3x', 4],
+            pieceMisconceptions: { '−': 'time-shift-direction-flip', 24: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 6,
+            solveLines: ['(x + 4) + (3x + 4) = 32', '4x + 8 = 32', '4x = 24', 'x = 6'],
+            captionedAnswers: [{ name: 'Mira (now)', value: 6 }, { name: 'Aman (now)', value: 18 }],
+            successSubtitle: 'Mira is 6 now, Aman is 18.',
+            successAudio: 'Mira is six now, and Aman is eighteen.'
+          },
+          answer: {
+            problemText: '<p>Aman is three times as old as Mira. In 4 years, sum will be 32.</p>',
+            canonicalEquationDisplay: '(x + 4) + (3x + 4) = 32',
+            solveLines: ['(x + 4) + (3x + 4) = 32', '4x = 24', 'x = 6'],
+            captionedAnswers: [{ name: 'Mira', value: 6 }, { name: 'Aman', value: 18 }],
+            explanation: 'Mira is x, Aman is 3x. In 4 years both add 4. Sum 32 gives x = 6.'
+          }
+        },
+
+        // ────────── SET B ──────────
+        { set: 'B', id: 'B_r1_anita_past', round: 1, stage: 1, type: 'A',
+          problemText: '<p>Four years ago, Anita was 6. How old is she now?</p>',
+          problemAudioText: 'Four years ago, Anita was six. How old is she now?',
+          people: [{ name: 'Anita' }], timeDelta: -4, preferredVariable: 'Anita',
+          step2: { kind: 'directionTiles', tiles: [
+            { label: 'x − 4', correct: true,  misconception: null },
+            { label: 'x + 4', correct: false, misconception: 'time-shift-direction-flip' }
+          ]},
+          step3: {
+            slotTemplate: ['__slot__', '__slot__', '__slot__', '__slot__', '__slot__'],
+            pieceBank: ['x', '−', '+', 4, 6, '=', 10],
+            correctPieces: ['x', '−', 4, '=', 6],
+            pieceMisconceptions: { '+': 'time-shift-direction-flip', 10: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 10,
+            solveLines: ['x − 4 = 6', 'x = 10'],
+            captionedAnswers: [{ name: 'Anita (now)', value: 10 }],
+            successSubtitle: 'Anita is 10 now.',
+            successAudio: 'Anita is ten now.'
+          },
+          answer: {
+            problemText: '<p>Four years ago, Anita was 6. How old is she now?</p>',
+            canonicalEquationDisplay: 'x − 4 = 6',
+            solveLines: ['x − 4 = 6', 'x = 10'],
+            captionedAnswers: [{ name: 'Anita', value: 10 }],
+            explanation: '"Four years ago" subtracts 4 from x. So x − 4 = 6 gives x = 10.'
+          }
+        },
+        { set: 'B', id: 'B_r2_bobby_future', round: 2, stage: 1, type: 'A',
+          problemText: '<p>Bobby is 9 now. How old will he be in 3 years?</p>',
+          problemAudioText: 'Bobby is nine now. How old will he be in three years?',
+          people: [{ name: 'Bobby' }], timeDelta: 3, preferredVariable: 'Bobby',
+          step2: { kind: 'directionTiles', tiles: [
+            { label: 'x + 3', correct: true,  misconception: null },
+            { label: 'x − 3', correct: false, misconception: 'time-shift-direction-flip' }
+          ]},
+          step3: {
+            slotTemplate: ['__slot__', '__slot__', '__slot__', '__slot__', '__slot__'],
+            pieceBank: ['x', '+', '−', 3, 9, '=', 12],
+            correctPieces: ['x', '+', 3, '=', 12],
+            pieceMisconceptions: { '−': 'time-shift-direction-flip', 9: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 9,
+            expectedAnswer: 12,
+            solveLines: ['x = 9', 'x + 3 = 12'],
+            captionedAnswers: [{ name: 'Bobby (now)', value: 9 }, { name: 'Bobby (in 3 yr)', value: 12 }],
+            successSubtitle: 'Bobby is 9 now, and 12 in three years.',
+            successAudio: 'Bobby is nine now, and twelve in three years.'
+          },
+          answer: {
+            problemText: '<p>Bobby is 9 now. How old will he be in 3 years?</p>',
+            canonicalEquationDisplay: 'x + 3 = 12',
+            solveLines: ['x = 9', 'x + 3 = 12'],
+            captionedAnswers: [{ name: 'Bobby', value: 9 }, { name: 'in 3 yr', value: 12 }],
+            explanation: 'x is Bobby\'s age now (9); in 3 years he is 12.'
+          }
+        },
+        { set: 'B', id: 'B_r3_mira_mixed', round: 3, stage: 1, type: 'A',
+          problemText: '<p>Two years ago, Mira was 8. How old is she now?</p>',
+          problemAudioText: 'Two years ago, Mira was eight. How old is she now?',
+          people: [{ name: 'Mira' }], timeDelta: -2, preferredVariable: 'Mira',
+          step2: { kind: 'directionTiles', tiles: [
+            { label: 'x − 2', correct: true,  misconception: null },
+            { label: 'x + 2', correct: false, misconception: 'time-shift-direction-flip' }
+          ]},
+          step3: {
+            slotTemplate: ['__slot__', '__slot__', '__slot__', '__slot__', '__slot__'],
+            pieceBank: ['x', '−', '+', 2, '=', 8, 16],
+            correctPieces: ['x', '−', 2, '=', 8],
+            pieceMisconceptions: { '+': 'time-shift-direction-flip', 16: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 10,
+            solveLines: ['x − 2 = 8', 'x = 10'],
+            captionedAnswers: [{ name: 'Mira (now)', value: 10 }],
+            successSubtitle: 'Mira is 10 now.',
+            successAudio: 'Mira is ten now.'
+          },
+          answer: {
+            problemText: '<p>Two years ago, Mira was 8.</p>',
+            canonicalEquationDisplay: 'x − 2 = 8',
+            solveLines: ['x − 2 = 8', 'x = 10'],
+            captionedAnswers: [{ name: 'Mira', value: 10 }],
+            explanation: '"Two years ago" subtracts 2. x − 2 = 8 gives x = 10.'
+          }
+        },
+        { set: 'B', id: 'B_r4_sara_aman_younger', round: 4, stage: 2, type: 'B',
+          problemText: '<p>Sara is 2 years younger than Aman. Together their ages sum to 20. How old is Sara?</p>',
+          problemAudioText: 'Sara is two years younger than Aman. Together their ages sum to twenty. How old is Sara?',
+          people: [{ name: 'Sara' }, { name: 'Aman' }], timeDelta: null, preferredVariable: 'Sara',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 2, 20, 4],
+            correctPieces: ['+', 2],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 20: 'distractor-number-confusion', 4: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '+', '__slot__', '__slot__', '__slot__', '=', '20'],
+            pieceBank: ['x', '+', '−', '·', 2, 20, 18, '='],
+            correctPieces: ['x', '+', 2],
+            pieceMisconceptions: { '−': 'operation-mismatch', '·': 'operation-mismatch', 18: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 9,
+            solveLines: ['x + (x + 2) = 20', '2x + 2 = 20', 'x = 9'],
+            captionedAnswers: [{ name: 'Sara', value: 9 }, { name: 'Aman', value: 11 }],
+            successSubtitle: 'Sara is 9 and Aman is 11.',
+            successAudio: 'Sara is nine and Aman is eleven.'
+          },
+          answer: {
+            problemText: '<p>Sara is 2 years younger than Aman. Sum 20.</p>',
+            canonicalEquationDisplay: 'x + (x + 2) = 20',
+            solveLines: ['x + (x + 2) = 20', '2x = 18', 'x = 9'],
+            captionedAnswers: [{ name: 'Sara', value: 9 }, { name: 'Aman', value: 11 }],
+            explanation: 'Sara (younger) is x, Aman is x + 2. Sum 20 gives x = 9.'
+          }
+        },
+        { set: 'B', id: 'B_r5_ravi_aman_older', round: 5, stage: 2, type: 'B',
+          problemText: '<p>Aman is 6 years older than Ravi. Their ages add up to 30. How old is Ravi?</p>',
+          problemAudioText: 'Aman is six years older than Ravi. Their ages add up to thirty. How old is Ravi?',
+          people: [{ name: 'Ravi' }, { name: 'Aman' }], timeDelta: null, preferredVariable: 'Ravi',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 6, 30, 5],
+            correctPieces: ['+', 6],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 30: 'distractor-number-confusion', 5: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '+', '__slot__', '__slot__', '__slot__', '=', '30'],
+            pieceBank: ['x', '+', '−', 6, 30, 24, '='],
+            correctPieces: ['x', '+', 6],
+            pieceMisconceptions: { '−': 'operation-mismatch', 24: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 12,
+            solveLines: ['x + (x + 6) = 30', '2x + 6 = 30', 'x = 12'],
+            captionedAnswers: [{ name: 'Ravi', value: 12 }, { name: 'Aman', value: 18 }],
+            successSubtitle: 'Ravi is 12 and Aman is 18.',
+            successAudio: 'Ravi is twelve and Aman is eighteen.'
+          },
+          answer: {
+            problemText: '<p>Aman is 6 years older than Ravi. Sum 30.</p>',
+            canonicalEquationDisplay: 'x + (x + 6) = 30',
+            solveLines: ['x + (x + 6) = 30', '2x = 24', 'x = 12'],
+            captionedAnswers: [{ name: 'Ravi', value: 12 }, { name: 'Aman', value: 18 }],
+            explanation: 'Ravi (younger) is x, Aman is x + 6. Sum 30 gives x = 12.'
+          }
+        },
+        { set: 'B', id: 'B_r6_anita_mira_thrice', round: 6, stage: 2, type: 'B',
+          problemText: '<p>Anita is three times as old as Mira. Their ages sum to 24. How old is Mira?</p>',
+          problemAudioText: 'Anita is three times as old as Mira. Their ages sum to twenty-four. How old is Mira?',
+          people: [{ name: 'Mira' }, { name: 'Anita' }], timeDelta: null, preferredVariable: 'Mira',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['__slot__', '·', 'x'],
+            pieceBank: [2, 3, '+', '·', 24],
+            correctPieces: [3],
+            pieceMisconceptions: { 2: 'distractor-number-confusion', '+': 'operation-mismatch', 24: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '+', '__slot__', '__slot__', '__slot__', '=', '24'],
+            pieceBank: ['x', '+', '−', '·', 2, 3, 24, '='],
+            correctPieces: [3, '·', 'x'],
+            pieceMisconceptions: { 2: 'distractor-number-confusion', '−': 'operation-mismatch' }
+          },
+          solution: {
+            variableValue: 6,
+            solveLines: ['x + 3x = 24', '4x = 24', 'x = 6'],
+            captionedAnswers: [{ name: 'Mira', value: 6 }, { name: 'Anita', value: 18 }],
+            successSubtitle: 'Mira is 6 and Anita is 18.',
+            successAudio: 'Mira is six and Anita is eighteen.'
+          },
+          answer: {
+            problemText: '<p>Anita is three times as old as Mira. Sum 24.</p>',
+            canonicalEquationDisplay: 'x + 3x = 24',
+            solveLines: ['x + 3x = 24', '4x = 24', 'x = 6'],
+            captionedAnswers: [{ name: 'Mira', value: 6 }, { name: 'Anita', value: 18 }],
+            explanation: 'Mira is x, Anita is 3x. Sum 24 gives 4x = 24, x = 6.'
+          }
+        },
+        { set: 'B', id: 'B_r7_aman_ravi_diff', round: 7, stage: 2, type: 'B',
+          problemText: '<p>Aman is 7 years older than Ravi. Aman is 15. How old is Ravi?</p>',
+          problemAudioText: 'Aman is seven years older than Ravi. Aman is fifteen. How old is Ravi?',
+          people: [{ name: 'Ravi' }, { name: 'Aman' }], timeDelta: null, preferredVariable: 'Ravi',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 7, 15, 8],
+            correctPieces: ['+', 7],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 15: 'distractor-number-confusion', 8: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '+', '__slot__', '=', '15'],
+            pieceBank: ['x', '+', '−', 7, 15, 8, '='],
+            correctPieces: [7],
+            pieceMisconceptions: { 8: 'distractor-number-confusion', 15: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 8,
+            solveLines: ['x + 7 = 15', 'x = 8'],
+            captionedAnswers: [{ name: 'Ravi', value: 8 }, { name: 'Aman', value: 15 }],
+            successSubtitle: 'Ravi is 8 and Aman is 15.',
+            successAudio: 'Ravi is eight and Aman is fifteen.'
+          },
+          answer: {
+            problemText: '<p>Aman is 7 years older than Ravi. Aman is 15.</p>',
+            canonicalEquationDisplay: 'x + 7 = 15',
+            solveLines: ['x + 7 = 15', 'x = 8'],
+            captionedAnswers: [{ name: 'Ravi', value: 8 }, { name: 'Aman', value: 15 }],
+            explanation: 'Ravi (younger) is x, Aman is x + 7 = 15, so x = 8.'
+          }
+        },
+        { set: 'B', id: 'B_r8_sara_ravi_future', round: 8, stage: 3, type: 'C',
+          problemText: '<p>Sara is twice as old as Ravi. In 4 years, the sum of their ages will be 26. How old is Ravi now?</p>',
+          problemAudioText: 'Sara is twice as old as Ravi. In four years, the sum of their ages will be twenty-six. How old is Ravi now?',
+          people: [{ name: 'Ravi' }, { name: 'Sara' }], timeDelta: 4, preferredVariable: 'Ravi',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['__slot__', '·', 'x'],
+            pieceBank: [2, 3, 4, '+', 26],
+            correctPieces: [2],
+            pieceMisconceptions: { 3: 'distractor-number-confusion', 4: 'time-shift-omission', 26: 'distractor-number-confusion', '+': 'operation-mismatch' }
+          },
+          step3: {
+            slotTemplate: ['(', 'x', '+', '__slot__', ')', '+', '(', '__slot__', '+', '__slot__', ')', '=', '26'],
+            pieceBank: ['x', '2x', '+', '−', 4, 4, 26, '=', 18],
+            correctPieces: [4, '2x', 4],
+            pieceMisconceptions: { '−': 'time-shift-direction-flip', 18: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 6,
+            solveLines: ['(x + 4) + (2x + 4) = 26', '3x + 8 = 26', '3x = 18', 'x = 6'],
+            captionedAnswers: [{ name: 'Ravi (now)', value: 6 }, { name: 'Sara (now)', value: 12 }],
+            successSubtitle: 'Ravi is 6 now, Sara is 12.',
+            successAudio: 'Ravi is six now, and Sara is twelve.'
+          },
+          answer: {
+            problemText: '<p>Sara is twice as old as Ravi. In 4 years sum 26.</p>',
+            canonicalEquationDisplay: '(x + 4) + (2x + 4) = 26',
+            solveLines: ['(x + 4) + (2x + 4) = 26', '3x = 18', 'x = 6'],
+            captionedAnswers: [{ name: 'Ravi', value: 6 }, { name: 'Sara', value: 12 }],
+            explanation: 'Ravi is x, Sara is 2x. In 4 years both add 4. Sum 26 gives x = 6.'
+          }
+        },
+        { set: 'B', id: 'B_r9_bobby_anita_past', round: 9, stage: 3, type: 'C',
+          problemText: '<p>Bobby is 5 years older than Anita. 2 years ago, the sum of their ages was 15. How old is Anita now?</p>',
+          problemAudioText: 'Bobby is five years older than Anita. Two years ago, the sum of their ages was fifteen. How old is Anita now?',
+          people: [{ name: 'Anita' }, { name: 'Bobby' }], timeDelta: -2, preferredVariable: 'Anita',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 5, 2, 15],
+            correctPieces: ['+', 5],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 2: 'time-shift-omission', 15: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['(', 'x', '−', '__slot__', ')', '+', '(', 'x', '+', '5', '−', '__slot__', ')', '=', '15'],
+            pieceBank: ['x', '+', '−', 2, 2, 5, 15, '=', 9],
+            correctPieces: [2, 2],
+            pieceMisconceptions: { '+': 'time-shift-direction-flip', 9: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 7,
+            solveLines: ['(x − 2) + (x + 5 − 2) = 15', '2x + 1 = 15', '2x = 14', 'x = 7'],
+            captionedAnswers: [{ name: 'Anita (now)', value: 7 }, { name: 'Bobby (now)', value: 12 }],
+            successSubtitle: 'Anita is 7 now, Bobby is 12.',
+            successAudio: 'Anita is seven now, and Bobby is twelve.'
+          },
+          answer: {
+            problemText: '<p>Bobby is 5 years older than Anita. 2 years ago sum 15.</p>',
+            canonicalEquationDisplay: '(x − 2) + (x + 5 − 2) = 15',
+            solveLines: ['(x − 2) + (x + 3) = 15', '2x = 14', 'x = 7'],
+            captionedAnswers: [{ name: 'Anita', value: 7 }, { name: 'Bobby', value: 12 }],
+            explanation: 'Anita is x, Bobby is x + 5. 2 years ago both subtract 2. Sum 15 gives x = 7.'
+          }
+        },
+        { set: 'B', id: 'B_r10_aman_sara_thrice_future', round: 10, stage: 3, type: 'C',
+          problemText: '<p>Aman is 4 times as old as Sara. In 5 years, the sum of their ages will be 35. How old is Sara now?</p>',
+          problemAudioText: 'Aman is four times as old as Sara. In five years, the sum of their ages will be thirty-five. How old is Sara now?',
+          people: [{ name: 'Sara' }, { name: 'Aman' }], timeDelta: 5, preferredVariable: 'Sara',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['__slot__', '·', 'x'],
+            pieceBank: [3, 4, 5, '+', 35],
+            correctPieces: [4],
+            pieceMisconceptions: { 3: 'distractor-number-confusion', 5: 'time-shift-omission', 35: 'distractor-number-confusion', '+': 'operation-mismatch' }
+          },
+          step3: {
+            slotTemplate: ['(', 'x', '+', '__slot__', ')', '+', '(', '__slot__', '+', '__slot__', ')', '=', '35'],
+            pieceBank: ['x', '4x', '+', '−', 5, 5, 35, '=', 25],
+            correctPieces: [5, '4x', 5],
+            pieceMisconceptions: { '−': 'time-shift-direction-flip', 25: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 5,
+            solveLines: ['(x + 5) + (4x + 5) = 35', '5x + 10 = 35', '5x = 25', 'x = 5'],
+            captionedAnswers: [{ name: 'Sara (now)', value: 5 }, { name: 'Aman (now)', value: 20 }],
+            successSubtitle: 'Sara is 5 now, Aman is 20.',
+            successAudio: 'Sara is five now, and Aman is twenty.'
+          },
+          answer: {
+            problemText: '<p>Aman is 4 times as old as Sara. In 5 years sum 35.</p>',
+            canonicalEquationDisplay: '(x + 5) + (4x + 5) = 35',
+            solveLines: ['(x + 5) + (4x + 5) = 35', '5x = 25', 'x = 5'],
+            captionedAnswers: [{ name: 'Sara', value: 5 }, { name: 'Aman', value: 20 }],
+            explanation: 'Sara is x, Aman is 4x. In 5 years both add 5. Sum 35 gives x = 5.'
+          }
+        },
+
+        // ────────── SET C ──────────
+        { set: 'C', id: 'C_r1_ravi_past', round: 1, stage: 1, type: 'A',
+          problemText: '<p>Six years ago, Ravi was 5. How old is he now?</p>',
+          problemAudioText: 'Six years ago, Ravi was five. How old is he now?',
+          people: [{ name: 'Ravi' }], timeDelta: -6, preferredVariable: 'Ravi',
+          step2: { kind: 'directionTiles', tiles: [
+            { label: 'x − 6', correct: true,  misconception: null },
+            { label: 'x + 6', correct: false, misconception: 'time-shift-direction-flip' }
+          ]},
+          step3: {
+            slotTemplate: ['__slot__', '__slot__', '__slot__', '__slot__', '__slot__'],
+            pieceBank: ['x', '−', '+', 6, 5, '=', 11],
+            correctPieces: ['x', '−', 6, '=', 5],
+            pieceMisconceptions: { '+': 'time-shift-direction-flip', 11: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 11,
+            solveLines: ['x − 6 = 5', 'x = 11'],
+            captionedAnswers: [{ name: 'Ravi (now)', value: 11 }],
+            successSubtitle: 'Ravi is 11 now.',
+            successAudio: 'Ravi is eleven now.'
+          },
+          answer: {
+            problemText: '<p>Six years ago, Ravi was 5.</p>',
+            canonicalEquationDisplay: 'x − 6 = 5',
+            solveLines: ['x − 6 = 5', 'x = 11'],
+            captionedAnswers: [{ name: 'Ravi', value: 11 }],
+            explanation: '"Six years ago" subtracts 6. x − 6 = 5 gives x = 11.'
+          }
+        },
+        { set: 'C', id: 'C_r2_mira_future', round: 2, stage: 1, type: 'A',
+          problemText: '<p>Mira is 7 now. How old will she be in 5 years?</p>',
+          problemAudioText: 'Mira is seven now. How old will she be in five years?',
+          people: [{ name: 'Mira' }], timeDelta: 5, preferredVariable: 'Mira',
+          step2: { kind: 'directionTiles', tiles: [
+            { label: 'x + 5', correct: true,  misconception: null },
+            { label: 'x − 5', correct: false, misconception: 'time-shift-direction-flip' }
+          ]},
+          step3: {
+            slotTemplate: ['__slot__', '__slot__', '__slot__', '__slot__', '__slot__'],
+            pieceBank: ['x', '+', '−', 5, 7, '=', 12],
+            correctPieces: ['x', '+', 5, '=', 12],
+            pieceMisconceptions: { '−': 'time-shift-direction-flip', 7: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 7,
+            expectedAnswer: 12,
+            solveLines: ['x = 7', 'x + 5 = 12'],
+            captionedAnswers: [{ name: 'Mira (now)', value: 7 }, { name: 'Mira (in 5 yr)', value: 12 }],
+            successSubtitle: 'Mira is 7 now, and 12 in five years.',
+            successAudio: 'Mira is seven now, and twelve in five years.'
+          },
+          answer: {
+            problemText: '<p>Mira is 7 now. How old in 5 years?</p>',
+            canonicalEquationDisplay: 'x + 5 = 12',
+            solveLines: ['x = 7', 'x + 5 = 12'],
+            captionedAnswers: [{ name: 'Mira', value: 7 }, { name: 'in 5 yr', value: 12 }],
+            explanation: 'Mira is x = 7; in 5 years she is 12.'
+          }
+        },
+        { set: 'C', id: 'C_r3_aman_mixed', round: 3, stage: 1, type: 'A',
+          problemText: '<p>Four years ago, Aman was 7. How old is he now?</p>',
+          problemAudioText: 'Four years ago, Aman was seven. How old is he now?',
+          people: [{ name: 'Aman' }], timeDelta: -4, preferredVariable: 'Aman',
+          step2: { kind: 'directionTiles', tiles: [
+            { label: 'x − 4', correct: true,  misconception: null },
+            { label: 'x + 4', correct: false, misconception: 'time-shift-direction-flip' }
+          ]},
+          step3: {
+            slotTemplate: ['__slot__', '__slot__', '__slot__', '__slot__', '__slot__'],
+            pieceBank: ['x', '−', '+', 4, 3, '=', 7, 14],
+            correctPieces: ['x', '−', 4, '=', 7],
+            pieceMisconceptions: { '+': 'time-shift-direction-flip', 14: 'distractor-number-confusion', 3: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 11,
+            solveLines: ['x − 4 = 7', 'x = 11'],
+            captionedAnswers: [{ name: 'Aman (now)', value: 11 }],
+            successSubtitle: 'Aman is 11 now.',
+            successAudio: 'Aman is eleven now.'
+          },
+          answer: {
+            problemText: '<p>Four years ago, Aman was 7.</p>',
+            canonicalEquationDisplay: 'x − 4 = 7',
+            solveLines: ['x − 4 = 7', 'x = 11'],
+            captionedAnswers: [{ name: 'Aman', value: 11 }],
+            explanation: '"Four years ago" subtracts 4. x − 4 = 7 gives x = 11.'
+          }
+        },
+        { set: 'C', id: 'C_r4_anita_younger', round: 4, stage: 2, type: 'B',
+          problemText: '<p>Anita is 5 years younger than Bobby. Together their ages sum to 27. How old is Anita?</p>',
+          problemAudioText: 'Anita is five years younger than Bobby. Together their ages sum to twenty-seven. How old is Anita?',
+          people: [{ name: 'Anita' }, { name: 'Bobby' }], timeDelta: null, preferredVariable: 'Anita',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 5, 27, 4],
+            correctPieces: ['+', 5],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 27: 'distractor-number-confusion', 4: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '+', '__slot__', '__slot__', '__slot__', '=', '27'],
+            pieceBank: ['x', '+', '−', '·', 5, 27, 22, '='],
+            correctPieces: ['x', '+', 5],
+            pieceMisconceptions: { '−': 'operation-mismatch', '·': 'operation-mismatch', 22: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 11,
+            solveLines: ['x + (x + 5) = 27', '2x + 5 = 27', 'x = 11'],
+            captionedAnswers: [{ name: 'Anita', value: 11 }, { name: 'Bobby', value: 16 }],
+            successSubtitle: 'Anita is 11 and Bobby is 16.',
+            successAudio: 'Anita is eleven and Bobby is sixteen.'
+          },
+          answer: {
+            problemText: '<p>Anita is 5 years younger than Bobby. Sum 27.</p>',
+            canonicalEquationDisplay: 'x + (x + 5) = 27',
+            solveLines: ['x + (x + 5) = 27', '2x = 22', 'x = 11'],
+            captionedAnswers: [{ name: 'Anita', value: 11 }, { name: 'Bobby', value: 16 }],
+            explanation: 'Anita (younger) is x, Bobby is x + 5. Sum 27 gives x = 11.'
+          }
+        },
+        { set: 'C', id: 'C_r5_aman_bobby_older', round: 5, stage: 2, type: 'B',
+          problemText: '<p>Aman is 8 years older than Bobby. Their ages add up to 28. How old is Bobby?</p>',
+          problemAudioText: 'Aman is eight years older than Bobby. Their ages add up to twenty-eight. How old is Bobby?',
+          people: [{ name: 'Bobby' }, { name: 'Aman' }], timeDelta: null, preferredVariable: 'Bobby',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 8, 28, 7],
+            correctPieces: ['+', 8],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 28: 'distractor-number-confusion', 7: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '+', '__slot__', '__slot__', '__slot__', '=', '28'],
+            pieceBank: ['x', '+', '−', 8, 28, 20, '='],
+            correctPieces: ['x', '+', 8],
+            pieceMisconceptions: { '−': 'operation-mismatch', 20: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 10,
+            solveLines: ['x + (x + 8) = 28', '2x + 8 = 28', 'x = 10'],
+            captionedAnswers: [{ name: 'Bobby', value: 10 }, { name: 'Aman', value: 18 }],
+            successSubtitle: 'Bobby is 10 and Aman is 18.',
+            successAudio: 'Bobby is ten and Aman is eighteen.'
+          },
+          answer: {
+            problemText: '<p>Aman is 8 years older than Bobby. Sum 28.</p>',
+            canonicalEquationDisplay: 'x + (x + 8) = 28',
+            solveLines: ['x + (x + 8) = 28', '2x = 20', 'x = 10'],
+            captionedAnswers: [{ name: 'Bobby', value: 10 }, { name: 'Aman', value: 18 }],
+            explanation: 'Bobby (younger) is x, Aman is x + 8. Sum 28 gives x = 10.'
+          }
+        },
+        { set: 'C', id: 'C_r6_sara_anita_twice', round: 6, stage: 2, type: 'B',
+          problemText: '<p>Anita is twice as old as Sara. Their ages sum to 21. How old is Sara?</p>',
+          problemAudioText: 'Anita is twice as old as Sara. Their ages sum to twenty-one. How old is Sara?',
+          people: [{ name: 'Sara' }, { name: 'Anita' }], timeDelta: null, preferredVariable: 'Sara',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['__slot__', '·', 'x'],
+            pieceBank: [2, 3, '+', '·', 21],
+            correctPieces: [2],
+            pieceMisconceptions: { 3: 'distractor-number-confusion', '+': 'operation-mismatch', 21: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '+', '__slot__', '__slot__', '__slot__', '=', '21'],
+            pieceBank: ['x', '+', '−', '·', 2, 3, 21, '='],
+            correctPieces: [2, '·', 'x'],
+            pieceMisconceptions: { 3: 'distractor-number-confusion', '−': 'operation-mismatch' }
+          },
+          solution: {
+            variableValue: 7,
+            solveLines: ['x + 2x = 21', '3x = 21', 'x = 7'],
+            captionedAnswers: [{ name: 'Sara', value: 7 }, { name: 'Anita', value: 14 }],
+            successSubtitle: 'Sara is 7 and Anita is 14.',
+            successAudio: 'Sara is seven and Anita is fourteen.'
+          },
+          answer: {
+            problemText: '<p>Anita is twice as old as Sara. Sum 21.</p>',
+            canonicalEquationDisplay: 'x + 2x = 21',
+            solveLines: ['x + 2x = 21', '3x = 21', 'x = 7'],
+            captionedAnswers: [{ name: 'Sara', value: 7 }, { name: 'Anita', value: 14 }],
+            explanation: 'Sara is x, Anita is 2x. Sum 21 gives 3x = 21, x = 7.'
+          }
+        },
+        { set: 'C', id: 'C_r7_mira_ravi_diff', round: 7, stage: 2, type: 'B',
+          problemText: '<p>Ravi is 3 years older than Mira. Mira is 9. How old is Ravi?</p>',
+          problemAudioText: 'Ravi is three years older than Mira. Mira is nine. How old is Ravi?',
+          people: [{ name: 'Mira' }, { name: 'Ravi' }], timeDelta: null, preferredVariable: 'Mira',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 3, 9, 12],
+            correctPieces: ['+', 3],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 9: 'distractor-number-confusion', 12: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['x', '=', '__slot__'],
+            pieceBank: ['x', '+', '−', 3, 9, 12, '='],
+            correctPieces: [9],
+            pieceMisconceptions: { 12: 'distractor-number-confusion', 3: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 9,
+            expectedAnswer: 12,
+            solveLines: ['x = 9', 'Ravi = x + 3 = 12'],
+            captionedAnswers: [{ name: 'Mira', value: 9 }, { name: 'Ravi', value: 12 }],
+            successSubtitle: 'Mira is 9 and Ravi is 12.',
+            successAudio: 'Mira is nine and Ravi is twelve.'
+          },
+          answer: {
+            problemText: '<p>Ravi is 3 years older than Mira. Mira is 9.</p>',
+            canonicalEquationDisplay: 'x = 9',
+            solveLines: ['x = 9', 'Ravi = x + 3 = 12'],
+            captionedAnswers: [{ name: 'Mira', value: 9 }, { name: 'Ravi', value: 12 }],
+            explanation: 'Mira is x = 9. Ravi is x + 3 = 12.'
+          }
+        },
+        { set: 'C', id: 'C_r8_sara_aman_future', round: 8, stage: 3, type: 'C',
+          problemText: '<p>Aman is twice as old as Sara. In 3 years, the sum of their ages will be 24. How old is Sara now?</p>',
+          problemAudioText: 'Aman is twice as old as Sara. In three years, the sum of their ages will be twenty-four. How old is Sara now?',
+          people: [{ name: 'Sara' }, { name: 'Aman' }], timeDelta: 3, preferredVariable: 'Sara',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['__slot__', '·', 'x'],
+            pieceBank: [2, 3, '+', '·', 24],
+            correctPieces: [2],
+            pieceMisconceptions: { 3: 'time-shift-omission', 24: 'distractor-number-confusion', '+': 'operation-mismatch' }
+          },
+          step3: {
+            slotTemplate: ['(', 'x', '+', '__slot__', ')', '+', '(', '__slot__', '+', '__slot__', ')', '=', '24'],
+            pieceBank: ['x', '2x', '+', '−', 3, 3, 24, '=', 18],
+            correctPieces: [3, '2x', 3],
+            pieceMisconceptions: { '−': 'time-shift-direction-flip', 18: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 6,
+            solveLines: ['(x + 3) + (2x + 3) = 24', '3x + 6 = 24', '3x = 18', 'x = 6'],
+            captionedAnswers: [{ name: 'Sara (now)', value: 6 }, { name: 'Aman (now)', value: 12 }],
+            successSubtitle: 'Sara is 6 now, Aman is 12.',
+            successAudio: 'Sara is six now, and Aman is twelve.'
+          },
+          answer: {
+            problemText: '<p>Aman is twice as old as Sara. In 3 years sum 24.</p>',
+            canonicalEquationDisplay: '(x + 3) + (2x + 3) = 24',
+            solveLines: ['(x + 3) + (2x + 3) = 24', '3x = 18', 'x = 6'],
+            captionedAnswers: [{ name: 'Sara', value: 6 }, { name: 'Aman', value: 12 }],
+            explanation: 'Sara is x, Aman is 2x. In 3 years both add 3. Sum 24 gives x = 6.'
+          }
+        },
+        { set: 'C', id: 'C_r9_ravi_aman_past', round: 9, stage: 3, type: 'C',
+          problemText: '<p>Aman is 6 years older than Ravi. 3 years ago, the sum of their ages was 14. How old is Ravi now?</p>',
+          problemAudioText: 'Aman is six years older than Ravi. Three years ago, the sum of their ages was fourteen. How old is Ravi now?',
+          people: [{ name: 'Ravi' }, { name: 'Aman' }], timeDelta: -3, preferredVariable: 'Ravi',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['x', '__slot__', '__slot__'],
+            pieceBank: ['+', '−', 6, 3, 14],
+            correctPieces: ['+', 6],
+            pieceMisconceptions: { '−': 'sign-error-younger-confused-with-older', 3: 'time-shift-omission', 14: 'distractor-number-confusion' }
+          },
+          step3: {
+            slotTemplate: ['(', 'x', '−', '__slot__', ')', '+', '(', 'x', '+', '6', '−', '__slot__', ')', '=', '14'],
+            pieceBank: ['x', '+', '−', 3, 3, 6, 14, '=', 8],
+            correctPieces: [3, 3],
+            pieceMisconceptions: { '+': 'time-shift-direction-flip', 8: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 7,
+            solveLines: ['(x − 3) + (x + 6 − 3) = 14', '2x = 14', 'x = 7'],
+            captionedAnswers: [{ name: 'Ravi (now)', value: 7 }, { name: 'Aman (now)', value: 13 }],
+            successSubtitle: 'Ravi is 7 now, Aman is 13.',
+            successAudio: 'Ravi is seven now, and Aman is thirteen.'
+          },
+          answer: {
+            problemText: '<p>Aman is 6 years older than Ravi. 3 years ago sum 14.</p>',
+            canonicalEquationDisplay: '(x − 3) + (x + 6 − 3) = 14',
+            solveLines: ['(x − 3) + (x + 3) = 14', '2x = 14', 'x = 7'],
+            captionedAnswers: [{ name: 'Ravi', value: 7 }, { name: 'Aman', value: 13 }],
+            explanation: 'Ravi is x, Aman is x + 6. 3 years ago both subtract 3. Sum 14 gives x = 7.'
+          }
+        },
+        { set: 'C', id: 'C_r10_anita_aman_thrice', round: 10, stage: 3, type: 'C',
+          problemText: '<p>Aman is three times as old as Anita. In 5 years, the sum of their ages will be 38. How old is Anita now?</p>',
+          problemAudioText: 'Aman is three times as old as Anita. In five years, the sum of their ages will be thirty-eight. How old is Anita now?',
+          people: [{ name: 'Anita' }, { name: 'Aman' }], timeDelta: 5, preferredVariable: 'Anita',
+          step2: { kind: 'pieceBank',
+            slotTemplate: ['__slot__', '·', 'x'],
+            pieceBank: [2, 3, 5, '+', 38],
+            correctPieces: [3],
+            pieceMisconceptions: { 2: 'distractor-number-confusion', 5: 'time-shift-omission', 38: 'distractor-number-confusion', '+': 'operation-mismatch' }
+          },
+          step3: {
+            slotTemplate: ['(', 'x', '+', '__slot__', ')', '+', '(', '__slot__', '+', '__slot__', ')', '=', '38'],
+            pieceBank: ['x', '3x', '+', '−', 5, 5, 38, '=', 28],
+            correctPieces: [5, '3x', 5],
+            pieceMisconceptions: { '−': 'time-shift-direction-flip', 28: 'distractor-number-confusion' }
+          },
+          solution: {
+            variableValue: 7,
+            solveLines: ['(x + 5) + (3x + 5) = 38', '4x + 10 = 38', '4x = 28', 'x = 7'],
+            captionedAnswers: [{ name: 'Anita (now)', value: 7 }, { name: 'Aman (now)', value: 21 }],
+            successSubtitle: 'Anita is 7 now, Aman is 21.',
+            successAudio: 'Anita is seven now, and Aman is twenty-one.'
+          },
+          answer: {
+            problemText: '<p>Aman is three times as old as Anita. In 5 years sum 38.</p>',
+            canonicalEquationDisplay: '(x + 5) + (3x + 5) = 38',
+            solveLines: ['(x + 5) + (3x + 5) = 38', '4x = 28', 'x = 7'],
+            captionedAnswers: [{ name: 'Anita', value: 7 }, { name: 'Aman', value: 21 }],
+            explanation: 'Anita is x, Aman is 3x. In 5 years both add 5. Sum 38 gives x = 7.'
+          }
+        }
+      ]
+    };
+
+    /* ============================================================
+       Module-scope refs
+       ============================================================ */
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+
+    /* ============================================================
+       syncDOM
+       ============================================================ */
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+      app.setAttribute('data-lives', Math.max(0, gameState.lives));
+    }
+
+    /* ============================================================
+       trackEvent
+       ============================================================ */
+    function trackEvent(eventName, payload) {
+      try {
+        var ev = { name: eventName, ts: Date.now(), payload: payload || {} };
+        gameState.events.push(ev);
+        if (signalCollector && typeof signalCollector.recordEvent === 'function') {
+          try { signalCollector.recordEvent(eventName, payload || {}); } catch (e) {}
+        }
+      } catch (e) {
+        console.error('[trackEvent]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       recordAttempt
+       ============================================================ */
+    function recordAttempt(round, attemptType, isCorrect, misconceptionTag, userAnswer, step) {
+      try {
+        var now = Date.now();
+        var attempt = {
+          attempt_number: gameState.attempts.length + 1,
+          attempt_timestamp: now,
+          time_since_start_of_game: gameState.startTime ? (now - gameState.startTime) : 0,
+          input_of_user: userAnswer || '',
+          correct: !!isCorrect,
+          round_number: gameState.currentRound,
+          question_id: round && round.id ? round.id : ('r' + gameState.currentRound),
+          correct_answer: round && round.solution ? String(typeof round.solution.expectedAnswer !== 'undefined' ? round.solution.expectedAnswer : round.solution.variableValue) : '',
+          response_time_ms: gameState.roundStartTime ? (now - gameState.roundStartTime) : 0,
+          misconception_tag: misconceptionTag || null,
+          difficulty_level: round && round.stage ? round.stage : 1,
+          is_retry: gameState.stepFirstTapDirty ? true : false,
+          metadata: {
+            attempt_type: attemptType || 'step-tap',
+            step: step || gameState.currentStep,
+            set: round && round.set ? round.set : null,
+            stage: round && round.stage ? round.stage : null,
+            type: round && round.type ? round.type : null
+          }
+        };
+        gameState.attempts.push(attempt);
+        try {
+          var app = document.getElementById('app');
+          if (app) app.setAttribute('data-attempts', gameState.attempts.length);
+        } catch (e) {}
+      } catch (e) {
+        console.error('[recordAttempt]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       getStars — first-attempt-correct out of 10
+       3⭐ = >=9, 2⭐ = >=6, 1⭐ = <6 (after completion), 0⭐ = abandoned
+       ============================================================ */
+    function getStars(score) {
+      if (gameState.currentRound < gameState.totalRounds) return 0;
+      var f = (typeof score === 'number') ? score : (gameState.firstTapCorrect || 0);
+      if (f >= 9) return 3;
+      if (f >= 6) return 2;
+      return 1;
+    }
+
+    /* ============================================================
+       getRounds — set-based filter
+       ============================================================ */
+    function getAvailableSets(rounds) {
+      var seen = {};
+      var i;
+      for (i = 0; i < rounds.length; i++) {
+        if (rounds[i].set) seen[rounds[i].set] = true;
+      }
+      var keys = Object.keys(seen).sort();
+      return keys.length > 0 ? keys : ['A'];
+    }
+
+    function getRounds() {
+      var source = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(source);
+      var currentSetId = sets[gameState.setIndex % sets.length];
+      var setRounds = source.filter(function (r) { return r.set === currentSetId; });
+      if (setRounds.length >= gameState.totalRounds) return setRounds;
+      var fbSetRounds = fallbackContent.rounds.filter(function (r) { return r.set === currentSetId; });
+      if (fbSetRounds.length >= gameState.totalRounds) return fbSetRounds;
+      return fallbackContent.rounds.slice(0, gameState.totalRounds);
+    }
+
+    /* ============================================================
+       waitForPackages — strict && only, no || fail-open
+       ============================================================ */
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            reject(err);
+            throw new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    /* ============================================================
+       FeedbackManager preload
+       ============================================================ */
+    function preloadAudio() {
+      if (typeof FeedbackManager === 'undefined' || !FeedbackManager.sound || !FeedbackManager.sound.preload) return;
+      var assets = [
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'sound_stars_collected', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'all_correct', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' },
+        { id: 'motivation_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' }
+      ];
+      try { FeedbackManager.sound.preload(assets); } catch (e) {
+        console.error('[preloadAudio]', e && e.message);
+      }
+    }
+
+    function safePlaySound(id, options) {
+      try {
+        return FeedbackManager.sound.play(id, options || {});
+      } catch (e) {
+        return Promise.resolve();
+      }
+    }
+
+    /* ============================================================
+       handlePostMessage
+       ============================================================ */
+    function handlePostMessage(event) {
+      try {
+        var msg = event && event.data;
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          gameState.content = msg.data && msg.data.content ? msg.data.content : null;
+          if (msg.data && typeof msg.data.totalRounds === 'number') gameState.totalRounds = msg.data.totalRounds;
+          try {
+            var sc = msg.data && msg.data.signalConfig ? msg.data.signalConfig : {};
+            gameState.signalConfig = sc;
+            if (signalCollector) {
+              signalCollector.flushUrl = sc.flushUrl || signalCollector.flushUrl || '';
+              signalCollector.playId = sc.playId || signalCollector.playId || ('age-matters-' + Date.now());
+              signalCollector.gameId = sc.gameId || 'age-matters';
+              signalCollector.sessionId = sc.sessionId || ('session-' + Date.now());
+              signalCollector.contentSetId = sc.contentSetId || 'fallback';
+              signalCollector.studentId = sc.studentId || 'anonymous';
+              if (typeof signalCollector.startFlushing === 'function') {
+                try { signalCollector.startFlushing(); } catch (e2) {}
+              }
+            }
+          } catch (e1) {}
+          syncDOM();
+          setupGame();
+        } else if (msg.type === 'game_pause') {
+          try { FeedbackManager.sound.pause(); } catch (e) {}
+        } else if (msg.type === 'game_resume') {
+          try { FeedbackManager.sound.resume(); } catch (e) {}
+        }
+      } catch (e) {
+        console.error('[handlePostMessage]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       postGameComplete
+       ============================================================ */
+    function postGameComplete(success) {
+      try {
+        var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+        var elapsedSec = Math.round(elapsedMs / 1000);
+        var maxScore = gameState.totalRounds * 3;
+        var accuracy = maxScore > 0 ? Math.round((gameState.firstTapCorrect / maxScore) * 100) : 0;
+        var triesArr = [];
+        var ai;
+        for (ai = 0; ai < gameState.attempts.length; ai++) triesArr.push(1);
+        var signalSealed = { event_count: gameState.events.length, metadata: {} };
+        try {
+          if (signalCollector && typeof signalCollector.seal === 'function') {
+            var sealed = signalCollector.seal();
+            if (sealed) {
+              if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+              if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+            }
+          }
+        } catch (e0) {}
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: {
+              score: gameState.firstTapCorrect,
+              totalQuestions: gameState.totalRounds,
+              stars: gameState.stars,
+              accuracy: accuracy,
+              time: elapsedSec,
+              timeSpent: elapsedMs,
+              tries: triesArr,
+              attempts: gameState.attempts,
+              totalLives: gameState.totalLives,
+              livesRemaining: gameState.lives,
+              firstTapCorrect: gameState.firstTapCorrect,
+              maxFirstTapScore: maxScore
+            },
+            completedAt: Date.now(),
+            previewResult: gameState.previewResult || null,
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) {
+        console.error('[postGameComplete]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       endGame — fires game_complete BEFORE end-game audio (CASE 11)
+       Lives = 0, no game_over branch — always Victory after Round 10.
+       ============================================================ */
+    function endGame(success) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = 'results';
+      gameState.stars = getStars(gameState.firstTapCorrect);
+      syncDOM();
+      trackEvent('game_end', { won: !!success, score: gameState.firstTapCorrect, stars: gameState.stars });
+      // game_complete BEFORE audio (CASE 11)
+      postGameComplete(success);
+      // Lives = 0, success is always true (Round 10 reached)
+      try { showVictory(); } catch (e) { console.error('[showVictory]', e && e.message); }
+    }
+    window.endGame = endGame;
+
+    /* ============================================================
+       Header refresh
+       ============================================================ */
+    function refreshHeader() {
+      try {
+        if (previewScreen && typeof previewScreen.setScore === 'function') {
+          previewScreen.setScore(gameState.firstTapCorrect + '/' + gameState.totalRounds);
+        }
+        if (previewScreen && typeof previewScreen.setQuestionLabel === 'function') {
+          previewScreen.setQuestionLabel('Q' + gameState.currentRound);
+        }
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       Round / state helpers
+       ============================================================ */
+    function getCurrentRound() {
+      var rounds = (gameState.activeRounds && gameState.activeRounds.length > 0) ? gameState.activeRounds : getRounds();
+      var idx = Math.max(0, Math.min(rounds.length - 1, gameState.currentRound - 1));
+      return rounds[idx];
+    }
+
+    function piecesEqual(a, b) {
+      // Compare arrays using === for primitives (numbers, strings)
+      if (!a || !b || a.length !== b.length) return false;
+      var i;
+      for (i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+      }
+      return true;
+    }
+
+    function clearIdleNudgeTimer() {
+      if (gameState.idleNudgeTimer) {
+        try { clearTimeout(gameState.idleNudgeTimer); } catch (e) {}
+        gameState.idleNudgeTimer = null;
+      }
+    }
+
+    function scheduleIdleNudgeForStep() {
+      clearIdleNudgeTimer();
+      gameState.idleNudgeFiredForStep = false;
+      gameState.idleNudgeTimer = setTimeout(applyIdleGlow, 15000);
+    }
+
+    function applyIdleGlow() {
+      if (gameState.idleNudgeFiredForStep) return;
+      if (gameState.gameEnded || !gameState.isActive) return;
+      gameState.idleNudgeFiredForStep = true;
+      // Forfeits the first-tap point for the active step
+      gameState.stepFirstTapDirty = true;
+      // Apply glow to the next correct piece/tile based on currentStep
+      var step = gameState.currentStep;
+      var round = gameState.currentRoundData;
+      if (!round) return;
+      try {
+        if (step === 1) {
+          // Glow the preferred-variable tile
+          var tiles = document.querySelectorAll('#am-step1-area .am-tile');
+          var i;
+          for (i = 0; i < tiles.length; i++) {
+            if (tiles[i].getAttribute('data-name') === round.preferredVariable) {
+              tiles[i].classList.add('glow-nudge');
+              break;
+            }
+          }
+        } else if (step === 2) {
+          if (round.step2.kind === 'directionTiles') {
+            var tilesD = document.querySelectorAll('#am-step2-area .am-tile');
+            var j;
+            for (j = 0; j < tilesD.length; j++) {
+              if (tilesD[j].getAttribute('data-correct') === 'true') {
+                tilesD[j].classList.add('glow-nudge');
+                break;
+              }
+            }
+          } else {
+            // pieceBank step 2: glow next correct piece
+            glowNextCorrectPiece(2);
+          }
+        } else if (step === 3) {
+          glowNextCorrectPiece(3);
+        }
+      } catch (e) {}
+    }
+
+    function glowNextCorrectPiece(stepNum) {
+      var round = gameState.currentRoundData;
+      if (!round) return;
+      var stepData = stepNum === 2 ? round.step2 : round.step3;
+      if (!stepData || !stepData.correctPieces) return;
+      var slotsFilled = gameState.currentSlotState.filter(function (s) { return s && s.filled; }).length;
+      var nextCorrect = stepData.correctPieces[slotsFilled];
+      if (typeof nextCorrect === 'undefined') return;
+      var areaId = stepNum === 2 ? 'am-step2-area' : 'am-step3-area';
+      var area = document.getElementById(areaId);
+      if (!area) return;
+      var pieces = area.querySelectorAll('.am-piece:not(.consumed)');
+      var k;
+      for (k = 0; k < pieces.length; k++) {
+        var p = pieces[k];
+        var v = p.getAttribute('data-value');
+        // Match by string repr
+        if (String(nextCorrect) === v) {
+          p.classList.add('glow-nudge');
+          break;
+        }
+      }
+    }
+
+    function clearAllGlow() {
+      var els = document.querySelectorAll('.glow-nudge');
+      var i;
+      for (i = 0; i < els.length; i++) els[i].classList.remove('glow-nudge');
+    }
+
+    function bumpFirstTapChip() {
+      var chip = document.getElementById('am-first-tap-chip');
+      if (!chip) return;
+      chip.textContent = gameState.firstTapCorrect + '/' + gameState.totalRounds + ' correct';
+      chip.classList.remove('first-tap-chip-bump');
+      void chip.offsetWidth;
+      chip.classList.add('first-tap-chip-bump');
+    }
+
+    function setHint(msg) {
+      var hint = document.getElementById('am-hint');
+      if (!hint) return;
+      if (!msg) {
+        hint.classList.add('hidden');
+        hint.textContent = '';
+      } else {
+        hint.classList.remove('hidden');
+        hint.textContent = msg;
+      }
+    }
+
+    function getHintFor(round, stepNum, piece) {
+      var hints = {
+        'time-shift-direction-flip': 'That sign is flipped. "ago" subtracts; "in N years" adds. Try the other operator.',
+        'time-shift-wrong-delta': 'Look closely at the time number in the problem — pick the one that matches.',
+        'time-shift-omission': 'Both ages change with the time-shift. Did you add the same number to BOTH?',
+        'sign-error-younger-confused-with-older': 'Check who is older. The older person\'s age is x + k, not x − k.',
+        'operation-mismatch': 'Read the relationship again — sum means add, "twice" means multiply by 2.',
+        'distractor-number-confusion': 'That number isn\'t in the problem. Pick a number you can read in the sentence.',
+        'variable-choice-suboptimal': 'You can solve it this way, but picking the younger person keeps numbers smaller. Try the other tile?'
+      };
+      var stepData = stepNum === 2 ? round.step2 : round.step3;
+      var tag = null;
+      if (stepData && stepData.pieceMisconceptions) {
+        // Try direct lookup by piece (string and numeric forms)
+        if (typeof stepData.pieceMisconceptions[piece] !== 'undefined') tag = stepData.pieceMisconceptions[piece];
+        else if (typeof stepData.pieceMisconceptions[String(piece)] !== 'undefined') tag = stepData.pieceMisconceptions[String(piece)];
+      }
+      return { tag: tag || 'distractor-number-confusion', hint: hints[tag || 'distractor-number-confusion'] };
+    }
+
+    /* ============================================================
+       Build #gameContent shell
+       ============================================================ */
+    function buildBoardDOM() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML = '';
+
+      // First-tap counter chip
+      var chip = document.createElement('div');
+      chip.className = 'am-first-tap-chip';
+      chip.id = 'am-first-tap-chip';
+      chip.textContent = '0/10 correct';
+      gc.appendChild(chip);
+
+      // Word-problem panel
+      var panel = document.createElement('div');
+      panel.className = 'am-problem-panel';
+      panel.id = 'am-problem-panel';
+      gc.appendChild(panel);
+
+      // Step-shift banner (Type C only)
+      var banner = document.createElement('div');
+      banner.className = 'am-banner hidden';
+      banner.id = 'am-banner';
+      gc.appendChild(banner);
+
+      // Answer area (input + check button)
+      var ansArea = document.createElement('div');
+      ansArea.className = 'am-answer-area';
+      ansArea.id = 'am-answer-area';
+      ansArea.innerHTML =
+        '<label class="am-answer-label" for="am-answer-input">Your answer</label>' +
+        '<input id="am-answer-input" data-testid="am-answer-input" class="am-answer-input" type="number" inputmode="numeric" autocomplete="off" placeholder="Type a number" />';
+      gc.appendChild(ansArea);
+
+      // Hint area
+      var hint = document.createElement('div');
+      hint.className = 'am-hint hidden';
+      hint.id = 'am-hint';
+      gc.appendChild(hint);
+
+      // Solve area (algebraic solve animation)
+      var solve = document.createElement('div');
+      solve.className = 'am-solve-area hidden';
+      solve.id = 'am-solve-area';
+      gc.appendChild(solve);
+
+      // Enter key submits via the FloatingButton submit handler
+      var input = document.getElementById('am-answer-input');
+      if (input) input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); onCheckAnswer(); }
+      });
+      if (input) input.addEventListener('input', function () {
+        try {
+          if (floatingBtn && typeof floatingBtn.setSubmittable === 'function') {
+            floatingBtn.setSubmittable(String(input.value || '').trim() !== '');
+          }
+        } catch (e) {}
+      });
+    }
+
+    /* ============================================================
+       Step renderers
+       ============================================================ */
+    function renderStep1(round) {
+      var area = document.getElementById('am-step1-area');
+      if (!area) return;
+      area.innerHTML = '';
+      area.classList.remove('hidden');
+      area.classList.add('fade-in');
+
+      var row = document.createElement('div');
+      row.className = 'am-tile-row';
+
+      var i;
+      for (i = 0; i < round.people.length; i++) {
+        var person = round.people[i];
+        var tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'am-tile';
+        tile.setAttribute('data-name', person.name);
+        tile.setAttribute('data-testid', 'am-step1-tile-' + i);
+        tile.setAttribute('data-preferred', String(person.name === round.preferredVariable));
+        tile.textContent = person.name + ' = x';
+        tile.addEventListener('click', onStep1Tap);
+        row.appendChild(tile);
+      }
+      area.appendChild(row);
+    }
+
+    function renderStep2(round) {
+      var area = document.getElementById('am-step2-area');
+      if (!area) return;
+      area.innerHTML = '';
+      area.classList.remove('hidden');
+      area.classList.add('fade-in');
+
+      if (round.step2.kind === 'directionTiles') {
+        var row = document.createElement('div');
+        row.className = 'am-tile-row';
+        var i;
+        for (i = 0; i < round.step2.tiles.length; i++) {
+          var t = round.step2.tiles[i];
+          var tile = document.createElement('button');
+          tile.type = 'button';
+          tile.className = 'am-tile';
+          tile.setAttribute('data-correct', String(!!t.correct));
+          tile.setAttribute('data-misconception', t.misconception || '');
+          tile.setAttribute('data-testid', 'am-step2-tile-' + i);
+          tile.textContent = t.label;
+          tile.addEventListener('click', onStep2DirectionTap);
+          row.appendChild(tile);
+        }
+        area.appendChild(row);
+      } else {
+        renderPieceBankStep(round, 2, area);
+      }
+    }
+
+    function renderStep3(round) {
+      var area = document.getElementById('am-step3-area');
+      if (!area) return;
+      area.innerHTML = '';
+      area.classList.remove('hidden');
+      area.classList.add('fade-in');
+      // Show banner for Type C
+      var banner = document.getElementById('am-banner');
+      if (banner) {
+        if (round.type === 'C' && round.timeDelta) {
+          banner.classList.remove('hidden');
+          if (round.timeDelta > 0) {
+            banner.textContent = 'In ' + round.timeDelta + ' years, add ' + round.timeDelta + ' to each age.';
+          } else {
+            var k = Math.abs(round.timeDelta);
+            banner.textContent = k + ' years ago, subtract ' + k + ' from each age.';
+          }
+        } else {
+          banner.classList.add('hidden');
+        }
+      }
+      renderPieceBankStep(round, 3, area);
+    }
+
+    function renderPieceBankStep(round, stepNum, area) {
+      var stepData = stepNum === 2 ? round.step2 : round.step3;
+      // Slot row
+      var slotRow = document.createElement('div');
+      slotRow.className = 'am-slot-row';
+      slotRow.setAttribute('data-testid', 'am-step' + stepNum + '-slot-row');
+      gameState.currentSlotState = [];
+      var i;
+      for (i = 0; i < stepData.slotTemplate.length; i++) {
+        var token = stepData.slotTemplate[i];
+        var slot = document.createElement('div');
+        slot.className = 'am-slot';
+        slot.setAttribute('data-slot-index', i);
+        if (token === '__slot__') {
+          slot.classList.add('am-slot-empty');
+          slot.textContent = '';
+          gameState.currentSlotState.push({ kind: 'empty', filled: null, slotIdx: i });
+          (function (slotIdx) {
+            slot.addEventListener('click', function () { onSlotTap(slotIdx); });
+          })(i);
+        } else {
+          slot.classList.add('am-slot-token');
+          slot.textContent = String(token);
+          gameState.currentSlotState.push({ kind: 'token', filled: token, slotIdx: i, fixed: true });
+        }
+        slotRow.appendChild(slot);
+      }
+      area.appendChild(slotRow);
+
+      // Piece bank
+      var bank = document.createElement('div');
+      bank.className = 'am-piece-bank';
+      bank.setAttribute('data-testid', 'am-step' + stepNum + '-piece-bank');
+      gameState.pieceBankState = [];
+      var k;
+      for (k = 0; k < stepData.pieceBank.length; k++) {
+        var pieceVal = stepData.pieceBank[k];
+        var piece = document.createElement('button');
+        piece.type = 'button';
+        piece.className = 'am-piece';
+        piece.setAttribute('data-value', String(pieceVal));
+        piece.setAttribute('data-bank-idx', k);
+        piece.setAttribute('data-testid', 'am-step' + stepNum + '-piece-' + k);
+        piece.textContent = String(pieceVal);
+        gameState.pieceBankState.push({ value: pieceVal, idx: k, consumed: false });
+        (function (bankIdx, val, stp) {
+          piece.addEventListener('click', function () { onPieceTap(stp, bankIdx, val); });
+        })(k, pieceVal, stepNum);
+        bank.appendChild(piece);
+      }
+      area.appendChild(bank);
+    }
+
+    function paintProblem(round) {
+      var panel = document.getElementById('am-problem-panel');
+      if (!panel) return;
+      panel.innerHTML = round.problemText;
+    }
+
+    function setStepChip(n) { /* chip removed in single-input redesign */ }
+
+    /* ============================================================
+       Tap handlers
+       ============================================================ */
+    function onStep1Tap(ev) {
+      try {
+        if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+        if (gameState.currentStep !== 1) return;
+        var target = ev && ev.currentTarget;
+        if (!target) return;
+        var name = target.getAttribute('data-name');
+        var preferred = target.getAttribute('data-preferred') === 'true';
+        var round = gameState.currentRoundData;
+        if (!round) return;
+        clearIdleNudgeTimer();
+        clearAllGlow();
+        setHint('');
+
+        if (preferred) {
+          // Right tap
+          target.classList.add('selected-correct');
+          safePlaySound('tap_sound', { sticker: STICKER_CELEBRATE }).catch(function () {});
+          // Disable tiles
+          var tiles = document.querySelectorAll('#am-step1-area .am-tile');
+          var i;
+          for (i = 0; i < tiles.length; i++) tiles[i].disabled = true;
+          if (!gameState.stepFirstTapDirty) {
+            gameState.firstTapCorrect++;
+            gameState.score = gameState.firstTapCorrect;
+            bumpFirstTapChip();
+            refreshHeader();
+            syncDOM();
+          }
+          recordAttempt(round, 'step-tap', true, null, name, 1);
+          trackEvent('answer_submitted', {
+            round: gameState.currentRound, set: round.set, step: 1, is_correct: true
+          });
+          setTimeout(function () { loadStep(2); }, 350);
+        } else {
+          // Soft wrong (Type B/C non-preferred variable)
+          target.classList.add('selected-wrong');
+          safePlaySound('incorrect_sound_effect', { sticker: STICKER_SAD }).catch(function () {});
+          setHint('You can solve it this way, but picking the younger / simpler person keeps numbers smaller. Try the other tile?');
+          gameState.stepFirstTapDirty = true;
+          recordAttempt(round, 'step-tap', false, 'variable-choice-suboptimal', name, 1);
+          trackEvent('answer_submitted', {
+            round: gameState.currentRound, set: round.set, step: 1, is_correct: false,
+            misconception_tag: 'variable-choice-suboptimal'
+          });
+          setTimeout(function () {
+            target.classList.remove('selected-wrong');
+            scheduleIdleNudgeForStep();
+          }, 600);
+        }
+      } catch (e) {
+        console.error('[onStep1Tap]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+    }
+
+    function onStep2DirectionTap(ev) {
+      try {
+        if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+        if (gameState.currentStep !== 2) return;
+        var target = ev && ev.currentTarget;
+        if (!target) return;
+        var correct = target.getAttribute('data-correct') === 'true';
+        var miscTag = target.getAttribute('data-misconception');
+        var label = target.textContent;
+        var round = gameState.currentRoundData;
+        if (!round) return;
+        clearIdleNudgeTimer();
+        clearAllGlow();
+        setHint('');
+
+        if (correct) {
+          target.classList.add('selected-correct');
+          safePlaySound('tap_sound', { sticker: STICKER_CELEBRATE }).catch(function () {});
+          var tiles = document.querySelectorAll('#am-step2-area .am-tile');
+          var i;
+          for (i = 0; i < tiles.length; i++) tiles[i].disabled = true;
+          if (!gameState.stepFirstTapDirty) {
+            gameState.firstTapCorrect++;
+            gameState.score = gameState.firstTapCorrect;
+            bumpFirstTapChip();
+            refreshHeader();
+            syncDOM();
+          }
+          recordAttempt(round, 'step-tap', true, null, label, 2);
+          trackEvent('answer_submitted', {
+            round: gameState.currentRound, set: round.set, step: 2, is_correct: true
+          });
+          setTimeout(function () { loadStep(3); }, 350);
+        } else {
+          target.classList.add('selected-wrong');
+          safePlaySound('incorrect_sound_effect', { sticker: STICKER_SAD }).catch(function () {});
+          var hintInfo = { tag: miscTag || 'time-shift-direction-flip' };
+          var hintCopy = {
+            'time-shift-direction-flip': '"ago" subtracts; "in N years" adds. Try the other tile.',
+            'time-shift-wrong-delta': 'Read the time number in the problem more carefully.'
+          }[hintInfo.tag] || 'Try the other tile.';
+          setHint(hintCopy);
+          gameState.stepFirstTapDirty = true;
+          recordAttempt(round, 'step-tap', false, hintInfo.tag, label, 2);
+          trackEvent('answer_submitted', {
+            round: gameState.currentRound, set: round.set, step: 2, is_correct: false,
+            misconception_tag: hintInfo.tag
+          });
+          setTimeout(function () {
+            target.classList.remove('selected-wrong');
+            scheduleIdleNudgeForStep();
+          }, 600);
+        }
+      } catch (e) {
+        console.error('[onStep2DirectionTap]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+    }
+
+    function onPieceTap(stepNum, bankIdx, value) {
+      try {
+        if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+        if (gameState.currentStep !== stepNum) return;
+        var round = gameState.currentRoundData;
+        if (!round) return;
+        var stepData = stepNum === 2 ? round.step2 : round.step3;
+        var bankItem = gameState.pieceBankState[bankIdx];
+        if (!bankItem || bankItem.consumed) return;
+
+        clearIdleNudgeTimer();
+        clearAllGlow();
+        setHint('');
+
+        // Find next empty slot
+        var slotState = gameState.currentSlotState;
+        var nextEmptyIdx = -1;
+        var i;
+        for (i = 0; i < slotState.length; i++) {
+          if (slotState[i].kind === 'empty' && !slotState[i].filled) { nextEmptyIdx = i; break; }
+        }
+        if (nextEmptyIdx < 0) return;
+
+        // Build the partial-correct test: which empty slots in template (in order) match correctPieces?
+        var emptyOrderCount = 0;
+        for (i = 0; i < slotState.length; i++) {
+          if (slotState[i].kind === 'empty' && slotState[i].filled) emptyOrderCount++;
+        }
+        var expected = stepData.correctPieces[emptyOrderCount];
+        var isRight = (typeof expected !== 'undefined') && (String(expected) === String(value));
+
+        var area = document.getElementById('am-step' + stepNum + '-area');
+        var slotEl = area.querySelectorAll('.am-slot')[nextEmptyIdx];
+        var pieceEl = area.querySelectorAll('.am-piece')[bankIdx];
+
+        if (isRight) {
+          // Place piece
+          slotState[nextEmptyIdx].filled = value;
+          if (slotEl) {
+            slotEl.classList.remove('am-slot-empty');
+            slotEl.classList.add('am-slot-filled');
+            slotEl.textContent = String(value);
+          }
+          if (pieceEl) {
+            pieceEl.classList.add('consumed');
+          }
+          bankItem.consumed = true;
+          safePlaySound('sound_bubble_select', { sticker: STICKER_CELEBRATE }).catch(function () {});
+          recordAttempt(round, 'step-tap', true, null, String(value), stepNum);
+          trackEvent('answer_submitted', {
+            round: gameState.currentRound, set: round.set, step: stepNum,
+            is_correct: true, partial: true
+          });
+
+          // Check if step is complete: all empty slots filled
+          var allFilled = true;
+          for (i = 0; i < slotState.length; i++) {
+            if (slotState[i].kind === 'empty' && !slotState[i].filled) { allFilled = false; break; }
+          }
+          if (allFilled) {
+            // Step complete — verify by piecesEqual on the empty-slot fills
+            var filledSeq = [];
+            var s;
+            for (s = 0; s < slotState.length; s++) {
+              if (slotState[s].kind === 'empty') filledSeq.push(slotState[s].filled);
+            }
+            if (piecesEqual(filledSeq, stepData.correctPieces)) {
+              if (!gameState.stepFirstTapDirty) {
+                gameState.firstTapCorrect++;
+                gameState.score = gameState.firstTapCorrect;
+                bumpFirstTapChip();
+                refreshHeader();
+                syncDOM();
+              }
+              if (stepNum === 2) {
+                setTimeout(function () { loadStep(3); }, 350);
+              } else {
+                // Step 3 final placement → round-equation correct
+                handleRoundEquationCorrect(round);
+              }
+            }
+          } else {
+            // Partial — student keeps placing
+            scheduleIdleNudgeForStep();
+          }
+        } else {
+          // Wrong piece
+          if (slotEl) {
+            slotEl.classList.remove('am-slot-empty');
+            slotEl.classList.add('shake-wrong');
+            slotEl.textContent = String(value);
+          }
+          if (pieceEl) {
+            pieceEl.classList.add('shake-wrong');
+          }
+          safePlaySound('incorrect_sound_effect', { sticker: STICKER_SAD }).catch(function () {});
+          var hintInfo = getHintFor(round, stepNum, value);
+          setHint(hintInfo.hint);
+          gameState.stepFirstTapDirty = true;
+          recordAttempt(round, 'step-tap', false, hintInfo.tag, String(value), stepNum);
+          trackEvent('answer_submitted', {
+            round: gameState.currentRound, set: round.set, step: stepNum,
+            is_correct: false, misconception_tag: hintInfo.tag
+          });
+          setTimeout(function () {
+            if (slotEl) {
+              slotEl.classList.remove('shake-wrong');
+              slotEl.classList.add('am-slot-empty');
+              slotEl.textContent = '';
+            }
+            if (pieceEl) pieceEl.classList.remove('shake-wrong');
+            scheduleIdleNudgeForStep();
+          }, 600);
+        }
+      } catch (e) {
+        console.error('[onPieceTap]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+    }
+
+    function onSlotTap(slotIdx) {
+      try {
+        if (gameState.isProcessing || gameState.gameEnded) return;
+        var slot = gameState.currentSlotState[slotIdx];
+        if (!slot || slot.kind !== 'empty' || !slot.filled) return;
+        // Clear this slot AND every slot AFTER it (since ordered placement)
+        var area = document.getElementById('am-step' + gameState.currentStep + '-area');
+        if (!area) return;
+        var slotEls = area.querySelectorAll('.am-slot');
+        var bankEls = area.querySelectorAll('.am-piece');
+        var i, k;
+        for (i = slotIdx; i < gameState.currentSlotState.length; i++) {
+          var s = gameState.currentSlotState[i];
+          if (s.kind === 'empty' && s.filled) {
+            // Find the matching piece in bank and un-consume it (consume nearest matching consumed)
+            var fillVal = String(s.filled);
+            for (k = 0; k < gameState.pieceBankState.length; k++) {
+              var b = gameState.pieceBankState[k];
+              if (b.consumed && String(b.value) === fillVal) {
+                b.consumed = false;
+                if (bankEls[k]) bankEls[k].classList.remove('consumed');
+                break;
+              }
+            }
+            s.filled = null;
+            if (slotEls[i]) {
+              slotEls[i].classList.remove('am-slot-filled');
+              slotEls[i].classList.add('am-slot-empty');
+              slotEls[i].textContent = '';
+            }
+          }
+        }
+        safePlaySound('sound_bubble_deselect', {}).catch(function () {});
+      } catch (e) {
+        console.error('[onSlotTap]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       Step transitions
+       ============================================================ */
+    function loadStep(n) {
+      gameState.currentStep = n;
+      gameState.stepFirstTapDirty = false;
+      gameState.idleNudgeFiredForStep = false;
+      gameState.isProcessing = false;
+      setStepChip(n);
+      setHint('');
+      var round = gameState.currentRoundData;
+      if (!round) return;
+      if (n === 2) {
+        renderStep2(round);
+      } else if (n === 3) {
+        renderStep3(round);
+      }
+      scheduleIdleNudgeForStep();
+    }
+
+    /* ============================================================
+       Round-equation correct handler
+       Order: progressBar.update FIRST → SFX awaited → solve animation
+              → TTS awaited → recordAttempt → routing
+       ============================================================ */
+    async function handleRoundEquationCorrect(round) {
+      gameState.isProcessing = true;
+      clearIdleNudgeTimer();
+      clearAllGlow();
+      setHint('');
+
+      // Per-piece celebration glow on slot row
+      var slotRow = document.querySelector('#am-step3-area .am-slot-row');
+      if (slotRow) slotRow.classList.add('am-celebrate-glow');
+
+      // 1. Progress bar bumps FIRST (memory rule progress_bar_round_complete)
+      gameState.progress = (gameState.progress || 0) + 1;
+      if (progressBar) {
+        try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+      }
+
+      // 2. Awaited SFX + sticker
+      try {
+        await Promise.all([
+          safePlaySound('correct_sound_effect', { sticker: STICKER_CELEBRATE }),
+          new Promise(function (rs) { setTimeout(rs, 1500); })
+        ]);
+      } catch (e) {}
+
+      // 3. Algebraic solve animation (in-place, line-by-line)
+      await playSolveAnimation(round);
+
+      // 4. Awaited dynamic TTS (GEN-FEEDBACK-TTS-AWAIT)
+      try {
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: round.solution.successAudio,
+          subtitle: round.solution.successSubtitle,
+          sticker: STICKER_CELEBRATE
+        });
+      } catch (e) {}
+
+      // recordAttempt for round-equation
+      recordAttempt(round, 'round-equation', true, null, JSON.stringify(round.step3.correctPieces || []), 3);
+      trackEvent('round_complete', {
+        round: gameState.currentRound, set: round.set, is_correct: true,
+        score: gameState.firstTapCorrect
+      });
+
+      // Routing
+      if (gameState.currentRound === 3) {
+        await showStageTakeaway(1);
+        gameState.currentRound = 4;
+        await showRoundIntro(4);
+        renderRound();
+      } else if (gameState.currentRound === 7) {
+        await showStageTakeaway(2);
+        gameState.currentRound = 8;
+        await showRoundIntro(8);
+        renderRound();
+      } else if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        await showRoundIntro(gameState.currentRound);
+        renderRound();
+      } else {
+        endGame(true);
+      }
+    }
+
+    /* ============================================================
+       Algebraic solve animation
+       ============================================================ */
+    function playSolveAnimation(round) {
+      return new Promise(function (resolve) {
+        var solve = document.getElementById('am-solve-area');
+        if (!solve || !round.solution) { resolve(); return; }
+        solve.innerHTML = '';
+        solve.classList.remove('hidden');
+
+        var lines = round.solution.solveLines || [];
+        var i;
+        var totalDelay = 0;
+        for (i = 0; i < lines.length; i++) {
+          (function (idx, txt) {
+            setTimeout(function () {
+              var el = document.createElement('div');
+              el.className = 'am-solve-line fade-in';
+              el.textContent = txt;
+              solve.appendChild(el);
+              try { safePlaySound('tap_sound', {}).catch(function () {}); } catch (e) {}
+            }, idx * 700);
+          })(i, lines[i]);
+          totalDelay = (i + 1) * 700;
+        }
+
+        // Captioned bubbles
+        setTimeout(function () {
+          var bubRow = document.createElement('div');
+          bubRow.className = 'am-bubble-row';
+          var caps = round.solution.captionedAnswers || [];
+          var k;
+          for (k = 0; k < caps.length; k++) {
+            (function (kk, c) {
+              var b = document.createElement('div');
+              b.className = 'am-bubble';
+              b.textContent = c.name + ': ' + c.value;
+              b.style.animationDelay = (kk * 0.15) + 's';
+              bubRow.appendChild(b);
+            })(k, caps[k]);
+          }
+          solve.appendChild(bubRow);
+        }, totalDelay);
+
+        setTimeout(resolve, totalDelay + 800);
+      });
+    }
+
+    /* ============================================================
+       Round intro transition
+       ============================================================ */
+    async function showRoundIntro(n) {
+      // Round-boundary cleanup (defensive — GEN-ROUND-BOUNDARY-STOP)
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      if (!transitionScreen) return;
+      var title = 'Round ' + n + ' of ' + gameState.totalRounds;
+      await transitionScreen.show({
+        title: title,
+        icons: ['🧮'],
+        buttons: [],
+        persist: false,
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND });
+            } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: title,
+                subtitle: title,
+                sticker: STICKER_ROUND
+              });
+            } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+          })();
+        }
+      });
+      // Dwell so audio + dismiss play
+      await new Promise(function (r) { setTimeout(r, 2200); });
+      try { transitionScreen.hide(); } catch (e) {}
+    }
+
+    /* ============================================================
+       Stage takeaway transitions (after R3 and R7)
+       ============================================================ */
+    async function showStageTakeaway(stage) {
+      if (!transitionScreen) return;
+      var title, subtitle;
+      if (stage === 1) {
+        title = 'Stage 1 done! 🎉';
+        subtitle = 'Time-shifts add or subtract from every age in the room.';
+      } else {
+        title = 'Stage 2 done! 🎉';
+        subtitle = 'Notice how picking the younger person as x kept numbers small.';
+      }
+      var done = false;
+      await transitionScreen.show({
+        title: title,
+        subtitle: subtitle,
+        icons: ['🌟'],
+        buttons: [{
+          text: 'Keep going',
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            done = true;
+          }
+        }],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('motivation_sound_effect', { sticker: STICKER_CELEBRATE }); } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: subtitle,
+                subtitle: subtitle,
+                sticker: STICKER_CELEBRATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+      // Wait until tapped (button action triggers done)
+      await new Promise(function (resolve) {
+        var t0 = Date.now();
+        function poll() {
+          if (done) return resolve();
+          if (Date.now() - t0 > 60000) return resolve();
+          setTimeout(poll, 100);
+        }
+        poll();
+      });
+    }
+
+    /* ============================================================
+       renderRound — NOT named loadRound (memory rule)
+       First lines: isProcessing=false, isActive=true, syncDOM
+       ============================================================ */
+    function renderRound() {
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      syncDOM();
+
+      var round = getCurrentRound();
+      if (!round) return;
+      gameState.currentRoundData = round;
+      gameState.currentStep = 1;
+      gameState.stepFirstTapDirty = false;
+      gameState.idleNudgeFiredForStep = false;
+      gameState.roundStartTime = Date.now();
+      gameState.phase = 'playing';
+      gameState.correctAnswer = round.solution
+        ? String(typeof round.solution.expectedAnswer !== 'undefined' ? round.solution.expectedAnswer : round.solution.variableValue)
+        : '';
+
+      var solve = document.getElementById('am-solve-area');
+      if (solve) { solve.innerHTML = ''; solve.classList.add('hidden'); }
+      setHint('');
+      paintProblem(round);
+
+      // Reset answer input
+      var input = document.getElementById('am-answer-input');
+      if (input) {
+        input.value = '';
+        input.disabled = false;
+        input.classList.remove('input-correct', 'input-wrong');
+        try { input.focus(); } catch (e) {}
+      }
+      try {
+        if (floatingBtn && typeof floatingBtn.setMode === 'function') floatingBtn.setMode('submit');
+        if (floatingBtn && typeof floatingBtn.setSubmittable === 'function') floatingBtn.setSubmittable(false);
+      } catch (e) {}
+
+      bumpFirstTapChip();
+      refreshHeader();
+
+      // Round-start TTS — track promise so onCheckAnswer can await it
+      gameState.roundTtsPromise = null;
+      try {
+        var plain = round.problemText.replace(/<[^>]+>/g, '');
+        gameState.roundTtsPromise = FeedbackManager.playDynamicFeedback({
+          audio_content: round.problemAudioText,
+          subtitle: plain,
+          sticker: null
+        }).catch(function () {});
+      } catch (e) {}
+
+      if (progressBar) {
+        try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+      }
+
+      syncDOM();
+    }
+
+    /* ============================================================
+       onCheckAnswer — single-input evaluator
+       ============================================================ */
+    async function onCheckAnswer() {
+      try {
+        if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+        var input = document.getElementById('am-answer-input');
+        var round = gameState.currentRoundData;
+        if (!input || !round) return;
+        var raw = (input.value || '').trim();
+        if (raw === '') {
+          setHint('Type a number first.');
+          return;
+        }
+        var typed = Number(raw);
+        var sol = round.solution || {};
+        var expected = Number(typeof sol.expectedAnswer !== 'undefined' ? sol.expectedAnswer : sol.variableValue);
+        var isRight = !isNaN(typed) && !isNaN(expected) && typed === expected;
+        gameState.isProcessing = true;
+        input.disabled = true;
+        try { if (floatingBtn && typeof floatingBtn.setSubmittable === 'function') floatingBtn.setSubmittable(false); } catch (e) {}
+
+        // Wait for the round-start TTS to finish before reacting / advancing
+        if (gameState.roundTtsPromise) {
+          try { await gameState.roundTtsPromise; } catch (e) {}
+          gameState.roundTtsPromise = null;
+        }
+
+        if (isRight) {
+          input.classList.add('input-correct');
+          if (!gameState.stepFirstTapDirty) {
+            gameState.firstTapCorrect++;
+            gameState.score = gameState.firstTapCorrect;
+            bumpFirstTapChip();
+            refreshHeader();
+            syncDOM();
+          }
+          setHint('');
+          recordAttempt(round, 'final-answer', true, null, raw, 1);
+          trackEvent('answer_submitted', {
+            round: gameState.currentRound, set: round.set, is_correct: true
+          });
+          try { await safePlaySound('correct_sound_effect', { sticker: STICKER_CELEBRATE }); } catch (e) {}
+          await handleRoundEquationCorrect(round);
+        } else {
+          input.classList.add('input-wrong');
+          gameState.stepFirstTapDirty = true;
+          setHint('Not quite. The answer is ' + expected + '. Moving on.');
+          recordAttempt(round, 'final-answer', false, 'final-answer-wrong', raw, 1);
+          trackEvent('answer_submitted', {
+            round: gameState.currentRound, set: round.set, is_correct: false,
+            misconception_tag: 'final-answer-wrong'
+          });
+          try { await safePlaySound('incorrect_sound_effect', { sticker: STICKER_SAD }); } catch (e) {}
+          await new Promise(function (r) { setTimeout(r, 1200); });
+          await handleRoundEquationCorrect(round);
+        }
+      } catch (e) {
+        console.error('[onCheckAnswer]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+    }
+
+    /* ============================================================
+       Victory / Stars Collected / AnswerComponent chain
+       ============================================================ */
+    async function showVictory() {
+      if (!transitionScreen) return;
+      var stars = gameState.stars;
+      var subtitle;
+      if (stars === 3) subtitle = 'Brilliant! ' + gameState.firstTapCorrect + ' of 10 correct on the first try.';
+      else if (stars === 2) subtitle = 'Great work! ' + gameState.firstTapCorrect + ' of 10 correct.';
+      else subtitle = 'You worked through all 10 problems! Every miss is a chance to learn.';
+
+      var stickerForVictory;
+      if (stars === 3) stickerForVictory = STICKER_VICTORY_3;
+      else if (stars === 2) stickerForVictory = STICKER_VICTORY_2;
+      else stickerForVictory = STICKER_VICTORY_1;
+
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      await transitionScreen.show({
+        title: 'Victory 🎉',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars < 3
+          ? [
+              { text: 'Play Again', type: 'secondary', action: function () {
+                  try { FeedbackManager.sound.pause(); } catch (e) {}
+                  try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+                  try { transitionScreen.hide(); } catch (e) {}
+                  showMotivation();
+                } },
+              { text: 'Claim Stars', type: 'primary', action: function () {
+                  try { FeedbackManager.sound.pause(); } catch (e) {}
+                  try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+                  try { transitionScreen.hide(); } catch (e) {}
+                  showStarsCollected();
+                } }
+            ]
+          : [
+              { text: 'Claim Stars', type: 'primary', action: function () {
+                  try { FeedbackManager.sound.pause(); } catch (e) {}
+                  try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+                  try { transitionScreen.hide(); } catch (e) {}
+                  showStarsCollected();
+                } }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('victory_sound_effect', { sticker: stickerForVictory }); } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: subtitle,
+                subtitle: subtitle,
+                sticker: stickerForVictory
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      if (!transitionScreen) return;
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      await transitionScreen.show({
+        title: 'Ready to improve your score? ⚡',
+        buttons: [
+          { text: "I'm ready! 🙌", type: 'primary', action: function () {
+              try { FeedbackManager.sound.pause(); } catch (e) {}
+              try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+              try { transitionScreen.hide(); } catch (e) {}
+              restartGame();
+            } }
+        ],
+        persist: true,
+        onMounted: function () {
+          try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_RESTART }); } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: 'Ready for another round of problems?',
+                subtitle: 'Ready for another round of problems?',
+                sticker: STICKER_RESTART
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      if (!transitionScreen) return;
+      var count = Math.max(1, Math.min(3, gameState.stars || 1));
+      // Stars Collected — celebration backdrop. NO buttons, persist:true, NO transitionScreen.hide() in onMounted.
+      await transitionScreen.show({
+        title: 'Yay! 🎉\nStars collected!',
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('sound_stars_collected', { sticker: STICKER_CELEBRATE }); } catch (e) {}
+            // Fire show_star ONCE (target window, not parent) — GEN-SHOW-STAR-ONCE
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: {
+                  count: count,
+                  variant: 'yellow',
+                  score: gameState.firstTapCorrect + '/' + gameState.totalRounds
+                }
+              }, '*');
+            } catch (e) {}
+            // Hand off to AnswerComponent after 1s star animation lands
+            setTimeout(function () { showAnswerCarousel(); }, 1500);
+          })();
+        }
+      });
+    }
+
+    /* ============================================================
+       AnswerComponent carousel — 10 slides (one per round of current set)
+       Render-callback only.
+       ============================================================ */
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = (gameState.activeRounds && gameState.activeRounds.length > 0) ? gameState.activeRounds : getRounds();
+      var roundsCopy = rounds.slice(0, gameState.totalRounds);
+      return roundsCopy.map(function (round, idx) {
+        return {
+          render: function (container) {
+            renderAnswerForRound(round, container, idx + 1);
+          }
+        };
+      });
+    }
+
+    function renderAnswerForRound(round, container, roundNum) {
+      if (!container || !round) return;
+      container.innerHTML = '';
+      var slide = document.createElement('div');
+      slide.className = 'answer-slide';
+
+      var typeLabel = round.type === 'A' ? 'single person + time shift'
+                    : round.type === 'B' ? 'two people, present tense'
+                    : 'two people, across time';
+
+      var title = document.createElement('div');
+      title.className = 'answer-slide-title';
+      title.textContent = 'Round ' + roundNum + ' — ' + typeLabel;
+      slide.appendChild(title);
+
+      var problem = document.createElement('div');
+      problem.className = 'answer-slide-problem';
+      problem.innerHTML = round.answer && round.answer.problemText ? round.answer.problemText : round.problemText;
+      slide.appendChild(problem);
+
+      var eq = document.createElement('div');
+      eq.className = 'answer-slide-equation';
+      eq.textContent = (round.answer && round.answer.canonicalEquationDisplay) || '';
+      slide.appendChild(eq);
+
+      var solveWrap = document.createElement('div');
+      solveWrap.className = 'answer-slide-solve';
+      var lines = (round.answer && round.answer.solveLines) || [];
+      var i;
+      for (i = 0; i < lines.length; i++) {
+        var ln = document.createElement('div');
+        ln.className = 'answer-slide-solve-line';
+        ln.textContent = lines[i];
+        solveWrap.appendChild(ln);
+      }
+      slide.appendChild(solveWrap);
+
+      var bubRow = document.createElement('div');
+      bubRow.className = 'answer-slide-bubbles';
+      var caps = (round.answer && round.answer.captionedAnswers) || [];
+      var k;
+      for (k = 0; k < caps.length; k++) {
+        var bb = document.createElement('div');
+        bb.className = 'answer-slide-bubble';
+        bb.textContent = caps[k].name + ': ' + caps[k].value;
+        bubRow.appendChild(bb);
+      }
+      slide.appendChild(bubRow);
+
+      var explain = document.createElement('div');
+      explain.className = 'answer-slide-explanation';
+      explain.textContent = (round.answer && round.answer.explanation) || '';
+      slide.appendChild(explain);
+
+      container.appendChild(slide);
+    }
+
+    function showAnswerCarousel() {
+      if (!answerComponent) return;
+      try {
+        answerComponent.show({ slides: buildAnswerSlidesForAllRounds() });
+      } catch (e) {
+        console.error('[answerComponent.show]', e && e.message);
+      }
+      try {
+        if (floatingBtn) floatingBtn.setMode('next');
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       resetGameState — DOES NOT touch setIndex
+       ============================================================ */
+    function resetGameState() {
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
+      gameState.currentStep = 1;
+      gameState.score = 0;
+      gameState.firstTapCorrect = 0;
+      gameState.stars = 0;
+      gameState.progress = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.lives = 0;
+      gameState.stepFirstTapDirty = false;
+      gameState.idleNudgeFiredForStep = false;
+      gameState.currentSlotState = [];
+      gameState.pieceBankState = [];
+      gameState.currentRoundData = null;
+      gameState.duration_data = { startTime: null, preview: gameState.duration_data ? gameState.duration_data.preview : [] };
+      gameState.activeRounds = getRounds();
+      // setIndex intentionally NOT cleared
+    }
+
+    function restartGame() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      // Rotate setIndex BEFORE resetGameState
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      if (signalCollector && typeof signalCollector.reset === 'function') {
+        try { signalCollector.reset(); } catch (e) {}
+      }
+      try { if (answerComponent) answerComponent.hide(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      // Universal safety-net progress bar reset
+      if (progressBar) {
+        try { progressBar.update(0, gameState.totalLives); } catch (e) {}
+      }
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true, setIndex: gameState.setIndex });
+      buildBoardDOM();
+      (async function () {
+        await showRoundIntro(1);
+        renderRound();
+      })();
+    }
+    window.restartGame = restartGame;
+
+    /* ============================================================
+       startGame
+       ============================================================ */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
+      gameState.currentStep = 1;
+      gameState.score = 0;
+      gameState.firstTapCorrect = 0;
+      gameState.lives = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.progress = 0;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.activeRounds = getRounds();
+      gameState.startTime = Date.now();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      (async function () {
+        await showRoundIntro(1);
+        renderRound();
+      })();
+    }
+    window.startGame = startGame;
+
+    /* ============================================================
+       nextRound (test-harness)
+       ============================================================ */
+    function nextRound() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        renderRound();
+      } else {
+        endGame(true);
+      }
+    }
+    window.nextRound = nextRound;
+
+    /* ============================================================
+       setupGame — render gameContent FIRST, then preview
+       ============================================================ */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.totalRounds = (content.totalRounds && typeof content.totalRounds === 'number') ? content.totalRounds : 10;
+      gameState.activeRounds = getRounds();
+
+      buildBoardDOM();
+      // Pre-paint first round's problem so preview overlay sits on real content
+      var firstRound = (gameState.activeRounds && gameState.activeRounds[0]) || getRounds()[0];
+      if (firstRound) {
+        gameState.currentRoundData = firstRound;
+        paintProblem(firstRound);
+        renderStep1(firstRound);
+      }
+
+      if (previewScreen) {
+        try {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function (previewData) { startGameAfterPreview(previewData); }
+          });
+        } catch (e) {
+          console.error('[previewScreen.show]', e && e.message);
+          startGameAfterPreview({ duration: 0 });
+        }
+      } else {
+        startGameAfterPreview({ duration: 0 });
+      }
+    }
+
+    function startGameAfterPreview(previewData) {
+      try {
+        gameState.previewResult = previewData || { duration: 0 };
+        gameState.duration_data.preview = gameState.duration_data.preview || [];
+        gameState.duration_data.preview.push({ duration: previewData ? previewData.duration : 0 });
+
+        gameState.startTime = Date.now();
+        gameState.isActive = true;
+        gameState.duration_data.startTime = new Date().toISOString();
+
+        trackEvent('game_start', { totalRounds: gameState.totalRounds });
+        if (signalCollector && typeof signalCollector.recordViewEvent === 'function') {
+          try { signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+        }
+
+        // Seed header (PART-040)
+        try {
+          if (previewScreen && typeof previewScreen.setQuestionLabel === 'function') {
+            previewScreen.setQuestionLabel('Q1');
+          }
+          if (previewScreen && typeof previewScreen.setScore === 'function') {
+            previewScreen.setScore('0/' + gameState.totalRounds);
+          }
+        } catch (e) {}
+
+        if (progressBar) {
+          try { progressBar.update(0, gameState.totalLives); } catch (e) {}
+        }
+
+        (async function () {
+          await showRoundIntro(1);
+          renderRound();
+        })();
+      } catch (e) {
+        console.error('[startGameAfterPreview]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       Build fallback layout (only if ScreenLayout missing)
+       ============================================================ */
+    function buildFallbackLayout() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      if (document.getElementById('gameContent')) return;
+      var stack = document.createElement('div');
+      stack.className = 'game-stack';
+      var gc = document.createElement('div');
+      gc.id = 'gameContent';
+      stack.appendChild(gc);
+      app.appendChild(stack);
+    }
+  </script>
+
+  <script>
+    /* ============================================================
+       DOMContentLoaded init sequence
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', async function () {
+      try {
+        await waitForPackages();
+
+        try { await FeedbackManager.init(); } catch (e) {}
+
+        try {
+          signalCollector = new SignalCollector({
+            playId: 'age-matters-' + Date.now(),
+            game: 'age-matters'
+          });
+          window.signalCollector = signalCollector;
+        } catch (e) {
+          console.error('[SignalCollector ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          ScreenLayout.inject('app', {
+            slots: {
+              previewScreen: true,
+              transitionScreen: true,
+              progressBar: true,
+              floatingButton: true,
+              answerComponent: true
+            }
+          });
+        } catch (e) {
+          console.error('[ScreenLayout.inject failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          buildFallbackLayout();
+        }
+
+        try {
+          visibilityTracker = new VisibilityTracker({
+            popupProps: {},
+            onInactive: function () {
+              try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {}
+              try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+            },
+            onResume: function () {
+              try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {}
+              try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+            }
+          });
+        } catch (e) {
+          console.error('[VisibilityTracker ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          progressBar = new ProgressBarComponent({
+            slotId: 'mathai-progress-slot',
+            totalRounds: 10,
+            totalLives: 10,
+            showLives: false
+          });
+        } catch (e) {
+          console.error('[ProgressBarComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' });
+        } catch (e) {
+          console.error('[TransitionScreenComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+        } catch (e) {
+          console.error('[PreviewScreenComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+          // Submit predicate: enabled only when input has content (GEN-FLOATING-BUTTON-PREDICATE)
+          if (floatingBtn && typeof floatingBtn.setSubmittable === 'function') {
+            try { floatingBtn.setSubmittable(false); } catch (e) {}
+          }
+          floatingBtn.on('submit', function () {
+            onCheckAnswer();
+          });
+          // SINGLE-STAGE end-game exit (PART-051 GEN-ANSWER-COMPONENT-NEXT-SINGLE-STAGE)
+          floatingBtn.on('next', function () {
+            try {
+              if (answerComponent && typeof answerComponent.destroy === 'function') answerComponent.destroy();
+            } catch (e) {}
+            try {
+              window.parent.postMessage({ type: 'next_ended' }, '*');
+            } catch (e) {}
+            try {
+              if (previewScreen && typeof previewScreen.destroy === 'function') previewScreen.destroy();
+            } catch (e) {}
+            try {
+              if (floatingBtn && typeof floatingBtn.destroy === 'function') floatingBtn.destroy();
+            } catch (e) {}
+          });
+        } catch (e) {
+          console.error('[FloatingButtonComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' });
+        } catch (e) {
+          console.error('[AnswerComponentComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        preloadAudio();
+
+        // Register listener BEFORE game_ready
+        window.addEventListener('message', handlePostMessage);
+        try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+
+        setupGame();
+      } catch (e) {
+        console.error('[init]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+
+      // Window exposures
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = startGame;
+      window.nextRound = nextRound;
+      window.loadRound = function (n) {
+        if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+          gameState.currentRound = n;
+          renderRound();
+        }
+      };
+    });
+
+    /* ============================================================
+       Standalone fallback — runs INDEPENDENTLY of waitForPackages.
+       Aborts if a live preview is mounted; surfaces an attributable
+       error if any required class is undefined.
+       ============================================================ */
+    setTimeout(function () {
+      if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      if (gameState.isActive || gameState.gameEnded) return;
+
+      var missing = [];
+      if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+      if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+      if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+      if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+      if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+      if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+      if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+      if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+      if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+      if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+
+      if (missing.length > 0) {
+        var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+        console.error('[' + msg + ']');
+        if (typeof Sentry !== 'undefined') {
+          try { Sentry.captureMessage(msg); } catch (e) {}
+        }
+        var gc = document.getElementById('gameContent') || document.body;
+        if (gc) {
+          gc.innerHTML =
+            '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">' +
+            'Game failed to load — please refresh.' +
+            '</div>';
+        }
+        return;
+      }
+
+      if (!document.getElementById('gameContent')) {
+        buildFallbackLayout();
+      }
+      gameState.content = fallbackContent;
+      gameState.totalRounds = 10;
+      setupGame();
+      startGame();
+    }, 2000);
+  </script>
+</body>
+</html>

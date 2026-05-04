@@ -1,0 +1,2987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Who Sits Where?</title>
+
+  <!-- ====== 1. SentryConfig ====== -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+  <!-- ====== 2. initSentry() ====== -->
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'logic-seat-puzzle@1.0.0' }));
+    }
+  </script>
+
+  <!-- ====== 3. Sentry SDK ====== -->
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+  <!-- ====== 4. Initialize Sentry on load ====== -->
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- ====== 5-7. Game CDN packages ====== -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+
+      /* Game-specific */
+      --seat-bg: #FFF7E6;
+      --seat-border: #C7B299;
+      --seat-bg-filled: #FFE6B5;
+      --seat-bg-correct: #D9F8D9;
+      --seat-border-correct: #27ae60;
+      --seat-bg-wrong: #FFD9D9;
+      --seat-border-wrong: #E63946;
+      --seat-highlight-ring: #3D8BFD;
+      --table-bg: #B98E5C;
+      --table-edge: #8B6534;
+      --chip-bg: #ffffff;
+      --chip-border: #C7B299;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+      min-height: 100dvh;
+    }
+    @supports not (min-height: 100dvh) {
+      body { min-height: 100vh; }
+    }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+    @supports not (height: 100dvh) {
+      #mathai-preview-slot { height: 100vh; }
+    }
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+    @supports not (height: 100dvh) {
+      #mathai-preview-slot .mathai-preview-body { height: 100vh; }
+    }
+
+    .hidden { display: none !important; }
+
+    button, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    /* ====== Game-specific layout ====== */
+    #gameContent {
+      width: 100%;
+      padding: 6px 12px 32px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    .stage-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--mathai-text-primary);
+      text-align: center;
+      margin: 4px 0 4px 0;
+      opacity: 0.7;
+    }
+
+    .clue-panel {
+      width: 100%;
+      max-width: 360px;
+      background: var(--mathai-cell-bg-yellow);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 10px 14px;
+      margin: 4px auto 12px auto;
+      font-size: 14px;
+      line-height: 1.45;
+      color: var(--mathai-text-primary);
+    }
+    .clue-panel ol {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .clue-panel li {
+      margin: 3px 0;
+      display: flex;
+      align-items: flex-start;
+    }
+    .clue-panel .clue-num {
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-right: 6px;
+      width: 18px;
+    }
+    .clue-panel .clue-text {
+      flex: 1;
+    }
+    .clue-panel li.violated {
+      color: var(--mathai-red);
+      font-weight: 600;
+    }
+
+    /* Table area */
+    .table-wrap {
+      width: 100%;
+      max-width: 320px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0 auto;
+    }
+
+    .table-area {
+      position: relative;
+      width: 300px;
+      height: 300px;
+      margin: 0 auto;
+    }
+    .table-area.stage-2,
+    .table-area.stage-3 {
+      height: 320px;
+    }
+
+    .table-surface {
+      position: absolute;
+      background: var(--table-bg);
+      border: 3px solid var(--table-edge);
+      border-radius: 50%;
+      box-shadow: inset 0 4px 8px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.18);
+    }
+    .table-area.stage-1 .table-surface {
+      width: 150px; height: 150px;
+      left: 75px; top: 75px;
+      border-radius: 50%;
+    }
+    .table-area.stage-2 .table-surface {
+      width: 140px; height: 200px;
+      left: 80px; top: 60px;
+      border-radius: 70px / 100px;
+    }
+    .table-area.stage-3 .table-surface {
+      width: 120px; height: 220px;
+      left: 90px; top: 50px;
+      border-radius: 22px;
+    }
+
+    .table-head-label {
+      position: absolute;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--table-edge);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      pointer-events: none;
+      text-align: center;
+      width: 60px;
+    }
+    .table-head-label.head { top: 4px; left: 120px; }
+    .table-head-label.foot { bottom: 4px; left: 120px; }
+
+    .seat {
+      position: absolute;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--seat-bg);
+      border: 2px solid var(--seat-border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: default;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      transition: transform 0.15s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    }
+    .seat .seat-num {
+      position: absolute;
+      top: -10px;
+      left: -10px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--mathai-white);
+      border: 2px solid var(--seat-border);
+      color: var(--mathai-text-primary);
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .seat.filled {
+      background: var(--seat-bg-filled);
+    }
+    .seat.drop-hover {
+      box-shadow: 0 0 0 3px var(--seat-highlight-ring), 0 2px 4px rgba(0,0,0,0.08);
+    }
+    .seat.flash-correct {
+      animation: seatFlashGreen 0.6s ease forwards;
+    }
+    .seat.glow-wrong {
+      animation: seatGlowRed 1.5s ease-in-out;
+    }
+    @keyframes seatFlashGreen {
+      0% { background: var(--seat-bg-filled); border-color: var(--seat-border); }
+      50% { background: var(--seat-bg-correct); border-color: var(--seat-border-correct); box-shadow: 0 0 0 3px var(--seat-border-correct); }
+      100% { background: var(--seat-bg-correct); border-color: var(--seat-border-correct); box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+    }
+    @keyframes seatGlowRed {
+      0%, 100% { background: var(--seat-bg-filled); border-color: var(--seat-border); box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+      16%, 50%, 83% { background: var(--seat-bg-wrong); border-color: var(--seat-border-wrong); box-shadow: 0 0 0 3px var(--seat-border-wrong); }
+    }
+
+    /* Pool area */
+    .pool-wrap {
+      width: 100%;
+      max-width: 360px;
+      margin: 8px auto 12px auto;
+      padding: 8px;
+      background: var(--mathai-light-gray);
+      border-radius: var(--mathai-border-radius-card);
+      min-height: 100px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .pool-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--mathai-text-primary);
+      opacity: 0.7;
+      margin-bottom: 6px;
+    }
+    .pool-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: flex-start;
+      width: 100%;
+      min-height: 80px;
+    }
+    .pool-slot {
+      width: 70px;
+      height: 80px;
+      margin: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pool-slot.empty {
+      display: none;
+    }
+
+    .chip {
+      width: 64px;
+      height: 78px;
+      background: var(--chip-bg);
+      border: 2px solid var(--chip-border);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.10);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      padding: 4px;
+    }
+    .chip:active {
+      cursor: grabbing;
+    }
+    .chip.dragging {
+      transform: scale(1.06);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.20);
+      z-index: 1000;
+    }
+    .chip.in-seat {
+      width: 56px;
+      height: 56px;
+      box-shadow: none;
+      border: none;
+      background: transparent;
+    }
+    .chip.in-seat .chip-name {
+      font-size: 11px;
+    }
+    .chip.in-seat .chip-avatar {
+      font-size: 26px;
+    }
+    .chip-avatar {
+      font-size: 32px;
+      line-height: 1;
+      pointer-events: none;
+    }
+    .chip-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--mathai-text-primary);
+      margin-top: 2px;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .chip.is-disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    /* Stage feedback line */
+    .feedback-line {
+      width: 100%;
+      max-width: 360px;
+      min-height: 22px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--mathai-text-primary);
+      margin: 4px auto 0 auto;
+    }
+    .feedback-line.correct { color: var(--mathai-green); }
+    .feedback-line.wrong { color: var(--mathai-red); }
+
+    /* Answer slide */
+    .answer-slide {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 4px 12px 4px;
+    }
+    .answer-slide .answer-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      text-align: center;
+      margin-bottom: 2px;
+    }
+    .answer-slide .answer-subtitle {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--mathai-text-primary);
+      text-align: center;
+      margin-bottom: 8px;
+      max-width: 280px;
+      opacity: 0.75;
+    }
+    .answer-table-area {
+      position: relative;
+      width: 240px;
+      height: 240px;
+      margin: 0 auto 6px auto;
+    }
+    .answer-table-area.stage-2,
+    .answer-table-area.stage-3 {
+      height: 260px;
+    }
+    .answer-table-surface {
+      position: absolute;
+      background: var(--table-bg);
+      border: 2px solid var(--table-edge);
+    }
+    .answer-table-area.stage-1 .answer-table-surface {
+      width: 120px; height: 120px;
+      left: 60px; top: 60px;
+      border-radius: 50%;
+    }
+    .answer-table-area.stage-2 .answer-table-surface {
+      width: 110px; height: 160px;
+      left: 65px; top: 50px;
+      border-radius: 55px / 80px;
+    }
+    .answer-table-area.stage-3 .answer-table-surface {
+      width: 95px; height: 175px;
+      left: 73px; top: 42px;
+      border-radius: 18px;
+    }
+    .answer-seat {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: var(--seat-bg-correct);
+      border: 2px solid var(--seat-border-correct);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .answer-seat .seat-num {
+      position: absolute;
+      top: -8px;
+      left: -8px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--mathai-white);
+      border: 1px solid var(--seat-border);
+      color: var(--mathai-text-primary);
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .answer-seat .answer-avatar { font-size: 22px; line-height: 1; }
+    .answer-seat .answer-name { font-size: 10px; font-weight: 600; margin-top: 1px; }
+    .answer-clue-list {
+      width: 240px;
+      margin: 4px auto;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--mathai-text-primary);
+      text-align: left;
+      padding-left: 18px;
+    }
+    .answer-clue-list li { margin: 2px 0; }
+    .answer-distractor {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--mathai-gray);
+      font-style: italic;
+      text-align: center;
+    }
+
+    /* Required micro-animations */
+    @keyframes scoreBounce {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes starPop {
+      0% { transform: scale(0); }
+      60% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+    @keyframes heartBreak {
+      0% { transform: scale(1); opacity: 1; }
+      30% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.5); opacity: 0; color: var(--mathai-red); }
+    }
+    @keyframes streakGlow {
+      0% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+      50% { box-shadow: 0 0 16px rgba(255, 193, 7, 0.5); }
+      100% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+    }
+    @keyframes confettiFall {
+      0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+    .score-bounce { animation: scoreBounce 0.4s ease; }
+    .shake-wrong { animation: shake 0.5s ease; }
+    .heart-break { animation: heartBreak 0.6s ease forwards; }
+    .star-earned { animation: starPop 0.4s ease forwards; }
+    .streak-glow { animation: streakGlow 0.6s ease; }
+    .fade-in { animation: fadeIn 0.35s ease; }
+
+    .selected-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-red);
+      color: var(--mathai-red);
+    }
+    .selected-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-green);
+      color: var(--mathai-green);
+    }
+    .correct-reveal {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--mathai-green);
+      text-align: center;
+      margin-top: 8px;
+      animation: fadeIn 0.35s ease;
+    }
+    .correct-reveal.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-round="1"></div>
+
+  <script>
+    /* ============================================================
+       Stickers (standard set)
+       ============================================================ */
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_VICTORY_3 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_VICTORY_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_VICTORY_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    var SETS = ['A', 'B', 'C'];
+
+    /* ============================================================
+       Per-stage geometry (seat positions in pixels for the 300x320 board)
+       ============================================================ */
+    var SEAT_POSITIONS = {
+      1: {
+        // 4 seats — square
+        '1': { x: 118, y: 8 },     // top
+        '2': { x: 228, y: 118 },   // right
+        '3': { x: 118, y: 228 },   // bottom
+        '4': { x: 8,   y: 118 }    // left
+      },
+      2: {
+        // 5 seats — oval with head (clockwise from head: 1→2→3→5→4→1)
+        '1': { x: 118, y: 4 },     // head/top
+        '2': { x: 232, y: 88 },    // upper right
+        '3': { x: 232, y: 188 },   // lower right
+        '5': { x: 4,   y: 188 },   // lower left
+        '4': { x: 4,   y: 88 }     // upper left
+      },
+      3: {
+        // 6 seats — rectangle with head + foot (clockwise from head: 1→2→3→4→5→6→1)
+        '1': { x: 118, y: 4 },     // head/top
+        '2': { x: 232, y: 70 },    // upper right
+        '3': { x: 232, y: 188 },   // lower right
+        '4': { x: 118, y: 252 },   // foot/bottom
+        '5': { x: 4,   y: 188 },   // lower left
+        '6': { x: 4,   y: 70 }     // upper left
+      }
+    };
+
+    var STAGE_HAS_FOOT = { 1: false, 2: false, 3: true };
+    var STAGE_HAS_HEAD = { 1: false, 2: true,  3: true };
+
+    /* ============================================================
+       gameState
+       ============================================================ */
+    var gameState = {
+      gameId: 'logic-seat-puzzle',
+      phase: 'start_screen',
+      currentRound: 1,
+      totalRounds: 7,
+      score: 0,
+      stars: 0,
+      progress: 0,
+      attempts: [],
+      events: [],
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      startTime: null,
+      roundStartTime: null,
+      duration_data: { startTime: null, preview: [] },
+      content: null,
+      previewResult: null,
+      setIndex: 0,
+      activeRounds: [],
+      // Per-round
+      placement: {},        // map seat number (string) → chip id (string) | null
+      chipLocation: {},     // map chip id (string) → seat number (string) | null  ('pool' if in pool)
+      currentRoundData: null,
+      correctAnswer: null,
+      firstCheckCorrect: 0, // number of rounds where first CHECK was correct
+      awaitingNext: null    // null | 'wrong' | 'final'
+    };
+    window.gameState = gameState;
+
+    /* ============================================================
+       fallbackContent — 21 puzzles (3 sets x 7 rounds)
+       Every Stage-1 puzzle includes a `seat-pin` clue (rotational symmetry).
+       Every puzzle has been hand-verified for unique solution.
+       ============================================================ */
+    var STAGE1_GEO = {
+      seats: [1, 2, 3, 4],
+      adjacency:     { '1': [2, 4], '2': [1, 3], '3': [2, 4], '4': [1, 3] },
+      acrossFrom:    { '1': 3, '2': 4, '3': 1, '4': 2 },
+      leftNeighbour: { '1': 2, '2': 3, '3': 4, '4': 1 },
+      headSeat: null
+    };
+    var STAGE2_GEO = {
+      seats: [1, 2, 3, 5, 4],
+      adjacency:     { '1': [2, 4], '2': [1, 3], '3': [2, 5], '5': [3, 4], '4': [1, 5] },
+      acrossFrom:    { '2': 4, '4': 2, '3': 5, '5': 3, '1': null },
+      leftNeighbour: { '1': 2, '2': 3, '3': 5, '5': 4, '4': 1 },
+      headSeat: 1
+    };
+    var STAGE3_GEO = {
+      seats: [1, 2, 3, 4, 5, 6],
+      adjacency:     { '1': [2, 6], '2': [1, 3], '3': [2, 4], '4': [3, 5], '5': [4, 6], '6': [1, 5] },
+      acrossFrom:    { '1': 4, '4': 1, '2': 6, '6': 2, '3': 5, '5': 3 },
+      leftNeighbour: { '1': 2, '2': 3, '3': 4, '4': 5, '5': 6, '6': 1 },
+      headSeat: 1
+    };
+
+    var FULL_TAGS = {
+      'next-to':       'next-to-constraint-overlooked',
+      'across-from':   'across-from-constraint-overlooked',
+      'left-of':       'left-right-orientation-confused',
+      'between':       'between-constraint-misread',
+      'head-of-table': 'head-anchor-overlooked',
+      'not-next-to':   'negation-clue-misread',
+      'seat-pin':      'absolute-seat-pin-overlooked',
+      'distractor-not-recognised': 'distractor-not-recognised'
+    };
+
+    function chip(id, name, avatar) { return { id: id, name: name, avatar: avatar }; }
+
+    var fallbackContent = {
+      previewInstruction:
+        '<p><b>Read the clues.</b> Drag each friend onto a seat so all the clues are true at the same time. Then tap <b>CHECK</b>.</p>' +
+        '<p style="font-size:0.9em;color:#666;">Tip: <b>Left</b> and <b>right</b> are from <b>your</b> view, looking at the picture.</p>',
+      previewAudioText:
+        'Read the clues, then drag each friend onto a seat so that every clue is true at the same time. When all the seats are full, tap CHECK. Left and right are from your view, looking at the picture.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 7,
+      timer: false,
+      answerComponent: true,
+      rounds: [
+        // ─────────────── Set A ───────────────
+        // A_r1 — Stage 1
+        {
+          set: 'A', id: 'A_r1', round: 1, stage: 1, type: 'seating-puzzle',
+          seats: STAGE1_GEO.seats, adjacency: STAGE1_GEO.adjacency,
+          acrossFrom: STAGE1_GEO.acrossFrom, leftNeighbour: STAGE1_GEO.leftNeighbour,
+          headSeat: STAGE1_GEO.headSeat,
+          chips: [
+            chip('anu','Anu','👧'), chip('ravi','Ravi','👦'),
+            chip('priya','Priya','🧒'), chip('neha','Neha','👧')
+          ],
+          clues: [
+            { text: 'Anu sits in seat 1.',            kind: 'seat-pin',    args: ['anu', 1] },
+            { text: 'Ravi is across from Anu.',       kind: 'across-from', args: ['ravi', 'anu'] },
+            { text: 'Priya sits to the left of Ravi.', kind: 'left-of',    args: ['priya', 'ravi'] }
+          ],
+          solution: { '1': 'anu', '2': 'neha', '3': 'ravi', '4': 'priya' },
+          answer:   { seating: { '1': 'anu', '2': 'neha', '3': 'ravi', '4': 'priya' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // A_r2 — Stage 1
+        {
+          set: 'A', id: 'A_r2', round: 2, stage: 1, type: 'seating-puzzle',
+          seats: STAGE1_GEO.seats, adjacency: STAGE1_GEO.adjacency,
+          acrossFrom: STAGE1_GEO.acrossFrom, leftNeighbour: STAGE1_GEO.leftNeighbour,
+          headSeat: STAGE1_GEO.headSeat,
+          chips: [
+            chip('anu','Anu','👧'), chip('ravi','Ravi','👦'),
+            chip('priya','Priya','🧒'), chip('neha','Neha','👧')
+          ],
+          clues: [
+            { text: 'Ravi sits in seat 2.',           kind: 'seat-pin',    args: ['ravi', 2] },
+            { text: 'Anu sits to the left of Ravi.',  kind: 'left-of',     args: ['anu', 'ravi'] },
+            { text: 'Priya is across from Ravi.',     kind: 'across-from', args: ['priya', 'ravi'] }
+          ],
+          solution: { '1': 'neha', '2': 'ravi', '3': 'anu', '4': 'priya' },
+          answer:   { seating: { '1': 'neha', '2': 'ravi', '3': 'anu', '4': 'priya' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // A_r3 — Stage 2
+        {
+          set: 'A', id: 'A_r3', round: 3, stage: 2, type: 'seating-puzzle',
+          seats: STAGE2_GEO.seats, adjacency: STAGE2_GEO.adjacency,
+          acrossFrom: STAGE2_GEO.acrossFrom, leftNeighbour: STAGE2_GEO.leftNeighbour,
+          headSeat: STAGE2_GEO.headSeat,
+          chips: [
+            chip('meera','Meera','👧'), chip('anu','Anu','👧'),
+            chip('ravi','Ravi','👦'), chip('priya','Priya','🧒'),
+            chip('neha','Neha','👧')
+          ],
+          clues: [
+            { text: 'Meera is at the head of the table.', kind: 'head-of-table', args: ['meera'] },
+            { text: 'Anu sits next to Meera.',            kind: 'next-to',       args: ['anu', 'meera'] },
+            { text: 'Ravi sits between Anu and Priya.',   kind: 'between',       args: ['ravi', 'anu', 'priya'] },
+            { text: 'Neha sits to the left of Meera.',    kind: 'left-of',       args: ['neha', 'meera'] }
+          ],
+          solution: { '1': 'meera', '2': 'neha', '3': 'priya', '4': 'anu', '5': 'ravi' },
+          answer:   { seating: { '1': 'meera', '2': 'neha', '3': 'priya', '4': 'anu', '5': 'ravi' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // A_r4 — Stage 2
+        {
+          set: 'A', id: 'A_r4', round: 4, stage: 2, type: 'seating-puzzle',
+          seats: STAGE2_GEO.seats, adjacency: STAGE2_GEO.adjacency,
+          acrossFrom: STAGE2_GEO.acrossFrom, leftNeighbour: STAGE2_GEO.leftNeighbour,
+          headSeat: STAGE2_GEO.headSeat,
+          chips: [
+            chip('anu','Anu','👧'), chip('meera','Meera','👧'),
+            chip('ravi','Ravi','👦'), chip('priya','Priya','🧒'),
+            chip('neha','Neha','👧')
+          ],
+          clues: [
+            { text: 'Anu is at the head of the table.', kind: 'head-of-table', args: ['anu'] },
+            { text: 'Meera sits to the left of Anu.',   kind: 'left-of',       args: ['meera', 'anu'] },
+            { text: 'Ravi sits between Meera and Neha.', kind: 'between',      args: ['ravi', 'meera', 'neha'] },
+            { text: 'Priya sits next to Neha.',         kind: 'next-to',       args: ['priya', 'neha'] }
+          ],
+          solution: { '1': 'anu', '2': 'meera', '3': 'ravi', '4': 'priya', '5': 'neha' },
+          answer:   { seating: { '1': 'anu', '2': 'meera', '3': 'ravi', '4': 'priya', '5': 'neha' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // A_r5 — Stage 2
+        {
+          set: 'A', id: 'A_r5', round: 5, stage: 2, type: 'seating-puzzle',
+          seats: STAGE2_GEO.seats, adjacency: STAGE2_GEO.adjacency,
+          acrossFrom: STAGE2_GEO.acrossFrom, leftNeighbour: STAGE2_GEO.leftNeighbour,
+          headSeat: STAGE2_GEO.headSeat,
+          chips: [
+            chip('priya','Priya','🧒'), chip('anu','Anu','👧'),
+            chip('meera','Meera','👧'), chip('neha','Neha','👧'),
+            chip('ravi','Ravi','👦')
+          ],
+          clues: [
+            { text: 'Priya is at the head of the table.', kind: 'head-of-table', args: ['priya'] },
+            { text: 'Anu sits between Priya and Meera.',  kind: 'between',       args: ['anu', 'priya', 'meera'] },
+            { text: 'Neha is across from Anu.',           kind: 'across-from',   args: ['neha', 'anu'] },
+            { text: 'Ravi sits to the left of Meera.',    kind: 'left-of',       args: ['ravi', 'meera'] }
+          ],
+          solution: { '1': 'priya', '2': 'anu', '3': 'meera', '4': 'neha', '5': 'ravi' },
+          answer:   { seating: { '1': 'priya', '2': 'anu', '3': 'meera', '4': 'neha', '5': 'ravi' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // A_r6 — Stage 3 (verified sample with negation)
+        {
+          set: 'A', id: 'A_r6', round: 6, stage: 3, type: 'seating-puzzle',
+          seats: STAGE3_GEO.seats, adjacency: STAGE3_GEO.adjacency,
+          acrossFrom: STAGE3_GEO.acrossFrom, leftNeighbour: STAGE3_GEO.leftNeighbour,
+          headSeat: STAGE3_GEO.headSeat,
+          chips: [
+            chip('meera','Meera','👧'), chip('anu','Anu','👧'),
+            chip('ravi','Ravi','👦'), chip('priya','Priya','🧒'),
+            chip('neha','Neha','👧'), chip('bobby','Bobby','👦'),
+            chip('tara','Tara','🧒')
+          ],
+          clues: [
+            { text: 'Meera is at the head of the table.', kind: 'head-of-table', args: ['meera'] },
+            { text: 'Anu is across from Meera.',          kind: 'across-from',   args: ['anu', 'meera'] },
+            { text: 'Ravi sits between Bobby and Anu.',   kind: 'between',       args: ['ravi', 'bobby', 'anu'] },
+            { text: 'Priya is NOT next to Anu.',          kind: 'not-next-to',   args: ['priya', 'anu'] },
+            { text: 'Neha sits to the left of Anu.',      kind: 'left-of',       args: ['neha', 'anu'] }
+          ],
+          solution: { '1': 'meera', '2': 'bobby', '3': 'ravi', '4': 'anu', '5': 'neha', '6': 'priya' },
+          answer:   { seating: { '1': 'meera', '2': 'bobby', '3': 'ravi', '4': 'anu', '5': 'neha', '6': 'priya' }, distractor: 'tara' },
+          misconception_tags: FULL_TAGS
+        },
+        // A_r7 — Stage 3
+        {
+          set: 'A', id: 'A_r7', round: 7, stage: 3, type: 'seating-puzzle',
+          seats: STAGE3_GEO.seats, adjacency: STAGE3_GEO.adjacency,
+          acrossFrom: STAGE3_GEO.acrossFrom, leftNeighbour: STAGE3_GEO.leftNeighbour,
+          headSeat: STAGE3_GEO.headSeat,
+          chips: [
+            chip('priya','Priya','🧒'), chip('anu','Anu','👧'),
+            chip('ravi','Ravi','👦'), chip('meera','Meera','👧'),
+            chip('neha','Neha','👧'), chip('tara','Tara','🧒'),
+            chip('bobby','Bobby','👦')
+          ],
+          clues: [
+            { text: 'Priya is at the head of the table.', kind: 'head-of-table', args: ['priya'] },
+            { text: 'Ravi is across from Priya.',         kind: 'across-from',   args: ['ravi', 'priya'] },
+            { text: 'Meera sits between Anu and Ravi.',   kind: 'between',       args: ['meera', 'anu', 'ravi'] },
+            { text: 'Tara sits to the left of Neha.',     kind: 'left-of',       args: ['tara', 'neha'] },
+            { text: 'Neha is NOT next to Priya.',         kind: 'not-next-to',   args: ['neha', 'priya'] }
+          ],
+          solution: { '1': 'priya', '2': 'anu', '3': 'meera', '4': 'ravi', '5': 'neha', '6': 'tara' },
+          answer:   { seating: { '1': 'priya', '2': 'anu', '3': 'meera', '4': 'ravi', '5': 'neha', '6': 'tara' }, distractor: 'bobby' },
+          misconception_tags: FULL_TAGS
+        },
+        // ─────────────── Set B ───────────────
+        // B_r1 — Stage 1
+        {
+          set: 'B', id: 'B_r1', round: 1, stage: 1, type: 'seating-puzzle',
+          seats: STAGE1_GEO.seats, adjacency: STAGE1_GEO.adjacency,
+          acrossFrom: STAGE1_GEO.acrossFrom, leftNeighbour: STAGE1_GEO.leftNeighbour,
+          headSeat: STAGE1_GEO.headSeat,
+          chips: [
+            chip('rohan','Rohan','👦'), chip('kavya','Kavya','👧'),
+            chip('arjun','Arjun','👦'), chip('diya','Diya','🧒')
+          ],
+          clues: [
+            { text: 'Rohan sits in seat 3.',           kind: 'seat-pin',    args: ['rohan', 3] },
+            { text: 'Kavya sits to the left of Rohan.', kind: 'left-of',    args: ['kavya', 'rohan'] },
+            { text: 'Arjun is across from Rohan.',     kind: 'across-from', args: ['arjun', 'rohan'] }
+          ],
+          solution: { '1': 'arjun', '2': 'diya', '3': 'rohan', '4': 'kavya' },
+          answer:   { seating: { '1': 'arjun', '2': 'diya', '3': 'rohan', '4': 'kavya' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // B_r2 — Stage 1
+        {
+          set: 'B', id: 'B_r2', round: 2, stage: 1, type: 'seating-puzzle',
+          seats: STAGE1_GEO.seats, adjacency: STAGE1_GEO.adjacency,
+          acrossFrom: STAGE1_GEO.acrossFrom, leftNeighbour: STAGE1_GEO.leftNeighbour,
+          headSeat: STAGE1_GEO.headSeat,
+          chips: [
+            chip('rohan','Rohan','👦'), chip('kavya','Kavya','👧'),
+            chip('arjun','Arjun','👦'), chip('diya','Diya','🧒')
+          ],
+          clues: [
+            { text: 'Diya sits in seat 1.',            kind: 'seat-pin',    args: ['diya', 1] },
+            { text: 'Arjun is across from Diya.',      kind: 'across-from', args: ['arjun', 'diya'] },
+            { text: 'Kavya sits to the left of Diya.', kind: 'left-of',     args: ['kavya', 'diya'] }
+          ],
+          solution: { '1': 'diya', '2': 'kavya', '3': 'arjun', '4': 'rohan' },
+          answer:   { seating: { '1': 'diya', '2': 'kavya', '3': 'arjun', '4': 'rohan' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // B_r3 — Stage 2
+        {
+          set: 'B', id: 'B_r3', round: 3, stage: 2, type: 'seating-puzzle',
+          seats: STAGE2_GEO.seats, adjacency: STAGE2_GEO.adjacency,
+          acrossFrom: STAGE2_GEO.acrossFrom, leftNeighbour: STAGE2_GEO.leftNeighbour,
+          headSeat: STAGE2_GEO.headSeat,
+          chips: [
+            chip('kabir','Kabir','👦'), chip('arjun','Arjun','👦'),
+            chip('rohan','Rohan','👦'), chip('diya','Diya','🧒'),
+            chip('kavya','Kavya','👧')
+          ],
+          clues: [
+            { text: 'Kabir is at the head of the table.', kind: 'head-of-table', args: ['kabir'] },
+            { text: 'Arjun sits to the left of Kabir.',   kind: 'left-of',       args: ['arjun', 'kabir'] },
+            { text: 'Rohan sits between Kabir and Diya.', kind: 'between',       args: ['rohan', 'kabir', 'diya'] },
+            { text: 'Kavya is across from Diya.',         kind: 'across-from',   args: ['kavya', 'diya'] }
+          ],
+          solution: { '1': 'kabir', '2': 'arjun', '3': 'kavya', '4': 'rohan', '5': 'diya' },
+          answer:   { seating: { '1': 'kabir', '2': 'arjun', '3': 'kavya', '4': 'rohan', '5': 'diya' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // B_r4 — Stage 2
+        {
+          set: 'B', id: 'B_r4', round: 4, stage: 2, type: 'seating-puzzle',
+          seats: STAGE2_GEO.seats, adjacency: STAGE2_GEO.adjacency,
+          acrossFrom: STAGE2_GEO.acrossFrom, leftNeighbour: STAGE2_GEO.leftNeighbour,
+          headSeat: STAGE2_GEO.headSeat,
+          chips: [
+            chip('kavya','Kavya','👧'), chip('rohan','Rohan','👦'),
+            chip('arjun','Arjun','👦'), chip('diya','Diya','🧒'),
+            chip('kabir','Kabir','👦')
+          ],
+          clues: [
+            { text: 'Kavya is at the head of the table.', kind: 'head-of-table', args: ['kavya'] },
+            { text: 'Rohan sits to the left of Kavya.',   kind: 'left-of',       args: ['rohan', 'kavya'] },
+            { text: 'Arjun sits between Diya and Kabir.', kind: 'between',       args: ['arjun', 'diya', 'kabir'] },
+            { text: 'Diya is across from Rohan.',         kind: 'across-from',   args: ['diya', 'rohan'] }
+          ],
+          solution: { '1': 'kavya', '2': 'rohan', '3': 'kabir', '4': 'diya', '5': 'arjun' },
+          answer:   { seating: { '1': 'kavya', '2': 'rohan', '3': 'kabir', '4': 'diya', '5': 'arjun' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // B_r5 — Stage 2
+        {
+          set: 'B', id: 'B_r5', round: 5, stage: 2, type: 'seating-puzzle',
+          seats: STAGE2_GEO.seats, adjacency: STAGE2_GEO.adjacency,
+          acrossFrom: STAGE2_GEO.acrossFrom, leftNeighbour: STAGE2_GEO.leftNeighbour,
+          headSeat: STAGE2_GEO.headSeat,
+          chips: [
+            chip('diya','Diya','🧒'), chip('rohan','Rohan','👦'),
+            chip('kabir','Kabir','👦'), chip('arjun','Arjun','👦'),
+            chip('kavya','Kavya','👧')
+          ],
+          clues: [
+            { text: 'Diya is at the head of the table.', kind: 'head-of-table', args: ['diya'] },
+            { text: 'Rohan sits to the left of Diya.',   kind: 'left-of',       args: ['rohan', 'diya'] },
+            { text: 'Kabir sits between Diya and Arjun.', kind: 'between',      args: ['kabir', 'diya', 'arjun'] },
+            { text: 'Kavya is across from Arjun.',       kind: 'across-from',   args: ['kavya', 'arjun'] }
+          ],
+          solution: { '1': 'diya', '2': 'rohan', '3': 'kavya', '4': 'kabir', '5': 'arjun' },
+          answer:   { seating: { '1': 'diya', '2': 'rohan', '3': 'kavya', '4': 'kabir', '5': 'arjun' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // B_r6 — Stage 3
+        {
+          set: 'B', id: 'B_r6', round: 6, stage: 3, type: 'seating-puzzle',
+          seats: STAGE3_GEO.seats, adjacency: STAGE3_GEO.adjacency,
+          acrossFrom: STAGE3_GEO.acrossFrom, leftNeighbour: STAGE3_GEO.leftNeighbour,
+          headSeat: STAGE3_GEO.headSeat,
+          chips: [
+            chip('diya','Diya','🧒'), chip('rohan','Rohan','👦'),
+            chip('arjun','Arjun','👦'), chip('kavya','Kavya','👧'),
+            chip('meera','Meera','👧'), chip('kabir','Kabir','👦'),
+            chip('anu','Anu','👧')
+          ],
+          clues: [
+            { text: 'Diya is at the head of the table.', kind: 'head-of-table', args: ['diya'] },
+            { text: 'Arjun is across from Diya.',        kind: 'across-from',   args: ['arjun', 'diya'] },
+            { text: 'Rohan sits to the left of Diya.',   kind: 'left-of',       args: ['rohan', 'diya'] },
+            { text: 'Kavya sits between Rohan and Arjun.', kind: 'between',     args: ['kavya', 'rohan', 'arjun'] },
+            { text: 'Meera is across from Kavya.',       kind: 'across-from',   args: ['meera', 'kavya'] },
+            { text: 'Kabir sits to the left of Meera.',  kind: 'left-of',       args: ['kabir', 'meera'] }
+          ],
+          solution: { '1': 'diya', '2': 'rohan', '3': 'kavya', '4': 'arjun', '5': 'meera', '6': 'kabir' },
+          answer:   { seating: { '1': 'diya', '2': 'rohan', '3': 'kavya', '4': 'arjun', '5': 'meera', '6': 'kabir' }, distractor: 'anu' },
+          misconception_tags: FULL_TAGS
+        },
+        // B_r7 — Stage 3 (with negation)
+        {
+          set: 'B', id: 'B_r7', round: 7, stage: 3, type: 'seating-puzzle',
+          seats: STAGE3_GEO.seats, adjacency: STAGE3_GEO.adjacency,
+          acrossFrom: STAGE3_GEO.acrossFrom, leftNeighbour: STAGE3_GEO.leftNeighbour,
+          headSeat: STAGE3_GEO.headSeat,
+          chips: [
+            chip('anu','Anu','👧'), chip('meera','Meera','👧'),
+            chip('rohan','Rohan','👦'), chip('diya','Diya','🧒'),
+            chip('arjun','Arjun','👦'), chip('kavya','Kavya','👧'),
+            chip('kabir','Kabir','👦')
+          ],
+          clues: [
+            { text: 'Anu is at the head of the table.', kind: 'head-of-table', args: ['anu'] },
+            { text: 'Meera is across from Anu.',        kind: 'across-from',   args: ['meera', 'anu'] },
+            { text: 'Rohan sits to the left of Anu.',   kind: 'left-of',       args: ['rohan', 'anu'] },
+            { text: 'Diya sits between Meera and Arjun.', kind: 'between',     args: ['diya', 'meera', 'arjun'] },
+            { text: 'Kavya is NOT next to Anu.',        kind: 'not-next-to',   args: ['kavya', 'anu'] }
+          ],
+          solution: { '1': 'anu', '2': 'rohan', '3': 'kavya', '4': 'meera', '5': 'diya', '6': 'arjun' },
+          answer:   { seating: { '1': 'anu', '2': 'rohan', '3': 'kavya', '4': 'meera', '5': 'diya', '6': 'arjun' }, distractor: 'kabir' },
+          misconception_tags: FULL_TAGS
+        },
+        // ─────────────── Set C ───────────────
+        // C_r1 — Stage 1
+        {
+          set: 'C', id: 'C_r1', round: 1, stage: 1, type: 'seating-puzzle',
+          seats: STAGE1_GEO.seats, adjacency: STAGE1_GEO.adjacency,
+          acrossFrom: STAGE1_GEO.acrossFrom, leftNeighbour: STAGE1_GEO.leftNeighbour,
+          headSeat: STAGE1_GEO.headSeat,
+          chips: [
+            chip('tara','Tara','🧒'), chip('rohan','Rohan','👦'),
+            chip('priya','Priya','🧒'), chip('bobby','Bobby','👦')
+          ],
+          clues: [
+            { text: 'Tara sits in seat 4.',            kind: 'seat-pin',    args: ['tara', 4] },
+            { text: 'Bobby is across from Tara.',      kind: 'across-from', args: ['bobby', 'tara'] },
+            { text: 'Priya sits to the left of Bobby.', kind: 'left-of',    args: ['priya', 'bobby'] }
+          ],
+          solution: { '1': 'rohan', '2': 'bobby', '3': 'priya', '4': 'tara' },
+          answer:   { seating: { '1': 'rohan', '2': 'bobby', '3': 'priya', '4': 'tara' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // C_r2 — Stage 1
+        {
+          set: 'C', id: 'C_r2', round: 2, stage: 1, type: 'seating-puzzle',
+          seats: STAGE1_GEO.seats, adjacency: STAGE1_GEO.adjacency,
+          acrossFrom: STAGE1_GEO.acrossFrom, leftNeighbour: STAGE1_GEO.leftNeighbour,
+          headSeat: STAGE1_GEO.headSeat,
+          chips: [
+            chip('tara','Tara','🧒'), chip('rohan','Rohan','👦'),
+            chip('priya','Priya','🧒'), chip('bobby','Bobby','👦')
+          ],
+          clues: [
+            { text: 'Priya sits in seat 2.',            kind: 'seat-pin',    args: ['priya', 2] },
+            { text: 'Rohan is across from Priya.',      kind: 'across-from', args: ['rohan', 'priya'] },
+            { text: 'Bobby sits to the left of Priya.', kind: 'left-of',     args: ['bobby', 'priya'] }
+          ],
+          solution: { '1': 'tara', '2': 'priya', '3': 'bobby', '4': 'rohan' },
+          answer:   { seating: { '1': 'tara', '2': 'priya', '3': 'bobby', '4': 'rohan' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // C_r3 — Stage 2
+        {
+          set: 'C', id: 'C_r3', round: 3, stage: 2, type: 'seating-puzzle',
+          seats: STAGE2_GEO.seats, adjacency: STAGE2_GEO.adjacency,
+          acrossFrom: STAGE2_GEO.acrossFrom, leftNeighbour: STAGE2_GEO.leftNeighbour,
+          headSeat: STAGE2_GEO.headSeat,
+          chips: [
+            chip('bobby','Bobby','👦'), chip('tara','Tara','🧒'),
+            chip('priya','Priya','🧒'), chip('rohan','Rohan','👦'),
+            chip('neha','Neha','👧')
+          ],
+          clues: [
+            { text: 'Bobby is at the head of the table.', kind: 'head-of-table', args: ['bobby'] },
+            { text: 'Tara sits to the left of Bobby.',    kind: 'left-of',       args: ['tara', 'bobby'] },
+            { text: 'Priya sits between Bobby and Neha.', kind: 'between',       args: ['priya', 'bobby', 'neha'] },
+            { text: 'Rohan is across from Neha.',         kind: 'across-from',   args: ['rohan', 'neha'] }
+          ],
+          solution: { '1': 'bobby', '2': 'tara', '3': 'rohan', '4': 'priya', '5': 'neha' },
+          answer:   { seating: { '1': 'bobby', '2': 'tara', '3': 'rohan', '4': 'priya', '5': 'neha' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // C_r4 — Stage 2
+        {
+          set: 'C', id: 'C_r4', round: 4, stage: 2, type: 'seating-puzzle',
+          seats: STAGE2_GEO.seats, adjacency: STAGE2_GEO.adjacency,
+          acrossFrom: STAGE2_GEO.acrossFrom, leftNeighbour: STAGE2_GEO.leftNeighbour,
+          headSeat: STAGE2_GEO.headSeat,
+          chips: [
+            chip('neha','Neha','👧'), chip('priya','Priya','🧒'),
+            chip('tara','Tara','🧒'), chip('rohan','Rohan','👦'),
+            chip('bobby','Bobby','👦')
+          ],
+          clues: [
+            { text: 'Neha is at the head of the table.', kind: 'head-of-table', args: ['neha'] },
+            { text: 'Priya sits to the left of Neha.',   kind: 'left-of',       args: ['priya', 'neha'] },
+            { text: 'Bobby sits between Tara and Rohan.', kind: 'between',      args: ['bobby', 'tara', 'rohan'] },
+            { text: 'Rohan is across from Priya.',       kind: 'across-from',   args: ['rohan', 'priya'] }
+          ],
+          solution: { '1': 'neha', '2': 'priya', '3': 'tara', '4': 'rohan', '5': 'bobby' },
+          answer:   { seating: { '1': 'neha', '2': 'priya', '3': 'tara', '4': 'rohan', '5': 'bobby' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // C_r5 — Stage 2
+        {
+          set: 'C', id: 'C_r5', round: 5, stage: 2, type: 'seating-puzzle',
+          seats: STAGE2_GEO.seats, adjacency: STAGE2_GEO.adjacency,
+          acrossFrom: STAGE2_GEO.acrossFrom, leftNeighbour: STAGE2_GEO.leftNeighbour,
+          headSeat: STAGE2_GEO.headSeat,
+          chips: [
+            chip('tara','Tara','🧒'), chip('neha','Neha','👧'),
+            chip('priya','Priya','🧒'), chip('bobby','Bobby','👦'),
+            chip('rohan','Rohan','👦')
+          ],
+          clues: [
+            { text: 'Tara is at the head of the table.', kind: 'head-of-table', args: ['tara'] },
+            { text: 'Neha sits to the left of Tara.',    kind: 'left-of',       args: ['neha', 'tara'] },
+            { text: 'Priya sits between Tara and Bobby.', kind: 'between',      args: ['priya', 'tara', 'bobby'] },
+            { text: 'Rohan is across from Bobby.',       kind: 'across-from',   args: ['rohan', 'bobby'] }
+          ],
+          solution: { '1': 'tara', '2': 'neha', '3': 'rohan', '4': 'priya', '5': 'bobby' },
+          answer:   { seating: { '1': 'tara', '2': 'neha', '3': 'rohan', '4': 'priya', '5': 'bobby' }, distractor: null },
+          misconception_tags: FULL_TAGS
+        },
+        // C_r6 — Stage 3
+        {
+          set: 'C', id: 'C_r6', round: 6, stage: 3, type: 'seating-puzzle',
+          seats: STAGE3_GEO.seats, adjacency: STAGE3_GEO.adjacency,
+          acrossFrom: STAGE3_GEO.acrossFrom, leftNeighbour: STAGE3_GEO.leftNeighbour,
+          headSeat: STAGE3_GEO.headSeat,
+          chips: [
+            chip('tara','Tara','🧒'), chip('rohan','Rohan','👦'),
+            chip('bobby','Bobby','👦'), chip('neha','Neha','👧'),
+            chip('ravi','Ravi','👦'), chip('kavya','Kavya','👧'),
+            chip('priya','Priya','🧒')
+          ],
+          clues: [
+            { text: 'Tara is at the head of the table.', kind: 'head-of-table', args: ['tara'] },
+            { text: 'Bobby is across from Tara.',        kind: 'across-from',   args: ['bobby', 'tara'] },
+            { text: 'Rohan sits to the left of Tara.',   kind: 'left-of',       args: ['rohan', 'tara'] },
+            { text: 'Neha sits between Bobby and Ravi.', kind: 'between',       args: ['neha', 'bobby', 'ravi'] },
+            { text: 'Kavya is across from Neha.',        kind: 'across-from',   args: ['kavya', 'neha'] }
+          ],
+          solution: { '1': 'tara', '2': 'rohan', '3': 'kavya', '4': 'bobby', '5': 'neha', '6': 'ravi' },
+          answer:   { seating: { '1': 'tara', '2': 'rohan', '3': 'kavya', '4': 'bobby', '5': 'neha', '6': 'ravi' }, distractor: 'priya' },
+          misconception_tags: FULL_TAGS
+        },
+        // C_r7 — Stage 3 (with negation)
+        {
+          set: 'C', id: 'C_r7', round: 7, stage: 3, type: 'seating-puzzle',
+          seats: STAGE3_GEO.seats, adjacency: STAGE3_GEO.adjacency,
+          acrossFrom: STAGE3_GEO.acrossFrom, leftNeighbour: STAGE3_GEO.leftNeighbour,
+          headSeat: STAGE3_GEO.headSeat,
+          chips: [
+            chip('ravi','Ravi','👦'), chip('neha','Neha','👧'),
+            chip('kavya','Kavya','👧'), chip('tara','Tara','🧒'),
+            chip('priya','Priya','🧒'), chip('rohan','Rohan','👦'),
+            chip('bobby','Bobby','👦')
+          ],
+          clues: [
+            { text: 'Ravi is at the head of the table.', kind: 'head-of-table', args: ['ravi'] },
+            { text: 'Tara is across from Ravi.',         kind: 'across-from',   args: ['tara', 'ravi'] },
+            { text: 'Neha sits to the left of Ravi.',    kind: 'left-of',       args: ['neha', 'ravi'] },
+            { text: 'Kavya sits between Neha and Tara.', kind: 'between',       args: ['kavya', 'neha', 'tara'] },
+            { text: 'Rohan is NOT next to Tara.',        kind: 'not-next-to',   args: ['rohan', 'tara'] },
+            { text: 'Priya sits to the left of Tara.',   kind: 'left-of',       args: ['priya', 'tara'] }
+          ],
+          solution: { '1': 'ravi', '2': 'neha', '3': 'kavya', '4': 'tara', '5': 'priya', '6': 'rohan' },
+          answer:   { seating: { '1': 'ravi', '2': 'neha', '3': 'kavya', '4': 'tara', '5': 'priya', '6': 'rohan' }, distractor: 'bobby' },
+          misconception_tags: FULL_TAGS
+        }
+      ]
+    };
+
+    /* ============================================================
+       Module-scope refs
+       ============================================================ */
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+    var dndManager = null;
+    var dndDraggables = [];
+    var dndDroppables = [];
+    var seatEls = {};        // map seat number string → seat DOM
+    var seatChipWrap = {};   // map seat number string → inner chip-host DOM
+    var poolSlotEls = {};    // map chip id → pool slot DOM
+    var chipEls = {};        // map chip id → chip DOM
+
+    /* ============================================================
+       syncDOM
+       ============================================================ */
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+    }
+
+    /* ============================================================
+       trackEvent
+       ============================================================ */
+    function trackEvent(eventName, payload) {
+      try {
+        var ev = { name: eventName, ts: Date.now(), payload: payload || {} };
+        gameState.events.push(ev);
+        if (signalCollector && typeof signalCollector.recordEvent === 'function') {
+          try { signalCollector.recordEvent(eventName, payload || {}); } catch (e) {}
+        }
+      } catch (e) {
+        console.error('[trackEvent]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       recordAttempt
+       ============================================================ */
+    function recordAttempt(round, isCorrect, misconceptionTag) {
+      try {
+        var now = Date.now();
+        var attempt = {
+          attempt_number: gameState.attempts.length + 1,
+          round_number: gameState.currentRound,
+          question_id: round && round.id ? round.id : ('r' + gameState.currentRound),
+          question_text: 'Logic Seating Puzzle — set ' + (round && round.set ? round.set : '?') + ' round ' + gameState.currentRound,
+          input_of_user: JSON.stringify(gameState.placement),
+          user_answer: JSON.stringify(gameState.placement),
+          correct_answer: JSON.stringify(round && round.solution ? round.solution : {}),
+          is_correct: !!isCorrect,
+          correct: !!isCorrect,
+          response_time_ms: gameState.roundStartTime ? (now - gameState.roundStartTime) : 0,
+          time_since_start_of_game: gameState.startTime ? (now - gameState.startTime) : 0,
+          misconception_tag: misconceptionTag || null,
+          difficulty_level: round && round.stage ? round.stage : 1,
+          hint_used: false,
+          is_retry: false,
+          attempt_timestamp: now,
+          metadata: {
+            stage: round && round.stage ? round.stage : null,
+            set: round && round.set ? round.set : null
+          }
+        };
+        gameState.attempts.push(attempt);
+      } catch (e) {
+        console.error('[recordAttempt]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       getStars — first-CHECK accuracy rubric
+       3⭐ = 7/7 first-CHECK correct
+       2⭐ = 5 or 6 of 7 first-CHECK correct
+       1⭐ = 0..4 first-CHECK correct (still completed all 7)
+       ============================================================ */
+    function getStars(score) {
+      var firstCorrect = (typeof score === 'number') ? score : (gameState.firstCheckCorrect || 0);
+      if (firstCorrect >= 7) return 3;
+      if (firstCorrect >= 5) return 2;
+      return 1;
+    }
+
+    /* ============================================================
+       getRounds — set-based filter
+       ============================================================ */
+    function getAvailableSets(rounds) {
+      var seen = {};
+      var i;
+      for (i = 0; i < rounds.length; i++) {
+        if (rounds[i].set) seen[rounds[i].set] = true;
+      }
+      var keys = Object.keys(seen).sort();
+      return keys.length > 0 ? keys : ['A'];
+    }
+
+    function getRounds() {
+      var source = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(source);
+      var currentSetId = sets[gameState.setIndex % sets.length];
+      var setRounds = source.filter(function (r) { return r.set === currentSetId; });
+      if (setRounds.length >= gameState.totalRounds) return setRounds;
+      var fbSetRounds = fallbackContent.rounds.filter(function (r) { return r.set === currentSetId; });
+      if (fbSetRounds.length >= gameState.totalRounds) return fbSetRounds;
+      return fallbackContent.rounds.slice(0, gameState.totalRounds);
+    }
+
+    /* ============================================================
+       waitForPackages
+       ============================================================ */
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            reject(err);
+            throw new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    /* ============================================================
+       FeedbackManager preload
+       ============================================================ */
+    function preloadAudio() {
+      if (typeof FeedbackManager === 'undefined' || !FeedbackManager.sound || !FeedbackManager.sound.preload) return;
+      var assets = [
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+      ];
+      try { FeedbackManager.sound.preload(assets); } catch (e) {}
+    }
+
+    function safePlaySound(id, options) {
+      try { return FeedbackManager.sound.play(id, options || {}); }
+      catch (e) { return Promise.resolve(); }
+    }
+
+    /* ============================================================
+       handlePostMessage
+       ============================================================ */
+    function handlePostMessage(event) {
+      try {
+        var msg = event && event.data;
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          gameState.content = msg.data && msg.data.content ? msg.data.content : null;
+          if (msg.data && typeof msg.data.totalRounds === 'number') gameState.totalRounds = msg.data.totalRounds;
+          try {
+            var sc = msg.data && msg.data.signalConfig ? msg.data.signalConfig : {};
+            gameState.signalConfig = msg.data && msg.data.signalConfig ? msg.data.signalConfig : {};
+            if (signalCollector) {
+              signalCollector.flushUrl = sc.flushUrl || signalCollector.flushUrl || '';
+              signalCollector.playId = sc.playId || signalCollector.playId || ('logic-seat-puzzle-' + Date.now());
+              signalCollector.gameId = sc.gameId || 'logic-seat-puzzle';
+              signalCollector.sessionId = sc.sessionId || ('session-' + Date.now());
+              signalCollector.contentSetId = sc.contentSetId || 'fallback';
+              signalCollector.studentId = sc.studentId || 'anonymous';
+              if (typeof signalCollector.startFlushing === 'function') {
+                try { signalCollector.startFlushing(); } catch (e2) {}
+              }
+            }
+          } catch (e1) {}
+          syncDOM();
+          setupGame();
+        } else if (msg.type === 'game_pause') {
+          try { FeedbackManager.sound.pause(); } catch (e) {}
+        } else if (msg.type === 'game_resume') {
+          try { FeedbackManager.sound.resume(); } catch (e) {}
+        }
+      } catch (e) {
+        console.error('[handlePostMessage]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       endGame
+       ============================================================ */
+    function endGame(success) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = 'results';
+      gameState.score = gameState.firstCheckCorrect || 0;
+      gameState.stars = getStars(gameState.firstCheckCorrect || 0);
+      syncDOM();
+      trackEvent('game_end', {
+        won: !!success,
+        score: gameState.score,
+        firstCheckCorrect: gameState.firstCheckCorrect,
+        stars: gameState.stars
+      });
+      try {
+        var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+        var elapsedSec = Math.round(elapsedMs / 1000);
+        var accuracy = gameState.totalRounds > 0
+          ? Math.round((gameState.firstCheckCorrect / gameState.totalRounds) * 100)
+          : 0;
+        var triesArr = [];
+        var ai;
+        for (ai = 0; ai < gameState.attempts.length; ai++) { triesArr.push(1); }
+        var signalSealed = { event_count: gameState.events.length, metadata: {} };
+        try {
+          if (signalCollector && typeof signalCollector.seal === 'function') {
+            var sealed = signalCollector.seal();
+            if (sealed) {
+              if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+              if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+            }
+          }
+        } catch (e0) {}
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: {
+              score: gameState.score,
+              totalQuestions: gameState.totalRounds,
+              stars: gameState.stars,
+              accuracy: accuracy,
+              time: elapsedSec,
+              timeSpent: elapsedMs,
+              tries: triesArr,
+              attempts: gameState.attempts
+            },
+            completedAt: Date.now(),
+            previewResult: gameState.previewResult || null,
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) {
+        console.error('[endGame postMessage]', e && e.message);
+      }
+      try { showVictory(success); } catch (e) { console.error('[showVictory]', e && e.message); }
+    }
+    window.endGame = endGame;
+
+    /* ============================================================
+       Header refresh (PreviewScreen header)
+       ============================================================ */
+    function refreshHeader() {
+      try {
+        if (previewScreen && typeof previewScreen.setScore === 'function') {
+          previewScreen.setScore(gameState.score + '/' + gameState.totalRounds);
+        }
+        if (previewScreen && typeof previewScreen.setQuestionLabel === 'function') {
+          previewScreen.setQuestionLabel('Q' + gameState.currentRound);
+        }
+      } catch (e) {}
+    }
+
+    function getCurrentRound() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var idx = Math.max(0, Math.min(rounds.length - 1, gameState.currentRound - 1));
+      return rounds[idx];
+    }
+
+    /* ============================================================
+       Board build / DOM helpers
+       ============================================================ */
+    function buildBoardDOM() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) {
+        var app = document.getElementById('app');
+        if (!app) return;
+        var stack = document.createElement('div');
+        stack.className = 'game-stack';
+        gc = document.createElement('div');
+        gc.id = 'gameContent';
+        stack.appendChild(gc);
+        app.appendChild(stack);
+      } else {
+        gc.innerHTML = '';
+      }
+
+      var stageLabel = document.createElement('div');
+      stageLabel.id = 'stageLabel';
+      stageLabel.className = 'stage-label';
+      stageLabel.textContent = '';
+      gc.appendChild(stageLabel);
+
+      var cluePanel = document.createElement('div');
+      cluePanel.id = 'cluePanel';
+      cluePanel.className = 'clue-panel';
+      gc.appendChild(cluePanel);
+
+      var tableWrap = document.createElement('div');
+      tableWrap.className = 'table-wrap';
+      var tableArea = document.createElement('div');
+      tableArea.id = 'tableArea';
+      tableArea.className = 'table-area stage-1';
+      tableWrap.appendChild(tableArea);
+      gc.appendChild(tableWrap);
+
+      var feedbackLine = document.createElement('div');
+      feedbackLine.id = 'feedbackLine';
+      feedbackLine.className = 'feedback-line';
+      feedbackLine.textContent = '';
+      gc.appendChild(feedbackLine);
+
+      var poolWrap = document.createElement('div');
+      poolWrap.id = 'poolWrap';
+      poolWrap.className = 'pool-wrap';
+      var poolLabel = document.createElement('div');
+      poolLabel.className = 'pool-label';
+      poolLabel.textContent = 'Friends';
+      poolWrap.appendChild(poolLabel);
+      var poolRow = document.createElement('div');
+      poolRow.id = 'poolRow';
+      poolRow.className = 'pool-row';
+      poolWrap.appendChild(poolRow);
+      gc.appendChild(poolWrap);
+    }
+
+    function clearBoard() {
+      var tableArea = document.getElementById('tableArea');
+      if (tableArea) tableArea.innerHTML = '';
+      var poolRow = document.getElementById('poolRow');
+      if (poolRow) poolRow.innerHTML = '';
+      seatEls = {};
+      seatChipWrap = {};
+      poolSlotEls = {};
+      chipEls = {};
+    }
+
+    function renderBoardForRound(round) {
+      clearBoard();
+      var tableArea = document.getElementById('tableArea');
+      if (!tableArea || !round) return;
+
+      tableArea.className = 'table-area stage-' + round.stage;
+
+      var surface = document.createElement('div');
+      surface.className = 'table-surface';
+      tableArea.appendChild(surface);
+
+      if (STAGE_HAS_HEAD[round.stage]) {
+        var headLbl = document.createElement('div');
+        headLbl.className = 'table-head-label head';
+        headLbl.textContent = 'HEAD';
+        tableArea.appendChild(headLbl);
+      }
+      if (STAGE_HAS_FOOT[round.stage]) {
+        var footLbl = document.createElement('div');
+        footLbl.className = 'table-head-label foot';
+        footLbl.textContent = 'FOOT';
+        tableArea.appendChild(footLbl);
+      }
+
+      var positions = SEAT_POSITIONS[round.stage];
+      var i;
+      for (i = 0; i < round.seats.length; i++) {
+        var seatNum = String(round.seats[i]);
+        var pos = positions[seatNum];
+        if (!pos) continue;
+        var seat = document.createElement('div');
+        seat.className = 'seat';
+        seat.id = 'seat-' + seatNum;
+        seat.style.left = pos.x + 'px';
+        seat.style.top = pos.y + 'px';
+        seat.setAttribute('data-seat', seatNum);
+        var seatNumEl = document.createElement('div');
+        seatNumEl.className = 'seat-num';
+        seatNumEl.textContent = seatNum;
+        seat.appendChild(seatNumEl);
+        tableArea.appendChild(seat);
+        seatEls[seatNum] = seat;
+        seatChipWrap[seatNum] = seat;
+      }
+
+      var poolRow = document.getElementById('poolRow');
+      var ci;
+      for (ci = 0; ci < round.chips.length; ci++) {
+        var c = round.chips[ci];
+        var slot = document.createElement('div');
+        slot.className = 'pool-slot';
+        slot.id = 'pool-slot-' + c.id;
+        slot.setAttribute('data-chip', c.id);
+        var chipEl = document.createElement('div');
+        chipEl.className = 'chip';
+        chipEl.id = 'chip-' + c.id;
+        chipEl.setAttribute('data-chip', c.id);
+        var av = document.createElement('div');
+        av.className = 'chip-avatar';
+        av.textContent = c.avatar;
+        chipEl.appendChild(av);
+        var nm = document.createElement('div');
+        nm.className = 'chip-name';
+        nm.textContent = c.name;
+        chipEl.appendChild(nm);
+        slot.appendChild(chipEl);
+        poolRow.appendChild(slot);
+        poolSlotEls[c.id] = slot;
+        chipEls[c.id] = chipEl;
+      }
+    }
+
+    function renderClues(round) {
+      var cluePanel = document.getElementById('cluePanel');
+      if (!cluePanel || !round) return;
+      cluePanel.innerHTML = '';
+      var ol = document.createElement('ol');
+      var i;
+      for (i = 0; i < round.clues.length; i++) {
+        var li = document.createElement('li');
+        li.id = 'clue-' + i;
+        li.setAttribute('data-clue-idx', String(i));
+        var num = document.createElement('span');
+        num.className = 'clue-num';
+        num.textContent = (i + 1) + '.';
+        var txt = document.createElement('span');
+        txt.className = 'clue-text';
+        txt.textContent = round.clues[i].text;
+        li.appendChild(num);
+        li.appendChild(txt);
+        ol.appendChild(li);
+      }
+      cluePanel.appendChild(ol);
+    }
+
+    function renderStageLabel(round) {
+      var lbl = document.getElementById('stageLabel');
+      if (!lbl || !round) return;
+      lbl.textContent = 'Puzzle ' + gameState.currentRound + ' of ' + gameState.totalRounds + ' • Stage ' + round.stage;
+    }
+
+    function clearFeedbackLine() {
+      var fl = document.getElementById('feedbackLine');
+      if (!fl) return;
+      fl.textContent = '';
+      fl.classList.remove('correct');
+      fl.classList.remove('wrong');
+    }
+
+    function setFeedbackLine(text, kind) {
+      var fl = document.getElementById('feedbackLine');
+      if (!fl) return;
+      fl.textContent = text || '';
+      fl.classList.remove('correct');
+      fl.classList.remove('wrong');
+      if (kind === 'correct') fl.classList.add('correct');
+      if (kind === 'wrong') fl.classList.add('wrong');
+    }
+
+    function clearAllSeatVisuals() {
+      Object.keys(seatEls).forEach(function (k) {
+        var s = seatEls[k];
+        if (!s) return;
+        s.classList.remove('drop-hover');
+        s.classList.remove('flash-correct');
+        s.classList.remove('glow-wrong');
+      });
+    }
+
+    function clearViolatedClueMarkers() {
+      var lis = document.querySelectorAll('#cluePanel li.violated');
+      var i;
+      for (i = 0; i < lis.length; i++) lis[i].classList.remove('violated');
+    }
+
+    /* ============================================================
+       Place / unseat helpers (move chip DOM)
+       ============================================================ */
+    function placeChipInSeat(chipId, seatNum) {
+      var chip = chipEls[chipId];
+      var seat = seatChipWrap[String(seatNum)];
+      if (!chip || !seat) return;
+      seat.appendChild(chip);
+      chip.classList.add('in-seat');
+      chip.style.position = '';
+      chip.style.left = '';
+      chip.style.top = '';
+      chip.style.transform = '';
+      // Update placement / chipLocation
+      gameState.placement[String(seatNum)] = chipId;
+      gameState.chipLocation[chipId] = String(seatNum);
+      seat.classList.add('filled');
+      // Hide/empty source pool slot
+      var slot = poolSlotEls[chipId];
+      if (slot) slot.classList.add('empty');
+    }
+
+    function returnChipToPool(chipId) {
+      var chip = chipEls[chipId];
+      var slot = poolSlotEls[chipId];
+      if (!chip || !slot) return;
+      slot.appendChild(chip);
+      slot.classList.remove('empty');
+      chip.classList.remove('in-seat');
+      chip.style.position = '';
+      chip.style.left = '';
+      chip.style.top = '';
+      chip.style.transform = '';
+      chip.style.width = '';
+      chip.style.height = '';
+      chip.style.zIndex = '';
+      var prevSeat = gameState.chipLocation[chipId];
+      if (prevSeat && prevSeat !== 'pool') {
+        gameState.placement[prevSeat] = null;
+        var seat = seatChipWrap[prevSeat];
+        if (seat) seat.classList.remove('filled');
+      }
+      gameState.chipLocation[chipId] = 'pool';
+    }
+
+    function vacateSeat(seatNum) {
+      var seat = seatChipWrap[String(seatNum)];
+      if (seat) seat.classList.remove('filled');
+      gameState.placement[String(seatNum)] = null;
+    }
+
+    function findChipForSeat(seatNum) {
+      return gameState.placement[String(seatNum)] || null;
+    }
+
+    /* ============================================================
+       dnd-kit: build / destroy per round
+       ============================================================ */
+    function destroyDndForRound() {
+      try {
+        var i;
+        for (i = 0; i < dndDraggables.length; i++) {
+          if (dndDraggables[i] && typeof dndDraggables[i].destroy === 'function') {
+            try { dndDraggables[i].destroy(); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+      try {
+        var j;
+        for (j = 0; j < dndDroppables.length; j++) {
+          if (dndDroppables[j] && typeof dndDroppables[j].destroy === 'function') {
+            try { dndDroppables[j].destroy(); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+      dndDraggables = [];
+      dndDroppables = [];
+    }
+
+    function buildDndForRound(round) {
+      destroyDndForRound();
+      if (!dndManager || !round) return;
+
+      // Draggables: one per chip
+      var i;
+      for (i = 0; i < round.chips.length; i++) {
+        var c = round.chips[i];
+        var chipEl = chipEls[c.id];
+        if (!chipEl) continue;
+        try {
+          var d = new window.DnDKit.Draggable({
+            id: 'chip-' + c.id,
+            element: chipEl,
+            data: { chipId: c.id }
+          }, dndManager);
+          dndDraggables.push(d);
+        } catch (e) {
+          console.error('[Draggable ctor]', e && e.message);
+        }
+      }
+
+      // Droppables: one per seat
+      var k;
+      for (k = 0; k < round.seats.length; k++) {
+        var seatNum = String(round.seats[k]);
+        var seatEl = seatEls[seatNum];
+        if (!seatEl) continue;
+        try {
+          var dr = new window.DnDKit.Droppable({
+            id: 'seat-' + seatNum,
+            element: seatEl,
+            data: { seatNum: seatNum, kind: 'seat' }
+          }, dndManager);
+          dndDroppables.push(dr);
+        } catch (e) {
+          console.error('[Droppable ctor seat]', e && e.message);
+        }
+      }
+
+      // Pool tray itself is also a droppable (return-to-pool)
+      var poolWrap = document.getElementById('poolWrap');
+      if (poolWrap) {
+        try {
+          var pd = new window.DnDKit.Droppable({
+            id: 'pool-tray',
+            element: poolWrap,
+            data: { kind: 'pool' }
+          }, dndManager);
+          dndDroppables.push(pd);
+        } catch (e) {
+          console.error('[Droppable ctor pool]', e && e.message);
+        }
+      }
+    }
+
+    function handleDragStart(event) {
+      try {
+        if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded || gameState.awaitingNext) {
+          if (event && typeof event.preventDefault === 'function') event.preventDefault();
+          return;
+        }
+        var op = event && event.operation;
+        if (op && op.source && op.source.element) {
+          op.source.element.classList.add('dragging');
+        }
+      } catch (e) {}
+    }
+
+    function handleDragEnd(event) {
+      try {
+        var op = event && event.operation;
+        if (!op) return;
+        var src = op.source;
+        var tgt = op.target;
+        var canceled = op.canceled;
+        if (src && src.element) src.element.classList.remove('dragging');
+
+        if (!src || !src.data) return;
+        var chipId = src.data.chipId;
+        if (!chipId) return;
+        var prevLoc = gameState.chipLocation[chipId] || 'pool';
+
+        // Cancelled drop or no target → snap back
+        if (canceled || !tgt || !tgt.data) {
+          if (prevLoc === 'pool') {
+            returnChipToPool(chipId);
+          } else {
+            placeChipInSeat(chipId, prevLoc);
+          }
+          refreshSubmittable();
+          return;
+        }
+
+        var kind = tgt.data.kind;
+
+        // Drop on pool tray → return to pool
+        if (kind === 'pool') {
+          if (prevLoc !== 'pool') {
+            vacateSeat(prevLoc);
+          }
+          returnChipToPool(chipId);
+          safePlaySound('sound_bubble_deselect', {});
+          refreshSubmittable();
+          return;
+        }
+
+        if (kind === 'seat') {
+          var tgtSeat = tgt.data.seatNum;
+          // Same-seat drop → snap back into seat
+          if (prevLoc === tgtSeat) {
+            placeChipInSeat(chipId, tgtSeat);
+            refreshSubmittable();
+            return;
+          }
+          var existingChipId = gameState.placement[tgtSeat] || null;
+          if (existingChipId) {
+            if (prevLoc !== 'pool') {
+              // Swap: existing chip moves to source seat
+              vacateSeat(prevLoc);
+              placeChipInSeat(existingChipId, prevLoc);
+            } else {
+              // Existing chip returns to pool
+              returnChipToPool(existingChipId);
+            }
+          } else {
+            if (prevLoc !== 'pool') vacateSeat(prevLoc);
+          }
+          placeChipInSeat(chipId, tgtSeat);
+          safePlaySound('sound_bubble_select', {});
+          refreshSubmittable();
+          return;
+        }
+
+        // Unknown drop kind → snap back
+        if (prevLoc === 'pool') returnChipToPool(chipId);
+        else placeChipInSeat(chipId, prevLoc);
+        refreshSubmittable();
+      } catch (e) {
+        console.error('[handleDragEnd]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+    }
+
+    /* ============================================================
+       Clue evaluation
+       ============================================================ */
+    function evaluateClues(round, placement) {
+      var results = [];
+      var chipSeat = {};  // chipId → seatNum (or null)
+      Object.keys(placement || {}).forEach(function (s) {
+        if (placement[s]) chipSeat[placement[s]] = s;
+      });
+
+      var i;
+      for (i = 0; i < round.clues.length; i++) {
+        var cl = round.clues[i];
+        var ok = true;
+        var seatsInClue = [];
+        var args = cl.args || [];
+        try {
+          if (cl.kind === 'seat-pin') {
+            var who = args[0];
+            var pinSeat = String(args[1]);
+            ok = (chipSeat[who] === pinSeat);
+            if (chipSeat[who]) seatsInClue.push(chipSeat[who]);
+            seatsInClue.push(pinSeat);
+          } else if (cl.kind === 'head-of-table') {
+            var whoH = args[0];
+            var headSeat = String(round.headSeat);
+            ok = (chipSeat[whoH] === headSeat);
+            if (chipSeat[whoH]) seatsInClue.push(chipSeat[whoH]);
+            seatsInClue.push(headSeat);
+          } else if (cl.kind === 'next-to') {
+            var a = args[0], b = args[1];
+            var sa = chipSeat[a], sb = chipSeat[b];
+            if (!sa || !sb) ok = false;
+            else {
+              var adj = round.adjacency[sa] || [];
+              ok = adj.indexOf(parseInt(sb, 10)) !== -1;
+              seatsInClue.push(sa); seatsInClue.push(sb);
+            }
+          } else if (cl.kind === 'across-from') {
+            var a2 = args[0], b2 = args[1];
+            var sa2 = chipSeat[a2], sb2 = chipSeat[b2];
+            if (!sa2 || !sb2) ok = false;
+            else {
+              var ax = round.acrossFrom[sa2];
+              ok = (ax !== null && ax !== undefined && String(ax) === sb2);
+              seatsInClue.push(sa2); seatsInClue.push(sb2);
+            }
+          } else if (cl.kind === 'left-of') {
+            var aL = args[0], bL = args[1];
+            var saL = chipSeat[aL], sbL = chipSeat[bL];
+            if (!saL || !sbL) ok = false;
+            else {
+              var ln = round.leftNeighbour[sbL];
+              ok = (ln !== null && ln !== undefined && String(ln) === saL);
+              seatsInClue.push(saL); seatsInClue.push(sbL);
+            }
+          } else if (cl.kind === 'between') {
+            var x = args[0], y = args[1], z = args[2];
+            var sx = chipSeat[x], sy = chipSeat[y], sz = chipSeat[z];
+            if (!sx || !sy || !sz) ok = false;
+            else {
+              var adjX = round.adjacency[sx] || [];
+              var adjY = round.adjacency[sy] || [];
+              var xAdjY = adjX.indexOf(parseInt(sy, 10)) !== -1;
+              var xAdjZ = adjX.indexOf(parseInt(sz, 10)) !== -1;
+              var yAdjZ = adjY.indexOf(parseInt(sz, 10)) !== -1;
+              ok = (xAdjY && xAdjZ && !yAdjZ);
+              seatsInClue.push(sx); seatsInClue.push(sy); seatsInClue.push(sz);
+            }
+          } else if (cl.kind === 'not-next-to') {
+            var aN = args[0], bN = args[1];
+            var saN = chipSeat[aN], sbN = chipSeat[bN];
+            if (!saN || !sbN) ok = false;
+            else {
+              var adjN = round.adjacency[saN] || [];
+              ok = adjN.indexOf(parseInt(sbN, 10)) === -1;
+              seatsInClue.push(saN); seatsInClue.push(sbN);
+            }
+          } else {
+            ok = true;
+          }
+        } catch (e) {
+          ok = false;
+        }
+        results.push({ idx: i, kind: cl.kind, satisfied: !!ok, seats: seatsInClue });
+      }
+      return results;
+    }
+
+    function pickWorstViolatedTag(round, results) {
+      var priority = ['seat-pin', 'head-of-table', 'between', 'left-of', 'across-from', 'not-next-to', 'next-to'];
+      var i, j;
+      for (i = 0; i < priority.length; i++) {
+        for (j = 0; j < results.length; j++) {
+          if (!results[j].satisfied && results[j].kind === priority[i]) {
+            var tagMap = round.misconception_tags || FULL_TAGS;
+            return tagMap[results[j].kind] || null;
+          }
+        }
+      }
+      return null;
+    }
+
+    /* ============================================================
+       Submittable predicate — all required SEATS filled
+       ============================================================ */
+    function allSeatsFilled() {
+      var round = getCurrentRound();
+      if (!round) return false;
+      var i;
+      for (i = 0; i < round.seats.length; i++) {
+        if (!gameState.placement[String(round.seats[i])]) return false;
+      }
+      return true;
+    }
+
+    function refreshSubmittable() {
+      try {
+        if (floatingBtn && typeof floatingBtn.setSubmittable === 'function') {
+          var ok = allSeatsFilled() && !gameState.isProcessing && !gameState.gameEnded && !gameState.awaitingNext;
+          floatingBtn.setSubmittable(!!ok);
+        }
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       handleCheck — main submit handler
+       ============================================================ */
+    async function handleCheck() {
+      if (gameState.isProcessing || gameState.gameEnded || gameState.awaitingNext) return;
+      if (!allSeatsFilled()) return;
+      gameState.isProcessing = true;
+      refreshSubmittable();
+
+      var round = getCurrentRound();
+      var results = evaluateClues(round, gameState.placement);
+      var allOk = true;
+      var i;
+      var violatedSeats = {};
+      var distractorPlaced = false;
+      if (round.answer && round.answer.distractor) {
+        // Distractor is placed iff its chipLocation is not 'pool'
+        var dLoc = gameState.chipLocation[round.answer.distractor];
+        if (dLoc && dLoc !== 'pool') distractorPlaced = true;
+      }
+      for (i = 0; i < results.length; i++) {
+        if (!results[i].satisfied) {
+          allOk = false;
+          var ss = results[i].seats || [];
+          var k;
+          for (k = 0; k < ss.length; k++) violatedSeats[ss[k]] = true;
+        }
+      }
+      // Distractor placed AND a non-distractor is missing → mark distractor's seat as part of the violation
+      if (distractorPlaced) allOk = false;
+
+      var tag;
+      if (distractorPlaced) {
+        tag = 'distractor-not-recognised';
+      } else {
+        tag = pickWorstViolatedTag(round, results);
+      }
+
+      if (allOk) {
+        gameState.firstCheckCorrect = (gameState.firstCheckCorrect || 0) + 1;
+        gameState.score = gameState.firstCheckCorrect;
+      }
+      refreshHeader();
+
+      recordAttempt(round, allOk, tag);
+      trackEvent('answer_submitted', {
+        round: gameState.currentRound,
+        set: round && round.set,
+        is_correct: allOk,
+        misconception_tag: tag,
+        violated_clue_count: results.filter(function (r) { return !r.satisfied; }).length,
+        distractor_placed: distractorPlaced
+      });
+
+      // Progress bar bumps FIRST (memory rule)
+      gameState.progress = (gameState.progress || 0) + 1;
+      if (progressBar) {
+        try { progressBar.update(gameState.progress, 0); } catch (e) {}
+      }
+
+      if (allOk) {
+        // Green flash on every seat
+        var keys = Object.keys(seatEls);
+        var ki;
+        for (ki = 0; ki < keys.length; ki++) {
+          (function (key, kIdx) {
+            setTimeout(function () {
+              if (seatEls[key]) seatEls[key].classList.add('flash-correct');
+            }, kIdx * 60);
+          })(keys[ki], ki);
+        }
+        setFeedbackLine("Yes! That's the right seating.", 'correct');
+        try {
+          await Promise.all([
+            safePlaySound('correct_sound_effect', { sticker: STICKER_CELEBRATE }),
+            new Promise(function (r) { setTimeout(r, 1500); })
+          ]);
+        } catch (e) {}
+        try {
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: "Yes! That's the right seating.",
+            subtitle: "Yes! That's the right seating.",
+            sticker: STICKER_CELEBRATE
+          });
+        } catch (e) {}
+        trackEvent('round_complete', {
+          round: gameState.currentRound, is_correct: true, score: gameState.score
+        });
+        // Auto-advance
+        gameState.isProcessing = false;
+        if (gameState.currentRound < gameState.totalRounds) {
+          gameState.currentRound += 1;
+          await showRoundIntro(gameState.currentRound);
+          renderRound();
+        } else {
+          endGame(true);
+        }
+      } else {
+        // Glow violated seats red + mark violated clues
+        Object.keys(violatedSeats).forEach(function (seatNum) {
+          var s = seatEls[seatNum];
+          if (s) s.classList.add('glow-wrong');
+        });
+        var lis = document.querySelectorAll('#cluePanel li');
+        var li, idx;
+        for (li = 0; li < lis.length; li++) {
+          idx = parseInt(lis[li].getAttribute('data-clue-idx'), 10);
+          if (results[idx] && !results[idx].satisfied) lis[li].classList.add('violated');
+        }
+        setFeedbackLine("Oh no — that's not quite right!", 'wrong');
+        try {
+          await Promise.all([
+            safePlaySound('incorrect_sound_effect', { sticker: STICKER_SAD }),
+            new Promise(function (r) { setTimeout(r, 1500); })
+          ]);
+        } catch (e) {}
+        try {
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: "Oh no — that's not quite right!",
+            subtitle: "Oh no — that's not quite right!",
+            sticker: STICKER_SAD
+          });
+        } catch (e) {}
+        trackEvent('round_complete', {
+          round: gameState.currentRound, is_correct: false, score: gameState.score
+        });
+        // No retry — student taps NEXT
+        gameState.isProcessing = false;
+        gameState.awaitingNext = 'wrong';
+        try {
+          if (floatingBtn) {
+            if (typeof floatingBtn.setLabels === 'function') {
+              try { floatingBtn.setLabels({ submit: 'CHECK', next: 'Next puzzle' }); } catch (e) {}
+            }
+            floatingBtn.setMode('next');
+          }
+        } catch (e) {}
+      }
+    }
+
+    /* ============================================================
+       advanceFromWrong — student tapped NEXT after a wrong CHECK
+       ============================================================ */
+    async function advanceFromWrong() {
+      gameState.awaitingNext = null;
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        await showRoundIntro(gameState.currentRound);
+        renderRound();
+      } else {
+        endGame(false);
+      }
+    }
+
+    /* ============================================================
+       Round intro
+       ============================================================ */
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      if (!transitionScreen) return;
+      var title = 'Puzzle ' + n + ' of ' + gameState.totalRounds;
+      await transitionScreen.show({
+        title: title,
+        icons: ['🪑'],
+        buttons: [],
+        persist: false,
+        onMounted: function () {
+          (async function () {
+            try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: title, subtitle: title, sticker: STICKER_ROUND
+              });
+            } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+          })();
+        }
+      });
+      await new Promise(function (r) { setTimeout(r, 2400); });
+      try { transitionScreen.hide(); } catch (e) {}
+    }
+
+    /* ============================================================
+       renderRound
+       ============================================================ */
+    function renderRound() {
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      gameState.awaitingNext = null;
+      gameState.placement = {};
+      gameState.chipLocation = {};
+      gameState.roundStartTime = Date.now();
+      gameState.phase = 'playing';
+      syncDOM();
+
+      var round = getCurrentRound();
+      if (!round) return;
+
+      gameState.correctAnswer = JSON.stringify(round.solution || {});
+
+      renderStageLabel(round);
+      renderClues(round);
+      renderBoardForRound(round);
+      clearFeedbackLine();
+
+      // Initialize chip locations
+      var ci;
+      for (ci = 0; ci < round.chips.length; ci++) {
+        gameState.chipLocation[round.chips[ci].id] = 'pool';
+      }
+      var si;
+      for (si = 0; si < round.seats.length; si++) {
+        gameState.placement[String(round.seats[si])] = null;
+      }
+
+      buildDndForRound(round);
+
+      // Reset FloatingButton labels & mode
+      try {
+        if (floatingBtn) {
+          if (typeof floatingBtn.setLabels === 'function') {
+            try { floatingBtn.setLabels({ submit: 'CHECK', next: 'Next puzzle' }); } catch (e) {}
+          }
+          floatingBtn.setMode('submit');
+        }
+      } catch (e) {}
+
+      refreshHeader();
+      refreshSubmittable();
+
+      if (progressBar) {
+        try { progressBar.update(gameState.progress || 0, 0); } catch (e) {}
+      }
+    }
+
+    /* ============================================================
+       Victory / Stars Collected / AnswerComponent chain
+       ============================================================ */
+    async function showVictory(success) {
+      if (!transitionScreen) return;
+      var stars = gameState.stars;
+      var subtitle;
+      if (stars === 3) subtitle = 'Perfect! You solved every puzzle on the first try.';
+      else if (stars === 2) subtitle = 'Nice work — you solved most of them on the first try.';
+      else subtitle = 'Great job finishing all 7 puzzles!';
+
+      var stickerForVictory;
+      if (stars === 3) stickerForVictory = STICKER_VICTORY_3;
+      else if (stars === 2) stickerForVictory = STICKER_VICTORY_2;
+      else stickerForVictory = STICKER_VICTORY_1;
+
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+
+      var playAgainAct = function () {
+        try { transitionScreen.hide(); } catch (e) {}
+        restartGame();
+      };
+      var claimStarsAct = function () {
+        try { transitionScreen.hide(); } catch (e) {}
+        showStarsCollected();
+      };
+
+      await transitionScreen.show({
+        title: 'Victory 🎉',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars < 3
+          ? [
+              { text: 'Play Again', type: 'secondary', action: playAgainAct },
+              { text: 'Claim Stars', type: 'primary', action: claimStarsAct }
+            ]
+          : [
+              { text: 'Play Again', type: 'secondary', action: claimStarsAct, hidden: true },
+              { text: 'Claim Stars', type: 'primary', action: claimStarsAct }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('victory_sound_effect', { sticker: stickerForVictory });
+            } catch (e) {}
+            try {
+              await FeedbackManager.playDynamicFeedback({
+                audio_content: subtitle, subtitle: subtitle, sticker: stickerForVictory
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      if (!transitionScreen) return;
+      var count = Math.max(1, Math.min(3, gameState.stars || 1));
+      await transitionScreen.show({
+        title: 'Yay! 🎉\nStars collected!',
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('victory_sound_effect', { sticker: STICKER_CELEBRATE });
+            } catch (e) {}
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: {
+                  count: count,
+                  variant: 'yellow',
+                  score: gameState.score + '/' + gameState.totalRounds
+                }
+              }, '*');
+            } catch (e) {}
+            setTimeout(function () { showAnswerCarousel(); }, 1500);
+          })();
+        }
+      });
+    }
+
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var roundsCopy = rounds.slice(0, gameState.totalRounds);
+      return roundsCopy.map(function (round, idx) {
+        return {
+          render: function (container) {
+            renderAnswerForRound(round, container, idx + 1);
+          }
+        };
+      });
+    }
+
+    function stageSubtitle(stage) {
+      if (stage === 1) return 'Reading one clue at a time.';
+      if (stage === 2) return 'Two clues together pin one seat.';
+      return 'Find the friend with no clue, set them aside, then solve.';
+    }
+
+    function chipById(round, id) {
+      var i;
+      for (i = 0; i < round.chips.length; i++) {
+        if (round.chips[i].id === id) return round.chips[i];
+      }
+      return null;
+    }
+
+    function renderAnswerForRound(round, container, roundNum) {
+      if (!container || !round) return;
+      container.innerHTML = '';
+      var slide = document.createElement('div');
+      slide.className = 'answer-slide';
+
+      var title = document.createElement('div');
+      title.className = 'answer-title';
+      title.textContent = 'Puzzle ' + roundNum;
+      slide.appendChild(title);
+
+      var sub = document.createElement('div');
+      sub.className = 'answer-subtitle';
+      sub.textContent = stageSubtitle(round.stage);
+      slide.appendChild(sub);
+
+      var area = document.createElement('div');
+      area.className = 'answer-table-area stage-' + round.stage;
+
+      var surface = document.createElement('div');
+      surface.className = 'answer-table-surface';
+      area.appendChild(surface);
+
+      // Smaller seat positions for the answer (scale to 240x240/260)
+      var positions = SEAT_POSITIONS[round.stage];
+      var scaleX = 240 / 300;
+      var scaleY = (round.stage === 1 ? 240 / 300 : 260 / 320);
+      var i;
+      for (i = 0; i < round.seats.length; i++) {
+        var seatNum = String(round.seats[i]);
+        var pos = positions[seatNum];
+        if (!pos) continue;
+        var seat = document.createElement('div');
+        seat.className = 'answer-seat';
+        // Adjust for smaller seat size (50 vs 64) — center-shift
+        var sx = Math.round(pos.x * scaleX) + 7;
+        var sy = Math.round(pos.y * scaleY) + 7;
+        seat.style.left = sx + 'px';
+        seat.style.top = sy + 'px';
+        var seatNumEl = document.createElement('div');
+        seatNumEl.className = 'seat-num';
+        seatNumEl.textContent = seatNum;
+        seat.appendChild(seatNumEl);
+        var chipId = round.solution[seatNum];
+        var c = chipById(round, chipId);
+        if (c) {
+          var av = document.createElement('div');
+          av.className = 'answer-avatar';
+          av.textContent = c.avatar;
+          seat.appendChild(av);
+          var nm = document.createElement('div');
+          nm.className = 'answer-name';
+          nm.textContent = c.name;
+          seat.appendChild(nm);
+        }
+        area.appendChild(seat);
+      }
+      slide.appendChild(area);
+
+      var ul = document.createElement('ul');
+      ul.className = 'answer-clue-list';
+      var ci;
+      for (ci = 0; ci < round.clues.length; ci++) {
+        var li = document.createElement('li');
+        li.textContent = round.clues[ci].text;
+        ul.appendChild(li);
+      }
+      slide.appendChild(ul);
+
+      if (round.answer && round.answer.distractor) {
+        var dc = chipById(round, round.answer.distractor);
+        var dist = document.createElement('div');
+        dist.className = 'answer-distractor';
+        dist.textContent = (dc ? dc.avatar + ' ' + dc.name : round.answer.distractor) + ' was the friend with no clue (not used).';
+        slide.appendChild(dist);
+      }
+
+      container.appendChild(slide);
+    }
+
+    function showAnswerCarousel() {
+      if (!answerComponent) return;
+      try {
+        answerComponent.show({ slides: buildAnswerSlidesForAllRounds() });
+      } catch (e) {
+        console.error('[answerComponent.show]', e && e.message);
+      }
+      gameState.awaitingNext = 'final';
+      try {
+        if (floatingBtn) {
+          if (typeof floatingBtn.setLabels === 'function') {
+            try { floatingBtn.setLabels({ submit: 'CHECK', next: 'Next' }); } catch (e) {}
+          }
+          floatingBtn.setMode('next');
+        }
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       resetGameState + restartGame
+       ============================================================ */
+    function resetGameState() {
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.stars = 0;
+      gameState.progress = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.awaitingNext = null;
+      gameState.placement = {};
+      gameState.chipLocation = {};
+      gameState.firstCheckCorrect = 0;
+      gameState.duration_data = {
+        startTime: null,
+        preview: gameState.duration_data ? gameState.duration_data.preview : []
+      };
+      gameState.activeRounds = getRounds();
+    }
+
+    function restartGame() {
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+      if (signalCollector && typeof signalCollector.reset === 'function') {
+        try { signalCollector.reset(); } catch (e) {}
+      }
+      try { if (answerComponent) answerComponent.hide(); } catch (e) {}
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      if (progressBar) {
+        try { progressBar.update(0, 0); } catch (e) {}
+      }
+      trackEvent('game_start', {
+        totalRounds: gameState.totalRounds, restart: true, setIndex: gameState.setIndex
+      });
+      (async function () {
+        await showRoundIntro(1);
+        renderRound();
+      })();
+    }
+    window.restartGame = restartGame;
+
+    /* ============================================================
+       startGame
+       ============================================================ */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.firstCheckCorrect = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.progress = 0;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.activeRounds = getRounds();
+      gameState.startTime = Date.now();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      (async function () {
+        await showRoundIntro(1);
+        renderRound();
+      })();
+    }
+    window.startGame = startGame;
+
+    /* ============================================================
+       nextRound — test-harness convenience
+       ============================================================ */
+    function nextRound() {
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      gameState.awaitingNext = null;
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        renderRound();
+      } else {
+        endGame(true);
+      }
+    }
+    window.nextRound = nextRound;
+
+    /* ============================================================
+       setupGame
+       ============================================================ */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.totalRounds = (content.totalRounds && typeof content.totalRounds === 'number') ? content.totalRounds : 7;
+      gameState.activeRounds = getRounds();
+
+      buildBoardDOM();
+      // Pre-render the first round so the board is visible the moment preview ends
+      (function () {
+        var r = getCurrentRound();
+        if (r) {
+          renderStageLabel(r);
+          renderClues(r);
+          renderBoardForRound(r);
+          var ci;
+          for (ci = 0; ci < r.chips.length; ci++) {
+            gameState.chipLocation[r.chips[ci].id] = 'pool';
+          }
+          var si;
+          for (si = 0; si < r.seats.length; si++) {
+            gameState.placement[String(r.seats[si])] = null;
+          }
+        }
+      })();
+
+      if (previewScreen) {
+        try {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function (previewData) {
+              startGameAfterPreview(previewData);
+            }
+          });
+        } catch (e) {
+          console.error('[previewScreen.show]', e && e.message);
+          startGameAfterPreview({ duration: 0 });
+        }
+      } else {
+        startGameAfterPreview({ duration: 0 });
+      }
+    }
+
+    function startGameAfterPreview(previewData) {
+      try {
+        gameState.previewResult = previewData || { duration: 0 };
+        gameState.duration_data.preview = gameState.duration_data.preview || [];
+        gameState.duration_data.preview.push({ duration: previewData ? previewData.duration : 0 });
+        gameState.startTime = Date.now();
+        gameState.isActive = true;
+        gameState.phase = 'playing';
+        syncDOM();
+        // Seed PreviewScreen header
+        try {
+          if (previewScreen && typeof previewScreen.setQuestionLabel === 'function') {
+            previewScreen.setQuestionLabel('Q1');
+          }
+          if (previewScreen && typeof previewScreen.setScore === 'function') {
+            previewScreen.setScore('0/' + gameState.totalRounds);
+          }
+        } catch (e1) {}
+        trackEvent('game_start', { totalRounds: gameState.totalRounds });
+        (async function () {
+          await showRoundIntro(1);
+          renderRound();
+        })();
+      } catch (e) {
+        console.error('[startGameAfterPreview]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       Fallback layout if ScreenLayout unavailable
+       ============================================================ */
+    function buildFallbackLayout() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.innerHTML = '';
+      var stack = document.createElement('div');
+      stack.className = 'game-stack';
+      var gc = document.createElement('div');
+      gc.id = 'gameContent';
+      stack.appendChild(gc);
+      app.appendChild(stack);
+    }
+  </script>
+
+  <!-- ====== dnd-kit module-script ====== -->
+  <script type="module">
+    import { DragDropManager, Draggable, Droppable, Feedback, PointerSensor, PointerActivationConstraints } from 'https://esm.sh/@dnd-kit/dom@beta';
+    window.DnDKit = {
+      DragDropManager: DragDropManager,
+      Draggable: Draggable,
+      Droppable: Droppable,
+      Feedback: Feedback,
+      PointerSensor: PointerSensor,
+      PointerActivationConstraints: PointerActivationConstraints
+    };
+    window.dispatchEvent(new Event('dndkit-ready'));
+  </script>
+
+  <script>
+    /* ============================================================
+       DOMContentLoaded init sequence
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', async function () {
+      try {
+        await waitForPackages();
+
+        await new Promise(function (resolve) {
+          if (window.DnDKit && window.DnDKit.DragDropManager) return resolve();
+          window.addEventListener('dndkit-ready', function () { resolve(); }, { once: true });
+          setTimeout(resolve, 5000);
+        });
+
+        try { await FeedbackManager.init(); } catch (e) {}
+
+        try {
+          signalCollector = new SignalCollector({
+            playId: 'logic-seat-puzzle-' + Date.now(),
+            game: 'logic-seat-puzzle'
+          });
+          window.signalCollector = signalCollector;
+        } catch (e) {
+          console.error('[SignalCollector ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          ScreenLayout.inject('app', {
+            slots: {
+              previewScreen: true,
+              transitionScreen: true,
+              progressBar: true,
+              floatingButton: true,
+              answerComponent: true
+            }
+          });
+        } catch (e) {
+          console.error('[ScreenLayout.inject failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          buildFallbackLayout();
+        }
+
+        try {
+          visibilityTracker = new VisibilityTracker({
+            popupProps: {},
+            onInactive: function () {
+              try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {}
+              try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+            },
+            onResume: function () {
+              try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {}
+              try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+            }
+          });
+        } catch (e) {
+          console.error('[VisibilityTracker ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          progressBar = new ProgressBarComponent({
+            slotId: 'mathai-progress-slot',
+            totalRounds: 7,
+            totalLives: 7,
+            showLives: false
+          });
+        } catch (e) {
+          console.error('[ProgressBarComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          transitionScreen = new TransitionScreenComponent({
+            slotId: 'mathai-transition-slot'
+          });
+        } catch (e) {
+          console.error('[TransitionScreenComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          previewScreen = new PreviewScreenComponent({
+            slotId: 'mathai-preview-slot'
+          });
+        } catch (e) {
+          console.error('[PreviewScreenComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          floatingBtn = new FloatingButtonComponent({
+            slotId: 'mathai-floating-button-slot'
+          });
+          if (floatingBtn && typeof floatingBtn.setLabels === 'function') {
+            try { floatingBtn.setLabels({ submit: 'CHECK', next: 'Next puzzle' }); } catch (e) {}
+          }
+          floatingBtn.on('submit', async function () {
+            if (gameState.isProcessing || gameState.gameEnded) return;
+            try { await handleCheck(); }
+            catch (e) { console.error('[handleCheck]', e && e.message); }
+          });
+          floatingBtn.on('next', function () {
+            try {
+              if (gameState.awaitingNext === 'wrong') {
+                advanceFromWrong();
+                return;
+              }
+              if (gameState.awaitingNext === 'final') {
+                try {
+                  if (answerComponent && typeof answerComponent.destroy === 'function') answerComponent.destroy();
+                } catch (e) {}
+                try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                try {
+                  if (previewScreen && typeof previewScreen.destroy === 'function') previewScreen.destroy();
+                } catch (e) {}
+                try {
+                  if (floatingBtn && typeof floatingBtn.destroy === 'function') floatingBtn.destroy();
+                } catch (e) {}
+                gameState.awaitingNext = null;
+              }
+            } catch (e) {
+              console.error('[next handler]', e && e.message);
+            }
+          });
+        } catch (e) {
+          console.error('[FloatingButtonComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          answerComponent = new AnswerComponentComponent({
+            slotId: 'mathai-answer-slot'
+          });
+        } catch (e) {
+          console.error('[AnswerComponentComponent ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+
+        try {
+          var PointerSensor = window.DnDKit.PointerSensor;
+          var PointerActivationConstraints = window.DnDKit.PointerActivationConstraints;
+          dndManager = new window.DnDKit.DragDropManager({
+            sensors: [
+              PointerSensor.configure({
+                activationConstraints: [
+                  new PointerActivationConstraints.Distance({ value: 3 })
+                ]
+              })
+            ]
+          });
+          dndManager.monitor.addEventListener('dragend', handleDragEnd);
+          dndManager.monitor.addEventListener('dragstart', handleDragStart);
+        } catch (e) {
+          console.error('[DragDropManager ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          try {
+            dndManager = new window.DnDKit.DragDropManager();
+            dndManager.monitor.addEventListener('dragend', handleDragEnd);
+            dndManager.monitor.addEventListener('dragstart', handleDragStart);
+          } catch (er) {
+            console.error('[DragDropManager fallback ctor failed]', er && er.message, er);
+          }
+        }
+
+        preloadAudio();
+
+        window.addEventListener('message', handlePostMessage);
+        try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+
+        window.__alfredBootstrapped = true;
+        setupGame();
+      } catch (e) {
+        console.error('[init]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = startGame;
+      window.nextRound = nextRound;
+      // Test-harness helpers (place a chip programmatically + run check)
+      window.testPlaceChipInSeat = function (chipId, seatNum) {
+        try { placeChipInSeat(chipId, seatNum); refreshSubmittable(); } catch (e) {}
+      };
+      window.testReturnChipToPool = function (chipId) {
+        try { returnChipToPool(chipId); refreshSubmittable(); } catch (e) {}
+      };
+      window.testHandleCheck = function () { return handleCheck(); };
+      window.testAdvanceFromWrong = function () { return advanceFromWrong(); };
+      window.loadRound = function (n) {
+        if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+          gameState.currentRound = n;
+          renderRound();
+        }
+      };
+      window.debugGame = function () {
+        return {
+          phase: gameState.phase,
+          currentRound: gameState.currentRound,
+          totalRounds: gameState.totalRounds,
+          score: gameState.score,
+          firstCheckCorrect: gameState.firstCheckCorrect,
+          stars: gameState.stars,
+          isActive: gameState.isActive,
+          isProcessing: gameState.isProcessing,
+          gameEnded: gameState.gameEnded,
+          awaitingNext: gameState.awaitingNext,
+          placement: gameState.placement,
+          chipLocation: gameState.chipLocation,
+          setIndex: gameState.setIndex
+        };
+      };
+      window.debugAudio = function () {
+        return {
+          available: typeof FeedbackManager !== 'undefined',
+          isProcessing: gameState.isProcessing
+        };
+      };
+      window.testAudio = function () {
+        try { return safePlaySound('tap_sound', {}); } catch (e) { return Promise.resolve(); }
+      };
+      window.testPause = function () {
+        try { FeedbackManager.sound.pause(); } catch (e) {}
+      };
+      window.testResume = function () {
+        try { FeedbackManager.sound.resume(); } catch (e) {}
+      };
+    });
+
+    /* ============================================================
+       Standalone fallback
+       ============================================================ */
+    setTimeout(function () {
+      if (window.__alfredBootstrapped) return;
+      if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      if (gameState.isActive || gameState.gameEnded) return;
+
+      var missing = [];
+      if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+      if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+      if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+      if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+      if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+      if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+      if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+      if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+      if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+      if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+
+      if (missing.length > 0) {
+        var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+        console.error('[' + msg + ']');
+        if (typeof Sentry !== 'undefined') {
+          try { Sentry.captureMessage(msg); } catch (e) {}
+        }
+        var gc = document.getElementById('gameContent') || document.body;
+        if (gc) {
+          gc.innerHTML =
+            '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">' +
+            'Game failed to load — please refresh.' +
+            '</div>';
+        }
+        return;
+      }
+
+      if (!document.getElementById('gameContent')) {
+        buildFallbackLayout();
+      }
+      gameState.content = fallbackContent;
+      gameState.totalRounds = fallbackContent.rounds.length / 3;
+      setupGame();
+      startGame();
+    }, 2000);
+  </script>
+</body>
+</html>

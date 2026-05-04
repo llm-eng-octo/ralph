@@ -69,7 +69,7 @@ When building or reviewing a game, verify every rule below. A violation of any C
 | 36 | Line height 1.4+ on text blocks | STANDARD | [css-variables.md](css-variables.md) |
 | 37 | All colors use `--mathai-*` variables, no hardcoded hex | STANDARD | [css-variables.md](css-variables.md) |
 | 38 | All spacing/radii use `--mathai-*` variables where one exists | STANDARD | [css-variables.md](css-variables.md) |
-| 39 | In preview-wrapper mode (`previewScreen: true`), `.mathai-preview-body` is the single vertical scroll owner. Lock root/page scrolling and do NOT add nested `overflow-y:auto` containers inside `.game-stack`. | CRITICAL | [layout-and-viewport.md](layout-and-viewport.md) |
+| 39 | In preview-wrapper mode (`previewScreen: true`), the components bundle picks the scroll owner per device class — `.mathai-preview-body` on touch, the document on desktop (`hover:hover` + `pointer:fine`). Game CSS MUST NOT set `height` / `overflow` on `html`, `body`, `.page-center`, `#mathai-preview-slot`, or `.mathai-preview-body`, and MUST NOT add nested `overflow-y:auto` containers inside `.game-stack`. | CRITICAL | [layout-and-viewport.md](layout-and-viewport.md) |
 
 ---
 

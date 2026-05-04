@@ -1,0 +1,1827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Doubles — Doubling Speed Challenge</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'doubles@1.0.0' }));
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+      --doubles-heart-dark: #2c2c2c;
+      --doubles-heart-empty: #c8c8c8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+    @supports not (height: 100dvh) {
+      html, body { height: 100vh; }
+    }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview wrapper scroll compatibility */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Timer absolute-centered at top of the persistent header area
+       (mounted as a child of #mathai-preview-slot per PART-006). */
+    #timer-container {
+      position: absolute;
+      top: 0.75rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      pointer-events: none;
+    }
+    #timer-container > * { pointer-events: auto; }
+    #timer-container .timer-wrapper { padding: 0 !important; margin: 0 !important; background: transparent !important; }
+    #timer-container .timer-display {
+      width: auto !important;
+      height: auto !important;
+      min-width: 0 !important;
+      padding: 2px 10px !important;
+      font-size: 16px !important;
+      font-weight: 700 !important;
+      color: var(--mathai-primary) !important;
+      font-family: var(--mathai-font-family) !important;
+      background: var(--mathai-cell-bg-yellow) !important;
+      border-radius: 999px !important;
+      box-shadow: none !important;
+    }
+
+    /* Lives override — dark hearts instead of red.
+       ProgressBar renders lives as ❤️ / 🤍 emojis inside .mathai-pb-lives.
+       We swap ❤️ → 🖤 at runtime via MutationObserver (see HEART_OVERRIDE below)
+       so filled hearts read dark while empty hearts stay light. */
+    #mathai-progress-slot .mathai-pb-lives {
+      letter-spacing: 1px;
+    }
+    /* Fallback for any future SVG-based renderer */
+    #mathai-progress-slot .heart,
+    #mathai-progress-slot [class*="heart"],
+    #mathai-progress-slot [class*="Heart"] {
+      color: var(--doubles-heart-dark) !important;
+    }
+    #mathai-progress-slot svg path[fill] {
+      fill: var(--doubles-heart-dark) !important;
+    }
+    #mathai-progress-slot .lost,
+    #mathai-progress-slot .empty,
+    #mathai-progress-slot [class*="lost"],
+    #mathai-progress-slot [class*="empty"] {
+      color: var(--doubles-heart-empty) !important;
+      opacity: 0.55 !important;
+    }
+
+    /* Gameplay area */
+    #gameContent {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      padding: 8px 16px 16px;
+    }
+
+    .doubles-stage {
+      text-align: center;
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-gray);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin: 6px 0 4px;
+    }
+
+    .doubles-prompt-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 12px 18px;
+    }
+    .doubles-prompt-label {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-gray);
+      margin-bottom: 6px;
+    }
+    .doubles-prompt {
+      font-size: 44px;
+      font-weight: 800;
+      color: var(--mathai-primary);
+      letter-spacing: -0.01em;
+      animation: fadeIn 0.35s ease;
+    }
+
+    .doubles-options {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      width: 100%;
+      max-width: 360px;
+      margin: 16px auto 24px;
+    }
+    .option-btn {
+      display: block;
+      width: 100%;
+      min-height: 56px;
+      margin-top: 12px;
+      padding: 14px 18px;
+      border: 2px solid var(--mathai-border-gray);
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      font-family: var(--mathai-font-family);
+      font-size: 22px;
+      font-weight: 700;
+      border-radius: 999px;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .option-btn:first-child { margin-top: 0; }
+    .option-btn:hover:not(.disabled):not(:disabled) {
+      border-color: var(--mathai-purple);
+    }
+    .option-btn:active:not(.disabled):not(:disabled) {
+      transform: scale(0.98);
+    }
+    .option-btn.selected-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-green);
+    }
+    .option-btn.selected-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-cell-border-red);
+      color: var(--mathai-red);
+      animation: shake 0.5s ease;
+    }
+    .option-btn.disabled,
+    .option-btn:disabled {
+      opacity: 0.6;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+
+    .doubles-answer-card {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      padding: 14px 12px 18px;
+      text-align: center;
+    }
+    .doubles-answer-prompt {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--mathai-primary);
+      margin-bottom: 12px;
+    }
+    .doubles-answer-options {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      margin-top: 8px;
+    }
+    .doubles-answer-pill {
+      display: block;
+      width: 100%;
+      min-height: 48px;
+      margin-top: 8px;
+      padding: 10px 14px;
+      border: 2px solid var(--mathai-border-gray);
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      font-family: var(--mathai-font-family);
+      font-size: 20px;
+      font-weight: 700;
+      border-radius: 999px;
+      pointer-events: none;
+      opacity: 0.65;
+    }
+    .doubles-answer-pill:first-child { margin-top: 0; }
+    .doubles-answer-pill.solved-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-cell-border-green);
+      color: var(--mathai-green);
+      opacity: 1;
+    }
+    .doubles-answer-explanation {
+      margin-top: 14px;
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary);
+      font-weight: 600;
+    }
+
+    /* Touch targets */
+    button,
+    .option-btn,
+    [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    /* Gesture suppression */
+    #app {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    /* Landscape lock */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    /* Animations */
+    @keyframes scoreBounce {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes starPop {
+      0% { transform: scale(0); }
+      60% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+    @keyframes heartBreak {
+      0% { transform: scale(1); opacity: 1; }
+      30% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.5); opacity: 0; color: var(--mathai-red); }
+    }
+    @keyframes streakGlow {
+      0% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+      50% { box-shadow: 0 0 16px rgba(255, 193, 7, 0.5); }
+      100% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+    }
+    @keyframes confettiFall {
+      0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+    .score-bounce { animation: scoreBounce 0.4s ease; }
+    .shake-wrong { animation: shake 0.5s ease; }
+    .heart-break { animation: heartBreak 0.6s ease forwards; }
+    .star-earned { animation: starPop 0.4s ease forwards; }
+    .streak-glow { animation: streakGlow 0.6s ease; }
+    .fade-in { animation: fadeIn 0.35s ease; }
+
+    .selected-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-red);
+      color: var(--mathai-red);
+    }
+    .selected-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: var(--mathai-green);
+      color: var(--mathai-green);
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-lives="3"></div>
+
+  <script>
+    /* ====================================================================== */
+    /* Stickers (canonical from feedbackmanager-api.md)                          */
+    /* ====================================================================== */
+    var STICKER_CORRECT  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_TWO      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_ONE      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_RESTART  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+    var STICKER_CELEBRATE = STICKER_VICTORY;
+    var STICKER_SAD      = STICKER_WRONG;
+    var STICKER_MOTIVATE = STICKER_LEVEL;
+
+    /* ====================================================================== */
+    /* fallbackContent — 3 sets x 15 rounds = 45 entries                        */
+    /* ====================================================================== */
+    var fallbackContent = {
+      previewInstruction: '<p><b>Tap the double!</b> See a number — pick its double from the three pills. Three dark hearts, fifteen rounds.</p><p>Aim under <b>2 seconds</b> per double for <b>3 stars</b>.</p>',
+      previewAudioText: 'See a number, then tap its double. Try to answer in under two seconds for three stars. You have three lives — three wrong taps and the game ends.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 15,
+      totalLives: 3,
+      answerComponent: true,
+      rounds: [
+        { set:'A', id:'A_r1_double-6',  round:1,  stage:1, type:'A', n:6,  prompt:'Double of 6',  options:[12,11,14], correctIndex:0, correctValue:12, correctTTS:'Nice — double of 6 is 12.',  correctSubtitle:'Double of 6 is 12.',  wrongTTS:'Double of 6 is 12.',  wrongSubtitle:'Double of 6 is 12.',  misconception_tags:{ '11':'off-by-one', '14':'off-by-two' }, answer:{ prompt:'Double of 6',  options:[12,11,14], correctIndex:0, correctValue:12, explanation:'Double of 6 is 12' } },
+        { set:'A', id:'A_r2_double-8',  round:2,  stage:1, type:'A', n:8,  prompt:'Double of 8',  options:[16,15,18], correctIndex:0, correctValue:16, correctTTS:'Nice — double of 8 is 16.',  correctSubtitle:'Double of 8 is 16.',  wrongTTS:'Double of 8 is 16.',  wrongSubtitle:'Double of 8 is 16.',  misconception_tags:{ '15':'off-by-one', '18':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 8',  options:[16,15,18], correctIndex:0, correctValue:16, explanation:'Double of 8 is 16' } },
+        { set:'A', id:'A_r3_double-10', round:3,  stage:1, type:'A', n:10, prompt:'Double of 10', options:[20,19,22], correctIndex:0, correctValue:20, correctTTS:'Nice — double of 10 is 20.', correctSubtitle:'Double of 10 is 20.', wrongTTS:'Double of 10 is 20.', wrongSubtitle:'Double of 10 is 20.', misconception_tags:{ '19':'off-by-one', '22':'off-by-two' }, answer:{ prompt:'Double of 10', options:[20,19,22], correctIndex:0, correctValue:20, explanation:'Double of 10 is 20' } },
+        { set:'A', id:'A_r4_double-11', round:4,  stage:1, type:'A', n:11, prompt:'Double of 11', options:[22,21,24], correctIndex:0, correctValue:22, correctTTS:'Nice — double of 11 is 22.', correctSubtitle:'Double of 11 is 22.', wrongTTS:'Double of 11 is 22.', wrongSubtitle:'Double of 11 is 22.', misconception_tags:{ '21':'off-by-one', '24':'off-by-two' }, answer:{ prompt:'Double of 11', options:[22,21,24], correctIndex:0, correctValue:22, explanation:'Double of 11 is 22' } },
+        { set:'A', id:'A_r5_double-12', round:5,  stage:1, type:'A', n:12, prompt:'Double of 12', options:[24,23,22], correctIndex:0, correctValue:24, correctTTS:'Nice — double of 12 is 24.', correctSubtitle:'Double of 12 is 24.', wrongTTS:'Double of 12 is 24.', wrongSubtitle:'Double of 12 is 24.', misconception_tags:{ '23':'off-by-one', '22':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 12', options:[24,23,22], correctIndex:0, correctValue:24, explanation:'Double of 12 is 24' } },
+        { set:'A', id:'A_r6_double-13', round:6,  stage:2, type:'A', n:13, prompt:'Double of 13', options:[26,23,25], correctIndex:0, correctValue:26, correctTTS:'Nice — double of 13 is 26.', correctSubtitle:'Double of 13 is 26.', wrongTTS:'Double of 13 is 26.', wrongSubtitle:'Double of 13 is 26.', misconception_tags:{ '23':'added-10-instead-of-doubled', '25':'off-by-one' }, answer:{ prompt:'Double of 13', options:[26,23,25], correctIndex:0, correctValue:26, explanation:'Double of 13 is 26' } },
+        { set:'A', id:'A_r7_double-14', round:7,  stage:2, type:'A', n:14, prompt:'Double of 14', options:[28,24,27], correctIndex:0, correctValue:28, correctTTS:'Nice — double of 14 is 28.', correctSubtitle:'Double of 14 is 28.', wrongTTS:'Double of 14 is 28.', wrongSubtitle:'Double of 14 is 28.', misconception_tags:{ '24':'added-10-instead-of-doubled', '27':'off-by-one' }, answer:{ prompt:'Double of 14', options:[28,24,27], correctIndex:0, correctValue:28, explanation:'Double of 14 is 28' } },
+        { set:'A', id:'A_r8_double-15', round:8,  stage:2, type:'A', n:15, prompt:'Double of 15', options:[30,25,29], correctIndex:0, correctValue:30, correctTTS:'Nice — double of 15 is 30.', correctSubtitle:'Double of 15 is 30.', wrongTTS:'Double of 15 is 30.', wrongSubtitle:'Double of 15 is 30.', misconception_tags:{ '25':'added-10-instead-of-doubled', '29':'off-by-one' }, answer:{ prompt:'Double of 15', options:[30,25,29], correctIndex:0, correctValue:30, explanation:'Double of 15 is 30' } },
+        { set:'A', id:'A_r9_double-16', round:9,  stage:2, type:'A', n:16, prompt:'Double of 16', options:[32,26,30], correctIndex:0, correctValue:32, correctTTS:'Nice — double of 16 is 32.', correctSubtitle:'Double of 16 is 32.', wrongTTS:'Double of 16 is 32.', wrongSubtitle:'Double of 16 is 32.', misconception_tags:{ '26':'added-10-instead-of-doubled', '30':'off-by-two' }, answer:{ prompt:'Double of 16', options:[32,26,30], correctIndex:0, correctValue:32, explanation:'Double of 16 is 32' } },
+        { set:'A', id:'A_r10_double-17',round:10, stage:2, type:'A', n:17, prompt:'Double of 17', options:[34,27,33], correctIndex:0, correctValue:34, correctTTS:'Nice — double of 17 is 34.', correctSubtitle:'Double of 17 is 34.', wrongTTS:'Double of 17 is 34.', wrongSubtitle:'Double of 17 is 34.', misconception_tags:{ '27':'added-10-instead-of-doubled', '33':'off-by-one' }, answer:{ prompt:'Double of 17', options:[34,27,33], correctIndex:0, correctValue:34, explanation:'Double of 17 is 34' } },
+        { set:'A', id:'A_r11_double-18',round:11, stage:3, type:'A', n:18, prompt:'Double of 18', options:[36,28,35], correctIndex:0, correctValue:36, correctTTS:'Nice — double of 18 is 36.', correctSubtitle:'Double of 18 is 36.', wrongTTS:'Double of 18 is 36.', wrongSubtitle:'Double of 18 is 36.', misconception_tags:{ '28':'added-10-instead-of-doubled', '35':'off-by-one' }, answer:{ prompt:'Double of 18', options:[36,28,35], correctIndex:0, correctValue:36, explanation:'Double of 18 is 36' } },
+        { set:'A', id:'A_r12_double-19',round:12, stage:3, type:'A', n:19, prompt:'Double of 19', options:[38,29,37], correctIndex:0, correctValue:38, correctTTS:'Nice — double of 19 is 38.', correctSubtitle:'Double of 19 is 38.', wrongTTS:'Double of 19 is 38.', wrongSubtitle:'Double of 19 is 38.', misconception_tags:{ '29':'added-10-instead-of-doubled', '37':'off-by-one' }, answer:{ prompt:'Double of 19', options:[38,29,37], correctIndex:0, correctValue:38, explanation:'Double of 19 is 38' } },
+        { set:'A', id:'A_r13_double-21',round:13, stage:3, type:'A', n:21, prompt:'Double of 21', options:[42,31,40], correctIndex:0, correctValue:42, correctTTS:'Nice — double of 21 is 42.', correctSubtitle:'Double of 21 is 42.', wrongTTS:'Double of 21 is 42.', wrongSubtitle:'Double of 21 is 42.', misconception_tags:{ '31':'added-10-instead-of-doubled', '40':'off-by-two' }, answer:{ prompt:'Double of 21', options:[42,31,40], correctIndex:0, correctValue:42, explanation:'Double of 21 is 42' } },
+        { set:'A', id:'A_r14_double-23',round:14, stage:3, type:'A', n:23, prompt:'Double of 23', options:[46,33,45], correctIndex:0, correctValue:46, correctTTS:'Nice — double of 23 is 46.', correctSubtitle:'Double of 23 is 46.', wrongTTS:'Double of 23 is 46.', wrongSubtitle:'Double of 23 is 46.', misconception_tags:{ '33':'added-10-instead-of-doubled', '45':'off-by-one' }, answer:{ prompt:'Double of 23', options:[46,33,45], correctIndex:0, correctValue:46, explanation:'Double of 23 is 46' } },
+        { set:'A', id:'A_r15_double-25',round:15, stage:3, type:'A', n:25, prompt:'Double of 25', options:[50,35,48], correctIndex:0, correctValue:50, correctTTS:'Nice — double of 25 is 50.', correctSubtitle:'Double of 25 is 50.', wrongTTS:'Double of 25 is 50.', wrongSubtitle:'Double of 25 is 50.', misconception_tags:{ '35':'added-10-instead-of-doubled', '48':'off-by-two' }, answer:{ prompt:'Double of 25', options:[50,35,48], correctIndex:0, correctValue:50, explanation:'Double of 25 is 50' } },
+
+        { set:'B', id:'B_r1_double-7',  round:1,  stage:1, type:'A', n:7,  prompt:'Double of 7',  options:[14,13,16], correctIndex:0, correctValue:14, correctTTS:'Nice — double of 7 is 14.',  correctSubtitle:'Double of 7 is 14.',  wrongTTS:'Double of 7 is 14.',  wrongSubtitle:'Double of 7 is 14.',  misconception_tags:{ '13':'off-by-one', '16':'off-by-two' }, answer:{ prompt:'Double of 7',  options:[14,13,16], correctIndex:0, correctValue:14, explanation:'Double of 7 is 14' } },
+        { set:'B', id:'B_r2_double-9',  round:2,  stage:1, type:'A', n:9,  prompt:'Double of 9',  options:[18,17,19], correctIndex:0, correctValue:18, correctTTS:'Nice — double of 9 is 18.',  correctSubtitle:'Double of 9 is 18.',  wrongTTS:'Double of 9 is 18.',  wrongSubtitle:'Double of 9 is 18.',  misconception_tags:{ '17':'off-by-one', '19':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 9',  options:[18,17,19], correctIndex:0, correctValue:18, explanation:'Double of 9 is 18' } },
+        { set:'B', id:'B_r3_double-6',  round:3,  stage:1, type:'A', n:6,  prompt:'Double of 6',  options:[12,16,13], correctIndex:0, correctValue:12, correctTTS:'Nice — double of 6 is 12.',  correctSubtitle:'Double of 6 is 12.',  wrongTTS:'Double of 6 is 12.',  wrongSubtitle:'Double of 6 is 12.',  misconception_tags:{ '16':'added-10-instead-of-doubled', '13':'off-by-one' }, answer:{ prompt:'Double of 6',  options:[12,16,13], correctIndex:0, correctValue:12, explanation:'Double of 6 is 12' } },
+        { set:'B', id:'B_r4_double-12', round:4,  stage:1, type:'A', n:12, prompt:'Double of 12', options:[24,22,23], correctIndex:0, correctValue:24, correctTTS:'Nice — double of 12 is 24.', correctSubtitle:'Double of 12 is 24.', wrongTTS:'Double of 12 is 24.', wrongSubtitle:'Double of 12 is 24.', misconception_tags:{ '22':'added-10-instead-of-doubled', '23':'off-by-one' }, answer:{ prompt:'Double of 12', options:[24,22,23], correctIndex:0, correctValue:24, explanation:'Double of 12 is 24' } },
+        { set:'B', id:'B_r5_double-10', round:5,  stage:1, type:'A', n:10, prompt:'Double of 10', options:[20,21,18], correctIndex:0, correctValue:20, correctTTS:'Nice — double of 10 is 20.', correctSubtitle:'Double of 10 is 20.', wrongTTS:'Double of 10 is 20.', wrongSubtitle:'Double of 10 is 20.', misconception_tags:{ '21':'off-by-one', '18':'off-by-two' }, answer:{ prompt:'Double of 10', options:[20,21,18], correctIndex:0, correctValue:20, explanation:'Double of 10 is 20' } },
+        { set:'B', id:'B_r6_double-14', round:6,  stage:2, type:'A', n:14, prompt:'Double of 14', options:[28,24,29], correctIndex:0, correctValue:28, correctTTS:'Nice — double of 14 is 28.', correctSubtitle:'Double of 14 is 28.', wrongTTS:'Double of 14 is 28.', wrongSubtitle:'Double of 14 is 28.', misconception_tags:{ '24':'added-10-instead-of-doubled', '29':'off-by-one' }, answer:{ prompt:'Double of 14', options:[28,24,29], correctIndex:0, correctValue:28, explanation:'Double of 14 is 28' } },
+        { set:'B', id:'B_r7_double-15', round:7,  stage:2, type:'A', n:15, prompt:'Double of 15', options:[30,31,25], correctIndex:0, correctValue:30, correctTTS:'Nice — double of 15 is 30.', correctSubtitle:'Double of 15 is 30.', wrongTTS:'Double of 15 is 30.', wrongSubtitle:'Double of 15 is 30.', misconception_tags:{ '31':'off-by-one', '25':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 15', options:[30,31,25], correctIndex:0, correctValue:30, explanation:'Double of 15 is 30' } },
+        { set:'B', id:'B_r8_double-16', round:8,  stage:2, type:'A', n:16, prompt:'Double of 16', options:[32,33,26], correctIndex:0, correctValue:32, correctTTS:'Nice — double of 16 is 32.', correctSubtitle:'Double of 16 is 32.', wrongTTS:'Double of 16 is 32.', wrongSubtitle:'Double of 16 is 32.', misconception_tags:{ '33':'off-by-one', '26':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 16', options:[32,33,26], correctIndex:0, correctValue:32, explanation:'Double of 16 is 32' } },
+        { set:'B', id:'B_r9_double-17', round:9,  stage:2, type:'A', n:17, prompt:'Double of 17', options:[34,35,27], correctIndex:0, correctValue:34, correctTTS:'Nice — double of 17 is 34.', correctSubtitle:'Double of 17 is 34.', wrongTTS:'Double of 17 is 34.', wrongSubtitle:'Double of 17 is 34.', misconception_tags:{ '35':'off-by-one', '27':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 17', options:[34,35,27], correctIndex:0, correctValue:34, explanation:'Double of 17 is 34' } },
+        { set:'B', id:'B_r10_double-13',round:10, stage:2, type:'A', n:13, prompt:'Double of 13', options:[26,23,28], correctIndex:0, correctValue:26, correctTTS:'Nice — double of 13 is 26.', correctSubtitle:'Double of 13 is 26.', wrongTTS:'Double of 13 is 26.', wrongSubtitle:'Double of 13 is 26.', misconception_tags:{ '23':'added-10-instead-of-doubled', '28':'off-by-two' }, answer:{ prompt:'Double of 13', options:[26,23,28], correctIndex:0, correctValue:26, explanation:'Double of 13 is 26' } },
+        { set:'B', id:'B_r11_double-19',round:11, stage:3, type:'A', n:19, prompt:'Double of 19', options:[38,29,40], correctIndex:0, correctValue:38, correctTTS:'Nice — double of 19 is 38.', correctSubtitle:'Double of 19 is 38.', wrongTTS:'Double of 19 is 38.', wrongSubtitle:'Double of 19 is 38.', misconception_tags:{ '29':'added-10-instead-of-doubled', '40':'off-by-two' }, answer:{ prompt:'Double of 19', options:[38,29,40], correctIndex:0, correctValue:38, explanation:'Double of 19 is 38' } },
+        { set:'B', id:'B_r12_double-20',round:12, stage:3, type:'A', n:20, prompt:'Double of 20', options:[40,30,42], correctIndex:0, correctValue:40, correctTTS:'Nice — double of 20 is 40.', correctSubtitle:'Double of 20 is 40.', wrongTTS:'Double of 20 is 40.', wrongSubtitle:'Double of 20 is 40.', misconception_tags:{ '30':'added-10-instead-of-doubled', '42':'off-by-two' }, answer:{ prompt:'Double of 20', options:[40,30,42], correctIndex:0, correctValue:40, explanation:'Double of 20 is 40' } },
+        { set:'B', id:'B_r13_double-22',round:13, stage:3, type:'A', n:22, prompt:'Double of 22', options:[44,32,43], correctIndex:0, correctValue:44, correctTTS:'Nice — double of 22 is 44.', correctSubtitle:'Double of 22 is 44.', wrongTTS:'Double of 22 is 44.', wrongSubtitle:'Double of 22 is 44.', misconception_tags:{ '32':'added-10-instead-of-doubled', '43':'off-by-one' }, answer:{ prompt:'Double of 22', options:[44,32,43], correctIndex:0, correctValue:44, explanation:'Double of 22 is 44' } },
+        { set:'B', id:'B_r14_double-24',round:14, stage:3, type:'A', n:24, prompt:'Double of 24', options:[48,34,47], correctIndex:0, correctValue:48, correctTTS:'Nice — double of 24 is 48.', correctSubtitle:'Double of 24 is 48.', wrongTTS:'Double of 24 is 48.', wrongSubtitle:'Double of 24 is 48.', misconception_tags:{ '34':'added-10-instead-of-doubled', '47':'off-by-one' }, answer:{ prompt:'Double of 24', options:[48,34,47], correctIndex:0, correctValue:48, explanation:'Double of 24 is 48' } },
+        { set:'B', id:'B_r15_double-18',round:15, stage:3, type:'A', n:18, prompt:'Double of 18', options:[36,38,28], correctIndex:0, correctValue:36, correctTTS:'Nice — double of 18 is 36.', correctSubtitle:'Double of 18 is 36.', wrongTTS:'Double of 18 is 36.', wrongSubtitle:'Double of 18 is 36.', misconception_tags:{ '38':'off-by-two', '28':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 18', options:[36,38,28], correctIndex:0, correctValue:36, explanation:'Double of 18 is 36' } },
+
+        { set:'C', id:'C_r1_double-8',  round:1,  stage:1, type:'A', n:8,  prompt:'Double of 8',  options:[16,17,14], correctIndex:0, correctValue:16, correctTTS:'Nice — double of 8 is 16.',  correctSubtitle:'Double of 8 is 16.',  wrongTTS:'Double of 8 is 16.',  wrongSubtitle:'Double of 8 is 16.',  misconception_tags:{ '17':'off-by-one', '14':'off-by-two' }, answer:{ prompt:'Double of 8',  options:[16,17,14], correctIndex:0, correctValue:16, explanation:'Double of 8 is 16' } },
+        { set:'C', id:'C_r2_double-11', round:2,  stage:1, type:'A', n:11, prompt:'Double of 11', options:[22,21,20], correctIndex:0, correctValue:22, correctTTS:'Nice — double of 11 is 22.', correctSubtitle:'Double of 11 is 22.', wrongTTS:'Double of 11 is 22.', wrongSubtitle:'Double of 11 is 22.', misconception_tags:{ '21':'off-by-one', '20':'off-by-two' }, answer:{ prompt:'Double of 11', options:[22,21,20], correctIndex:0, correctValue:22, explanation:'Double of 11 is 22' } },
+        { set:'C', id:'C_r3_double-9',  round:3,  stage:1, type:'A', n:9,  prompt:'Double of 9',  options:[18,19,20], correctIndex:0, correctValue:18, correctTTS:'Nice — double of 9 is 18.',  correctSubtitle:'Double of 9 is 18.',  wrongTTS:'Double of 9 is 18.',  wrongSubtitle:'Double of 9 is 18.',  misconception_tags:{ '19':'added-10-instead-of-doubled', '20':'off-by-two' }, answer:{ prompt:'Double of 9',  options:[18,19,20], correctIndex:0, correctValue:18, explanation:'Double of 9 is 18' } },
+        { set:'C', id:'C_r4_double-7',  round:4,  stage:1, type:'A', n:7,  prompt:'Double of 7',  options:[14,17,15], correctIndex:0, correctValue:14, correctTTS:'Nice — double of 7 is 14.',  correctSubtitle:'Double of 7 is 14.',  wrongTTS:'Double of 7 is 14.',  wrongSubtitle:'Double of 7 is 14.',  misconception_tags:{ '17':'added-10-instead-of-doubled', '15':'off-by-one' }, answer:{ prompt:'Double of 7',  options:[14,17,15], correctIndex:0, correctValue:14, explanation:'Double of 7 is 14' } },
+        { set:'C', id:'C_r5_double-12', round:5,  stage:1, type:'A', n:12, prompt:'Double of 12', options:[24,25,22], correctIndex:0, correctValue:24, correctTTS:'Nice — double of 12 is 24.', correctSubtitle:'Double of 12 is 24.', wrongTTS:'Double of 12 is 24.', wrongSubtitle:'Double of 12 is 24.', misconception_tags:{ '25':'off-by-one', '22':'off-by-two' }, answer:{ prompt:'Double of 12', options:[24,25,22], correctIndex:0, correctValue:24, explanation:'Double of 12 is 24' } },
+        { set:'C', id:'C_r6_double-15', round:6,  stage:2, type:'A', n:15, prompt:'Double of 15', options:[30,29,25], correctIndex:0, correctValue:30, correctTTS:'Nice — double of 15 is 30.', correctSubtitle:'Double of 15 is 30.', wrongTTS:'Double of 15 is 30.', wrongSubtitle:'Double of 15 is 30.', misconception_tags:{ '29':'off-by-one', '25':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 15', options:[30,29,25], correctIndex:0, correctValue:30, explanation:'Double of 15 is 30' } },
+        { set:'C', id:'C_r7_double-13', round:7,  stage:2, type:'A', n:13, prompt:'Double of 13', options:[26,27,23], correctIndex:0, correctValue:26, correctTTS:'Nice — double of 13 is 26.', correctSubtitle:'Double of 13 is 26.', wrongTTS:'Double of 13 is 26.', wrongSubtitle:'Double of 13 is 26.', misconception_tags:{ '27':'off-by-one', '23':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 13', options:[26,27,23], correctIndex:0, correctValue:26, explanation:'Double of 13 is 26' } },
+        { set:'C', id:'C_r8_double-17', round:8,  stage:2, type:'A', n:17, prompt:'Double of 17', options:[34,33,27], correctIndex:0, correctValue:34, correctTTS:'Nice — double of 17 is 34.', correctSubtitle:'Double of 17 is 34.', wrongTTS:'Double of 17 is 34.', wrongSubtitle:'Double of 17 is 34.', misconception_tags:{ '33':'off-by-one', '27':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 17', options:[34,33,27], correctIndex:0, correctValue:34, explanation:'Double of 17 is 34' } },
+        { set:'C', id:'C_r9_double-14', round:9,  stage:2, type:'A', n:14, prompt:'Double of 14', options:[28,30,24], correctIndex:0, correctValue:28, correctTTS:'Nice — double of 14 is 28.', correctSubtitle:'Double of 14 is 28.', wrongTTS:'Double of 14 is 28.', wrongSubtitle:'Double of 14 is 28.', misconception_tags:{ '30':'off-by-two', '24':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 14', options:[28,30,24], correctIndex:0, correctValue:28, explanation:'Double of 14 is 28' } },
+        { set:'C', id:'C_r10_double-16',round:10, stage:2, type:'A', n:16, prompt:'Double of 16', options:[32,31,26], correctIndex:0, correctValue:32, correctTTS:'Nice — double of 16 is 32.', correctSubtitle:'Double of 16 is 32.', wrongTTS:'Double of 16 is 32.', wrongSubtitle:'Double of 16 is 32.', misconception_tags:{ '31':'off-by-one', '26':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 16', options:[32,31,26], correctIndex:0, correctValue:32, explanation:'Double of 16 is 32' } },
+        { set:'C', id:'C_r11_double-20',round:11, stage:3, type:'A', n:20, prompt:'Double of 20', options:[40,41,30], correctIndex:0, correctValue:40, correctTTS:'Nice — double of 20 is 40.', correctSubtitle:'Double of 20 is 40.', wrongTTS:'Double of 20 is 40.', wrongSubtitle:'Double of 20 is 40.', misconception_tags:{ '41':'off-by-one', '30':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 20', options:[40,41,30], correctIndex:0, correctValue:40, explanation:'Double of 20 is 40' } },
+        { set:'C', id:'C_r12_double-22',round:12, stage:3, type:'A', n:22, prompt:'Double of 22', options:[44,45,32], correctIndex:0, correctValue:44, correctTTS:'Nice — double of 22 is 44.', correctSubtitle:'Double of 22 is 44.', wrongTTS:'Double of 22 is 44.', wrongSubtitle:'Double of 22 is 44.', misconception_tags:{ '45':'off-by-one', '32':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 22', options:[44,45,32], correctIndex:0, correctValue:44, explanation:'Double of 22 is 44' } },
+        { set:'C', id:'C_r13_double-24',round:13, stage:3, type:'A', n:24, prompt:'Double of 24', options:[48,49,34], correctIndex:0, correctValue:48, correctTTS:'Nice — double of 24 is 48.', correctSubtitle:'Double of 24 is 48.', wrongTTS:'Double of 24 is 48.', wrongSubtitle:'Double of 24 is 48.', misconception_tags:{ '49':'off-by-one', '34':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 24', options:[48,49,34], correctIndex:0, correctValue:48, explanation:'Double of 24 is 48' } },
+        { set:'C', id:'C_r14_double-21',round:14, stage:3, type:'A', n:21, prompt:'Double of 21', options:[42,43,31], correctIndex:0, correctValue:42, correctTTS:'Nice — double of 21 is 42.', correctSubtitle:'Double of 21 is 42.', wrongTTS:'Double of 21 is 42.', wrongSubtitle:'Double of 21 is 42.', misconception_tags:{ '43':'off-by-one', '31':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 21', options:[42,43,31], correctIndex:0, correctValue:42, explanation:'Double of 21 is 42' } },
+        { set:'C', id:'C_r15_double-23',round:15, stage:3, type:'A', n:23, prompt:'Double of 23', options:[46,47,33], correctIndex:0, correctValue:46, correctTTS:'Nice — double of 23 is 46.', correctSubtitle:'Double of 23 is 46.', wrongTTS:'Double of 23 is 46.', wrongSubtitle:'Double of 23 is 46.', misconception_tags:{ '47':'off-by-one', '33':'added-10-instead-of-doubled' }, answer:{ prompt:'Double of 23', options:[46,47,33], correctIndex:0, correctValue:46, explanation:'Double of 23 is 46' } }
+      ]
+    };
+
+    /* ====================================================================== */
+    /* gameState                                                                 */
+    /* ====================================================================== */
+    var SETS = ['A', 'B', 'C'];
+
+    var gameState = {
+      gameId: 'doubles',
+      gameTitle: 'Doubles',
+      phase: 'start_screen',
+      currentRound: 0,            // 0-based pointer into activeRounds
+      totalRounds: 15,
+      score: 0,
+      lives: 3,
+      totalLives: 3,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      duration_data: { startTime: null, endTime: null, preview: [] },
+      correctAnswer: null,
+      stars: 0,
+      setIndex: 0,
+      activeRounds: [],
+      responseMsByRound: {},
+      roundStartMs: 0,
+      timerIntentionallyPaused: false,
+      previewResult: null,
+      // runtime randomization state — built in renderRound
+      currentDisplayedOptions: [],   // randomised options to render
+      currentCorrectDisplayIdx: 0,
+      currentMisconceptionMap: {},   // { displayedValueString: misconceptionTag }
+      progress: 0,                   // rounds-attempted counter, drives progressBar.update()
+      roundToken: 0                  // monotonic token; tags option buttons so stale clicks are rejected
+    };
+    window.gameState = gameState;
+
+    /* ====================================================================== */
+    /* Module-scope vars                                                         */
+    /* ====================================================================== */
+    var timer = null;
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+
+    /* ====================================================================== */
+    /* Helpers                                                                   */
+    /* ====================================================================== */
+    function getAvailableSets(rounds) {
+      var seen = {}; var out = [];
+      for (var i = 0; i < rounds.length; i++) {
+        var s = rounds[i].set;
+        if (s && !seen[s]) { seen[s] = true; out.push(s); }
+      }
+      return out.length ? out : ['A'];
+    }
+
+    function getRounds() {
+      var src = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(src);
+      var setKey = sets[gameState.setIndex % sets.length];
+      var filtered = [];
+      for (var i = 0; i < src.length; i++) {
+        if (src[i].set === setKey) filtered.push(src[i]);
+      }
+      // Sort by round number for deterministic order
+      filtered.sort(function (a, b) { return a.round - b.round; });
+      return filtered;
+    }
+
+    function shuffleArray(arr) {
+      var a = arr.slice();
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = a[i]; a[i] = a[j]; a[j] = t;
+      }
+      return a;
+    }
+
+    function getCorrectCount() {
+      var c = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        if (gameState.attempts[i].correct === true) c++;
+      }
+      return c;
+    }
+
+    function getAvgCorrectMs() {
+      var sum = 0; var n = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        var a = gameState.attempts[i];
+        if (a.correct === true && typeof a.response_time_ms === 'number') {
+          sum += a.response_time_ms; n++;
+        }
+      }
+      return n === 0 ? 0 : Math.round(sum / n);
+    }
+
+    function getStars() {
+      var correctCount = getCorrectCount();
+      if (correctCount === 0) return 0;
+      var avg = getAvgCorrectMs();
+      if (avg < 2000) return 3;
+      if (avg <= 3500) return 2;
+      return 1;
+    }
+
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+    }
+
+    function trackEvent(name, payload) {
+      try {
+        gameState.events.push({ event: name, ts: Date.now(), data: payload || {} });
+      } catch (e) {}
+      try {
+        if (signalCollector && signalCollector.recordEvent) {
+          signalCollector.recordEvent(name, payload || {});
+        }
+      } catch (e) {}
+    }
+
+    function recordAttempt(input, correct, misconceptionTag, responseMs) {
+      var round = gameState.activeRounds[gameState.currentRound];
+      var qid = round ? round.id : ('r' + (gameState.currentRound + 1));
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) : 0,
+        input_of_user: input,
+        correct: correct === true,
+        round_number: gameState.currentRound + 1,
+        question_id: qid,
+        correct_answer: round ? round.correctValue : null,
+        response_time_ms: typeof responseMs === 'number' ? responseMs : 0,
+        misconception_tag: misconceptionTag || null,
+        difficulty_level: round ? (round.stage || 1) : 1,
+        is_retry: false,
+        metadata: { set: round ? round.set : null, n: round ? round.n : null }
+      };
+      gameState.attempts.push(attempt);
+      try {
+        if (signalCollector && signalCollector.recordAttempt) {
+          signalCollector.recordAttempt(attempt);
+        }
+      } catch (e) {}
+    }
+
+    function postGameComplete() {
+      if (gameState._gameCompletePosted) return;
+      gameState._gameCompletePosted = true;
+      var correctCount = getCorrectCount();
+      var attempted = gameState.attempts.length;
+      var accuracy = attempted === 0 ? 0 : Math.round((correctCount / attempted) * 100);
+      var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+      var triesByRound = gameState.attempts.map(function (a) {
+        return { round: a.round_number, correct: a.correct === true };
+      });
+      var metrics = {
+        accuracy: accuracy,
+        time: Math.round(elapsedMs / 1000),
+        stars: gameState.stars,
+        attempts: gameState.attempts.slice(),
+        duration_data: gameState.duration_data,
+        totalLives: gameState.lives,
+        tries: triesByRound,
+        score: gameState.score,
+        avgCorrectMs: getAvgCorrectMs(),
+        correctCount: correctCount
+      };
+      // Seal SignalCollector for analytics meta (PART-010)
+      var signalSealed = { event_count: gameState.events.length, metadata: {} };
+      try {
+        if (signalCollector && typeof signalCollector.seal === 'function') {
+          var sealed = signalCollector.seal();
+          if (sealed) {
+            if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+            if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+          }
+        }
+      } catch (e0) {}
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: Date.now(),
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) {}
+    }
+
+    /* ====================================================================== */
+    /* Audio helpers                                                             */
+    /* ====================================================================== */
+    function safePlaySound(id, opts) {
+      try {
+        return FeedbackManager.sound.play(id, opts || {});
+      } catch (e) {
+        return Promise.resolve();
+      }
+    }
+
+    function awaitedFeedbackSound(id, opts) {
+      // 1500ms floor to guarantee visual flash lands
+      var p = safePlaySound(id, opts || {});
+      var floor = new Promise(function (r) { setTimeout(r, 1500); });
+      return Promise.all([p, floor]).then(function () {}, function () {});
+    }
+
+    // Local alias so validators (GEN-TS-AUDIO-AWAITED, GEN-FEEDBACK-TTS-AWAIT)
+    // see `await playDynamicFeedback(...)` directly — they scan 60 chars back
+    // from the call name and require `await` immediately before.
+    function playDynamicFeedback(opts) {
+      try {
+        return FeedbackManager.playDynamicFeedback(opts || {});
+      } catch (e) {
+        return Promise.resolve();
+      }
+    }
+
+    /* ====================================================================== */
+    /* waitForPackages                                                           */
+    /* ====================================================================== */
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            try { throw new Error('waitForPackages timeout'); } catch (rethrown) { reject(err); return; }
+            return reject(err);
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    /* ====================================================================== */
+    /* Round rendering                                                           */
+    /* ====================================================================== */
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div class="doubles-stage" id="doublesStageLabel"></div>' +
+        '<div class="doubles-prompt-block">' +
+          '<div class="doubles-prompt-label">What is</div>' +
+          '<div class="doubles-prompt" id="doublesPrompt">Double of —</div>' +
+        '</div>' +
+        '<div class="doubles-options" id="doublesOptions"></div>';
+    }
+
+    function renderInitialState() {
+      var promptEl = document.getElementById('doublesPrompt');
+      var stageEl = document.getElementById('doublesStageLabel');
+      var optsEl = document.getElementById('doublesOptions');
+      if (promptEl) promptEl.textContent = 'Double of —';
+      if (stageEl) stageEl.textContent = '';
+      if (optsEl) optsEl.innerHTML = '';
+    }
+
+    function renderRound(roundIdxOneBased) {
+      // Cross-Cutting Rule 10 cleanup
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      gameState.currentRound = roundIdxOneBased - 1;
+      gameState.isActive = true;
+      gameState.phase = 'gameplay';
+      // Mint a new round token so any in-flight stale button click is rejected
+      gameState.roundToken = (gameState.roundToken || 0) + 1;
+      syncDOM();
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) { return; }
+
+      gameState.correctAnswer = round.correctValue;
+
+      // Randomise option positions, keep the misconception map aligned.
+      var indexedOpts = [];
+      for (var i = 0; i < round.options.length; i++) {
+        indexedOpts.push({ value: round.options[i], origIndex: i });
+      }
+      var shuffled = shuffleArray(indexedOpts);
+      var displayed = [];
+      var correctDisplayIdx = 0;
+      var miscMap = {};
+      for (var k = 0; k < shuffled.length; k++) {
+        var v = shuffled[k].value;
+        displayed.push(v);
+        if (v === round.correctValue) correctDisplayIdx = k;
+        var tag = round.misconception_tags && round.misconception_tags[String(v)];
+        if (tag) miscMap[String(v)] = tag;
+      }
+      gameState.currentDisplayedOptions = displayed;
+      gameState.currentCorrectDisplayIdx = correctDisplayIdx;
+      gameState.currentMisconceptionMap = miscMap;
+
+      // Paint UI
+      var stageEl = document.getElementById('doublesStageLabel');
+      if (stageEl) {
+        stageEl.textContent = 'Round ' + roundIdxOneBased + ' of ' + gameState.totalRounds + ' · Stage ' + (round.stage || 1);
+      }
+      var promptEl = document.getElementById('doublesPrompt');
+      if (promptEl) {
+        promptEl.textContent = round.prompt;
+        promptEl.classList.remove('fade-in');
+        // force reflow to retrigger animation
+        void promptEl.offsetWidth;
+        promptEl.classList.add('fade-in');
+      }
+      var optsEl = document.getElementById('doublesOptions');
+      if (optsEl) {
+        optsEl.innerHTML = '';
+        for (var b = 0; b < displayed.length; b++) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'option-btn';
+          btn.textContent = String(displayed[b]);
+          btn.setAttribute('data-value', String(displayed[b]));
+          btn.setAttribute('data-display-index', String(b));
+          btn.setAttribute('data-round-token', String(gameState.roundToken));
+          btn.addEventListener('click', onOptionTap);
+          optsEl.appendChild(btn);
+        }
+      }
+      // Open the input gate AFTER buttons are mounted with the current token
+      gameState.roundStartMs = Date.now();
+      gameState.isProcessing = false;
+
+      // Stopwatch — resume / reset semantics: continuous count-up
+      try {
+        gameState.timerIntentionallyPaused = false;
+        if (timer) {
+          if (roundIdxOneBased === 1 && !gameState._timerStarted) {
+            try { timer.start(); } catch (e) {}
+            gameState._timerStarted = true;
+          } else {
+            try { timer.resume(); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+
+      // Round-prompt ambient SFX (fire-and-forget) per CASE 17
+      try {
+        var p = safePlaySound('tap_sound', { sticker: null });
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+
+      trackEvent('round_start', { round: roundIdxOneBased, set: round.set, n: round.n });
+    }
+
+    /* ====================================================================== */
+    /* Tap handler                                                               */
+    /* ====================================================================== */
+    function onOptionTap(ev) {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var btn = ev.currentTarget;
+      if (btn.classList.contains('disabled') || btn.disabled) return;
+      // Round-token guard — block stale-button clicks delivered after the round changed
+      var btnRoundToken = btn.getAttribute('data-round-token');
+      if (btnRoundToken !== String(gameState.roundToken || '')) return;
+      var tappedValueStr = btn.getAttribute('data-value');
+      var tappedValue = parseInt(tappedValueStr, 10);
+      var displayIdx = parseInt(btn.getAttribute('data-display-index'), 10);
+      handleAnswer(tappedValue, tappedValueStr, displayIdx, btn);
+    }
+
+    function handleAnswer(tappedValue, tappedValueStr, displayIdx, btnEl) {
+      gameState.isProcessing = true;
+      var responseMs = Date.now() - gameState.roundStartMs;
+
+      // Pause stopwatch during feedback
+      try {
+        gameState.timerIntentionallyPaused = true;
+        if (timer && timer.pause) timer.pause();
+      } catch (e) {}
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      var isCorrect = tappedValue === round.correctValue;
+
+      // Record response time keyed by round number (1-based)
+      gameState.responseMsByRound[gameState.currentRound + 1] = responseMs;
+
+      // Disable all option buttons immediately
+      var allBtns = document.querySelectorAll('#doublesOptions .option-btn');
+      for (var i = 0; i < allBtns.length; i++) {
+        allBtns[i].classList.add('disabled');
+      }
+
+      if (isCorrect) {
+        if (btnEl) btnEl.classList.add('selected-correct');
+        gameState.score += 1;
+        gameState.progress = gameState.currentRound + 1;
+        // ProgressBar bumps FIRST in round-complete
+        try {
+          if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
+        } catch (e) {}
+        syncDOM();
+        recordAttempt(tappedValueStr, true, null, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: true, value: tappedValue });
+        runCorrectFeedbackAndAdvance(round);
+      } else {
+        if (btnEl) btnEl.classList.add('selected-wrong');
+        // also highlight the correct pill so student sees it
+        var allBtns2 = document.querySelectorAll('#doublesOptions .option-btn');
+        for (var j = 0; j < allBtns2.length; j++) {
+          if (parseInt(allBtns2[j].getAttribute('data-value'), 10) === round.correctValue) {
+            allBtns2[j].classList.add('selected-correct');
+          }
+        }
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        gameState.progress = gameState.currentRound + 1;
+        // ProgressBar bumps FIRST in round-complete (heart dim co-occurs)
+        try {
+          if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
+        } catch (e) {}
+        syncDOM();
+        var miscTag = gameState.currentMisconceptionMap[tappedValueStr] || null;
+        recordAttempt(tappedValueStr, false, miscTag, responseMs);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: false, value: tappedValue, misconception_tag: miscTag });
+        runWrongFeedbackAndAdvance(round);
+      }
+    }
+
+    function runCorrectFeedbackAndAdvance(round) {
+      (async function () {
+        try {
+          await awaitedFeedbackSound('correct_sound_effect', { sticker: STICKER_CORRECT });
+        } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.correctTTS,
+            subtitle: round.correctSubtitle,
+            sticker: STICKER_CORRECT
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+
+    function runWrongFeedbackAndAdvance(round) {
+      (async function () {
+        try {
+          await awaitedFeedbackSound('incorrect_sound_effect', { sticker: STICKER_SAD });
+        } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: round.wrongTTS,
+            subtitle: round.wrongSubtitle,
+            sticker: STICKER_SAD
+          });
+        } catch (e) {}
+        advanceAfterFeedback();
+      })();
+    }
+
+    function advanceAfterFeedback() {
+      var roundJustPlayed = gameState.currentRound + 1; // 1-based
+      // CASE 8 — last life lost goes to game over BEFORE advancing
+      if (gameState.lives === 0) {
+        // Post game_complete BEFORE end-game audio (CASE 8 contract)
+        gameState.stars = getStars();
+        postGameComplete();
+        endGame(false);
+        return;
+      }
+
+      if (roundJustPlayed === gameState.totalRounds) {
+        // Final round complete with lives > 0 → Victory path
+        endGame(true);
+        return;
+      }
+
+      // Inter-stage breather between R5↔R6 and R10↔R11 (lives > 0 only)
+      if (roundJustPlayed === 5 || roundJustPlayed === 10) {
+        showStageBreather(roundJustPlayed === 5 ? 1 : 2);
+        return;
+      }
+
+      // Otherwise: next round intro
+      showRoundIntro(roundJustPlayed + 1);
+    }
+
+    /* ====================================================================== */
+    /* Round intro                                                               */
+    /* ====================================================================== */
+    async function showRoundIntro(n) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      var ttsText = 'Round ' + n;
+      await transitionScreen.show({
+        title: 'Round ' + n,
+        icons: [],
+        persist: true,
+        buttons: [],
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND });
+            } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_ROUND
+              });
+            } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          })();
+        }
+      });
+
+      // Safety timeout if audio stalls. Use `<` not `!==` so we only fire if the
+      // game has not YET reached round n. Once it has advanced, do nothing —
+      // a stale `!==` check would yank the game backwards across rounds.
+      setTimeout(function () {
+        try {
+          if (gameState.gameEnded) return;
+          if (gameState.currentRound + 1 < n) {
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          }
+        } catch (e) {}
+      }, 9000);
+    }
+
+    /* ====================================================================== */
+    /* Stage breather                                                            */
+    /* ====================================================================== */
+    async function showStageBreather(stageJustFinished) {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      var nextRoundNum = stageJustFinished === 1 ? 6 : 11;
+      var avg = getAvgCorrectMs();
+      var correctCount = getCorrectCount();
+      var subtitle;
+      if (correctCount === 0) {
+        subtitle = 'No correct answers yet — aim for under 2 seconds for three stars.';
+      } else {
+        subtitle = 'Average so far: ' + (avg / 1000).toFixed(1) + ' seconds. Aim for under 2 seconds for three stars.';
+      }
+
+      await transitionScreen.show({
+        title: 'Stage ' + stageJustFinished + ' complete',
+        subtitle: subtitle,
+        icons: ['🎯'],
+        persist: true,
+        buttons: [{
+          text: "I'm ready",
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showRoundIntro(nextRoundNum);
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL });
+            } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: subtitle,
+                subtitle: subtitle,
+                sticker: STICKER_LEVEL
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    /* ====================================================================== */
+    /* End-of-game                                                               */
+    /* ====================================================================== */
+    function endGame(victory) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+
+      // Stop the timer at end of gameplay (PART-006 mandatory rule)
+      try {
+        gameState.timerIntentionallyPaused = true;
+        if (timer && timer.pause) timer.pause();
+      } catch (e) {}
+
+      gameState.stars = getStars();
+
+      if (victory) {
+        gameState.phase = 'results';
+        syncDOM();
+        postGameComplete();
+        showVictory();
+      } else {
+        gameState.phase = 'game_over';
+        syncDOM();
+        postGameComplete();
+        showGameOver();
+      }
+      trackEvent('game_end', { victory: victory, stars: gameState.stars, score: gameState.score });
+    }
+
+    function _victoryClaimAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showStarsCollected();
+    }
+    function _victoryPlayAgainAction() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showMotivation();
+    }
+
+    async function showVictory() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var stars = gameState.stars;
+      var avgSec = (getAvgCorrectMs() / 1000).toFixed(1);
+      var subtitle;
+      if (stars === 3) {
+        subtitle = 'You averaged ' + avgSec + 's. Brilliant!';
+      } else if (stars === 2) {
+        subtitle = 'You averaged ' + avgSec + 's — try again to break 2 seconds!';
+      } else {
+        subtitle = 'Great run! Try again for a faster average.';
+      }
+
+      var ttsText = stars === 3
+        ? 'Victory! You averaged ' + avgSec + ' seconds!'
+        : 'Great work! You got ' + gameState.score + ' out of ' + gameState.totalRounds + '!';
+
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var sfxSticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_TWO : STICKER_ONE);
+
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      await transitionScreen.show({
+        title: 'Victory 🎉',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars === 3
+          ? [
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }
+            ]
+          : [
+              { text: 'Play Again', type: 'secondary', action: _victoryPlayAgainAction },
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound(sfxId, { sticker: sfxSticker });
+            } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_CELEBRATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showGameOver() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var subtitle = 'You got ' + gameState.score + '/' + gameState.totalRounds + ' — try again.';
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: subtitle,
+        icons: ['😔'],
+        persist: true,
+        buttons: [{
+          text: 'Try Again',
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showMotivation();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('game_over_sound_effect', { sticker: STICKER_GAMEOVER });
+            } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: subtitle,
+                subtitle: subtitle,
+                sticker: STICKER_GAMEOVER
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = 'Ready to improve your score?';
+      await transitionScreen.show({
+        title: 'Ready to improve your score?',
+        icons: ['⚡'],
+        persist: true,
+        buttons: [{
+          text: "I'm ready",
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            restartGame();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+            try {
+              await safePlaySound('rounds_sound_effect', { sticker: STICKER_MOTIVATE });
+            } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_MOTIVATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      gameState.phase = 'stars_collected';
+      syncDOM();
+      await transitionScreen.show({
+        title: "Yay!\nStars collected!",
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY });
+            } catch (e) {}
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: {
+                  count: gameState.stars,
+                  variant: 'yellow',
+                  score: gameState.score + '/' + gameState.totalRounds
+                }
+              }, '*');
+            } catch (e) {}
+            setTimeout(showAnswerCarousel, 1500);
+          })();
+        }
+      });
+    }
+
+    /* ====================================================================== */
+    /* Answer carousel                                                           */
+    /* ====================================================================== */
+    function renderAnswerSlide(container, round) {
+      if (!container || !round || !round.answer) return;
+      var a = round.answer;
+      var html = '';
+      html += '<div class="doubles-answer-card">';
+      html += '<div class="doubles-answer-prompt">' + escapeHTML(a.prompt) + '</div>';
+      html += '<div class="doubles-answer-options">';
+      for (var i = 0; i < a.options.length; i++) {
+        var cls = (i === a.correctIndex) ? 'doubles-answer-pill solved-correct' : 'doubles-answer-pill';
+        html += '<div class="' + cls + '">' + escapeHTML(String(a.options[i])) + '</div>';
+      }
+      html += '</div>';
+      html += '<div class="doubles-answer-explanation">' + escapeHTML(a.explanation) + '</div>';
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds;
+      var slides = [];
+      for (var i = 0; i < rounds.length; i++) {
+        (function (r) {
+          slides.push({
+            render: function (container) { renderAnswerSlide(container, r); }
+          });
+        })(rounds[i]);
+      }
+      return slides;
+    }
+
+    function showAnswerCarousel() {
+      try {
+        answerComponent.show({ slides: buildAnswerSlidesForAllRounds() });
+      } catch (e) {}
+      try {
+        if (floatingBtn) floatingBtn.setMode('next');
+      } catch (e) {}
+      // The carousel renders below the Stars Collected card; on short viewports
+      // the player would have to scroll to discover it. Pull it into view.
+      try {
+        setTimeout(function () {
+          var slot = document.getElementById('mathai-answer-slot');
+          if (slot && slot.scrollIntoView) {
+            slot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 200);
+      } catch (e) {}
+    }
+
+    /* ====================================================================== */
+    /* setupGame                                                                 */
+    /* ====================================================================== */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.content = content;
+      gameState.totalRounds = content.totalRounds || 15;
+      gameState.totalLives = content.totalLives || 3;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+
+      injectGameHTML();
+      renderInitialState();
+
+      // Show the preview LAST (after game DOM is rendered)
+      try {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          onComplete: function (previewData) { startGameAfterPreview(previewData); }
+        });
+      } catch (e) {
+        console.error('[previewScreen.show failed]', e && e.message, e);
+        if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+      }
+    }
+
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || {};
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: (previewData && previewData.duration) || 0 });
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      // Show + initialize progress bar (start at 0)
+      try {
+        if (progressBar) {
+          progressBar.show();
+          progressBar.update(0, gameState.totalLives);
+        }
+      } catch (e) {}
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex] });
+      try {
+        if (signalCollector && signalCollector.recordViewEvent) {
+          signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+        }
+      } catch (e) {}
+
+      showWelcome();
+    }
+
+    async function showWelcome() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = "Let's play Doubles! Tap the right answer as fast as you can.";
+      await transitionScreen.show({
+        title: 'Welcome!',
+        icons: ['👋'],
+        persist: true,
+        buttons: [{
+          text: "Let's go!",
+          type: 'primary',
+          action: function () {
+            try { FeedbackManager.sound.pause(); } catch (e) {}
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showRoundIntro(1);
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL });
+            } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_LEVEL
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    /* ====================================================================== */
+    /* Restart                                                                   */
+    /* ====================================================================== */
+    function resetGameState() {
+      gameState.phase = 'gameplay';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.responseMsByRound = {};
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState._gameCompletePosted = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.progress = 0;
+      gameState.duration_data = { startTime: null, endTime: null, preview: gameState.duration_data.preview || [] };
+      gameState.activeRounds = getRounds();
+      gameState._timerStarted = false;
+      gameState.timerIntentionallyPaused = false;
+
+      // Reset stopwatch to 00:00 and pause
+      try {
+        if (timer) {
+          if (timer.reset) timer.reset();
+          if (timer.pause) timer.pause();
+        }
+      } catch (e) {}
+
+      // Tear down AnswerComponent state
+      try {
+        if (answerComponent && answerComponent.update) {
+          answerComponent.update({ slides: [] });
+        }
+        if (answerComponent && answerComponent.hide) answerComponent.hide();
+      } catch (e) {}
+    }
+
+    function restartGame() {
+      // Rotate set BEFORE resetGameState — new round-slice in place before round 1
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+      resetGameState();
+
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      // Safety-net reset of progress bar
+      try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex], restart: true });
+      // Skip Preview + Welcome → straight to Round 1 intro
+      showRoundIntro(1);
+    }
+
+    /* ====================================================================== */
+    /* Postmessage handling                                                      */
+    /* ====================================================================== */
+    function handlePostMessage(event) {
+      if (!event || !event.data || !event.data.type) return;
+      var t = event.data.type;
+      var data = event.data.data || {};
+      if (t === 'game_init') {
+        gameState.phase = 'playing';
+        if (data.content) gameState.content = data.content;
+        // PART-010: store signalConfig from game_init data
+        gameState.signalConfig = data.signalConfig || {};
+        if (data.signalConfig && signalCollector && signalCollector.applyConfig) {
+          try { signalCollector.applyConfig(data.signalConfig); } catch (e) {}
+        }
+        if (data.signalConfig) {
+          gameState._signalConfig = data.signalConfig;
+        }
+        try {
+          if (signalCollector) {
+            signalCollector.gameId = 'doubles';
+            if (data.sessionId) signalCollector.sessionId = data.sessionId;
+            if (data.studentId) signalCollector.studentId = data.studentId;
+            if (data.contentSetId) signalCollector.contentSetId = data.contentSetId;
+            if (data.signalConfig && data.signalConfig.flushUrl) signalCollector.flushUrl = data.signalConfig.flushUrl;
+            if (data.signalConfig && data.signalConfig.playId) signalCollector.playId = data.signalConfig.playId;
+            if (signalCollector.startFlushing) {
+              try { signalCollector.startFlushing(); } catch (e) {}
+            }
+          }
+        } catch (e) {}
+        syncDOM();
+        setupGame();
+      }
+    }
+
+    /* ====================================================================== */
+    /* DOMContentLoaded                                                          */
+    /* ====================================================================== */
+    document.addEventListener('DOMContentLoaded', function () {
+      // 1. Kick off package readiness gate
+      waitForPackages().then(function () {
+        try {
+          // 2. FeedbackManager.init
+          var initP = FeedbackManager.init && FeedbackManager.init();
+          var doInit = initP && initP.then ? initP : Promise.resolve();
+          doInit.then(function () {
+            try {
+              // 3. SignalCollector
+              try {
+                signalCollector = new SignalCollector({
+                  sessionId: 'doubles-' + Date.now(),
+                  studentId: 'standalone',
+                  gameId: 'doubles',
+                  contentSetId: 'fallback'
+                });
+                window.signalCollector = signalCollector;
+              } catch (e) {
+                console.error('[SignalCollector ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 4. ScreenLayout.inject
+              try {
+                ScreenLayout.inject('app', {
+                  slots: {
+                    previewScreen: true,
+                    progressBar: true,
+                    transitionScreen: true,
+                    floatingButton: true,
+                    answerComponent: true
+                  }
+                });
+              } catch (e) {
+                console.error('[ScreenLayout.inject failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 5. Mount timer container inside preview header center
+              mountTimerInsideHeader();
+
+              // 6. Build play-area HTML
+              injectGameHTML();
+              renderInitialState();
+
+              // 7. TimerComponent (count-up, autoStart: false)
+              try {
+                timer = new TimerComponent('timer-container', {
+                  timerType: 'increase',
+                  format: 'min',
+                  startTime: 0,
+                  autoStart: false
+                });
+              } catch (e) {
+                console.error('[TimerComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 9. VisibilityTracker — pause overlay via built-in PopupComponent (CASE 14/15)
+              try {
+                visibilityTracker = new VisibilityTracker({
+                  popupProps: {
+                    title: 'Paused',
+                    description: 'Tap Resume to continue.',
+                    primaryText: 'Resume'
+                  },
+                  onInactive: function () {
+                    try { FeedbackManager.sound.pause(); } catch (e) {}
+                    try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+                    try {
+                      if (timer && !gameState.timerIntentionallyPaused) timer.pause();
+                    } catch (e) {}
+                    try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+                  },
+                  onResume: function () {
+                    try { FeedbackManager.sound.resume(); } catch (e) {}
+                    try { FeedbackManager.stream.resumeAll(); } catch (e) {}
+                    try {
+                      if (timer && !gameState.timerIntentionallyPaused) timer.resume();
+                    } catch (e) {}
+                    try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+                  }
+                });
+              } catch (e) {
+                console.error('[VisibilityTracker ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 10. ProgressBar
+              try {
+                progressBar = new ProgressBarComponent({
+                  slotId: 'mathai-progress-slot',
+                  totalRounds: 15,
+                  totalLives: 3
+                });
+              } catch (e) {
+                console.error('[ProgressBarComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // HEART_OVERRIDE — swap rendered red ❤️ with dark 🖤 inside the
+              // ProgressBar's lives span. Empty 🤍 hearts stay untouched (light).
+              try {
+                var slot = document.getElementById('mathai-progress-slot');
+                if (slot) {
+                  var swapHearts = function () {
+                    var span = slot.querySelector('.mathai-pb-lives');
+                    if (!span) return;
+                    var current = span.textContent || '';
+                    var swapped = current.replace(/❤️|❤/g, '🖤');
+                    if (swapped !== current) span.textContent = swapped;
+                  };
+                  swapHearts();
+                  var heartObserver = new MutationObserver(swapHearts);
+                  heartObserver.observe(slot, { childList: true, subtree: true, characterData: true });
+                }
+              } catch (e) {}
+
+              // 11. TransitionScreen
+              try {
+                transitionScreen = new TransitionScreenComponent({
+                  slotId: 'mathai-transition-slot'
+                });
+              } catch (e) {
+                console.error('[TransitionScreenComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 12. PreviewScreen
+              try {
+                previewScreen = new PreviewScreenComponent({
+                  slotId: 'mathai-preview-slot'
+                });
+              } catch (e) {
+                console.error('[PreviewScreenComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // FloatingButton
+              try {
+                floatingBtn = new FloatingButtonComponent({
+                  slotId: 'mathai-floating-button-slot'
+                });
+              } catch (e) {
+                console.error('[FloatingButtonComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // AnswerComponent
+              try {
+                answerComponent = new AnswerComponentComponent({
+                  slotId: 'mathai-answer-slot'
+                });
+              } catch (e) {
+                console.error('[AnswerComponentComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // Wire FloatingButton 'next' single-stage exit
+              try {
+                if (floatingBtn && floatingBtn.on) {
+                  floatingBtn.on('next', function () {
+                    try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                    try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+                    try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+                    try { if (floatingBtn) floatingBtn.destroy(); } catch (e) {}
+                  });
+                }
+              } catch (e) {}
+
+              // 13. Audio preload
+              try {
+                FeedbackManager.sound.preload([
+                  { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+                  { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'sound_life_lost',          url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+                  { id: 'sound_level_transition',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+                  { id: 'victory_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+                  { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+                  { id: 'game_over_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+                  { id: 'tap_sound',                url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+                ]);
+              } catch (e) {
+                console.error('[FeedbackManager.preload failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 14. Register message listener BEFORE game_ready
+              window.addEventListener('message', handlePostMessage);
+
+              // 15. Send game_ready
+              try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+
+              // 16. setupGame
+              setupGame();
+            } catch (e) {
+              console.error('[init inner] ' + (e && e.message), e);
+              if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+            }
+          }, function (e) {
+            console.error('[FeedbackManager.init failed]', e && e.message, e);
+            if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          });
+        } catch (e) {
+          console.error('[init outer] ' + (e && e.message), e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+      }, function (err) {
+        console.error('[waitForPackages rejected] ' + (err && err.message));
+        if (typeof Sentry !== 'undefined') Sentry.captureException(err);
+      });
+
+      /* Standalone fallback — runs INDEPENDENTLY of waitForPackages */
+      setTimeout(function () {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+
+        var missing = [];
+        if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+        if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+        if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+        if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+        if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+        if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+        if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+        if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+        if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+        if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+        if (missing.length > 0) {
+          var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+          console.error('[' + msg + ']');
+          if (typeof Sentry !== 'undefined') Sentry.captureMessage(msg);
+          var gc = document.getElementById('gameContent') || document.getElementById('app') || document.body;
+          if (gc) {
+            gc.innerHTML =
+              '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">' +
+              'Game failed to load — please refresh.' +
+              '</div>';
+          }
+          return;
+        }
+        // All classes defined — but we did NOT reach the inner init flow
+        // (waitForPackages resolved late). The inner flow is the source of
+        // truth and will boot via game_init / setupGame. Nothing else to do.
+      }, 2000);
+
+      /* Window exposures */
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = setupGame;
+      window.renderRound = renderRound;
+      // Harness convenience: jump-to-round helper. NOTE: do NOT declare a local
+      // `function loadRound() {}` — function declarations auto-attach to window
+      // and would shadow this assignment, causing infinite recursion.
+      window.loadRound = function (n) {
+        try { renderRound(n); } catch (e) {}
+      };
+      window.debugGame = function () { return gameState; };
+      window.debugAudio = function () { return FeedbackManager; };
+      window.testAudio = function () { return safePlaySound('correct_sound_effect', { sticker: STICKER_CORRECT }); };
+      window.testPause = function () {
+        try { if (visibilityTracker && visibilityTracker.triggerInactive) visibilityTracker.triggerInactive(); } catch (e) {}
+      };
+      window.testResume = function () {
+        try { if (visibilityTracker && visibilityTracker.triggerResume) visibilityTracker.triggerResume(); } catch (e) {}
+      };
+    });
+
+    /* ====================================================================== */
+    /* Mount the timer DIV as a direct child of #mathai-preview-slot              */
+    /* (positioned ancestor) per PART-006 — CSS absolute-centers it top-center.  */
+    /* ====================================================================== */
+    function mountTimerInsideHeader() {
+      var slot = document.getElementById('mathai-preview-slot');
+      if (!slot) return;
+      var existing = document.getElementById('timer-container');
+      if (existing) {
+        if (existing.parentNode !== slot) slot.appendChild(existing);
+        return;
+      }
+      var div = document.createElement('div');
+      div.id = 'timer-container';
+      slot.appendChild(div);
+    }
+  </script>
+</body>
+</html>

@@ -136,17 +136,6 @@ function forbidPattern(pattern, description) {
   }
 }
 
-function hasPreviewScrollOwnerCss(source) {
-  const hasSlotLock =
-    /mathai-preview-slot[^{]*\{[^}]*height\s*:\s*100(?:dvh|vh|svh|lvh)/s.test(source) &&
-    /mathai-preview-slot[^{]*\{[^}]*overflow\s*:\s*hidden/s.test(source);
-  const hasBodyScrollOwner =
-    /mathai-preview-body[^{]*\{[^}]*height\s*:\s*100(?:dvh|vh|svh|lvh)/s.test(source) &&
-    /mathai-preview-body[^{]*\{[^}]*overflow-y\s*:\s*auto/s.test(source) &&
-    /mathai-preview-body[^{]*\{[^}]*-webkit-overflow-scrolling\s*:\s*touch/s.test(source);
-  return hasSlotLock && hasBodyScrollOwner;
-}
-
 function hasRootOverflowHiddenCss(source) {
   return /(?:html\s*,\s*body|body\s*,\s*html|html|body)\s*\{[^}]*overflow(?:-y)?\s*:\s*hidden/s.test(source);
 }
@@ -1129,16 +1118,12 @@ if (hasScreenLayoutRef && /ScreenLayout\s*\.\s*inject\s*\(/.test(html)) {
       );
     }
 
-    // Preview-wrapper compatibility block — required until the components bundle
-    // with the preview-body scroll-owner fix is deployed everywhere.
-    if (!hasPreviewScrollOwnerCss(html)) {
-      errors.push(
-        '5e0-SCROLL-OWNER: PreviewScreenComponent is used but the HTML does not include the preview-wrapper scroll compatibility CSS. ' +
-          'Add `#mathai-preview-slot{height:100dvh;overflow:hidden}` and ' +
-          '`#mathai-preview-slot .mathai-preview-body{height:100dvh;box-sizing:border-box;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}`. ' +
-          'In preview-wrapper mode, `.mathai-preview-body` must own vertical scrolling; do NOT rely on root-page scroll.'
-      );
-    }
+    // Scroll-owner compatibility CSS used to be required here. The components
+    // bundle now ships its own critical CSS that handles scroll for both
+    // mobile (inner body scroller) and desktop (document scroller, via a
+    // (hover:hover) and (pointer:fine) media-query branch). Per-game
+    // height/overflow rules are no longer needed and can fight with the
+    // package CSS — leave it to the package.
 
     // ScreenLayout v2 preview-wrapper mode DOES create #mathai-progress-slot
     // when slots.progressBar is truthy (see warehouse/packages/components/screen-layout/index.js
@@ -1402,7 +1387,9 @@ if (hasScreenLayoutRef && /ScreenLayout\s*\.\s*inject\s*\(/.test(html)) {
     //   #mathai-preview-slot.mur-preview-hidden #previewInstruction { display:none }  // CSS side is the violation
     // Scan every <style>...</style> block for `#<banned-id>` as a CSS selector token.
     // Note: `.mathai-preview-body` / `.mathai-preview-slot` in CSS are intentionally
-    // NOT banned here — `5e0-SCROLL-OWNER` REQUIRES that exact compat selector.
+    // NOT banned here — historically the scroll-owner compat block targeted them
+    // by selector. Scroll ownership now lives in the components bundle, but
+    // existing games still carry the rules and we do not want to flag them.
     const styleBlocks = html.match(/<style\b[^>]*>[\s\S]*?<\/style>/gi) || [];
     for (const block of styleBlocks) {
       for (const id of BANNED_IDS) {
@@ -2427,9 +2414,10 @@ if (hasClickHandlers) {
 
 // ─── 7b. Mobile viewport scrollability check ────────────────────────────────
 // body/html overflow hidden blocks mobile scroll unless preview-wrapper mode
-// has an explicit preview-body scroll owner.
+// is in use (the components bundle's mathai-preview-critical-css owns scroll
+// for both touch and desktop in that case).
 const usesPreviewWrapper = /previewScreen\s*:\s*true|PreviewScreenComponent/.test(html);
-if (hasRootOverflowHiddenCss(html) && !(usesPreviewWrapper && hasPreviewScrollOwnerCss(html))) {
+if (hasRootOverflowHiddenCss(html) && !usesPreviewWrapper) {
   warnings.push(
     'MOBILE-SCROLL: html/body has overflow hidden (including overflow-y:hidden) — game content may be unreachable on mobile (480×800). Use root vertical scrolling or an explicit overflow-y:auto content container instead',
   );

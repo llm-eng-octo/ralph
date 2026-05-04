@@ -1,0 +1,115 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Queens content",
+  "type": "object",
+  "required": [
+    "previewInstruction",
+    "previewAudioText",
+    "previewAudio",
+    "showGameOnPreview",
+    "totalRounds",
+    "totalLives",
+    "timer",
+    "answerComponent",
+    "rounds"
+  ],
+  "properties": {
+    "previewInstruction": { "type": "string" },
+    "previewAudioText": { "type": "string" },
+    "previewAudio": { "type": ["string", "null"] },
+    "showGameOnPreview": { "type": "boolean" },
+    "totalRounds": { "type": "integer" },
+    "totalLives": { "type": "integer" },
+    "timer": { "type": "boolean" },
+    "answerComponent": { "type": "boolean" },
+    "rounds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "set",
+          "id",
+          "round",
+          "stage",
+          "type",
+          "size",
+          "regions",
+          "paletteHex",
+          "glyph",
+          "ruleNumberingStyle",
+          "ruleMessages",
+          "solution",
+          "answer",
+          "paletteName",
+          "loadBearingRule",
+          "misconception_tags"
+        ],
+        "properties": {
+          "set": { "type": "string", "enum": ["A", "B", "C"] },
+          "id": { "type": "string" },
+          "round": { "type": "integer" },
+          "stage": { "type": "integer" },
+          "type": { "type": "string" },
+          "size": { "type": "integer" },
+          "regions": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { "type": "integer" }
+            }
+          },
+          "paletteHex": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "glyph": { "type": "string" },
+          "ruleNumberingStyle": { "type": "string", "enum": ["emoji", "plain"] },
+          "ruleMessages": {
+            "type": "object",
+            "required": ["row", "column", "region", "diagonal"],
+            "properties": {
+              "row": { "type": "string" },
+              "column": { "type": "string" },
+              "region": { "type": "string" },
+              "diagonal": { "type": "string" }
+            }
+          },
+          "solution": {
+            "type": "array",
+            "items": { "type": "integer" }
+          },
+          "answer": {
+            "type": "object",
+            "required": ["queens"],
+            "properties": {
+              "queens": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["r", "c"],
+                  "properties": {
+                    "r": { "type": "integer" },
+                    "c": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "paletteName": { "type": "string" },
+          "loadBearingRule": { "type": "string" },
+          "misconception_tags": {
+            "type": "object",
+            "required": ["row", "column", "region", "diagonal"],
+            "properties": {
+              "row": { "type": "string" },
+              "column": { "type": "string" },
+              "region": { "type": "string" },
+              "diagonal": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

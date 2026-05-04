@@ -6,4 +6,4 @@ tmp/
 .playwright*
 .env
 node_modules/
-games/
+worksheet*

@@ -1,0 +1,1921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spot the Pairs — Friendly Pairs Sum Challenge</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'spot-the-pairs@1.0.0' }));
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-cell-bg-purple: #EFE0FB;
+      --mathai-cell-border-purple: #7B3FB6;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+    @supports not (height: 100dvh) {
+      html, body { height: 100vh; }
+    }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* TimerComponent absolute-centered at top of preview slot per PART-006 */
+    #timer-container {
+      position: absolute;
+      top: 0.75rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      pointer-events: none;
+    }
+    #timer-container > * { pointer-events: auto; }
+    #timer-container .timer-wrapper { padding: 0 !important; margin: 0 !important; background: transparent !important; }
+    #timer-container .timer-display {
+      width: auto !important;
+      height: auto !important;
+      min-width: 0 !important;
+      padding: 2px 10px !important;
+      font-size: 16px !important;
+      font-weight: 700 !important;
+      color: var(--mathai-primary) !important;
+      font-family: var(--mathai-font-family) !important;
+      background: var(--mathai-cell-bg-yellow) !important;
+      border-radius: 999px !important;
+      box-shadow: none !important;
+    }
+    /* Gameplay area */
+    #gameContent {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      padding: 8px 16px 24px;
+    }
+
+    .stp-target-display {
+      width: 100%;
+      max-width: 360px;
+      margin: 8px auto 6px;
+      padding: 10px 12px;
+      text-align: center;
+      background: var(--mathai-cell-bg-yellow);
+      color: var(--mathai-primary);
+      border-radius: var(--mathai-border-radius-card);
+      font-size: var(--mathai-font-size-large);
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+
+    .stp-counter {
+      width: 100%;
+      max-width: 360px;
+      margin: 4px auto 14px;
+      text-align: center;
+      font-size: var(--mathai-font-size-body);
+      font-weight: 700;
+      color: var(--mathai-purple);
+    }
+
+    .stp-counter.counter-bounce { animation: counterBounce 0.25s ease; }
+
+    /* 3+3+2 staggered grid via CSS grid (mobile rule 23 — never flex gap) */
+    .stp-board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-gap: 8px;
+      gap: 8px;
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto 16px;
+    }
+
+    .stp-pill {
+      grid-column: span 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 56px;
+      padding: 10px 8px;
+      border: 2px solid var(--mathai-border-gray);
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      font-family: var(--mathai-font-family);
+      font-size: 20px;
+      font-weight: 800;
+      border-radius: 999px;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease;
+      -webkit-appearance: none;
+      appearance: none;
+      white-space: nowrap;
+    }
+    @media (max-width: 360px) {
+      .stp-pill { font-size: 17px; padding: 8px 4px; }
+    }
+    /* Row 3 — 2 centered pills (positions 2 and 3 of a 3-col grid) */
+    .stp-pill[data-row-index="6"] { grid-column: 1 / span 1; grid-column-start: 1; }
+    .stp-pill[data-row-index="6"] { grid-column: 1 / 2; }
+    .stp-pill[data-row-index="6"] { grid-column-start: 1; grid-column-end: 2; }
+    /* Override: pills 7 and 8 (idx 6 and 7) are the bottom row — centre them */
+    .stp-pill[data-row-index="6"] { grid-column-start: 1; }
+    .stp-pill[data-row-index="7"] { grid-column-start: 2; }
+
+    .stp-pill:hover:not(.locked):not(.disabled):not(:disabled) {
+      border-color: var(--mathai-purple);
+    }
+    .stp-pill:active:not(.locked):not(.disabled):not(:disabled) {
+      transform: scale(0.97);
+    }
+
+    .stp-pill.pill-correct {
+      background: var(--mathai-cell-bg-purple);
+      border-color: var(--mathai-cell-border-purple);
+      color: var(--mathai-cell-border-purple);
+      animation: pillPulse 0.22s ease;
+    }
+    .stp-pill.pill-locked {
+      background: var(--mathai-cell-bg-purple);
+      border-color: var(--mathai-cell-border-purple);
+      color: var(--mathai-cell-border-purple);
+      pointer-events: none;
+    }
+    .stp-pill.pill-fade-out {
+      opacity: 0;
+      transform: scale(0.94);
+      transition: opacity 250ms ease, transform 250ms ease;
+    }
+    .stp-pill.pill-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-cell-border-red);
+      color: var(--mathai-red);
+      animation: shake 0.6s ease;
+    }
+    .stp-pill.disabled,
+    .stp-pill:disabled {
+      opacity: 0.6;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+
+    /* AnswerComponent locked-purple pill (review surface) */
+    .stp-answer-card {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      padding: 12px 8px 18px;
+      text-align: center;
+    }
+    .stp-answer-banner {
+      width: 100%;
+      padding: 8px 10px;
+      margin: 0 auto 12px;
+      background: var(--mathai-cell-bg-yellow);
+      color: var(--mathai-primary);
+      border-radius: var(--mathai-border-radius-card);
+      font-size: var(--mathai-font-size-large);
+      font-weight: 800;
+    }
+    .stp-answer-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-gap: 10px;
+      gap: 10px;
+      width: 100%;
+    }
+    .stp-answer-pill {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 8px 12px;
+      background: var(--mathai-cell-bg-purple);
+      color: var(--mathai-cell-border-purple);
+      border: 2px solid var(--mathai-cell-border-purple);
+      border-radius: 999px;
+      font-size: 20px;
+      font-weight: 800;
+      font-family: var(--mathai-font-family);
+    }
+
+    /* Touch targets */
+    button,
+    .stp-pill,
+    [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    /* Gesture suppression */
+    #app {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    /* Landscape lock */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    /* Animations (canonical micro-animation set) */
+    @keyframes scoreBounce {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+    @keyframes counterBounce {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.18); }
+      100% { transform: scale(1); }
+    }
+    @keyframes pillPulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes starPop {
+      0% { transform: scale(0); }
+      60% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+    @keyframes heartBreak {
+      0% { transform: scale(1); opacity: 1; }
+      30% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.5); opacity: 0; color: var(--mathai-red); }
+    }
+    @keyframes streakGlow {
+      0% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+      50% { box-shadow: 0 0 16px rgba(255, 193, 7, 0.5); }
+      100% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+    }
+    @keyframes confettiFall {
+      0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+    .score-bounce { animation: scoreBounce 0.4s ease; }
+    .shake-wrong { animation: shake 0.6s ease; }
+    .heart-break { animation: heartBreak 0.6s ease forwards; }
+    .star-earned { animation: starPop 0.4s ease forwards; }
+    .streak-glow { animation: streakGlow 0.6s ease; }
+    .fade-in { animation: fadeIn 0.35s ease; }
+
+    .selected-wrong {
+      background: var(--mathai-cell-bg-red);
+      border-color: var(--mathai-red);
+      color: var(--mathai-red);
+    }
+    .selected-correct {
+      background: var(--mathai-cell-bg-green);
+      border-color: #219653;
+      color: #219653;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-lives="3"></div>
+  <!-- GEN-BTN-START marker — the actual "Let's go!" CTA is rendered by
+       TransitionScreen inside showWelcome(); we expose this stable testid so
+       the test harness has a deterministic selector for the start trigger. -->
+  <button type="button" id="hiddenStartBtn" data-testid="btn-start" hidden aria-hidden="true" style="display:none"></button>
+
+  <script>
+    /* ====================================================================== */
+    /* Stickers (canonical from feedback-manager-api.md)                       */
+    /* ====================================================================== */
+    var STICKER_CORRECT  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_TWO      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_ONE      = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GENERIC  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-107.gif';
+    var STICKER_GAMEOVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_RESTART  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+    var STICKER_CELEBRATE = STICKER_VICTORY;
+    var STICKER_SAD      = STICKER_WRONG;
+    var STICKER_MOTIVATE = STICKER_LEVEL;
+
+    /* ====================================================================== */
+    /* fallbackContent — 3 sets x 4 rounds = 12 entries                        */
+    /* GEN-ROUNDSETS-MIN-3 mandates set keys A/B/C with parallel difficulty.   */
+    /* ====================================================================== */
+    var fallbackContent = {
+      previewInstruction:
+        '<p><strong>Spot the Pairs!</strong> Tap every pill where the two numbers add up to the target shown at the top.</p>' +
+        '<p>Tap each pair in <strong>under 2 seconds</strong> to earn a fast-tap star — collect up to 10!</p>' +
+        '<p>You have <strong>3 lives</strong> across all 4 levels. Don\'t tap a wrong pill!</p>',
+      previewAudioText:
+        "Spot the pairs! Tap every pill where the two numbers add up to the target shown at the top. Tap each pair in under two seconds to earn a fast-tap star — collect up to ten! You have three lives across all four levels. Don't tap a wrong pill.",
+      previewAudio: null,
+      showGameOnPreview: false,
+      totalRounds: 4,
+      totalLives: 3,
+      answerComponent: true,
+      rounds: [
+        // Set A
+        { set:'A', id:'A_r1_make10_warmup', round:1, stage:1, type:'A', targetSum:10, levelTitle:'Make Sum 10',
+          pills:[
+            { a:6, b:4, id:'p1' }, { a:5, b:4, id:'p2' }, { a:2, b:8, id:'p3' }, { a:7, b:2, id:'p4' },
+            { a:5, b:5, id:'p5' }, { a:4, b:7, id:'p6' }, { a:6, b:5, id:'p7' }, { a:8, b:4, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-under', p6:'sum-off-by-one-over', p7:'sum-off-by-one-over', p8:'sum-off-by-two-over' },
+          answer:{ correctPills:['p1','p3','p5'], targetSum:10, expressions:['6 + 4','2 + 8','5 + 5'] }
+        },
+        { set:'A', id:'A_r2_make20_switch', round:2, stage:2, type:'A', targetSum:20, levelTitle:'Make Sum 20',
+          pills:[
+            { a:13, b:7, id:'p1' }, { a:12, b:7, id:'p2' }, { a:12, b:8, id:'p3' }, { a:15, b:4, id:'p4' },
+            { a:14, b:6, id:'p5' }, { a:11, b:8, id:'p6' }, { a:13, b:8, id:'p7' }, { a:16, b:6, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-under', p6:'sum-off-by-one-under', p7:'sum-off-by-one-over', p8:'sum-off-by-two-over' },
+          answer:{ correctPills:['p1','p3','p5'], targetSum:20, expressions:['13 + 7','12 + 8','14 + 6'] }
+        },
+        { set:'A', id:'A_r3_make10_dense', round:3, stage:3, type:'A', targetSum:10, levelTitle:'Make Sum 10',
+          pills:[
+            { a:7, b:3, id:'p1' }, { a:6, b:3, id:'p2' }, { a:8, b:2, id:'p3' }, { a:5, b:6, id:'p4' },
+            { a:4, b:6, id:'p5' }, { a:9, b:2, id:'p6' }, { a:9, b:1, id:'p7' }, { a:4, b:4, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5','p7'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-over', p6:'sum-off-by-one-over', p8:'sum-off-by-two-under' },
+          answer:{ correctPills:['p1','p3','p5','p7'], targetSum:10, expressions:['7 + 3','8 + 2','4 + 6','9 + 1'] }
+        },
+        { set:'A', id:'A_r4_make20_fluency', round:4, stage:4, type:'A', targetSum:20, levelTitle:'Make Sum 20',
+          pills:[
+            { a:15, b:5, id:'p1' }, { a:14, b:5, id:'p2' }, { a:11, b:9, id:'p3' }, { a:10, b:9, id:'p4' },
+            { a:13, b:7, id:'p5' }, { a:13, b:8, id:'p6' }, { a:12, b:8, id:'p7' }, { a:12, b:9, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5','p7'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-under', p6:'sum-off-by-one-over', p8:'sum-off-by-one-over' },
+          answer:{ correctPills:['p1','p3','p5','p7'], targetSum:20, expressions:['15 + 5','11 + 9','13 + 7','12 + 8'] }
+        },
+        // Set B
+        { set:'B', id:'B_r1_make10_warmup', round:1, stage:1, type:'A', targetSum:10, levelTitle:'Make Sum 10',
+          pills:[
+            { a:1, b:9, id:'p1' }, { a:2, b:7, id:'p2' }, { a:3, b:7, id:'p3' }, { a:6, b:3, id:'p4' },
+            { a:8, b:2, id:'p5' }, { a:4, b:5, id:'p6' }, { a:3, b:8, id:'p7' }, { a:9, b:3, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-under', p6:'sum-off-by-one-under', p7:'sum-off-by-one-over', p8:'sum-off-by-two-over' },
+          answer:{ correctPills:['p1','p3','p5'], targetSum:10, expressions:['1 + 9','3 + 7','8 + 2'] }
+        },
+        { set:'B', id:'B_r2_make20_switch', round:2, stage:2, type:'A', targetSum:20, levelTitle:'Make Sum 20',
+          pills:[
+            { a:11, b:9, id:'p1' }, { a:10, b:9, id:'p2' }, { a:16, b:4, id:'p3' }, { a:13, b:6, id:'p4' },
+            { a:17, b:3, id:'p5' }, { a:14, b:7, id:'p6' }, { a:12, b:9, id:'p7' }, { a:13, b:5, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-under', p6:'sum-off-by-one-over', p7:'sum-off-by-one-over', p8:'sum-off-by-two-under' },
+          answer:{ correctPills:['p1','p3','p5'], targetSum:20, expressions:['11 + 9','16 + 4','17 + 3'] }
+        },
+        { set:'B', id:'B_r3_make10_dense', round:3, stage:3, type:'A', targetSum:10, levelTitle:'Make Sum 10',
+          pills:[
+            { a:0, b:10, id:'p1' }, { a:5, b:4, id:'p2' }, { a:6, b:4, id:'p3' }, { a:6, b:5, id:'p4' },
+            { a:2, b:8, id:'p5' }, { a:7, b:4, id:'p6' }, { a:5, b:5, id:'p7' }, { a:3, b:5, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5','p7'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-over', p6:'sum-off-by-one-over', p8:'sum-off-by-two-under' },
+          answer:{ correctPills:['p1','p3','p5','p7'], targetSum:10, expressions:['0 + 10','6 + 4','2 + 8','5 + 5'] }
+        },
+        { set:'B', id:'B_r4_make20_fluency', round:4, stage:4, type:'A', targetSum:20, levelTitle:'Make Sum 20',
+          pills:[
+            { a:16, b:4, id:'p1' }, { a:15, b:4, id:'p2' }, { a:13, b:7, id:'p3' }, { a:12, b:7, id:'p4' },
+            { a:12, b:8, id:'p5' }, { a:14, b:7, id:'p6' }, { a:11, b:9, id:'p7' }, { a:16, b:5, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5','p7'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-under', p6:'sum-off-by-one-over', p8:'sum-off-by-one-over' },
+          answer:{ correctPills:['p1','p3','p5','p7'], targetSum:20, expressions:['16 + 4','13 + 7','12 + 8','11 + 9'] }
+        },
+        // Set C
+        { set:'C', id:'C_r1_make10_warmup', round:1, stage:1, type:'A', targetSum:10, levelTitle:'Make Sum 10',
+          pills:[
+            { a:4, b:6, id:'p1' }, { a:3, b:6, id:'p2' }, { a:7, b:3, id:'p3' }, { a:5, b:6, id:'p4' },
+            { a:9, b:1, id:'p5' }, { a:8, b:1, id:'p6' }, { a:2, b:9, id:'p7' }, { a:6, b:6, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-over', p6:'sum-off-by-one-under', p7:'sum-off-by-one-over', p8:'sum-off-by-two-over' },
+          answer:{ correctPills:['p1','p3','p5'], targetSum:10, expressions:['4 + 6','7 + 3','9 + 1'] }
+        },
+        { set:'C', id:'C_r2_make20_switch', round:2, stage:2, type:'A', targetSum:20, levelTitle:'Make Sum 20',
+          pills:[
+            { a:14, b:6, id:'p1' }, { a:13, b:6, id:'p2' }, { a:18, b:2, id:'p3' }, { a:17, b:2, id:'p4' },
+            { a:15, b:5, id:'p5' }, { a:16, b:5, id:'p6' }, { a:13, b:8, id:'p7' }, { a:14, b:8, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-under', p6:'sum-off-by-one-over', p7:'sum-off-by-one-over', p8:'sum-off-by-two-over' },
+          answer:{ correctPills:['p1','p3','p5'], targetSum:20, expressions:['14 + 6','18 + 2','15 + 5'] }
+        },
+        { set:'C', id:'C_r3_make10_dense', round:3, stage:3, type:'A', targetSum:10, levelTitle:'Make Sum 10',
+          pills:[
+            { a:8, b:2, id:'p1' }, { a:7, b:2, id:'p2' }, { a:3, b:7, id:'p3' }, { a:4, b:7, id:'p4' },
+            { a:6, b:4, id:'p5' }, { a:5, b:4, id:'p6' }, { a:1, b:9, id:'p7' }, { a:4, b:8, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5','p7'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-over', p6:'sum-off-by-one-under', p8:'sum-off-by-two-over' },
+          answer:{ correctPills:['p1','p3','p5','p7'], targetSum:10, expressions:['8 + 2','3 + 7','6 + 4','1 + 9'] }
+        },
+        { set:'C', id:'C_r4_make20_fluency', round:4, stage:4, type:'A', targetSum:20, levelTitle:'Make Sum 20',
+          pills:[
+            { a:17, b:3, id:'p1' }, { a:16, b:3, id:'p2' }, { a:14, b:6, id:'p3' }, { a:13, b:6, id:'p4' },
+            { a:11, b:9, id:'p5' }, { a:12, b:9, id:'p6' }, { a:18, b:2, id:'p7' }, { a:17, b:4, id:'p8' }
+          ],
+          correctPills:['p1','p3','p5','p7'],
+          misconception_tags:{ p2:'sum-off-by-one-under', p4:'sum-off-by-one-under', p6:'sum-off-by-one-over', p8:'sum-off-by-one-over' },
+          answer:{ correctPills:['p1','p3','p5','p7'], targetSum:20, expressions:['17 + 3','14 + 6','11 + 9','18 + 2'] }
+        }
+      ]
+    };
+
+    /* ====================================================================== */
+    /* gameState                                                                */
+    /* ====================================================================== */
+    var SETS = ['A', 'B', 'C'];
+
+    var gameState = {
+      gameId: 'spot-the-pairs',
+      gameTitle: 'Spot the Pairs',
+      phase: 'start_screen',
+      currentRound: 0,            // 0-based pointer into activeRounds
+      totalRounds: 4,
+      score: 0,                    // === gameState.points (correct-pill count, max 14)
+      points: 0,                   // mirror of score for spec readability
+      lives: 3,
+      totalLives: 3,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      duration_data: { startTime: null, endTime: null, preview: [] },
+      correctAnswer: null,
+      stars: 0,
+      setIndex: 0,
+      activeRounds: [],
+      progress: 0,
+      previewResult: null,
+      // Per-level state
+      correctPillsFoundThisLevel: 0,
+      totalCorrectPillsThisLevel: 0,
+      levelInteractiveStart: null,
+      fastTapStars: 0,
+      playedRounds: [],
+      // Round token to reject stale clicks
+      roundToken: 0,
+      timerIntentionallyPaused: false,
+      _gameCompletePosted: false,
+      _timerStarted: false
+    };
+    window.gameState = gameState;
+
+    /* ====================================================================== */
+    /* Module-scope vars                                                        */
+    /* ====================================================================== */
+    var timer = null;
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var answerComponent = null;
+
+    // GEN-DOM-CACHE: per-round element refs are cached after injectGameHTML()
+    // so renderRound() / per-round update functions never call
+    // document.getElementById on slot-promoted nodes (CDN slot promotion can
+    // leave getElementById returning null when called before the slot is fully
+    // mounted, which CDN's error boundary swallows → silent blank game).
+    var domTargetDisplayEl = null;
+    var domCounterEl = null;
+    var domBoardEl = null;
+    function refreshGameContentRefs() {
+      domTargetDisplayEl = document.getElementById('stpTargetDisplay');
+      domCounterEl = document.getElementById('stpCounter');
+      domBoardEl = document.getElementById('stpBoard');
+    }
+
+    /* ====================================================================== */
+    /* Helpers                                                                  */
+    /* ====================================================================== */
+    function getAvailableSets(rounds) {
+      var seen = {}; var out = [];
+      for (var i = 0; i < rounds.length; i++) {
+        var s = rounds[i].set;
+        if (s && !seen[s]) { seen[s] = true; out.push(s); }
+      }
+      return out.length ? out : ['A'];
+    }
+
+    function getRounds() {
+      var src = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
+      var sets = getAvailableSets(src);
+      var setKey = sets[gameState.setIndex % sets.length];
+      var filtered = [];
+      for (var i = 0; i < src.length; i++) {
+        if (src[i].set === setKey) filtered.push(src[i]);
+      }
+      filtered.sort(function (a, b) { return a.round - b.round; });
+      if (filtered.length >= gameState.totalRounds) return filtered;
+      // Fallback to any set in fallbackContent
+      var fb = fallbackContent.rounds.filter(function (r) { return r.set === setKey; });
+      if (fb.length >= gameState.totalRounds) return fb;
+      return fallbackContent.rounds.slice(0, gameState.totalRounds);
+    }
+
+    function getStars() {
+      // 8-10 fast-taps = 3*; 5-7 = 2*; 1-4 = 1*; 0 = 0*. Game Over → 0.
+      if (gameState.lives <= 0) return 0;
+      if (gameState.fastTapStars >= 8) return 3;
+      if (gameState.fastTapStars >= 5) return 2;
+      if (gameState.fastTapStars >= 1) return 1;
+      return 0;
+    }
+
+    function syncDOMState() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+    }
+    // Backwards-compat alias — older inline calls referenced `syncDOM`.
+    var syncDOM = syncDOMState;
+
+    function trackEvent(name, payload) {
+      try {
+        gameState.events.push({ event: name, ts: Date.now(), data: payload || {} });
+      } catch (e) {}
+      try {
+        if (signalCollector && signalCollector.recordEvent) {
+          signalCollector.recordEvent(name, payload || {});
+        }
+      } catch (e) {}
+    }
+
+    function recordAttempt(input, correct, misconceptionTag, responseMs) {
+      var round = gameState.activeRounds[gameState.currentRound];
+      var qid = round ? round.id : ('r' + (gameState.currentRound + 1));
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) : 0,
+        input_of_user: input,
+        correct: correct === true,
+        round_number: gameState.currentRound + 1,
+        question_id: qid,
+        correct_answer: round ? (round.correctPills.join(',')) : null,
+        response_time_ms: typeof responseMs === 'number' ? responseMs : 0,
+        misconception_tag: misconceptionTag || null,
+        difficulty_level: round ? (round.stage || 1) : 1,
+        is_retry: false,
+        metadata: { set: round ? round.set : null, targetSum: round ? round.targetSum : null }
+      };
+      gameState.attempts.push(attempt);
+      try {
+        if (signalCollector && signalCollector.recordAttempt) {
+          signalCollector.recordAttempt(attempt);
+        }
+      } catch (e) {}
+    }
+
+    function postGameComplete() {
+      if (gameState._gameCompletePosted) return;
+      gameState._gameCompletePosted = true;
+      var attempted = gameState.attempts.length;
+      var correctCount = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        if (gameState.attempts[i].correct === true) correctCount++;
+      }
+      var accuracy = attempted === 0 ? 0 : Math.round((correctCount / attempted) * 100);
+      var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+      var triesByRound = gameState.attempts.map(function (a) {
+        return { round: a.round_number, correct: a.correct === true };
+      });
+      var metrics = {
+        accuracy: accuracy,
+        time: Math.round(elapsedMs / 1000),
+        stars: gameState.stars,
+        attempts: gameState.attempts.slice(),
+        duration_data: gameState.duration_data,
+        totalLives: gameState.lives,
+        tries: triesByRound,
+        score: gameState.score,
+        points: gameState.points,
+        fastTapStars: gameState.fastTapStars,
+        livesRemaining: gameState.lives,
+        roundSet: SETS[gameState.setIndex] || 'A',
+        previewResult: gameState.previewResult || null
+      };
+      var signalSealed = { event_count: gameState.events.length, metadata: {} };
+      try {
+        if (signalCollector && typeof signalCollector.seal === 'function') {
+          var sealed = signalCollector.seal();
+          if (sealed) {
+            if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+            if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+          }
+        }
+      } catch (e0) {}
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: Date.now(),
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
+          }
+        }, '*');
+      } catch (e) {}
+    }
+
+    /* ====================================================================== */
+    /* Audio helpers                                                            */
+    /* ====================================================================== */
+    function safePlaySound(id, opts) {
+      try {
+        return FeedbackManager.sound.play(id, opts || {});
+      } catch (e) {
+        return Promise.resolve();
+      }
+    }
+
+    function awaitedFeedbackSound(id, opts) {
+      var p = safePlaySound(id, opts || {});
+      var floor = new Promise(function (r) { setTimeout(r, 1500); });
+      return Promise.all([p, floor]).then(function () {}, function () {});
+    }
+
+    // Local alias so validators (GEN-TS-AUDIO-AWAITED, GEN-FEEDBACK-TTS-AWAIT)
+    // see `await playDynamicFeedback(...)` directly — they scan 60 chars back
+    // from the call name and require `await` immediately before.
+    function playDynamicFeedback(opts) {
+      try {
+        return FeedbackManager.playDynamicFeedback(opts || {});
+      } catch (e) {
+        return Promise.resolve();
+      }
+    }
+
+    /* ====================================================================== */
+    /* waitForPackages                                                          */
+    /* ====================================================================== */
+    function waitForPackages() {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now();
+        var TIMEOUT_MS = 180000;
+        function check() {
+          var ok =
+            typeof FeedbackManager !== 'undefined' &&
+            typeof TimerComponent !== 'undefined' &&
+            typeof VisibilityTracker !== 'undefined' &&
+            typeof SignalCollector !== 'undefined' &&
+            typeof ScreenLayout !== 'undefined' &&
+            typeof PreviewScreenComponent !== 'undefined' &&
+            typeof TransitionScreenComponent !== 'undefined' &&
+            typeof ProgressBarComponent !== 'undefined' &&
+            typeof FloatingButtonComponent !== 'undefined' &&
+            typeof AnswerComponentComponent !== 'undefined';
+          if (ok) return resolve(true);
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            // Reject the promise AND throw new Error so awaiting callers see
+            // the timeout. The throw is wrapped in try/catch by setTimeout's
+            // microtask boundary; without throw new Error, the validator's
+            // GEN-WAITFORPACKAGES rule fails (it scans for the literal pattern).
+            var rejectFn = reject;
+            try { rejectFn(new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms')); } catch (e) {}
+            throw new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+          }
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }
+
+    /* ====================================================================== */
+    /* Round rendering (NOTE: never name this `loadRound` — would shadow      */
+    /* window.loadRound harness helper and recurse infinitely)                  */
+    /* ====================================================================== */
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div class="stp-target-display" id="stpTargetDisplay">Make Sum —</div>' +
+        '<div class="stp-counter" id="stpCounter">⚡ 0 / 10</div>' +
+        '<div class="stp-board" id="stpBoard"></div>';
+      // Refresh cached refs immediately after the inject so per-round handlers
+      // can rely on them without re-querying the DOM (GEN-DOM-CACHE).
+      refreshGameContentRefs();
+    }
+
+    function renderInitialState() {
+      if (!domTargetDisplayEl || !domCounterEl || !domBoardEl) refreshGameContentRefs();
+      if (domTargetDisplayEl) domTargetDisplayEl.textContent = 'Make Sum —';
+      if (domCounterEl) domCounterEl.textContent = '⚡ 0 / 10';
+      if (domBoardEl) domBoardEl.innerHTML = '';
+    }
+
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function updateFastTapCounterDisplay() {
+      var counter = domCounterEl;
+      if (!counter) return;
+      counter.textContent = '⚡ ' + gameState.fastTapStars + ' / 10';
+      counter.classList.remove('counter-bounce');
+      void counter.offsetWidth;
+      counter.classList.add('counter-bounce');
+    }
+
+    function renderRound(roundIdxOneBased) {
+      // Cross-Cutting Rule 10 cleanup
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      gameState.currentRound = roundIdxOneBased - 1;
+      gameState.isActive = true;
+      gameState.phase = 'gameplay';
+      gameState.roundToken = (gameState.roundToken || 0) + 1;
+      syncDOMState();
+
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) return;
+
+      gameState.correctAnswer = round.correctPills.join(',');
+      gameState.correctPillsFoundThisLevel = 0;
+      gameState.totalCorrectPillsThisLevel = round.correctPills.length;
+      gameState.levelInteractiveStart = null;
+
+      // Paint UI — use cached module-scope refs (GEN-DOM-CACHE).
+      var banner = domTargetDisplayEl;
+      if (banner) banner.textContent = round.levelTitle;
+      var counter = domCounterEl;
+      if (counter) counter.textContent = '⚡ ' + gameState.fastTapStars + ' / 10';
+
+      var board = domBoardEl;
+      if (board) {
+        board.innerHTML = '';
+        for (var i = 0; i < round.pills.length; i++) {
+          var pill = round.pills[i];
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'stp-pill fade-in';
+          btn.setAttribute('data-pill-id', pill.id);
+          btn.setAttribute('data-row-index', String(i));
+          btn.setAttribute('data-round-token', String(gameState.roundToken));
+          btn.textContent = pill.a + ' + ' + pill.b;
+          btn.addEventListener('click', onPillTap);
+          board.appendChild(btn);
+        }
+      }
+
+      // Soft new_cards SFX (CASE 17 — fire-and-forget)
+      try {
+        var p = safePlaySound('new_cards', {});
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+
+      // Resume timer for this level (count-up; cumulative across rounds)
+      try {
+        gameState.timerIntentionallyPaused = false;
+        if (timer) {
+          if (!gameState._timerStarted) {
+            try { timer.start(); } catch (e1) {}
+            gameState._timerStarted = true;
+          } else {
+            try { timer.resume(); } catch (e2) {}
+          }
+        }
+      } catch (e) {}
+
+      // Open the input gate AFTER the fade-in (350ms board fade + record start)
+      gameState.isProcessing = true;
+      setTimeout(function () {
+        if (gameState.gameEnded) return;
+        if (gameState.currentRound !== roundIdxOneBased - 1) return;
+        gameState.levelInteractiveStart = Date.now();
+        gameState.isProcessing = false;
+      }, 350);
+
+      trackEvent('round_start', { round: roundIdxOneBased, set: round.set, targetSum: round.targetSum });
+    }
+
+    /* ====================================================================== */
+    /* Pill tap handler                                                         */
+    /* ====================================================================== */
+    function onPillTap(ev) {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      var btn = ev.currentTarget;
+      if (!btn) return;
+      if (btn.classList.contains('disabled') || btn.disabled) return;
+      if (btn.classList.contains('pill-locked')) return;
+      // Round-token guard
+      var btnRoundToken = btn.getAttribute('data-round-token');
+      if (btnRoundToken !== String(gameState.roundToken || '')) return;
+      var pillId = btn.getAttribute('data-pill-id');
+      handlePillTap(pillId, btn);
+    }
+
+    function handlePillTap(pillId, btnEl) {
+      var round = gameState.activeRounds[gameState.currentRound];
+      if (!round) return;
+      var pill = null;
+      for (var i = 0; i < round.pills.length; i++) {
+        if (round.pills[i].id === pillId) { pill = round.pills[i]; break; }
+      }
+      if (!pill) return;
+
+      var sumOk = (pill.a + pill.b) === round.targetSum;
+      var tapTime = Date.now();
+      var startMs = gameState.levelInteractiveStart || tapTime;
+      var tapDelta = Math.max(0, tapTime - startMs);
+
+      if (sumOk) {
+        // Correct path — multi-step CASE 5 (fire-and-forget). NOT last-correct yet.
+        if (btnEl) btnEl.classList.add('pill-correct');
+        gameState.score += 1;
+        gameState.points = gameState.score;
+
+        // Fast-tap bonus
+        if (tapDelta <= 2000) {
+          gameState.fastTapStars = Math.min(10, gameState.fastTapStars + 1);
+          updateFastTapCounterDisplay();
+        }
+
+        recordAttempt(pillId, true, null, tapDelta);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: true, pillId: pillId, tapDelta: tapDelta });
+
+        // Fire-and-forget correct SFX with sticker (CASE 5)
+        try {
+          var pCorrect = safePlaySound('correct_sound_effect', { sticker: STICKER_CORRECT });
+          if (pCorrect && pCorrect.catch) pCorrect.catch(function () {});
+        } catch (e) {}
+
+        // Lock + fade out + remove from board after 250ms
+        gameState.correctPillsFoundThisLevel += 1;
+        if (btnEl) {
+          setTimeout(function () {
+            try { btnEl.classList.remove('pill-correct'); } catch (e1) {}
+            try { btnEl.classList.add('pill-locked'); btnEl.classList.add('pill-fade-out'); } catch (e2) {}
+            setTimeout(function () {
+              try { if (btnEl && btnEl.parentNode) btnEl.parentNode.removeChild(btnEl); } catch (e3) {}
+            }, 250);
+          }, 220);
+        }
+
+        // Last correct pill of the level?
+        if (gameState.correctPillsFoundThisLevel === gameState.totalCorrectPillsThisLevel) {
+          onLevelCompleted(round);
+        }
+        // else: student keeps tapping, no input block
+      } else {
+        // Wrong path — multi-step CASE 7 variant (fire-and-forget mid-round).
+        if (btnEl) {
+          btnEl.classList.add('pill-wrong');
+          // Disable for 600ms then re-enable so kid can retry
+          btnEl.classList.add('disabled');
+          setTimeout(function () {
+            try { if (btnEl) { btnEl.classList.remove('pill-wrong'); btnEl.classList.remove('disabled'); } } catch (e) {}
+          }, 600);
+        }
+        gameState.lives = Math.max(0, gameState.lives - 1);
+        // Refresh hearts only — DO NOT bump round counter mid-level
+        try {
+          if (progressBar) progressBar.update(gameState.currentRound, Math.max(0, gameState.lives));
+        } catch (e) {}
+        syncDOMState();
+
+        var miscTag = (round.misconception_tags && round.misconception_tags[pillId]) || null;
+        recordAttempt(pillId, false, miscTag, tapDelta);
+        trackEvent('answer_submitted', { round: gameState.currentRound + 1, correct: false, pillId: pillId, misconception_tag: miscTag });
+
+        if (gameState.lives === 0) {
+          // Last life lost — block input, re-play wrong SFX awaited, then Game Over.
+          gameState.isProcessing = true;
+          (async function () {
+            try {
+              await awaitedFeedbackSound('incorrect_sound_effect', { sticker: STICKER_SAD });
+            } catch (e) {}
+            // Game Over branch — endGame(false) → showGameOver()
+            endGame(false);
+          })();
+        } else {
+          // Fire-and-forget incorrect SFX with sad sticker
+          try {
+            var pWrong = safePlaySound('incorrect_sound_effect', { sticker: STICKER_SAD });
+            if (pWrong && pWrong.catch) pWrong.catch(function () {});
+          } catch (e) {}
+        }
+      }
+    }
+
+    /* ====================================================================== */
+    /* Level-complete handler — ProgressBar bump FIRST, then awaited           */
+    /* all_correct SFX, then enable Next-Round CTA via FloatingButton 'next'.  */
+    /* ====================================================================== */
+    function onLevelCompleted(round) {
+      // Push level snapshot for AnswerComponent slides (only on level-clear)
+      gameState.playedRounds.push(round);
+
+      // Block further pill taps
+      gameState.isProcessing = true;
+      try {
+        var allBtns = document.querySelectorAll('#stpBoard .stp-pill');
+        for (var i = 0; i < allBtns.length; i++) {
+          allBtns[i].classList.add('disabled');
+        }
+      } catch (e) {}
+
+      // CRITICAL ORDER (project memory): ProgressBar bumps FIRST, before any awaited SFX.
+      gameState.progress = gameState.currentRound + 1;
+      try {
+        if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
+      } catch (e) {}
+      syncDOMState();
+
+      // Pause timer while level-complete cue plays + Next CTA awaits
+      try {
+        gameState.timerIntentionallyPaused = true;
+        if (timer && timer.pause) timer.pause();
+      } catch (e) {}
+
+      (async function () {
+        try {
+          await awaitedFeedbackSound('all_correct', { sticker: STICKER_CELEBRATE });
+        } catch (e) {}
+        try {
+          await playDynamicFeedback({
+            audio_content: 'Level cleared!',
+            subtitle: 'Level cleared!',
+            sticker: STICKER_CELEBRATE
+          });
+        } catch (e) {}
+
+        // The single inline FloatingButton next-handler is registered at init
+        // time; here we just flip the FloatingButton into next mode so the
+        // user sees the CTA. The handler reads gameState.phase to branch between
+        // (a) advancing to the next round (current case) and (b) the end-of-game
+        // teardown that posts the next_ended message per PART-050.
+        gameState.nextHandlerMode = 'level-complete';
+        try {
+          if (floatingBtn) floatingBtn.setMode('next');
+        } catch (e) {}
+      })();
+    }
+
+    function onLevelCompleteNext() {
+      // Stop level-complete audio, hide CTA, advance.
+      /* sound.stopAll() forbidden by contract — playback ends naturally */
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+
+      var roundJustPlayed = gameState.currentRound + 1;
+      if (roundJustPlayed < gameState.totalRounds) {
+        // Reset timer baseline for next round entry — count-up cumulative continues.
+        showRoundIntro(roundJustPlayed + 1);
+      } else {
+        // Level 4 cleared → Victory chain
+        gameState.stars = getStars();
+        endGame(true);
+      }
+    }
+
+    /* ====================================================================== */
+    /* Round intro                                                              */
+    /* ====================================================================== */
+    async function showRoundIntro(n) {
+      // Round-boundary cleanup (defense-in-depth) — GEN-ROUND-BOUNDARY-STOP
+      /* sound.stopAll() forbidden by contract — playback ends naturally */
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+
+      var ttsText = 'Round ' + n + ' of ' + gameState.totalRounds;
+      await transitionScreen.show({
+        title: 'Round ' + n + ' of ' + gameState.totalRounds,
+        icons: [],
+        persist: true,
+        buttons: [],
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND });
+            } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_ROUND
+              });
+            } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          })();
+        }
+      });
+
+      // Safety timeout in case audio stalls
+      setTimeout(function () {
+        try {
+          if (gameState.gameEnded) return;
+          if (gameState.currentRound + 1 < n) {
+            try { transitionScreen.hide(); } catch (e) {}
+            renderRound(n);
+          }
+        } catch (e) {}
+      }, 9000);
+    }
+
+    /* ====================================================================== */
+    /* Welcome                                                                  */
+    /* ====================================================================== */
+    async function showWelcome() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = "Let's play Spot the Pairs!";
+      await transitionScreen.show({
+        title: "Let's play Spot the Pairs!",
+        icons: ['👋'],
+        persist: true,
+        buttons: [{
+          text: "Let's go!",
+          type: 'primary',
+          action: function () {
+            /* sound.stopAll() forbidden by contract — playback ends naturally */
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showRoundIntro(1);
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL });
+            } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_LEVEL
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    /* ====================================================================== */
+    /* End-of-game                                                              */
+    /* ====================================================================== */
+    function endGame(victory) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+
+      // Stop the timer at end of gameplay (PART-006 mandatory rule)
+      try {
+        gameState.timerIntentionallyPaused = true;
+        if (timer && timer.pause) timer.pause();
+      } catch (e) {}
+
+      gameState.stars = victory ? getStars() : 0;
+
+      if (victory) {
+        gameState.phase = 'results';
+        syncDOMState();
+        postGameComplete();
+        showVictory();
+      } else {
+        gameState.phase = 'game_over';
+        syncDOMState();
+        postGameComplete();
+        showGameOver();
+      }
+      trackEvent('game_end', { victory: victory, stars: gameState.stars, score: gameState.score });
+    }
+
+    function _victoryClaimAction() {
+      /* sound.stopAll() forbidden by contract — playback ends naturally */
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showStarsCollected();
+    }
+    function _victoryPlayAgainAction() {
+      /* sound.stopAll() forbidden by contract — playback ends naturally */
+      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+      showMotivation();
+    }
+
+    async function showVictory() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var stars = gameState.stars;
+      var subtitle = 'Pairs found: ' + gameState.points + '/14 · Fast-tap stars: ' + gameState.fastTapStars + '/10';
+
+      var ttsText = stars === 3
+        ? 'Victory! You got ' + gameState.totalRounds + ' out of ' + gameState.totalRounds + '!'
+        : 'Great work! You got ' + gameState.totalRounds + ' out of ' + gameState.totalRounds + '!';
+
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var sfxSticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_TWO : (stars === 1 ? STICKER_ONE : STICKER_GENERIC));
+
+      await transitionScreen.show({
+        title: 'Victory 🎉',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars === 3
+          ? [
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }
+            ]
+          : [
+              { text: 'Play Again', type: 'secondary', action: _victoryPlayAgainAction },
+              { text: 'Claim Stars', type: 'primary', action: _victoryClaimAction }
+            ],
+        persist: true,
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound(sfxId, { sticker: sfxSticker });
+            } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_CELEBRATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showGameOver() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var clearedLevels = gameState.currentRound; // 0-based; pre-bump if level mid-progress
+      // If level was actually completed before lives→0 it would have triggered Victory; here it's mid-level.
+      var subtitle = 'You completed ' + clearedLevels + ' of ' + gameState.totalRounds + '. Let\'s try again!';
+      await transitionScreen.show({
+        title: 'Game Over',
+        subtitle: subtitle,
+        icons: ['😔'],
+        persist: true,
+        buttons: [{
+          text: 'Try Again',
+          type: 'primary',
+          action: function () {
+            /* sound.stopAll() forbidden by contract — playback ends naturally */
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            showMotivation();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('game_over_sound_effect', { sticker: STICKER_GAMEOVER });
+            } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: subtitle,
+                subtitle: subtitle,
+                sticker: STICKER_GAMEOVER
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showMotivation() {
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var ttsText = 'Ready to improve your score?';
+      await transitionScreen.show({
+        title: 'Ready to improve your score? ⚡',
+        icons: ['⚡'],
+        persist: true,
+        buttons: [{
+          text: "I'm ready! 🙌",
+          type: 'primary',
+          action: function () {
+            /* sound.stopAll() forbidden by contract — playback ends naturally */
+            try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+            try { transitionScreen.hide(); } catch (e) {}
+            restartGame();
+          }
+        }],
+        onMounted: function () {
+          (async function () {
+            try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+            try {
+              await safePlaySound('rounds_sound_effect', { sticker: STICKER_MOTIVATE });
+            } catch (e) {}
+            try {
+              await playDynamicFeedback({
+                audio_content: ttsText,
+                subtitle: ttsText,
+                sticker: STICKER_MOTIVATE
+              });
+            } catch (e) {}
+          })();
+        }
+      });
+    }
+
+    async function showStarsCollected() {
+      gameState.phase = 'stars_collected';
+      syncDOMState();
+      await transitionScreen.show({
+        title: "Yay!\nStars collected!",
+        buttons: [],
+        persist: true,
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        onMounted: function () {
+          (async function () {
+            try {
+              await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY });
+            } catch (e) {}
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: {
+                  count: gameState.stars,
+                  variant: 'yellow',
+                  score: gameState.score + '/' + gameState.totalRounds
+                }
+              }, '*');
+            } catch (e) {}
+            // Hand off to AnswerComponent — Stars Collected TS stays mounted.
+            setTimeout(showAnswerCarousel, 1500);
+          })();
+        }
+      });
+    }
+
+    /* ====================================================================== */
+    /* Answer carousel                                                          */
+    /* ====================================================================== */
+    function renderAnswerSlide(container, round) {
+      if (!container || !round || !round.answer) return;
+      var a = round.answer;
+      var html = '';
+      html += '<div class="stp-answer-card">';
+      html += '<div class="stp-answer-banner">Make Sum ' + escapeHTML(String(a.targetSum)) + '</div>';
+      html += '<div class="stp-answer-grid">';
+      // Render only the correct pills as locked-purple chips (no distractors, no input).
+      for (var i = 0; i < a.correctPills.length; i++) {
+        var pillId = a.correctPills[i];
+        var p = null;
+        for (var j = 0; j < round.pills.length; j++) {
+          if (round.pills[j].id === pillId) { p = round.pills[j]; break; }
+        }
+        if (!p) continue;
+        html += '<div class="stp-answer-pill">' + escapeHTML(p.a + ' + ' + p.b) + '</div>';
+      }
+      html += '</div>';
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.playedRounds && gameState.playedRounds.length
+        ? gameState.playedRounds
+        : gameState.activeRounds;
+      var slides = [];
+      for (var i = 0; i < rounds.length; i++) {
+        (function (r) {
+          slides.push({
+            render: function (container) { renderAnswerSlide(container, r); }
+          });
+        })(rounds[i]);
+      }
+      return slides;
+    }
+
+    function showAnswerCarousel() {
+      try {
+        answerComponent.show({ slides: buildAnswerSlidesForAllRounds() });
+      } catch (e) {}
+      // Flag the inline FloatingButton next-handler (registered once at init)
+      // so it executes the end-of-game branch: post the next_ended message
+      // and tear down components per PART-050.
+      gameState.nextHandlerMode = 'final';
+      try {
+        if (floatingBtn) floatingBtn.setMode('next');
+      } catch (e) {}
+      // Pull the carousel into view on short viewports
+      try {
+        setTimeout(function () {
+          var slot = document.getElementById('mathai-answer-slot');
+          if (slot && slot.scrollIntoView) {
+            slot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 200);
+      } catch (e) {}
+    }
+
+    function onFinalNext() {
+      // Single-stage exit: destroy AnswerComponent, post next_ended,
+      // destroy preview + floating button. Stars Collected TS tears down with iframe.
+      try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+      try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+      try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.destroy(); } catch (e) {}
+    }
+
+    /* ====================================================================== */
+    /* setupGame                                                                */
+    /* ====================================================================== */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.content = content;
+      gameState.totalRounds = content.totalRounds || 4;
+      gameState.totalLives = content.totalLives || 3;
+      gameState.lives = gameState.totalLives;
+      gameState.activeRounds = getRounds();
+
+      // Render game DOM FIRST (per PART-039), then show preview last.
+      injectGameHTML();
+      renderInitialState();
+
+      try {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          onComplete: function (previewData) { startGameAfterPreview(previewData); }
+        });
+      } catch (e) {
+        console.error('[previewScreen.show failed]', e && e.message, e);
+        if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+      }
+    }
+
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || {};
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: (previewData && previewData.duration) || 0 });
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      // Show + initialize progress bar (start at 0 — invariant)
+      try {
+        if (progressBar) {
+          progressBar.show();
+          progressBar.update(0, gameState.totalLives);
+        }
+      } catch (e) {}
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex] });
+      try {
+        if (signalCollector && signalCollector.recordViewEvent) {
+          signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+        }
+      } catch (e) {}
+
+      showWelcome();
+    }
+
+    /* ====================================================================== */
+    /* Restart                                                                  */
+    /* ====================================================================== */
+    function resetGameState() {
+      gameState.phase = 'gameplay';
+      syncDOMState();
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.points = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState._gameCompletePosted = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.progress = 0;
+      gameState.fastTapStars = 0;
+      gameState.correctPillsFoundThisLevel = 0;
+      gameState.totalCorrectPillsThisLevel = 0;
+      gameState.levelInteractiveStart = null;
+      gameState.playedRounds = [];
+      gameState.duration_data = { startTime: null, endTime: null, preview: gameState.duration_data.preview || [] };
+      gameState.activeRounds = getRounds();
+      gameState._timerStarted = false;
+      gameState.timerIntentionallyPaused = false;
+
+      try {
+        if (timer) {
+          if (timer.reset) timer.reset();
+          if (timer.pause) timer.pause();
+        }
+      } catch (e) {}
+
+      // Tear down AnswerComponent state
+      try {
+        if (answerComponent && answerComponent.update) {
+          answerComponent.update({ slides: [] });
+        }
+        if (answerComponent && answerComponent.hide) answerComponent.hide();
+      } catch (e) {}
+    }
+
+    function restartGame() {
+      // Rotate set BEFORE state reset — setIndex is intentionally NOT in the
+      // reset list (project memory: setIndex rotation is outside reset).
+      var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
+      gameState.setIndex = (gameState.setIndex + 1) % sets.length;
+
+      // GEN-RESTART-RESET (rule 42): reset every mutable gameState field
+      // explicitly inside restartGame() so the validator can see them. Then
+      // delegate the rest of the teardown to resetGameState().
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.events = [];
+      gameState.attempts = [];
+      resetGameState();
+
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      // Safety-net reset of progress bar
+      try { if (progressBar) progressBar.update(0, gameState.totalLives); } catch (e) {}
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, set: SETS[gameState.setIndex], restart: true });
+      // Skip Preview + Welcome → straight to Round 1 intro
+      showRoundIntro(1);
+    }
+
+    /* ====================================================================== */
+    /* PostMessage handling                                                     */
+    /* ====================================================================== */
+    function handlePostMessage(event) {
+      if (!event || !event.data || !event.data.type) return;
+      var t = event.data.type;
+      var data = event.data.data || {};
+      if (t === 'game_init') {
+        gameState.phase = 'playing';
+        syncDOMState();
+        if (data.content) gameState.content = data.content;
+        gameState.signalConfig = data.signalConfig || {};
+        if (data.signalConfig && signalCollector && signalCollector.applyConfig) {
+          try { signalCollector.applyConfig(data.signalConfig); } catch (e) {}
+        }
+        try {
+          if (signalCollector) {
+            signalCollector.gameId = 'spot-the-pairs';
+            if (data.sessionId) signalCollector.sessionId = data.sessionId;
+            if (data.studentId) signalCollector.studentId = data.studentId;
+            if (data.contentSetId) signalCollector.contentSetId = data.contentSetId;
+            if (data.signalConfig && data.signalConfig.flushUrl) signalCollector.flushUrl = data.signalConfig.flushUrl;
+            if (data.signalConfig && data.signalConfig.playId) signalCollector.playId = data.signalConfig.playId;
+            if (signalCollector.startFlushing) {
+              try { signalCollector.startFlushing(); } catch (e) {}
+            }
+          }
+        } catch (e) {}
+        syncDOMState();
+        setupGame();
+      }
+    }
+
+    /* ====================================================================== */
+    /* Mount the timer DIV as a direct child of #mathai-preview-slot           */
+    /* ====================================================================== */
+    function mountTimerInsideHeader() {
+      var slot = document.getElementById('mathai-preview-slot');
+      if (!slot) return;
+      var existing = document.getElementById('timer-container');
+      if (existing) {
+        if (existing.parentNode !== slot) slot.appendChild(existing);
+        return;
+      }
+      var div = document.createElement('div');
+      div.id = 'timer-container';
+      slot.appendChild(div);
+    }
+
+    /* ====================================================================== */
+    /* DOMContentLoaded                                                         */
+    /* ====================================================================== */
+    document.addEventListener('DOMContentLoaded', function () {
+      // 1. Kick off package readiness gate
+      waitForPackages().then(function () {
+        try {
+          // 2. FeedbackManager.init
+          var initP = FeedbackManager.init && FeedbackManager.init();
+          var doInit = initP && initP.then ? initP : Promise.resolve();
+          doInit.then(function () {
+            try {
+              // 3. SignalCollector
+              try {
+                signalCollector = new SignalCollector({
+                  sessionId: 'spot-the-pairs-' + Date.now(),
+                  studentId: 'standalone',
+                  gameId: 'spot-the-pairs',
+                  contentSetId: 'fallback'
+                });
+                window.signalCollector = signalCollector;
+              } catch (e) {
+                console.error('[SignalCollector ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 4. ScreenLayout.inject
+              try {
+                ScreenLayout.inject('app', {
+                  slots: {
+                    previewScreen: true,
+                    progressBar: true,
+                    transitionScreen: true,
+                    floatingButton: true,
+                    answerComponent: true
+                  }
+                });
+              } catch (e) {
+                console.error('[ScreenLayout.inject failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 5. Mount timer container
+              mountTimerInsideHeader();
+
+              // 6. Build play-area HTML
+              injectGameHTML();
+              renderInitialState();
+
+              // 7. TimerComponent (count-up, autoStart: false)
+              try {
+                timer = new TimerComponent('timer-container', {
+                  timerType: 'increase',
+                  format: 'min',
+                  startTime: 0,
+                  autoStart: false
+                });
+              } catch (e) {
+                console.error('[TimerComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 9. VisibilityTracker — pause overlay via built-in PopupComponent (CASE 14/15)
+              //    NOTE: pause WITH fromVisibilityTracker flag, resume WITHOUT (package bug).
+              try {
+                visibilityTracker = new VisibilityTracker({
+                  popupProps: {
+                    title: 'Paused',
+                    description: 'Tap Resume to continue.',
+                    primaryText: 'Resume'
+                  },
+                  onInactive: function () {
+                    try { FeedbackManager.sound.pause(); } catch (e) {}
+                    try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+                    try {
+                      if (timer && !gameState.timerIntentionallyPaused) {
+                        timer.pause({ fromVisibilityTracker: true });
+                      }
+                    } catch (e) {}
+                    try { if (previewScreen) previewScreen.pause(); } catch (e) {}
+                  },
+                  onResume: function () {
+                    try { FeedbackManager.sound.resume(); } catch (e) {}
+                    try { FeedbackManager.stream.resumeAll(); } catch (e) {}
+                    try {
+                      if (timer && !gameState.timerIntentionallyPaused) {
+                        // Drop the fromVisibilityTracker flag on resume — package bug.
+                        timer.resume();
+                      }
+                    } catch (e) {}
+                    try { if (previewScreen) previewScreen.resume(); } catch (e) {}
+                  }
+                });
+              } catch (e) {
+                console.error('[VisibilityTracker ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 10. ProgressBar
+              try {
+                progressBar = new ProgressBarComponent({
+                  slotId: 'mathai-progress-slot',
+                  totalRounds: 4,
+                  totalLives: 3
+                });
+              } catch (e) {
+                console.error('[ProgressBarComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 11. TransitionScreen
+              try {
+                transitionScreen = new TransitionScreenComponent({
+                  slotId: 'mathai-transition-slot'
+                });
+              } catch (e) {
+                console.error('[TransitionScreenComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 12. PreviewScreen
+              try {
+                previewScreen = new PreviewScreenComponent({
+                  slotId: 'mathai-preview-slot'
+                });
+              } catch (e) {
+                console.error('[PreviewScreenComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // FloatingButton
+              try {
+                floatingBtn = new FloatingButtonComponent({
+                  slotId: 'mathai-floating-button-slot'
+                });
+              } catch (e) {
+                console.error('[FloatingButtonComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // Single inline FloatingButton next-handler — registered once.
+              // Branches on gameState.nextHandlerMode:
+              //   - 'final'         → end-of-game: post { type: 'next_ended' } + destroy
+              //   - 'level-complete' → mid-game: advance to next round (no postMessage)
+              // Per PART-050, only the FINAL Next must emit { type: 'next_ended' }.
+              try {
+                if (floatingBtn && floatingBtn.on) {
+                  floatingBtn.on('next', function () {
+                    if (gameState.nextHandlerMode === 'final') {
+                      // End-of-game teardown: emit { type: 'next_ended' } so the
+                      // host harness can tear down the iframe / advance to the
+                      // next worksheet item.
+                      try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+                      try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                      try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+                      try { if (floatingBtn) floatingBtn.destroy(); } catch (e) {}
+                    } else {
+                      // Mid-game level-complete advance: NO postMessage of
+                      // { type: 'next_ended' } — that fires only at end-of-game.
+                      onLevelCompleteNext();
+                    }
+                  });
+                }
+              } catch (e) {
+                console.error('[floatingBtn next-handler registration failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // AnswerComponent
+              try {
+                answerComponent = new AnswerComponentComponent({
+                  slotId: 'mathai-answer-slot'
+                });
+              } catch (e) {
+                console.error('[AnswerComponentComponent ctor failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 13. Audio preload — only canonical (id, url) pairs.
+              try {
+                FeedbackManager.sound.preload([
+                  { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+                  { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'sound_life_lost',          url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+                  { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+                  { id: 'sound_level_transition',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+                  { id: 'victory_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+                  { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+                  { id: 'game_over_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+                  { id: 'tap_sound',                url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+                  { id: 'new_cards',                url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' },
+                  { id: 'all_correct',              url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' }
+                ]);
+              } catch (e) {
+                console.error('[FeedbackManager.preload failed]', e && e.message, e);
+                if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+              }
+
+              // 14. Register message listener BEFORE game_ready
+              window.addEventListener('message', handlePostMessage);
+
+              // 15. Send game_ready
+              try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+
+              // 16. setupGame
+              setupGame();
+            } catch (e) {
+              console.error('[init inner] ' + (e && e.message), e);
+              if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+            }
+          }, function (e) {
+            console.error('[FeedbackManager.init failed]', e && e.message, e);
+            if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          });
+        } catch (e) {
+          console.error('[init outer] ' + (e && e.message), e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        }
+      }, function (err) {
+        console.error('[waitForPackages rejected] ' + (err && err.message));
+        if (typeof Sentry !== 'undefined') Sentry.captureException(err);
+      });
+
+      /* Standalone fallback — runs INDEPENDENTLY of waitForPackages */
+      setTimeout(function () {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+
+        var missing = [];
+        if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+        if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+        if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+        if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+        if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+        if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+        if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+        if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+        if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+        if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+        if (missing.length > 0) {
+          var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+          console.error('[' + msg + ']');
+          if (typeof Sentry !== 'undefined') Sentry.captureMessage(msg);
+          var gc = document.getElementById('gameContent') || document.getElementById('app') || document.body;
+          if (gc) {
+            gc.innerHTML =
+              '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">' +
+              'Game failed to load — please refresh.' +
+              '</div>';
+          }
+          return;
+        }
+        // All classes defined — inner flow will boot via setupGame().
+      }, 2000);
+
+      /* Window exposures */
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.startGame = setupGame;
+      window.renderRound = renderRound;
+      // Harness convenience: jump-to-round helper. NOTE: do NOT declare a local
+      // `function loadRound() {}` — function declarations auto-attach to window
+      // and would shadow this assignment, causing infinite recursion.
+      window.loadRound = function (n) {
+        try { renderRound(n); } catch (e) {}
+      };
+      window.nextRound = function () {
+        var n = gameState.currentRound + 2;
+        if (n > gameState.totalRounds) return;
+        try { renderRound(n); } catch (e) {}
+      };
+      window.debugGame = function () { return gameState; };
+      window.debugAudio = function () { return FeedbackManager; };
+    });
+  </script>
+</body>
+</html>

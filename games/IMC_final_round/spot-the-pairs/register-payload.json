@@ -1,0 +1,34 @@
+{
+  "name": "spot-the-pairs",
+  "version": "1.0.0-b1",
+  "metadata": {
+    "title": "Spot the Pairs — Friendly Pairs Sum Challenge",
+    "description": "Tap every pill on the 8-pill board whose two numbers add up to the level's target sum (10 or 20). Race to find each match within 2 seconds for a fast-tap star bonus while preserving 3 shared lives across 4 levels. Number-bond fluency for Class 1–3.",
+    "concepts": [
+      "number-bonds-to-10",
+      "number-bonds-to-20",
+      "addition",
+      "number-operations",
+      "fluency",
+      "visual-scanning",
+      "inhibition"
+    ],
+    "difficulty": "medium",
+    "estimatedTime": 300,
+    "minGrade": 1,
+    "maxGrade": 3,
+    "type": "practice"
+  },
+  "capabilities": {
+    "tracks": ["accuracy", "time", "stars"],
+    "provides": ["score", "stars"]
+  },
+  "inputSchema": "<INLINE inputSchema.json HERE — see DEPLOY-README.md curl example for how to expand>",
+  "artifactContent": "<INLINE full HTML string of index.html HERE — see DEPLOY-README.md curl example>",
+  "publishedBy": "alfred-pipeline",
+  "_notes": {
+    "schemaSource": "./inputSchema.json",
+    "artifactSource": "./index.html",
+    "instructions": "The placeholders for inputSchema and artifactContent must be replaced with the actual JSON-stringified file contents at deploy time. See DEPLOY-README.md for jq-based curl recipes."
+  }
+}

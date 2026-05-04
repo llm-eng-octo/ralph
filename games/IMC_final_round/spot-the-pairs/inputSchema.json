@@ -1,0 +1,152 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Spot the Pairs — Content Set",
+  "type": "object",
+  "required": [
+    "previewInstruction",
+    "previewAudioText",
+    "previewAudio",
+    "showGameOnPreview",
+    "totalRounds",
+    "totalLives",
+    "answerComponent",
+    "rounds"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "previewInstruction": {
+      "type": "string",
+      "description": "HTML markup shown on the PreviewScreen before the game starts."
+    },
+    "previewAudioText": {
+      "type": "string",
+      "description": "Plain-text version of the preview instruction. Used by the TTS pipeline at deploy time."
+    },
+    "previewAudio": {
+      "type": ["string", "null"],
+      "description": "CDN URL of the synthesised preview audio. null is allowed (PreviewScreen falls back to runtime TTS)."
+    },
+    "showGameOnPreview": {
+      "type": "boolean",
+      "description": "Whether to render the gameplay surface behind the preview overlay. Always false for this game."
+    },
+    "totalRounds": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of rounds (levels) per playthrough. Must equal 4 for this game."
+    },
+    "totalLives": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Total lives shared across all rounds."
+    },
+    "answerComponent": {
+      "type": "boolean",
+      "description": "Whether the AnswerComponent (post-game answer carousel) is enabled."
+    },
+    "rounds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "set",
+          "id",
+          "round",
+          "stage",
+          "type",
+          "targetSum",
+          "levelTitle",
+          "pills",
+          "correctPills",
+          "misconception_tags",
+          "answer"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "set": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Round-set key. Game expects at least 3 distinct set values (e.g. A, B, C) per GEN-ROUNDSETS-MIN-3."
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stable, unique question_id. Used by the gauge skill for cross-session analytics."
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based round number within the set."
+          },
+          "stage": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Logical stage index (matches round in this game)."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["A"],
+            "description": "Round-mechanic type. Only Type A (tap-all-correct-pairs) is implemented."
+          },
+          "targetSum": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Target sum the student must hit by tapping correct pills (e.g. 10 or 20)."
+          },
+          "levelTitle": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Banner shown above the board, e.g. 'Make Sum 10'."
+          },
+          "pills": {
+            "type": "array",
+            "minItems": 1,
+            "description": "All pills shown on the board. Each pill is a + b. The game hard-codes an 8-pill grid; content sets that need more or fewer must alter the layout.",
+            "items": {
+              "type": "object",
+              "required": ["a", "b", "id"],
+              "additionalProperties": false,
+              "properties": {
+                "a": { "type": "integer", "description": "First addend on the pill." },
+                "b": { "type": "integer", "description": "Second addend on the pill." },
+                "id": { "type": "string", "minLength": 1, "description": "Pill identifier (e.g. 'p1'). Must be unique within the round." }
+              }
+            }
+          },
+          "correctPills": {
+            "type": "array",
+            "minItems": 1,
+            "description": "IDs of pills where a + b === targetSum.",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "misconception_tags": {
+            "type": "object",
+            "description": "Map of pill id → misconception tag for every non-correct (distractor) pill on the board.",
+            "additionalProperties": { "type": "string", "minLength": 1 }
+          },
+          "answer": {
+            "type": "object",
+            "required": ["correctPills", "targetSum", "expressions"],
+            "additionalProperties": false,
+            "description": "Mirror of the round's solved state used by AnswerComponent.renderAnswerForRound.",
+            "properties": {
+              "correctPills": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "targetSum": { "type": "integer", "minimum": 1 },
+              "expressions": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 },
+                "description": "Human-readable list of correct expressions (e.g. '6 + 4')."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
