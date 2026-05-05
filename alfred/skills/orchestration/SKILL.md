@@ -164,6 +164,9 @@ STEP 4 — Build the Game [SUB-AGENT]
 Read alfred/skills/game-building/SKILL.md
 Read alfred/skills/data-contract/SKILL.md
 Read alfred/skills/mobile/SKILL.md
+
+Read alfred/skills/interaction/SKILL.md (mandatory: identify the game's interaction type from the approved spec + archetype, match it to one of the 17 canonical patterns in § Full Pattern Inventory, then load ONLY the pattern file(s) listed under § Reference Files for that pattern. The build sub-agent's final report MUST name the chosen pattern (e.g. "P6 Drag-and-Drop", "P1 Tap-Select Single") and the pattern file(s) it loaded. If the spec's interaction doesn't cleanly map to any of the 17 patterns, stop and AskUserQuestion before improvising — do NOT hand-roll a substitute.)
+
 Read alfred/skills/feedback/SKILL.md (mandatory: § Pre-flight: feedback primitive selection AND § Composition with screen primitives — the build sub-agent's final report MUST include the filled-in primitive-selection table from the Pre-flight section, with one row per feedback moment in the spec. If a moment doesn't match any row in § Composition, follow the § "When a feedback moment isn't on the table" policy: AskUserQuestion before rolling custom DOM; auto-approve = REJECT = fall back to closest matching row.)
 Read alfred/parts/PART-039-preview-screen.md  (authoritative PreviewScreen spec — MANDATORY in every game)
 Read alfred/parts/PART-051.md  (authoritative AnswerComponent spec — MANDATORY unless spec declares `answerComponent: false`. NOTE: `answerComponent: false` is a CREATOR-ONLY opt-out — no LLM step may auto-default it. If a spec arrives at step 4 with `answerComponent: false` lacking quoted creator opt-out, send it back to step 2.)
