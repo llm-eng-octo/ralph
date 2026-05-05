@@ -1,0 +1,1586 @@
+{
+  "previewInstruction": "<p><b>Tap the double!</b> Bigger numbers this time — pick the right double fast. Three dark hearts, fifteen rounds.</p><p>Harder band: numbers up to forty, lots of cross-decade doubles. Aim under <b>2 seconds</b> per double for <b>3 stars</b>.</p>",
+  "previewAudioText": "See a number, then tap its double. Numbers go up to forty, and many cross a ten. Try to answer in under two seconds for three stars. You have three lives.",
+  "previewAudio": null,
+  "showGameOnPreview": false,
+  "totalRounds": 15,
+  "totalLives": 3,
+  "answerComponent": true,
+  "rounds": [
+    {
+      "set": "A",
+      "id": "A_r1_double-18",
+      "round": 1,
+      "stage": 1,
+      "type": "A",
+      "n": 18,
+      "prompt": "Double of 18",
+      "options": [
+        36,
+        28,
+        35
+      ],
+      "correctIndex": 0,
+      "correctValue": 36,
+      "correctTTS": "Nice — double of 18 is 36.",
+      "correctSubtitle": "Double of 18 is 36.",
+      "wrongTTS": "Double of 18 is 36.",
+      "wrongSubtitle": "Double of 18 is 36.",
+      "misconception_tags": {
+        "28": "added-10-instead-of-doubled",
+        "35": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 18",
+        "options": [
+          36,
+          28,
+          35
+        ],
+        "correctIndex": 0,
+        "correctValue": 36,
+        "explanation": "Double of 18 is 36"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r2_double-19",
+      "round": 2,
+      "stage": 1,
+      "type": "A",
+      "n": 19,
+      "prompt": "Double of 19",
+      "options": [
+        38,
+        39,
+        29
+      ],
+      "correctIndex": 0,
+      "correctValue": 38,
+      "correctTTS": "Nice — double of 19 is 38.",
+      "correctSubtitle": "Double of 19 is 38.",
+      "wrongTTS": "Double of 19 is 38.",
+      "wrongSubtitle": "Double of 19 is 38.",
+      "misconception_tags": {
+        "29": "added-10-instead-of-doubled",
+        "39": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 19",
+        "options": [
+          38,
+          39,
+          29
+        ],
+        "correctIndex": 0,
+        "correctValue": 38,
+        "explanation": "Double of 19 is 38"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r3_double-20",
+      "round": 3,
+      "stage": 1,
+      "type": "A",
+      "n": 20,
+      "prompt": "Double of 20",
+      "options": [
+        40,
+        30,
+        39
+      ],
+      "correctIndex": 0,
+      "correctValue": 40,
+      "correctTTS": "Nice — double of 20 is 40.",
+      "correctSubtitle": "Double of 20 is 40.",
+      "wrongTTS": "Double of 20 is 40.",
+      "wrongSubtitle": "Double of 20 is 40.",
+      "misconception_tags": {
+        "30": "added-10-instead-of-doubled",
+        "39": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 20",
+        "options": [
+          40,
+          30,
+          39
+        ],
+        "correctIndex": 0,
+        "correctValue": 40,
+        "explanation": "Double of 20 is 40"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r4_double-21",
+      "round": 4,
+      "stage": 1,
+      "type": "A",
+      "n": 21,
+      "prompt": "Double of 21",
+      "options": [
+        42,
+        41,
+        31
+      ],
+      "correctIndex": 0,
+      "correctValue": 42,
+      "correctTTS": "Nice — double of 21 is 42.",
+      "correctSubtitle": "Double of 21 is 42.",
+      "wrongTTS": "Double of 21 is 42.",
+      "wrongSubtitle": "Double of 21 is 42.",
+      "misconception_tags": {
+        "31": "added-10-instead-of-doubled",
+        "41": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 21",
+        "options": [
+          42,
+          41,
+          31
+        ],
+        "correctIndex": 0,
+        "correctValue": 42,
+        "explanation": "Double of 21 is 42"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r5_double-22",
+      "round": 5,
+      "stage": 1,
+      "type": "A",
+      "n": 22,
+      "prompt": "Double of 22",
+      "options": [
+        44,
+        32,
+        45
+      ],
+      "correctIndex": 0,
+      "correctValue": 44,
+      "correctTTS": "Nice — double of 22 is 44.",
+      "correctSubtitle": "Double of 22 is 44.",
+      "wrongTTS": "Double of 22 is 44.",
+      "wrongSubtitle": "Double of 22 is 44.",
+      "misconception_tags": {
+        "32": "added-10-instead-of-doubled",
+        "45": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 22",
+        "options": [
+          44,
+          32,
+          45
+        ],
+        "correctIndex": 0,
+        "correctValue": 44,
+        "explanation": "Double of 22 is 44"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r6_double-23",
+      "round": 6,
+      "stage": 2,
+      "type": "A",
+      "n": 23,
+      "prompt": "Double of 23",
+      "options": [
+        46,
+        33,
+        45
+      ],
+      "correctIndex": 0,
+      "correctValue": 46,
+      "correctTTS": "Nice — double of 23 is 46.",
+      "correctSubtitle": "Double of 23 is 46.",
+      "wrongTTS": "Double of 23 is 46.",
+      "wrongSubtitle": "Double of 23 is 46.",
+      "misconception_tags": {
+        "33": "added-10-instead-of-doubled",
+        "45": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 23",
+        "options": [
+          46,
+          33,
+          45
+        ],
+        "correctIndex": 0,
+        "correctValue": 46,
+        "explanation": "Double of 23 is 46"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r7_double-24",
+      "round": 7,
+      "stage": 2,
+      "type": "A",
+      "n": 24,
+      "prompt": "Double of 24",
+      "options": [
+        48,
+        49,
+        34
+      ],
+      "correctIndex": 0,
+      "correctValue": 48,
+      "correctTTS": "Nice — double of 24 is 48.",
+      "correctSubtitle": "Double of 24 is 48.",
+      "wrongTTS": "Double of 24 is 48.",
+      "wrongSubtitle": "Double of 24 is 48.",
+      "misconception_tags": {
+        "34": "added-10-instead-of-doubled",
+        "49": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 24",
+        "options": [
+          48,
+          49,
+          34
+        ],
+        "correctIndex": 0,
+        "correctValue": 48,
+        "explanation": "Double of 24 is 48"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r8_double-25",
+      "round": 8,
+      "stage": 2,
+      "type": "A",
+      "n": 25,
+      "prompt": "Double of 25",
+      "options": [
+        50,
+        35,
+        52
+      ],
+      "correctIndex": 0,
+      "correctValue": 50,
+      "correctTTS": "Nice — double of 25 is 50.",
+      "correctSubtitle": "Double of 25 is 50.",
+      "wrongTTS": "Double of 25 is 50.",
+      "wrongSubtitle": "Double of 25 is 50.",
+      "misconception_tags": {
+        "35": "added-10-instead-of-doubled",
+        "52": "off-by-two"
+      },
+      "answer": {
+        "prompt": "Double of 25",
+        "options": [
+          50,
+          35,
+          52
+        ],
+        "correctIndex": 0,
+        "correctValue": 50,
+        "explanation": "Double of 25 is 50"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r9_double-27",
+      "round": 9,
+      "stage": 2,
+      "type": "A",
+      "n": 27,
+      "prompt": "Double of 27",
+      "options": [
+        54,
+        53,
+        37
+      ],
+      "correctIndex": 0,
+      "correctValue": 54,
+      "correctTTS": "Nice — double of 27 is 54.",
+      "correctSubtitle": "Double of 27 is 54.",
+      "wrongTTS": "Double of 27 is 54.",
+      "wrongSubtitle": "Double of 27 is 54.",
+      "misconception_tags": {
+        "37": "added-10-instead-of-doubled",
+        "53": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 27",
+        "options": [
+          54,
+          53,
+          37
+        ],
+        "correctIndex": 0,
+        "correctValue": 54,
+        "explanation": "Double of 27 is 54"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r10_double-28",
+      "round": 10,
+      "stage": 2,
+      "type": "A",
+      "n": 28,
+      "prompt": "Double of 28",
+      "options": [
+        56,
+        38,
+        57
+      ],
+      "correctIndex": 0,
+      "correctValue": 56,
+      "correctTTS": "Nice — double of 28 is 56.",
+      "correctSubtitle": "Double of 28 is 56.",
+      "wrongTTS": "Double of 28 is 56.",
+      "wrongSubtitle": "Double of 28 is 56.",
+      "misconception_tags": {
+        "38": "added-10-instead-of-doubled",
+        "57": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 28",
+        "options": [
+          56,
+          38,
+          57
+        ],
+        "correctIndex": 0,
+        "correctValue": 56,
+        "explanation": "Double of 28 is 56"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r11_double-29",
+      "round": 11,
+      "stage": 3,
+      "type": "A",
+      "n": 29,
+      "prompt": "Double of 29",
+      "options": [
+        58,
+        39,
+        57
+      ],
+      "correctIndex": 0,
+      "correctValue": 58,
+      "correctTTS": "Nice — double of 29 is 58.",
+      "correctSubtitle": "Double of 29 is 58.",
+      "wrongTTS": "Double of 29 is 58.",
+      "wrongSubtitle": "Double of 29 is 58.",
+      "misconception_tags": {
+        "39": "added-10-instead-of-doubled",
+        "57": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 29",
+        "options": [
+          58,
+          39,
+          57
+        ],
+        "correctIndex": 0,
+        "correctValue": 58,
+        "explanation": "Double of 29 is 58"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r12_double-31",
+      "round": 12,
+      "stage": 3,
+      "type": "A",
+      "n": 31,
+      "prompt": "Double of 31",
+      "options": [
+        62,
+        72,
+        63
+      ],
+      "correctIndex": 0,
+      "correctValue": 62,
+      "correctTTS": "Nice — double of 31 is 62.",
+      "correctSubtitle": "Double of 31 is 62.",
+      "wrongTTS": "Double of 31 is 62.",
+      "wrongSubtitle": "Double of 31 is 62.",
+      "misconception_tags": {
+        "63": "off-by-one",
+        "72": "added-10-instead-of-doubled"
+      },
+      "answer": {
+        "prompt": "Double of 31",
+        "options": [
+          62,
+          72,
+          63
+        ],
+        "correctIndex": 0,
+        "correctValue": 62,
+        "explanation": "Double of 31 is 62"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r13_double-33",
+      "round": 13,
+      "stage": 3,
+      "type": "A",
+      "n": 33,
+      "prompt": "Double of 33",
+      "options": [
+        66,
+        43,
+        65
+      ],
+      "correctIndex": 0,
+      "correctValue": 66,
+      "correctTTS": "Nice — double of 33 is 66.",
+      "correctSubtitle": "Double of 33 is 66.",
+      "wrongTTS": "Double of 33 is 66.",
+      "wrongSubtitle": "Double of 33 is 66.",
+      "misconception_tags": {
+        "43": "added-10-instead-of-doubled",
+        "65": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 33",
+        "options": [
+          66,
+          43,
+          65
+        ],
+        "correctIndex": 0,
+        "correctValue": 66,
+        "explanation": "Double of 33 is 66"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r14_double-35",
+      "round": 14,
+      "stage": 3,
+      "type": "A",
+      "n": 35,
+      "prompt": "Double of 35",
+      "options": [
+        70,
+        71,
+        80
+      ],
+      "correctIndex": 0,
+      "correctValue": 70,
+      "correctTTS": "Nice — double of 35 is 70.",
+      "correctSubtitle": "Double of 35 is 70.",
+      "wrongTTS": "Double of 35 is 70.",
+      "wrongSubtitle": "Double of 35 is 70.",
+      "misconception_tags": {
+        "71": "off-by-one",
+        "80": "added-10-instead-of-doubled"
+      },
+      "answer": {
+        "prompt": "Double of 35",
+        "options": [
+          70,
+          71,
+          80
+        ],
+        "correctIndex": 0,
+        "correctValue": 70,
+        "explanation": "Double of 35 is 70"
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r15_double-38",
+      "round": 15,
+      "stage": 3,
+      "type": "A",
+      "n": 38,
+      "prompt": "Double of 38",
+      "options": [
+        76,
+        48,
+        75
+      ],
+      "correctIndex": 0,
+      "correctValue": 76,
+      "correctTTS": "Nice — double of 38 is 76.",
+      "correctSubtitle": "Double of 38 is 76.",
+      "wrongTTS": "Double of 38 is 76.",
+      "wrongSubtitle": "Double of 38 is 76.",
+      "misconception_tags": {
+        "48": "added-10-instead-of-doubled",
+        "75": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 38",
+        "options": [
+          76,
+          48,
+          75
+        ],
+        "correctIndex": 0,
+        "correctValue": 76,
+        "explanation": "Double of 38 is 76"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r1_double-19",
+      "round": 1,
+      "stage": 1,
+      "type": "A",
+      "n": 19,
+      "prompt": "Double of 19",
+      "options": [
+        38,
+        29,
+        37
+      ],
+      "correctIndex": 0,
+      "correctValue": 38,
+      "correctTTS": "Nice — double of 19 is 38.",
+      "correctSubtitle": "Double of 19 is 38.",
+      "wrongTTS": "Double of 19 is 38.",
+      "wrongSubtitle": "Double of 19 is 38.",
+      "misconception_tags": {
+        "29": "added-10-instead-of-doubled",
+        "37": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 19",
+        "options": [
+          38,
+          29,
+          37
+        ],
+        "correctIndex": 0,
+        "correctValue": 38,
+        "explanation": "Double of 19 is 38"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r2_double-21",
+      "round": 2,
+      "stage": 1,
+      "type": "A",
+      "n": 21,
+      "prompt": "Double of 21",
+      "options": [
+        42,
+        43,
+        31
+      ],
+      "correctIndex": 0,
+      "correctValue": 42,
+      "correctTTS": "Nice — double of 21 is 42.",
+      "correctSubtitle": "Double of 21 is 42.",
+      "wrongTTS": "Double of 21 is 42.",
+      "wrongSubtitle": "Double of 21 is 42.",
+      "misconception_tags": {
+        "31": "added-10-instead-of-doubled",
+        "43": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 21",
+        "options": [
+          42,
+          43,
+          31
+        ],
+        "correctIndex": 0,
+        "correctValue": 42,
+        "explanation": "Double of 21 is 42"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r3_double-18",
+      "round": 3,
+      "stage": 1,
+      "type": "A",
+      "n": 18,
+      "prompt": "Double of 18",
+      "options": [
+        36,
+        28,
+        35
+      ],
+      "correctIndex": 0,
+      "correctValue": 36,
+      "correctTTS": "Nice — double of 18 is 36.",
+      "correctSubtitle": "Double of 18 is 36.",
+      "wrongTTS": "Double of 18 is 36.",
+      "wrongSubtitle": "Double of 18 is 36.",
+      "misconception_tags": {
+        "28": "added-10-instead-of-doubled",
+        "35": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 18",
+        "options": [
+          36,
+          28,
+          35
+        ],
+        "correctIndex": 0,
+        "correctValue": 36,
+        "explanation": "Double of 18 is 36"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r4_double-22",
+      "round": 4,
+      "stage": 1,
+      "type": "A",
+      "n": 22,
+      "prompt": "Double of 22",
+      "options": [
+        44,
+        43,
+        32
+      ],
+      "correctIndex": 0,
+      "correctValue": 44,
+      "correctTTS": "Nice — double of 22 is 44.",
+      "correctSubtitle": "Double of 22 is 44.",
+      "wrongTTS": "Double of 22 is 44.",
+      "wrongSubtitle": "Double of 22 is 44.",
+      "misconception_tags": {
+        "32": "added-10-instead-of-doubled",
+        "43": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 22",
+        "options": [
+          44,
+          43,
+          32
+        ],
+        "correctIndex": 0,
+        "correctValue": 44,
+        "explanation": "Double of 22 is 44"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r5_double-20",
+      "round": 5,
+      "stage": 1,
+      "type": "A",
+      "n": 20,
+      "prompt": "Double of 20",
+      "options": [
+        40,
+        30,
+        41
+      ],
+      "correctIndex": 0,
+      "correctValue": 40,
+      "correctTTS": "Nice — double of 20 is 40.",
+      "correctSubtitle": "Double of 20 is 40.",
+      "wrongTTS": "Double of 20 is 40.",
+      "wrongSubtitle": "Double of 20 is 40.",
+      "misconception_tags": {
+        "30": "added-10-instead-of-doubled",
+        "41": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 20",
+        "options": [
+          40,
+          30,
+          41
+        ],
+        "correctIndex": 0,
+        "correctValue": 40,
+        "explanation": "Double of 20 is 40"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r6_double-24",
+      "round": 6,
+      "stage": 2,
+      "type": "A",
+      "n": 24,
+      "prompt": "Double of 24",
+      "options": [
+        48,
+        34,
+        47
+      ],
+      "correctIndex": 0,
+      "correctValue": 48,
+      "correctTTS": "Nice — double of 24 is 48.",
+      "correctSubtitle": "Double of 24 is 48.",
+      "wrongTTS": "Double of 24 is 48.",
+      "wrongSubtitle": "Double of 24 is 48.",
+      "misconception_tags": {
+        "34": "added-10-instead-of-doubled",
+        "47": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 24",
+        "options": [
+          48,
+          34,
+          47
+        ],
+        "correctIndex": 0,
+        "correctValue": 48,
+        "explanation": "Double of 24 is 48"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r7_double-26",
+      "round": 7,
+      "stage": 2,
+      "type": "A",
+      "n": 26,
+      "prompt": "Double of 26",
+      "options": [
+        52,
+        53,
+        36
+      ],
+      "correctIndex": 0,
+      "correctValue": 52,
+      "correctTTS": "Nice — double of 26 is 52.",
+      "correctSubtitle": "Double of 26 is 52.",
+      "wrongTTS": "Double of 26 is 52.",
+      "wrongSubtitle": "Double of 26 is 52.",
+      "misconception_tags": {
+        "36": "added-10-instead-of-doubled",
+        "53": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 26",
+        "options": [
+          52,
+          53,
+          36
+        ],
+        "correctIndex": 0,
+        "correctValue": 52,
+        "explanation": "Double of 26 is 52"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r8_double-28",
+      "round": 8,
+      "stage": 2,
+      "type": "A",
+      "n": 28,
+      "prompt": "Double of 28",
+      "options": [
+        56,
+        38,
+        58
+      ],
+      "correctIndex": 0,
+      "correctValue": 56,
+      "correctTTS": "Nice — double of 28 is 56.",
+      "correctSubtitle": "Double of 28 is 56.",
+      "wrongTTS": "Double of 28 is 56.",
+      "wrongSubtitle": "Double of 28 is 56.",
+      "misconception_tags": {
+        "38": "added-10-instead-of-doubled",
+        "58": "off-by-two"
+      },
+      "answer": {
+        "prompt": "Double of 28",
+        "options": [
+          56,
+          38,
+          58
+        ],
+        "correctIndex": 0,
+        "correctValue": 56,
+        "explanation": "Double of 28 is 56"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r9_double-25",
+      "round": 9,
+      "stage": 2,
+      "type": "A",
+      "n": 25,
+      "prompt": "Double of 25",
+      "options": [
+        50,
+        49,
+        35
+      ],
+      "correctIndex": 0,
+      "correctValue": 50,
+      "correctTTS": "Nice — double of 25 is 50.",
+      "correctSubtitle": "Double of 25 is 50.",
+      "wrongTTS": "Double of 25 is 50.",
+      "wrongSubtitle": "Double of 25 is 50.",
+      "misconception_tags": {
+        "35": "added-10-instead-of-doubled",
+        "49": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 25",
+        "options": [
+          50,
+          49,
+          35
+        ],
+        "correctIndex": 0,
+        "correctValue": 50,
+        "explanation": "Double of 25 is 50"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r10_double-27",
+      "round": 10,
+      "stage": 2,
+      "type": "A",
+      "n": 27,
+      "prompt": "Double of 27",
+      "options": [
+        54,
+        37,
+        55
+      ],
+      "correctIndex": 0,
+      "correctValue": 54,
+      "correctTTS": "Nice — double of 27 is 54.",
+      "correctSubtitle": "Double of 27 is 54.",
+      "wrongTTS": "Double of 27 is 54.",
+      "wrongSubtitle": "Double of 27 is 54.",
+      "misconception_tags": {
+        "37": "added-10-instead-of-doubled",
+        "55": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 27",
+        "options": [
+          54,
+          37,
+          55
+        ],
+        "correctIndex": 0,
+        "correctValue": 54,
+        "explanation": "Double of 27 is 54"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r11_double-32",
+      "round": 11,
+      "stage": 3,
+      "type": "A",
+      "n": 32,
+      "prompt": "Double of 32",
+      "options": [
+        64,
+        42,
+        63
+      ],
+      "correctIndex": 0,
+      "correctValue": 64,
+      "correctTTS": "Nice — double of 32 is 64.",
+      "correctSubtitle": "Double of 32 is 64.",
+      "wrongTTS": "Double of 32 is 64.",
+      "wrongSubtitle": "Double of 32 is 64.",
+      "misconception_tags": {
+        "42": "added-10-instead-of-doubled",
+        "63": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 32",
+        "options": [
+          64,
+          42,
+          63
+        ],
+        "correctIndex": 0,
+        "correctValue": 64,
+        "explanation": "Double of 32 is 64"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r12_double-34",
+      "round": 12,
+      "stage": 3,
+      "type": "A",
+      "n": 34,
+      "prompt": "Double of 34",
+      "options": [
+        68,
+        78,
+        69
+      ],
+      "correctIndex": 0,
+      "correctValue": 68,
+      "correctTTS": "Nice — double of 34 is 68.",
+      "correctSubtitle": "Double of 34 is 68.",
+      "wrongTTS": "Double of 34 is 68.",
+      "wrongSubtitle": "Double of 34 is 68.",
+      "misconception_tags": {
+        "69": "off-by-one",
+        "78": "added-10-instead-of-doubled"
+      },
+      "answer": {
+        "prompt": "Double of 34",
+        "options": [
+          68,
+          78,
+          69
+        ],
+        "correctIndex": 0,
+        "correctValue": 68,
+        "explanation": "Double of 34 is 68"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r13_double-36",
+      "round": 13,
+      "stage": 3,
+      "type": "A",
+      "n": 36,
+      "prompt": "Double of 36",
+      "options": [
+        72,
+        46,
+        71
+      ],
+      "correctIndex": 0,
+      "correctValue": 72,
+      "correctTTS": "Nice — double of 36 is 72.",
+      "correctSubtitle": "Double of 36 is 72.",
+      "wrongTTS": "Double of 36 is 72.",
+      "wrongSubtitle": "Double of 36 is 72.",
+      "misconception_tags": {
+        "46": "added-10-instead-of-doubled",
+        "71": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 36",
+        "options": [
+          72,
+          46,
+          71
+        ],
+        "correctIndex": 0,
+        "correctValue": 72,
+        "explanation": "Double of 36 is 72"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r14_double-38",
+      "round": 14,
+      "stage": 3,
+      "type": "A",
+      "n": 38,
+      "prompt": "Double of 38",
+      "options": [
+        76,
+        77,
+        86
+      ],
+      "correctIndex": 0,
+      "correctValue": 76,
+      "correctTTS": "Nice — double of 38 is 76.",
+      "correctSubtitle": "Double of 38 is 76.",
+      "wrongTTS": "Double of 38 is 76.",
+      "wrongSubtitle": "Double of 38 is 76.",
+      "misconception_tags": {
+        "77": "off-by-one",
+        "86": "added-10-instead-of-doubled"
+      },
+      "answer": {
+        "prompt": "Double of 38",
+        "options": [
+          76,
+          77,
+          86
+        ],
+        "correctIndex": 0,
+        "correctValue": 76,
+        "explanation": "Double of 38 is 76"
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r15_double-40",
+      "round": 15,
+      "stage": 3,
+      "type": "A",
+      "n": 40,
+      "prompt": "Double of 40",
+      "options": [
+        80,
+        50,
+        79
+      ],
+      "correctIndex": 0,
+      "correctValue": 80,
+      "correctTTS": "Nice — double of 40 is 80.",
+      "correctSubtitle": "Double of 40 is 80.",
+      "wrongTTS": "Double of 40 is 80.",
+      "wrongSubtitle": "Double of 40 is 80.",
+      "misconception_tags": {
+        "50": "added-10-instead-of-doubled",
+        "79": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 40",
+        "options": [
+          80,
+          50,
+          79
+        ],
+        "correctIndex": 0,
+        "correctValue": 80,
+        "explanation": "Double of 40 is 80"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r1_double-20",
+      "round": 1,
+      "stage": 1,
+      "type": "A",
+      "n": 20,
+      "prompt": "Double of 20",
+      "options": [
+        40,
+        30,
+        39
+      ],
+      "correctIndex": 0,
+      "correctValue": 40,
+      "correctTTS": "Nice — double of 20 is 40.",
+      "correctSubtitle": "Double of 20 is 40.",
+      "wrongTTS": "Double of 20 is 40.",
+      "wrongSubtitle": "Double of 20 is 40.",
+      "misconception_tags": {
+        "30": "added-10-instead-of-doubled",
+        "39": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 20",
+        "options": [
+          40,
+          30,
+          39
+        ],
+        "correctIndex": 0,
+        "correctValue": 40,
+        "explanation": "Double of 20 is 40"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r2_double-22",
+      "round": 2,
+      "stage": 1,
+      "type": "A",
+      "n": 22,
+      "prompt": "Double of 22",
+      "options": [
+        44,
+        45,
+        32
+      ],
+      "correctIndex": 0,
+      "correctValue": 44,
+      "correctTTS": "Nice — double of 22 is 44.",
+      "correctSubtitle": "Double of 22 is 44.",
+      "wrongTTS": "Double of 22 is 44.",
+      "wrongSubtitle": "Double of 22 is 44.",
+      "misconception_tags": {
+        "32": "added-10-instead-of-doubled",
+        "45": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 22",
+        "options": [
+          44,
+          45,
+          32
+        ],
+        "correctIndex": 0,
+        "correctValue": 44,
+        "explanation": "Double of 22 is 44"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r3_double-19",
+      "round": 3,
+      "stage": 1,
+      "type": "A",
+      "n": 19,
+      "prompt": "Double of 19",
+      "options": [
+        38,
+        29,
+        37
+      ],
+      "correctIndex": 0,
+      "correctValue": 38,
+      "correctTTS": "Nice — double of 19 is 38.",
+      "correctSubtitle": "Double of 19 is 38.",
+      "wrongTTS": "Double of 19 is 38.",
+      "wrongSubtitle": "Double of 19 is 38.",
+      "misconception_tags": {
+        "29": "added-10-instead-of-doubled",
+        "37": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 19",
+        "options": [
+          38,
+          29,
+          37
+        ],
+        "correctIndex": 0,
+        "correctValue": 38,
+        "explanation": "Double of 19 is 38"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r4_double-21",
+      "round": 4,
+      "stage": 1,
+      "type": "A",
+      "n": 21,
+      "prompt": "Double of 21",
+      "options": [
+        42,
+        41,
+        31
+      ],
+      "correctIndex": 0,
+      "correctValue": 42,
+      "correctTTS": "Nice — double of 21 is 42.",
+      "correctSubtitle": "Double of 21 is 42.",
+      "wrongTTS": "Double of 21 is 42.",
+      "wrongSubtitle": "Double of 21 is 42.",
+      "misconception_tags": {
+        "31": "added-10-instead-of-doubled",
+        "41": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 21",
+        "options": [
+          42,
+          41,
+          31
+        ],
+        "correctIndex": 0,
+        "correctValue": 42,
+        "explanation": "Double of 21 is 42"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r5_double-18",
+      "round": 5,
+      "stage": 1,
+      "type": "A",
+      "n": 18,
+      "prompt": "Double of 18",
+      "options": [
+        36,
+        28,
+        37
+      ],
+      "correctIndex": 0,
+      "correctValue": 36,
+      "correctTTS": "Nice — double of 18 is 36.",
+      "correctSubtitle": "Double of 18 is 36.",
+      "wrongTTS": "Double of 18 is 36.",
+      "wrongSubtitle": "Double of 18 is 36.",
+      "misconception_tags": {
+        "28": "added-10-instead-of-doubled",
+        "37": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 18",
+        "options": [
+          36,
+          28,
+          37
+        ],
+        "correctIndex": 0,
+        "correctValue": 36,
+        "explanation": "Double of 18 is 36"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r6_double-25",
+      "round": 6,
+      "stage": 2,
+      "type": "A",
+      "n": 25,
+      "prompt": "Double of 25",
+      "options": [
+        50,
+        35,
+        49
+      ],
+      "correctIndex": 0,
+      "correctValue": 50,
+      "correctTTS": "Nice — double of 25 is 50.",
+      "correctSubtitle": "Double of 25 is 50.",
+      "wrongTTS": "Double of 25 is 50.",
+      "wrongSubtitle": "Double of 25 is 50.",
+      "misconception_tags": {
+        "35": "added-10-instead-of-doubled",
+        "49": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 25",
+        "options": [
+          50,
+          35,
+          49
+        ],
+        "correctIndex": 0,
+        "correctValue": 50,
+        "explanation": "Double of 25 is 50"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r7_double-27",
+      "round": 7,
+      "stage": 2,
+      "type": "A",
+      "n": 27,
+      "prompt": "Double of 27",
+      "options": [
+        54,
+        55,
+        37
+      ],
+      "correctIndex": 0,
+      "correctValue": 54,
+      "correctTTS": "Nice — double of 27 is 54.",
+      "correctSubtitle": "Double of 27 is 54.",
+      "wrongTTS": "Double of 27 is 54.",
+      "wrongSubtitle": "Double of 27 is 54.",
+      "misconception_tags": {
+        "37": "added-10-instead-of-doubled",
+        "55": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 27",
+        "options": [
+          54,
+          55,
+          37
+        ],
+        "correctIndex": 0,
+        "correctValue": 54,
+        "explanation": "Double of 27 is 54"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r8_double-29",
+      "round": 8,
+      "stage": 2,
+      "type": "A",
+      "n": 29,
+      "prompt": "Double of 29",
+      "options": [
+        58,
+        39,
+        60
+      ],
+      "correctIndex": 0,
+      "correctValue": 58,
+      "correctTTS": "Nice — double of 29 is 58.",
+      "correctSubtitle": "Double of 29 is 58.",
+      "wrongTTS": "Double of 29 is 58.",
+      "wrongSubtitle": "Double of 29 is 58.",
+      "misconception_tags": {
+        "39": "added-10-instead-of-doubled",
+        "60": "off-by-two"
+      },
+      "answer": {
+        "prompt": "Double of 29",
+        "options": [
+          58,
+          39,
+          60
+        ],
+        "correctIndex": 0,
+        "correctValue": 58,
+        "explanation": "Double of 29 is 58"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r9_double-26",
+      "round": 9,
+      "stage": 2,
+      "type": "A",
+      "n": 26,
+      "prompt": "Double of 26",
+      "options": [
+        52,
+        51,
+        36
+      ],
+      "correctIndex": 0,
+      "correctValue": 52,
+      "correctTTS": "Nice — double of 26 is 52.",
+      "correctSubtitle": "Double of 26 is 52.",
+      "wrongTTS": "Double of 26 is 52.",
+      "wrongSubtitle": "Double of 26 is 52.",
+      "misconception_tags": {
+        "36": "added-10-instead-of-doubled",
+        "51": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 26",
+        "options": [
+          52,
+          51,
+          36
+        ],
+        "correctIndex": 0,
+        "correctValue": 52,
+        "explanation": "Double of 26 is 52"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r10_double-30",
+      "round": 10,
+      "stage": 2,
+      "type": "A",
+      "n": 30,
+      "prompt": "Double of 30",
+      "options": [
+        60,
+        40,
+        61
+      ],
+      "correctIndex": 0,
+      "correctValue": 60,
+      "correctTTS": "Nice — double of 30 is 60.",
+      "correctSubtitle": "Double of 30 is 60.",
+      "wrongTTS": "Double of 30 is 60.",
+      "wrongSubtitle": "Double of 30 is 60.",
+      "misconception_tags": {
+        "40": "added-10-instead-of-doubled",
+        "61": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 30",
+        "options": [
+          60,
+          40,
+          61
+        ],
+        "correctIndex": 0,
+        "correctValue": 60,
+        "explanation": "Double of 30 is 60"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r11_double-33",
+      "round": 11,
+      "stage": 3,
+      "type": "A",
+      "n": 33,
+      "prompt": "Double of 33",
+      "options": [
+        66,
+        43,
+        65
+      ],
+      "correctIndex": 0,
+      "correctValue": 66,
+      "correctTTS": "Nice — double of 33 is 66.",
+      "correctSubtitle": "Double of 33 is 66.",
+      "wrongTTS": "Double of 33 is 66.",
+      "wrongSubtitle": "Double of 33 is 66.",
+      "misconception_tags": {
+        "43": "added-10-instead-of-doubled",
+        "65": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 33",
+        "options": [
+          66,
+          43,
+          65
+        ],
+        "correctIndex": 0,
+        "correctValue": 66,
+        "explanation": "Double of 33 is 66"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r12_double-35",
+      "round": 12,
+      "stage": 3,
+      "type": "A",
+      "n": 35,
+      "prompt": "Double of 35",
+      "options": [
+        70,
+        80,
+        71
+      ],
+      "correctIndex": 0,
+      "correctValue": 70,
+      "correctTTS": "Nice — double of 35 is 70.",
+      "correctSubtitle": "Double of 35 is 70.",
+      "wrongTTS": "Double of 35 is 70.",
+      "wrongSubtitle": "Double of 35 is 70.",
+      "misconception_tags": {
+        "71": "off-by-one",
+        "80": "added-10-instead-of-doubled"
+      },
+      "answer": {
+        "prompt": "Double of 35",
+        "options": [
+          70,
+          80,
+          71
+        ],
+        "correctIndex": 0,
+        "correctValue": 70,
+        "explanation": "Double of 35 is 70"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r13_double-37",
+      "round": 13,
+      "stage": 3,
+      "type": "A",
+      "n": 37,
+      "prompt": "Double of 37",
+      "options": [
+        74,
+        47,
+        73
+      ],
+      "correctIndex": 0,
+      "correctValue": 74,
+      "correctTTS": "Nice — double of 37 is 74.",
+      "correctSubtitle": "Double of 37 is 74.",
+      "wrongTTS": "Double of 37 is 74.",
+      "wrongSubtitle": "Double of 37 is 74.",
+      "misconception_tags": {
+        "47": "added-10-instead-of-doubled",
+        "73": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 37",
+        "options": [
+          74,
+          47,
+          73
+        ],
+        "correctIndex": 0,
+        "correctValue": 74,
+        "explanation": "Double of 37 is 74"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r14_double-39",
+      "round": 14,
+      "stage": 3,
+      "type": "A",
+      "n": 39,
+      "prompt": "Double of 39",
+      "options": [
+        78,
+        79,
+        88
+      ],
+      "correctIndex": 0,
+      "correctValue": 78,
+      "correctTTS": "Nice — double of 39 is 78.",
+      "correctSubtitle": "Double of 39 is 78.",
+      "wrongTTS": "Double of 39 is 78.",
+      "wrongSubtitle": "Double of 39 is 78.",
+      "misconception_tags": {
+        "79": "off-by-one",
+        "88": "added-10-instead-of-doubled"
+      },
+      "answer": {
+        "prompt": "Double of 39",
+        "options": [
+          78,
+          79,
+          88
+        ],
+        "correctIndex": 0,
+        "correctValue": 78,
+        "explanation": "Double of 39 is 78"
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r15_double-40",
+      "round": 15,
+      "stage": 3,
+      "type": "A",
+      "n": 40,
+      "prompt": "Double of 40",
+      "options": [
+        80,
+        50,
+        79
+      ],
+      "correctIndex": 0,
+      "correctValue": 80,
+      "correctTTS": "Nice — double of 40 is 80.",
+      "correctSubtitle": "Double of 40 is 80.",
+      "wrongTTS": "Double of 40 is 80.",
+      "wrongSubtitle": "Double of 40 is 80.",
+      "misconception_tags": {
+        "50": "added-10-instead-of-doubled",
+        "79": "off-by-one"
+      },
+      "answer": {
+        "prompt": "Double of 40",
+        "options": [
+          80,
+          50,
+          79
+        ],
+        "correctIndex": 0,
+        "correctValue": 80,
+        "explanation": "Double of 40 is 80"
+      }
+    }
+  ]
+}

@@ -1,0 +1,3168 @@
+{
+  "previewInstruction": "<p><b>Translate the word problem into an equation.</b></p><p>Each round has 3 small steps:</p><ol style=\"padding-left: 20px;\"><li>Pick the person you want to call <b>x</b>.</li><li>Write the other person's age.</li><li>Write the equation.</li></ol><p><b>Easy mode:</b> smaller numbers, no two-people-with-time-shift problems. Wrong taps just give you a hint &mdash; <b>no lives lost</b>.</p>",
+  "previewAudioText": "Translate each word problem into an equation in three small steps. Pick a variable, write the other age, write the equation. Easy mode keeps the numbers small. Wrong taps just give you a hint, no lives lost.",
+  "previewAudio": null,
+  "showGameOnPreview": false,
+  "totalRounds": 10,
+  "totalLives": 10,
+  "timer": false,
+  "answerComponent": true,
+  "rounds": [
+    {
+      "set": "A",
+      "id": "A_r1_aman_past_easy",
+      "round": 1,
+      "stage": 1,
+      "type": "A",
+      "problemText": "<p>3 years ago, Aman was 8. How old is Aman now?</p>",
+      "problemAudioText": "3 years ago, Aman was 8. How old is Aman now?",
+      "people": [
+        {
+          "name": "Aman"
+        }
+      ],
+      "timeDelta": -3,
+      "preferredVariable": "Aman",
+      "step2": {
+        "kind": "directionTiles",
+        "tiles": [
+          {
+            "label": "x − 3",
+            "correct": true,
+            "misconception": null
+          },
+          {
+            "label": "x + 3",
+            "correct": false,
+            "misconception": "time-shift-direction-flip"
+          }
+        ]
+      },
+      "step3": {
+        "slotTemplate": [
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "x",
+          "−",
+          "+",
+          3,
+          "=",
+          8,
+          13
+        ],
+        "correctPieces": [
+          "x",
+          "−",
+          3,
+          "=",
+          8
+        ],
+        "pieceMisconceptions": {
+          "13": "distractor-number-confusion",
+          "+": "time-shift-direction-flip"
+        }
+      },
+      "solution": {
+        "variableValue": 11,
+        "solveLines": [
+          "x − 3 = 8",
+          "x = 11"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Aman (now)",
+            "value": 11
+          }
+        ],
+        "successSubtitle": "Aman is 11 now.",
+        "successAudio": "Aman is 11 now."
+      },
+      "answer": {
+        "problemText": "<p>3 years ago, Aman was 8. How old is Aman now?</p>",
+        "canonicalEquationDisplay": "x − 3 = 8",
+        "solveLines": [
+          "x − 3 = 8",
+          "x = 11"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Aman",
+            "value": 11
+          }
+        ],
+        "explanation": "\"3 years ago\" subtracts 3 from x. So x − 3 = 8 gives x = 11."
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r2_sara_future_easy",
+      "round": 2,
+      "stage": 1,
+      "type": "A",
+      "problemText": "<p>Sara is 6 now. How old will Sara be in 4 years?</p>",
+      "problemAudioText": "Sara is 6 now. How old will Sara be in 4 years?",
+      "people": [
+        {
+          "name": "Sara"
+        }
+      ],
+      "timeDelta": 4,
+      "preferredVariable": "Sara",
+      "step2": {
+        "kind": "directionTiles",
+        "tiles": [
+          {
+            "label": "x + 4",
+            "correct": true,
+            "misconception": null
+          },
+          {
+            "label": "x − 4",
+            "correct": false,
+            "misconception": "time-shift-direction-flip"
+          }
+        ]
+      },
+      "step3": {
+        "slotTemplate": [
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          4,
+          6,
+          "=",
+          10
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          4,
+          "=",
+          10
+        ],
+        "pieceMisconceptions": {
+          "6": "distractor-number-confusion",
+          "−": "time-shift-direction-flip"
+        }
+      },
+      "solution": {
+        "variableValue": 6,
+        "solveLines": [
+          "x = 6",
+          "x + 4 = 10"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara (now)",
+            "value": 6
+          },
+          {
+            "name": "Sara (in 4 yr)",
+            "value": 10
+          }
+        ],
+        "successSubtitle": "Sara is 6 now, and 10 in 4 years.",
+        "successAudio": "Sara is 6 now, and 10 in 4 years."
+      },
+      "answer": {
+        "problemText": "<p>Sara is 6 now. How old in 4 years?</p>",
+        "canonicalEquationDisplay": "x + 4 = 10",
+        "solveLines": [
+          "x = 6",
+          "x + 4 = 10"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara",
+            "value": 6
+          },
+          {
+            "name": "in 4 yr",
+            "value": 10
+          }
+        ],
+        "explanation": "Sara is x = 6; in 4 years he/she is 10."
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r3_ravi_past_easy",
+      "round": 3,
+      "stage": 1,
+      "type": "A",
+      "problemText": "<p>2 years ago, Ravi was 7. How old is Ravi now?</p>",
+      "problemAudioText": "2 years ago, Ravi was 7. How old is Ravi now?",
+      "people": [
+        {
+          "name": "Ravi"
+        }
+      ],
+      "timeDelta": -2,
+      "preferredVariable": "Ravi",
+      "step2": {
+        "kind": "directionTiles",
+        "tiles": [
+          {
+            "label": "x − 2",
+            "correct": true,
+            "misconception": null
+          },
+          {
+            "label": "x + 2",
+            "correct": false,
+            "misconception": "time-shift-direction-flip"
+          }
+        ]
+      },
+      "step3": {
+        "slotTemplate": [
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "x",
+          "−",
+          "+",
+          2,
+          "=",
+          7,
+          12
+        ],
+        "correctPieces": [
+          "x",
+          "−",
+          2,
+          "=",
+          7
+        ],
+        "pieceMisconceptions": {
+          "12": "distractor-number-confusion",
+          "+": "time-shift-direction-flip"
+        }
+      },
+      "solution": {
+        "variableValue": 9,
+        "solveLines": [
+          "x − 2 = 7",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Ravi (now)",
+            "value": 9
+          }
+        ],
+        "successSubtitle": "Ravi is 9 now.",
+        "successAudio": "Ravi is 9 now."
+      },
+      "answer": {
+        "problemText": "<p>2 years ago, Ravi was 7. How old is Ravi now?</p>",
+        "canonicalEquationDisplay": "x − 2 = 7",
+        "solveLines": [
+          "x − 2 = 7",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Ravi",
+            "value": 9
+          }
+        ],
+        "explanation": "\"2 years ago\" subtracts 2 from x. So x − 2 = 7 gives x = 9."
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r4_mira_ravi_easy",
+      "round": 4,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Mira is 2 years younger than Ravi. Their ages sum to 14. How old is Mira?</p>",
+      "problemAudioText": "Mira is 2 years younger than Ravi. Their ages sum to 14. How old is Mira?",
+      "people": [
+        {
+          "name": "Mira"
+        },
+        {
+          "name": "Ravi"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Mira",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          2,
+          14,
+          3
+        ],
+        "correctPieces": [
+          "+",
+          2
+        ],
+        "pieceMisconceptions": {
+          "3": "distractor-number-confusion",
+          "14": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "14"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          2,
+          14,
+          12,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          2
+        ],
+        "pieceMisconceptions": {
+          "12": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 6,
+        "solveLines": [
+          "x + (x + 2) = 14",
+          "2x + 2 = 14",
+          "x = 6"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 6
+          },
+          {
+            "name": "Ravi",
+            "value": 8
+          }
+        ],
+        "successSubtitle": "Mira is 6 and Ravi is 8.",
+        "successAudio": "Mira is 6 and Ravi is 8."
+      },
+      "answer": {
+        "problemText": "<p>Mira is 2 years younger than Ravi. Sum 14.</p>",
+        "canonicalEquationDisplay": "x + (x + 2) = 14",
+        "solveLines": [
+          "x + (x + 2) = 14",
+          "2x = 12",
+          "x = 6"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 6
+          },
+          {
+            "name": "Ravi",
+            "value": 8
+          }
+        ],
+        "explanation": "Mira (younger) is x, Ravi is x + 2. Sum 14 gives x = 6."
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r5_bobby_aman_easy",
+      "round": 5,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Bobby is 3 years younger than Aman. Their ages sum to 17. How old is Bobby?</p>",
+      "problemAudioText": "Bobby is 3 years younger than Aman. Their ages sum to 17. How old is Bobby?",
+      "people": [
+        {
+          "name": "Bobby"
+        },
+        {
+          "name": "Aman"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Bobby",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          3,
+          17,
+          4
+        ],
+        "correctPieces": [
+          "+",
+          3
+        ],
+        "pieceMisconceptions": {
+          "4": "distractor-number-confusion",
+          "17": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "17"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          3,
+          17,
+          14,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          3
+        ],
+        "pieceMisconceptions": {
+          "14": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 7,
+        "solveLines": [
+          "x + (x + 3) = 17",
+          "2x + 3 = 17",
+          "x = 7"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Bobby",
+            "value": 7
+          },
+          {
+            "name": "Aman",
+            "value": 10
+          }
+        ],
+        "successSubtitle": "Bobby is 7 and Aman is 10.",
+        "successAudio": "Bobby is 7 and Aman is 10."
+      },
+      "answer": {
+        "problemText": "<p>Bobby is 3 years younger than Aman. Sum 17.</p>",
+        "canonicalEquationDisplay": "x + (x + 3) = 17",
+        "solveLines": [
+          "x + (x + 3) = 17",
+          "2x = 14",
+          "x = 7"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Bobby",
+            "value": 7
+          },
+          {
+            "name": "Aman",
+            "value": 10
+          }
+        ],
+        "explanation": "Bobby (younger) is x, Aman is x + 3. Sum 17 gives x = 7."
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r6_sara_anita_easy",
+      "round": 6,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Sara is 4 years younger than Anita. Their ages sum to 18. How old is Sara?</p>",
+      "problemAudioText": "Sara is 4 years younger than Anita. Their ages sum to 18. How old is Sara?",
+      "people": [
+        {
+          "name": "Sara"
+        },
+        {
+          "name": "Anita"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Sara",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          4,
+          18,
+          5
+        ],
+        "correctPieces": [
+          "+",
+          4
+        ],
+        "pieceMisconceptions": {
+          "5": "distractor-number-confusion",
+          "18": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "18"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          4,
+          18,
+          14,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          4
+        ],
+        "pieceMisconceptions": {
+          "14": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 7,
+        "solveLines": [
+          "x + (x + 4) = 18",
+          "2x + 4 = 18",
+          "x = 7"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara",
+            "value": 7
+          },
+          {
+            "name": "Anita",
+            "value": 11
+          }
+        ],
+        "successSubtitle": "Sara is 7 and Anita is 11.",
+        "successAudio": "Sara is 7 and Anita is 11."
+      },
+      "answer": {
+        "problemText": "<p>Sara is 4 years younger than Anita. Sum 18.</p>",
+        "canonicalEquationDisplay": "x + (x + 4) = 18",
+        "solveLines": [
+          "x + (x + 4) = 18",
+          "2x = 14",
+          "x = 7"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara",
+            "value": 7
+          },
+          {
+            "name": "Anita",
+            "value": 11
+          }
+        ],
+        "explanation": "Sara (younger) is x, Anita is x + 4. Sum 18 gives x = 7."
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r7_mira_sara_easy",
+      "round": 7,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Mira is 1 years younger than Sara. Their ages sum to 13. How old is Mira?</p>",
+      "problemAudioText": "Mira is 1 years younger than Sara. Their ages sum to 13. How old is Mira?",
+      "people": [
+        {
+          "name": "Mira"
+        },
+        {
+          "name": "Sara"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Mira",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          1,
+          13,
+          2
+        ],
+        "correctPieces": [
+          "+",
+          1
+        ],
+        "pieceMisconceptions": {
+          "2": "distractor-number-confusion",
+          "13": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "13"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          1,
+          13,
+          12,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          1
+        ],
+        "pieceMisconceptions": {
+          "12": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 6,
+        "solveLines": [
+          "x + (x + 1) = 13",
+          "2x + 1 = 13",
+          "x = 6"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 6
+          },
+          {
+            "name": "Sara",
+            "value": 7
+          }
+        ],
+        "successSubtitle": "Mira is 6 and Sara is 7.",
+        "successAudio": "Mira is 6 and Sara is 7."
+      },
+      "answer": {
+        "problemText": "<p>Mira is 1 years younger than Sara. Sum 13.</p>",
+        "canonicalEquationDisplay": "x + (x + 1) = 13",
+        "solveLines": [
+          "x + (x + 1) = 13",
+          "2x = 12",
+          "x = 6"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 6
+          },
+          {
+            "name": "Sara",
+            "value": 7
+          }
+        ],
+        "explanation": "Mira (younger) is x, Sara is x + 1. Sum 13 gives x = 6."
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r8_mira_bobby_diff_easy",
+      "round": 8,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Bobby is 3 years older than Mira. Bobby is 10. How old is Mira?</p>",
+      "problemAudioText": "Bobby is 3 years older than Mira. Bobby is 10. How old is Mira?",
+      "people": [
+        {
+          "name": "Mira"
+        },
+        {
+          "name": "Bobby"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Mira",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          3,
+          10,
+          5
+        ],
+        "correctPieces": [
+          "+",
+          3
+        ],
+        "pieceMisconceptions": {
+          "5": "distractor-number-confusion",
+          "10": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "=",
+          "10"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          3,
+          10,
+          5,
+          "="
+        ],
+        "correctPieces": [
+          3
+        ],
+        "pieceMisconceptions": {
+          "5": "distractor-number-confusion",
+          "10": "distractor-number-confusion"
+        }
+      },
+      "solution": {
+        "variableValue": 7,
+        "solveLines": [
+          "x + 3 = 10",
+          "x = 7"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 7
+          },
+          {
+            "name": "Bobby",
+            "value": 10
+          }
+        ],
+        "successSubtitle": "Mira is 7 and Bobby is 10.",
+        "successAudio": "Mira is 7 and Bobby is 10."
+      },
+      "answer": {
+        "problemText": "<p>Bobby is 3 older than Mira. Bobby is 10.</p>",
+        "canonicalEquationDisplay": "x + 3 = 10",
+        "solveLines": [
+          "x + 3 = 10",
+          "x = 7"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 7
+          },
+          {
+            "name": "Bobby",
+            "value": 10
+          }
+        ],
+        "explanation": "Mira (younger) is x, Bobby is x + 3 = 10, so x = 7."
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r9_sara_aman_diff_easy",
+      "round": 9,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Aman is 4 years older than Sara. Aman is 12. How old is Sara?</p>",
+      "problemAudioText": "Aman is 4 years older than Sara. Aman is 12. How old is Sara?",
+      "people": [
+        {
+          "name": "Sara"
+        },
+        {
+          "name": "Aman"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Sara",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          4,
+          12,
+          6
+        ],
+        "correctPieces": [
+          "+",
+          4
+        ],
+        "pieceMisconceptions": {
+          "6": "distractor-number-confusion",
+          "12": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "=",
+          "12"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          4,
+          12,
+          6,
+          "="
+        ],
+        "correctPieces": [
+          4
+        ],
+        "pieceMisconceptions": {
+          "6": "distractor-number-confusion",
+          "12": "distractor-number-confusion"
+        }
+      },
+      "solution": {
+        "variableValue": 8,
+        "solveLines": [
+          "x + 4 = 12",
+          "x = 8"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara",
+            "value": 8
+          },
+          {
+            "name": "Aman",
+            "value": 12
+          }
+        ],
+        "successSubtitle": "Sara is 8 and Aman is 12.",
+        "successAudio": "Sara is 8 and Aman is 12."
+      },
+      "answer": {
+        "problemText": "<p>Aman is 4 older than Sara. Aman is 12.</p>",
+        "canonicalEquationDisplay": "x + 4 = 12",
+        "solveLines": [
+          "x + 4 = 12",
+          "x = 8"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara",
+            "value": 8
+          },
+          {
+            "name": "Aman",
+            "value": 12
+          }
+        ],
+        "explanation": "Sara (younger) is x, Aman is x + 4 = 12, so x = 8."
+      }
+    },
+    {
+      "set": "A",
+      "id": "A_r10_anita_ravi_diff_easy",
+      "round": 10,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Ravi is 2 years older than Anita. Ravi is 11. How old is Anita?</p>",
+      "problemAudioText": "Ravi is 2 years older than Anita. Ravi is 11. How old is Anita?",
+      "people": [
+        {
+          "name": "Anita"
+        },
+        {
+          "name": "Ravi"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Anita",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          2,
+          11,
+          4
+        ],
+        "correctPieces": [
+          "+",
+          2
+        ],
+        "pieceMisconceptions": {
+          "4": "distractor-number-confusion",
+          "11": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "=",
+          "11"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          2,
+          11,
+          4,
+          "="
+        ],
+        "correctPieces": [
+          2
+        ],
+        "pieceMisconceptions": {
+          "4": "distractor-number-confusion",
+          "11": "distractor-number-confusion"
+        }
+      },
+      "solution": {
+        "variableValue": 9,
+        "solveLines": [
+          "x + 2 = 11",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Anita",
+            "value": 9
+          },
+          {
+            "name": "Ravi",
+            "value": 11
+          }
+        ],
+        "successSubtitle": "Anita is 9 and Ravi is 11.",
+        "successAudio": "Anita is 9 and Ravi is 11."
+      },
+      "answer": {
+        "problemText": "<p>Ravi is 2 older than Anita. Ravi is 11.</p>",
+        "canonicalEquationDisplay": "x + 2 = 11",
+        "solveLines": [
+          "x + 2 = 11",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Anita",
+            "value": 9
+          },
+          {
+            "name": "Ravi",
+            "value": 11
+          }
+        ],
+        "explanation": "Anita (younger) is x, Ravi is x + 2 = 11, so x = 9."
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r1_anita_past_easy",
+      "round": 1,
+      "stage": 1,
+      "type": "A",
+      "problemText": "<p>2 years ago, Anita was 6. How old is Anita now?</p>",
+      "problemAudioText": "2 years ago, Anita was 6. How old is Anita now?",
+      "people": [
+        {
+          "name": "Anita"
+        }
+      ],
+      "timeDelta": -2,
+      "preferredVariable": "Anita",
+      "step2": {
+        "kind": "directionTiles",
+        "tiles": [
+          {
+            "label": "x − 2",
+            "correct": true,
+            "misconception": null
+          },
+          {
+            "label": "x + 2",
+            "correct": false,
+            "misconception": "time-shift-direction-flip"
+          }
+        ]
+      },
+      "step3": {
+        "slotTemplate": [
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "x",
+          "−",
+          "+",
+          2,
+          "=",
+          6,
+          11
+        ],
+        "correctPieces": [
+          "x",
+          "−",
+          2,
+          "=",
+          6
+        ],
+        "pieceMisconceptions": {
+          "11": "distractor-number-confusion",
+          "+": "time-shift-direction-flip"
+        }
+      },
+      "solution": {
+        "variableValue": 8,
+        "solveLines": [
+          "x − 2 = 6",
+          "x = 8"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Anita (now)",
+            "value": 8
+          }
+        ],
+        "successSubtitle": "Anita is 8 now.",
+        "successAudio": "Anita is 8 now."
+      },
+      "answer": {
+        "problemText": "<p>2 years ago, Anita was 6. How old is Anita now?</p>",
+        "canonicalEquationDisplay": "x − 2 = 6",
+        "solveLines": [
+          "x − 2 = 6",
+          "x = 8"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Anita",
+            "value": 8
+          }
+        ],
+        "explanation": "\"2 years ago\" subtracts 2 from x. So x − 2 = 6 gives x = 8."
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r2_bobby_future_easy",
+      "round": 2,
+      "stage": 1,
+      "type": "A",
+      "problemText": "<p>Bobby is 5 now. How old will Bobby be in 3 years?</p>",
+      "problemAudioText": "Bobby is 5 now. How old will Bobby be in 3 years?",
+      "people": [
+        {
+          "name": "Bobby"
+        }
+      ],
+      "timeDelta": 3,
+      "preferredVariable": "Bobby",
+      "step2": {
+        "kind": "directionTiles",
+        "tiles": [
+          {
+            "label": "x + 3",
+            "correct": true,
+            "misconception": null
+          },
+          {
+            "label": "x − 3",
+            "correct": false,
+            "misconception": "time-shift-direction-flip"
+          }
+        ]
+      },
+      "step3": {
+        "slotTemplate": [
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          3,
+          5,
+          "=",
+          8
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          3,
+          "=",
+          8
+        ],
+        "pieceMisconceptions": {
+          "5": "distractor-number-confusion",
+          "−": "time-shift-direction-flip"
+        }
+      },
+      "solution": {
+        "variableValue": 5,
+        "solveLines": [
+          "x = 5",
+          "x + 3 = 8"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Bobby (now)",
+            "value": 5
+          },
+          {
+            "name": "Bobby (in 3 yr)",
+            "value": 8
+          }
+        ],
+        "successSubtitle": "Bobby is 5 now, and 8 in 3 years.",
+        "successAudio": "Bobby is 5 now, and 8 in 3 years."
+      },
+      "answer": {
+        "problemText": "<p>Bobby is 5 now. How old in 3 years?</p>",
+        "canonicalEquationDisplay": "x + 3 = 8",
+        "solveLines": [
+          "x = 5",
+          "x + 3 = 8"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Bobby",
+            "value": 5
+          },
+          {
+            "name": "in 3 yr",
+            "value": 8
+          }
+        ],
+        "explanation": "Bobby is x = 5; in 3 years he/she is 8."
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r3_mira_past_easy",
+      "round": 3,
+      "stage": 1,
+      "type": "A",
+      "problemText": "<p>1 years ago, Mira was 9. How old is Mira now?</p>",
+      "problemAudioText": "1 years ago, Mira was 9. How old is Mira now?",
+      "people": [
+        {
+          "name": "Mira"
+        }
+      ],
+      "timeDelta": -1,
+      "preferredVariable": "Mira",
+      "step2": {
+        "kind": "directionTiles",
+        "tiles": [
+          {
+            "label": "x − 1",
+            "correct": true,
+            "misconception": null
+          },
+          {
+            "label": "x + 1",
+            "correct": false,
+            "misconception": "time-shift-direction-flip"
+          }
+        ]
+      },
+      "step3": {
+        "slotTemplate": [
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "x",
+          "−",
+          "+",
+          1,
+          "=",
+          9,
+          14
+        ],
+        "correctPieces": [
+          "x",
+          "−",
+          1,
+          "=",
+          9
+        ],
+        "pieceMisconceptions": {
+          "14": "distractor-number-confusion",
+          "+": "time-shift-direction-flip"
+        }
+      },
+      "solution": {
+        "variableValue": 10,
+        "solveLines": [
+          "x − 1 = 9",
+          "x = 10"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira (now)",
+            "value": 10
+          }
+        ],
+        "successSubtitle": "Mira is 10 now.",
+        "successAudio": "Mira is 10 now."
+      },
+      "answer": {
+        "problemText": "<p>1 years ago, Mira was 9. How old is Mira now?</p>",
+        "canonicalEquationDisplay": "x − 1 = 9",
+        "solveLines": [
+          "x − 1 = 9",
+          "x = 10"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 10
+          }
+        ],
+        "explanation": "\"1 years ago\" subtracts 1 from x. So x − 1 = 9 gives x = 10."
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r4_sara_aman_easy",
+      "round": 4,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Sara is 2 years younger than Aman. Their ages sum to 12. How old is Sara?</p>",
+      "problemAudioText": "Sara is 2 years younger than Aman. Their ages sum to 12. How old is Sara?",
+      "people": [
+        {
+          "name": "Sara"
+        },
+        {
+          "name": "Aman"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Sara",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          2,
+          12,
+          3
+        ],
+        "correctPieces": [
+          "+",
+          2
+        ],
+        "pieceMisconceptions": {
+          "3": "distractor-number-confusion",
+          "12": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "12"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          2,
+          12,
+          10,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          2
+        ],
+        "pieceMisconceptions": {
+          "10": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 5,
+        "solveLines": [
+          "x + (x + 2) = 12",
+          "2x + 2 = 12",
+          "x = 5"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara",
+            "value": 5
+          },
+          {
+            "name": "Aman",
+            "value": 7
+          }
+        ],
+        "successSubtitle": "Sara is 5 and Aman is 7.",
+        "successAudio": "Sara is 5 and Aman is 7."
+      },
+      "answer": {
+        "problemText": "<p>Sara is 2 years younger than Aman. Sum 12.</p>",
+        "canonicalEquationDisplay": "x + (x + 2) = 12",
+        "solveLines": [
+          "x + (x + 2) = 12",
+          "2x = 10",
+          "x = 5"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara",
+            "value": 5
+          },
+          {
+            "name": "Aman",
+            "value": 7
+          }
+        ],
+        "explanation": "Sara (younger) is x, Aman is x + 2. Sum 12 gives x = 5."
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r5_ravi_aman_easy",
+      "round": 5,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Ravi is 4 years younger than Aman. Their ages sum to 16. How old is Ravi?</p>",
+      "problemAudioText": "Ravi is 4 years younger than Aman. Their ages sum to 16. How old is Ravi?",
+      "people": [
+        {
+          "name": "Ravi"
+        },
+        {
+          "name": "Aman"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Ravi",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          4,
+          16,
+          5
+        ],
+        "correctPieces": [
+          "+",
+          4
+        ],
+        "pieceMisconceptions": {
+          "5": "distractor-number-confusion",
+          "16": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "16"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          4,
+          16,
+          12,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          4
+        ],
+        "pieceMisconceptions": {
+          "12": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 6,
+        "solveLines": [
+          "x + (x + 4) = 16",
+          "2x + 4 = 16",
+          "x = 6"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Ravi",
+            "value": 6
+          },
+          {
+            "name": "Aman",
+            "value": 10
+          }
+        ],
+        "successSubtitle": "Ravi is 6 and Aman is 10.",
+        "successAudio": "Ravi is 6 and Aman is 10."
+      },
+      "answer": {
+        "problemText": "<p>Ravi is 4 years younger than Aman. Sum 16.</p>",
+        "canonicalEquationDisplay": "x + (x + 4) = 16",
+        "solveLines": [
+          "x + (x + 4) = 16",
+          "2x = 12",
+          "x = 6"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Ravi",
+            "value": 6
+          },
+          {
+            "name": "Aman",
+            "value": 10
+          }
+        ],
+        "explanation": "Ravi (younger) is x, Aman is x + 4. Sum 16 gives x = 6."
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r6_mira_anita_easy",
+      "round": 6,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Mira is 3 years younger than Anita. Their ages sum to 13. How old is Mira?</p>",
+      "problemAudioText": "Mira is 3 years younger than Anita. Their ages sum to 13. How old is Mira?",
+      "people": [
+        {
+          "name": "Mira"
+        },
+        {
+          "name": "Anita"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Mira",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          3,
+          13,
+          4
+        ],
+        "correctPieces": [
+          "+",
+          3
+        ],
+        "pieceMisconceptions": {
+          "4": "distractor-number-confusion",
+          "13": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "13"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          3,
+          13,
+          10,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          3
+        ],
+        "pieceMisconceptions": {
+          "10": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 5,
+        "solveLines": [
+          "x + (x + 3) = 13",
+          "2x + 3 = 13",
+          "x = 5"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 5
+          },
+          {
+            "name": "Anita",
+            "value": 8
+          }
+        ],
+        "successSubtitle": "Mira is 5 and Anita is 8.",
+        "successAudio": "Mira is 5 and Anita is 8."
+      },
+      "answer": {
+        "problemText": "<p>Mira is 3 years younger than Anita. Sum 13.</p>",
+        "canonicalEquationDisplay": "x + (x + 3) = 13",
+        "solveLines": [
+          "x + (x + 3) = 13",
+          "2x = 10",
+          "x = 5"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 5
+          },
+          {
+            "name": "Anita",
+            "value": 8
+          }
+        ],
+        "explanation": "Mira (younger) is x, Anita is x + 3. Sum 13 gives x = 5."
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r7_bobby_sara_easy",
+      "round": 7,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Bobby is 1 years younger than Sara. Their ages sum to 11. How old is Bobby?</p>",
+      "problemAudioText": "Bobby is 1 years younger than Sara. Their ages sum to 11. How old is Bobby?",
+      "people": [
+        {
+          "name": "Bobby"
+        },
+        {
+          "name": "Sara"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Bobby",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          1,
+          11,
+          2
+        ],
+        "correctPieces": [
+          "+",
+          1
+        ],
+        "pieceMisconceptions": {
+          "2": "distractor-number-confusion",
+          "11": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "11"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          1,
+          11,
+          10,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          1
+        ],
+        "pieceMisconceptions": {
+          "10": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 5,
+        "solveLines": [
+          "x + (x + 1) = 11",
+          "2x + 1 = 11",
+          "x = 5"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Bobby",
+            "value": 5
+          },
+          {
+            "name": "Sara",
+            "value": 6
+          }
+        ],
+        "successSubtitle": "Bobby is 5 and Sara is 6.",
+        "successAudio": "Bobby is 5 and Sara is 6."
+      },
+      "answer": {
+        "problemText": "<p>Bobby is 1 years younger than Sara. Sum 11.</p>",
+        "canonicalEquationDisplay": "x + (x + 1) = 11",
+        "solveLines": [
+          "x + (x + 1) = 11",
+          "2x = 10",
+          "x = 5"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Bobby",
+            "value": 5
+          },
+          {
+            "name": "Sara",
+            "value": 6
+          }
+        ],
+        "explanation": "Bobby (younger) is x, Sara is x + 1. Sum 11 gives x = 5."
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r8_anita_bobby_diff_easy",
+      "round": 8,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Bobby is 2 years older than Anita. Bobby is 9. How old is Anita?</p>",
+      "problemAudioText": "Bobby is 2 years older than Anita. Bobby is 9. How old is Anita?",
+      "people": [
+        {
+          "name": "Anita"
+        },
+        {
+          "name": "Bobby"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Anita",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          2,
+          9,
+          4
+        ],
+        "correctPieces": [
+          "+",
+          2
+        ],
+        "pieceMisconceptions": {
+          "4": "distractor-number-confusion",
+          "9": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "=",
+          "9"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          2,
+          9,
+          4,
+          "="
+        ],
+        "correctPieces": [
+          2
+        ],
+        "pieceMisconceptions": {
+          "4": "distractor-number-confusion",
+          "9": "distractor-number-confusion"
+        }
+      },
+      "solution": {
+        "variableValue": 7,
+        "solveLines": [
+          "x + 2 = 9",
+          "x = 7"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Anita",
+            "value": 7
+          },
+          {
+            "name": "Bobby",
+            "value": 9
+          }
+        ],
+        "successSubtitle": "Anita is 7 and Bobby is 9.",
+        "successAudio": "Anita is 7 and Bobby is 9."
+      },
+      "answer": {
+        "problemText": "<p>Bobby is 2 older than Anita. Bobby is 9.</p>",
+        "canonicalEquationDisplay": "x + 2 = 9",
+        "solveLines": [
+          "x + 2 = 9",
+          "x = 7"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Anita",
+            "value": 7
+          },
+          {
+            "name": "Bobby",
+            "value": 9
+          }
+        ],
+        "explanation": "Anita (younger) is x, Bobby is x + 2 = 9, so x = 7."
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r9_bobby_mira_diff_easy",
+      "round": 9,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Mira is 3 years older than Bobby. Mira is 11. How old is Bobby?</p>",
+      "problemAudioText": "Mira is 3 years older than Bobby. Mira is 11. How old is Bobby?",
+      "people": [
+        {
+          "name": "Bobby"
+        },
+        {
+          "name": "Mira"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Bobby",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          3,
+          11,
+          5
+        ],
+        "correctPieces": [
+          "+",
+          3
+        ],
+        "pieceMisconceptions": {
+          "5": "distractor-number-confusion",
+          "11": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "=",
+          "11"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          3,
+          11,
+          5,
+          "="
+        ],
+        "correctPieces": [
+          3
+        ],
+        "pieceMisconceptions": {
+          "5": "distractor-number-confusion",
+          "11": "distractor-number-confusion"
+        }
+      },
+      "solution": {
+        "variableValue": 8,
+        "solveLines": [
+          "x + 3 = 11",
+          "x = 8"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Bobby",
+            "value": 8
+          },
+          {
+            "name": "Mira",
+            "value": 11
+          }
+        ],
+        "successSubtitle": "Bobby is 8 and Mira is 11.",
+        "successAudio": "Bobby is 8 and Mira is 11."
+      },
+      "answer": {
+        "problemText": "<p>Mira is 3 older than Bobby. Mira is 11.</p>",
+        "canonicalEquationDisplay": "x + 3 = 11",
+        "solveLines": [
+          "x + 3 = 11",
+          "x = 8"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Bobby",
+            "value": 8
+          },
+          {
+            "name": "Mira",
+            "value": 11
+          }
+        ],
+        "explanation": "Bobby (younger) is x, Mira is x + 3 = 11, so x = 8."
+      }
+    },
+    {
+      "set": "B",
+      "id": "B_r10_aman_sara_diff_easy",
+      "round": 10,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Sara is 4 years older than Aman. Sara is 13. How old is Aman?</p>",
+      "problemAudioText": "Sara is 4 years older than Aman. Sara is 13. How old is Aman?",
+      "people": [
+        {
+          "name": "Aman"
+        },
+        {
+          "name": "Sara"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Aman",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          4,
+          13,
+          6
+        ],
+        "correctPieces": [
+          "+",
+          4
+        ],
+        "pieceMisconceptions": {
+          "6": "distractor-number-confusion",
+          "13": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "=",
+          "13"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          4,
+          13,
+          6,
+          "="
+        ],
+        "correctPieces": [
+          4
+        ],
+        "pieceMisconceptions": {
+          "6": "distractor-number-confusion",
+          "13": "distractor-number-confusion"
+        }
+      },
+      "solution": {
+        "variableValue": 9,
+        "solveLines": [
+          "x + 4 = 13",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Aman",
+            "value": 9
+          },
+          {
+            "name": "Sara",
+            "value": 13
+          }
+        ],
+        "successSubtitle": "Aman is 9 and Sara is 13.",
+        "successAudio": "Aman is 9 and Sara is 13."
+      },
+      "answer": {
+        "problemText": "<p>Sara is 4 older than Aman. Sara is 13.</p>",
+        "canonicalEquationDisplay": "x + 4 = 13",
+        "solveLines": [
+          "x + 4 = 13",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Aman",
+            "value": 9
+          },
+          {
+            "name": "Sara",
+            "value": 13
+          }
+        ],
+        "explanation": "Aman (younger) is x, Sara is x + 4 = 13, so x = 9."
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r1_ravi_past_easy",
+      "round": 1,
+      "stage": 1,
+      "type": "A",
+      "problemText": "<p>4 years ago, Ravi was 5. How old is Ravi now?</p>",
+      "problemAudioText": "4 years ago, Ravi was 5. How old is Ravi now?",
+      "people": [
+        {
+          "name": "Ravi"
+        }
+      ],
+      "timeDelta": -4,
+      "preferredVariable": "Ravi",
+      "step2": {
+        "kind": "directionTiles",
+        "tiles": [
+          {
+            "label": "x − 4",
+            "correct": true,
+            "misconception": null
+          },
+          {
+            "label": "x + 4",
+            "correct": false,
+            "misconception": "time-shift-direction-flip"
+          }
+        ]
+      },
+      "step3": {
+        "slotTemplate": [
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "x",
+          "−",
+          "+",
+          4,
+          "=",
+          5,
+          10
+        ],
+        "correctPieces": [
+          "x",
+          "−",
+          4,
+          "=",
+          5
+        ],
+        "pieceMisconceptions": {
+          "10": "distractor-number-confusion",
+          "+": "time-shift-direction-flip"
+        }
+      },
+      "solution": {
+        "variableValue": 9,
+        "solveLines": [
+          "x − 4 = 5",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Ravi (now)",
+            "value": 9
+          }
+        ],
+        "successSubtitle": "Ravi is 9 now.",
+        "successAudio": "Ravi is 9 now."
+      },
+      "answer": {
+        "problemText": "<p>4 years ago, Ravi was 5. How old is Ravi now?</p>",
+        "canonicalEquationDisplay": "x − 4 = 5",
+        "solveLines": [
+          "x − 4 = 5",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Ravi",
+            "value": 9
+          }
+        ],
+        "explanation": "\"4 years ago\" subtracts 4 from x. So x − 4 = 5 gives x = 9."
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r2_mira_future_easy",
+      "round": 2,
+      "stage": 1,
+      "type": "A",
+      "problemText": "<p>Mira is 8 now. How old will Mira be in 2 years?</p>",
+      "problemAudioText": "Mira is 8 now. How old will Mira be in 2 years?",
+      "people": [
+        {
+          "name": "Mira"
+        }
+      ],
+      "timeDelta": 2,
+      "preferredVariable": "Mira",
+      "step2": {
+        "kind": "directionTiles",
+        "tiles": [
+          {
+            "label": "x + 2",
+            "correct": true,
+            "misconception": null
+          },
+          {
+            "label": "x − 2",
+            "correct": false,
+            "misconception": "time-shift-direction-flip"
+          }
+        ]
+      },
+      "step3": {
+        "slotTemplate": [
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          2,
+          8,
+          "=",
+          10
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          2,
+          "=",
+          10
+        ],
+        "pieceMisconceptions": {
+          "8": "distractor-number-confusion",
+          "−": "time-shift-direction-flip"
+        }
+      },
+      "solution": {
+        "variableValue": 8,
+        "solveLines": [
+          "x = 8",
+          "x + 2 = 10"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira (now)",
+            "value": 8
+          },
+          {
+            "name": "Mira (in 2 yr)",
+            "value": 10
+          }
+        ],
+        "successSubtitle": "Mira is 8 now, and 10 in 2 years.",
+        "successAudio": "Mira is 8 now, and 10 in 2 years."
+      },
+      "answer": {
+        "problemText": "<p>Mira is 8 now. How old in 2 years?</p>",
+        "canonicalEquationDisplay": "x + 2 = 10",
+        "solveLines": [
+          "x = 8",
+          "x + 2 = 10"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 8
+          },
+          {
+            "name": "in 2 yr",
+            "value": 10
+          }
+        ],
+        "explanation": "Mira is x = 8; in 2 years he/she is 10."
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r3_aman_past_easy",
+      "round": 3,
+      "stage": 1,
+      "type": "A",
+      "problemText": "<p>3 years ago, Aman was 6. How old is Aman now?</p>",
+      "problemAudioText": "3 years ago, Aman was 6. How old is Aman now?",
+      "people": [
+        {
+          "name": "Aman"
+        }
+      ],
+      "timeDelta": -3,
+      "preferredVariable": "Aman",
+      "step2": {
+        "kind": "directionTiles",
+        "tiles": [
+          {
+            "label": "x − 3",
+            "correct": true,
+            "misconception": null
+          },
+          {
+            "label": "x + 3",
+            "correct": false,
+            "misconception": "time-shift-direction-flip"
+          }
+        ]
+      },
+      "step3": {
+        "slotTemplate": [
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "x",
+          "−",
+          "+",
+          3,
+          "=",
+          6,
+          11
+        ],
+        "correctPieces": [
+          "x",
+          "−",
+          3,
+          "=",
+          6
+        ],
+        "pieceMisconceptions": {
+          "11": "distractor-number-confusion",
+          "+": "time-shift-direction-flip"
+        }
+      },
+      "solution": {
+        "variableValue": 9,
+        "solveLines": [
+          "x − 3 = 6",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Aman (now)",
+            "value": 9
+          }
+        ],
+        "successSubtitle": "Aman is 9 now.",
+        "successAudio": "Aman is 9 now."
+      },
+      "answer": {
+        "problemText": "<p>3 years ago, Aman was 6. How old is Aman now?</p>",
+        "canonicalEquationDisplay": "x − 3 = 6",
+        "solveLines": [
+          "x − 3 = 6",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Aman",
+            "value": 9
+          }
+        ],
+        "explanation": "\"3 years ago\" subtracts 3 from x. So x − 3 = 6 gives x = 9."
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r4_anita_bobby_easy",
+      "round": 4,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Anita is 3 years younger than Bobby. Their ages sum to 15. How old is Anita?</p>",
+      "problemAudioText": "Anita is 3 years younger than Bobby. Their ages sum to 15. How old is Anita?",
+      "people": [
+        {
+          "name": "Anita"
+        },
+        {
+          "name": "Bobby"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Anita",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          3,
+          15,
+          4
+        ],
+        "correctPieces": [
+          "+",
+          3
+        ],
+        "pieceMisconceptions": {
+          "4": "distractor-number-confusion",
+          "15": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "15"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          3,
+          15,
+          12,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          3
+        ],
+        "pieceMisconceptions": {
+          "12": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 6,
+        "solveLines": [
+          "x + (x + 3) = 15",
+          "2x + 3 = 15",
+          "x = 6"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Anita",
+            "value": 6
+          },
+          {
+            "name": "Bobby",
+            "value": 9
+          }
+        ],
+        "successSubtitle": "Anita is 6 and Bobby is 9.",
+        "successAudio": "Anita is 6 and Bobby is 9."
+      },
+      "answer": {
+        "problemText": "<p>Anita is 3 years younger than Bobby. Sum 15.</p>",
+        "canonicalEquationDisplay": "x + (x + 3) = 15",
+        "solveLines": [
+          "x + (x + 3) = 15",
+          "2x = 12",
+          "x = 6"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Anita",
+            "value": 6
+          },
+          {
+            "name": "Bobby",
+            "value": 9
+          }
+        ],
+        "explanation": "Anita (younger) is x, Bobby is x + 3. Sum 15 gives x = 6."
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r5_bobby_aman_easy",
+      "round": 5,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Bobby is 4 years younger than Aman. Their ages sum to 18. How old is Bobby?</p>",
+      "problemAudioText": "Bobby is 4 years younger than Aman. Their ages sum to 18. How old is Bobby?",
+      "people": [
+        {
+          "name": "Bobby"
+        },
+        {
+          "name": "Aman"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Bobby",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          4,
+          18,
+          5
+        ],
+        "correctPieces": [
+          "+",
+          4
+        ],
+        "pieceMisconceptions": {
+          "5": "distractor-number-confusion",
+          "18": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "18"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          4,
+          18,
+          14,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          4
+        ],
+        "pieceMisconceptions": {
+          "14": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 7,
+        "solveLines": [
+          "x + (x + 4) = 18",
+          "2x + 4 = 18",
+          "x = 7"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Bobby",
+            "value": 7
+          },
+          {
+            "name": "Aman",
+            "value": 11
+          }
+        ],
+        "successSubtitle": "Bobby is 7 and Aman is 11.",
+        "successAudio": "Bobby is 7 and Aman is 11."
+      },
+      "answer": {
+        "problemText": "<p>Bobby is 4 years younger than Aman. Sum 18.</p>",
+        "canonicalEquationDisplay": "x + (x + 4) = 18",
+        "solveLines": [
+          "x + (x + 4) = 18",
+          "2x = 14",
+          "x = 7"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Bobby",
+            "value": 7
+          },
+          {
+            "name": "Aman",
+            "value": 11
+          }
+        ],
+        "explanation": "Bobby (younger) is x, Aman is x + 4. Sum 18 gives x = 7."
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r6_sara_anita_easy",
+      "round": 6,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Sara is 2 years younger than Anita. Their ages sum to 14. How old is Sara?</p>",
+      "problemAudioText": "Sara is 2 years younger than Anita. Their ages sum to 14. How old is Sara?",
+      "people": [
+        {
+          "name": "Sara"
+        },
+        {
+          "name": "Anita"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Sara",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          2,
+          14,
+          3
+        ],
+        "correctPieces": [
+          "+",
+          2
+        ],
+        "pieceMisconceptions": {
+          "3": "distractor-number-confusion",
+          "14": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "14"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          2,
+          14,
+          12,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          2
+        ],
+        "pieceMisconceptions": {
+          "12": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 6,
+        "solveLines": [
+          "x + (x + 2) = 14",
+          "2x + 2 = 14",
+          "x = 6"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara",
+            "value": 6
+          },
+          {
+            "name": "Anita",
+            "value": 8
+          }
+        ],
+        "successSubtitle": "Sara is 6 and Anita is 8.",
+        "successAudio": "Sara is 6 and Anita is 8."
+      },
+      "answer": {
+        "problemText": "<p>Sara is 2 years younger than Anita. Sum 14.</p>",
+        "canonicalEquationDisplay": "x + (x + 2) = 14",
+        "solveLines": [
+          "x + (x + 2) = 14",
+          "2x = 12",
+          "x = 6"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara",
+            "value": 6
+          },
+          {
+            "name": "Anita",
+            "value": 8
+          }
+        ],
+        "explanation": "Sara (younger) is x, Anita is x + 2. Sum 14 gives x = 6."
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r7_ravi_mira_easy",
+      "round": 7,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Ravi is 1 years younger than Mira. Their ages sum to 11. How old is Ravi?</p>",
+      "problemAudioText": "Ravi is 1 years younger than Mira. Their ages sum to 11. How old is Ravi?",
+      "people": [
+        {
+          "name": "Ravi"
+        },
+        {
+          "name": "Mira"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Ravi",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          1,
+          11,
+          2
+        ],
+        "correctPieces": [
+          "+",
+          1
+        ],
+        "pieceMisconceptions": {
+          "2": "distractor-number-confusion",
+          "11": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "__slot__",
+          "__slot__",
+          "=",
+          "11"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          "·",
+          1,
+          11,
+          10,
+          "="
+        ],
+        "correctPieces": [
+          "x",
+          "+",
+          1
+        ],
+        "pieceMisconceptions": {
+          "10": "distractor-number-confusion",
+          "−": "operation-mismatch",
+          "·": "operation-mismatch"
+        }
+      },
+      "solution": {
+        "variableValue": 5,
+        "solveLines": [
+          "x + (x + 1) = 11",
+          "2x + 1 = 11",
+          "x = 5"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Ravi",
+            "value": 5
+          },
+          {
+            "name": "Mira",
+            "value": 6
+          }
+        ],
+        "successSubtitle": "Ravi is 5 and Mira is 6.",
+        "successAudio": "Ravi is 5 and Mira is 6."
+      },
+      "answer": {
+        "problemText": "<p>Ravi is 1 years younger than Mira. Sum 11.</p>",
+        "canonicalEquationDisplay": "x + (x + 1) = 11",
+        "solveLines": [
+          "x + (x + 1) = 11",
+          "2x = 10",
+          "x = 5"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Ravi",
+            "value": 5
+          },
+          {
+            "name": "Mira",
+            "value": 6
+          }
+        ],
+        "explanation": "Ravi (younger) is x, Mira is x + 1. Sum 11 gives x = 5."
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r8_mira_ravi_diff_easy",
+      "round": 8,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Ravi is 2 years older than Mira. Ravi is 12. How old is Mira?</p>",
+      "problemAudioText": "Ravi is 2 years older than Mira. Ravi is 12. How old is Mira?",
+      "people": [
+        {
+          "name": "Mira"
+        },
+        {
+          "name": "Ravi"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Mira",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          2,
+          12,
+          4
+        ],
+        "correctPieces": [
+          "+",
+          2
+        ],
+        "pieceMisconceptions": {
+          "4": "distractor-number-confusion",
+          "12": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "=",
+          "12"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          2,
+          12,
+          4,
+          "="
+        ],
+        "correctPieces": [
+          2
+        ],
+        "pieceMisconceptions": {
+          "4": "distractor-number-confusion",
+          "12": "distractor-number-confusion"
+        }
+      },
+      "solution": {
+        "variableValue": 10,
+        "solveLines": [
+          "x + 2 = 12",
+          "x = 10"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 10
+          },
+          {
+            "name": "Ravi",
+            "value": 12
+          }
+        ],
+        "successSubtitle": "Mira is 10 and Ravi is 12.",
+        "successAudio": "Mira is 10 and Ravi is 12."
+      },
+      "answer": {
+        "problemText": "<p>Ravi is 2 older than Mira. Ravi is 12.</p>",
+        "canonicalEquationDisplay": "x + 2 = 12",
+        "solveLines": [
+          "x + 2 = 12",
+          "x = 10"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Mira",
+            "value": 10
+          },
+          {
+            "name": "Ravi",
+            "value": 12
+          }
+        ],
+        "explanation": "Mira (younger) is x, Ravi is x + 2 = 12, so x = 10."
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r9_sara_bobby_diff_easy",
+      "round": 9,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Bobby is 3 years older than Sara. Bobby is 11. How old is Sara?</p>",
+      "problemAudioText": "Bobby is 3 years older than Sara. Bobby is 11. How old is Sara?",
+      "people": [
+        {
+          "name": "Sara"
+        },
+        {
+          "name": "Bobby"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Sara",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          3,
+          11,
+          5
+        ],
+        "correctPieces": [
+          "+",
+          3
+        ],
+        "pieceMisconceptions": {
+          "5": "distractor-number-confusion",
+          "11": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "=",
+          "11"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          3,
+          11,
+          5,
+          "="
+        ],
+        "correctPieces": [
+          3
+        ],
+        "pieceMisconceptions": {
+          "5": "distractor-number-confusion",
+          "11": "distractor-number-confusion"
+        }
+      },
+      "solution": {
+        "variableValue": 8,
+        "solveLines": [
+          "x + 3 = 11",
+          "x = 8"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara",
+            "value": 8
+          },
+          {
+            "name": "Bobby",
+            "value": 11
+          }
+        ],
+        "successSubtitle": "Sara is 8 and Bobby is 11.",
+        "successAudio": "Sara is 8 and Bobby is 11."
+      },
+      "answer": {
+        "problemText": "<p>Bobby is 3 older than Sara. Bobby is 11.</p>",
+        "canonicalEquationDisplay": "x + 3 = 11",
+        "solveLines": [
+          "x + 3 = 11",
+          "x = 8"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Sara",
+            "value": 8
+          },
+          {
+            "name": "Bobby",
+            "value": 11
+          }
+        ],
+        "explanation": "Sara (younger) is x, Bobby is x + 3 = 11, so x = 8."
+      }
+    },
+    {
+      "set": "C",
+      "id": "C_r10_aman_anita_diff_easy",
+      "round": 10,
+      "stage": 2,
+      "type": "B",
+      "problemText": "<p>Anita is 5 years older than Aman. Anita is 14. How old is Aman?</p>",
+      "problemAudioText": "Anita is 5 years older than Aman. Anita is 14. How old is Aman?",
+      "people": [
+        {
+          "name": "Aman"
+        },
+        {
+          "name": "Anita"
+        }
+      ],
+      "timeDelta": null,
+      "preferredVariable": "Aman",
+      "step2": {
+        "kind": "pieceBank",
+        "slotTemplate": [
+          "x",
+          "__slot__",
+          "__slot__"
+        ],
+        "pieceBank": [
+          "+",
+          "−",
+          5,
+          14,
+          7
+        ],
+        "correctPieces": [
+          "+",
+          5
+        ],
+        "pieceMisconceptions": {
+          "7": "distractor-number-confusion",
+          "14": "distractor-number-confusion",
+          "−": "sign-error-younger-confused-with-older"
+        }
+      },
+      "step3": {
+        "slotTemplate": [
+          "x",
+          "+",
+          "__slot__",
+          "=",
+          "14"
+        ],
+        "pieceBank": [
+          "x",
+          "+",
+          "−",
+          5,
+          14,
+          7,
+          "="
+        ],
+        "correctPieces": [
+          5
+        ],
+        "pieceMisconceptions": {
+          "7": "distractor-number-confusion",
+          "14": "distractor-number-confusion"
+        }
+      },
+      "solution": {
+        "variableValue": 9,
+        "solveLines": [
+          "x + 5 = 14",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Aman",
+            "value": 9
+          },
+          {
+            "name": "Anita",
+            "value": 14
+          }
+        ],
+        "successSubtitle": "Aman is 9 and Anita is 14.",
+        "successAudio": "Aman is 9 and Anita is 14."
+      },
+      "answer": {
+        "problemText": "<p>Anita is 5 older than Aman. Anita is 14.</p>",
+        "canonicalEquationDisplay": "x + 5 = 14",
+        "solveLines": [
+          "x + 5 = 14",
+          "x = 9"
+        ],
+        "captionedAnswers": [
+          {
+            "name": "Aman",
+            "value": 9
+          },
+          {
+            "name": "Anita",
+            "value": 14
+          }
+        ],
+        "explanation": "Aman (younger) is x, Anita is x + 5 = 14, so x = 9."
+      }
+    }
+  ]
+}

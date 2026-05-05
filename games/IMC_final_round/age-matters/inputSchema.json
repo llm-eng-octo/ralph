@@ -1,0 +1,425 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Age Matters content schema",
+  "description": "Content schema for the Age Matters — Word-Problem Equation Trainer game. Derived from fallbackContent in index.html. Every game_init payload's content field must validate against this schema.",
+  "type": "object",
+  "required": [
+    "previewInstruction",
+    "previewAudioText",
+    "previewAudio",
+    "showGameOnPreview",
+    "totalRounds",
+    "totalLives",
+    "timer",
+    "answerComponent",
+    "rounds"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "previewInstruction": {
+      "type": "string",
+      "description": "HTML instruction string shown on the PART-039 PreviewScreen."
+    },
+    "previewAudioText": {
+      "type": "string",
+      "description": "TTS source text for the preview audio. The deployment pipeline converts this to mp3 and patches previewAudio."
+    },
+    "previewAudio": {
+      "description": "CDN URL of the prerendered preview mp3. Null at build time, populated by deploy step 2.5.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "showGameOnPreview": {
+      "type": "boolean",
+      "description": "Whether to render the live play area behind the preview overlay."
+    },
+    "totalRounds": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of rounds played per session (10)."
+    },
+    "totalLives": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of lives at game start. Age Matters uses 0 — wrong taps trigger hints, no penalty."
+    },
+    "timer": {
+      "type": "boolean",
+      "description": "Whether the game runs under PART-006 Timer. Age Matters uses false (deliberation game)."
+    },
+    "answerComponent": {
+      "type": "boolean",
+      "description": "Whether to ship the PART-051 answer carousel after victory."
+    },
+    "rounds": {
+      "type": "array",
+      "minItems": 10,
+      "description": "Round objects across one or more sets. Length must be totalRounds × number-of-sets (30 = 10 × 3 in fallback).",
+      "items": {
+        "type": "object",
+        "required": [
+          "set",
+          "id",
+          "round",
+          "stage",
+          "type",
+          "problemText",
+          "problemAudioText",
+          "people",
+          "timeDelta",
+          "preferredVariable",
+          "step2",
+          "step3",
+          "solution",
+          "answer"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "set": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C"
+            ],
+            "description": "Round-set identifier. Set A first attempt; B/C cycle on retry."
+          },
+          "id": {
+            "type": "string",
+            "description": "Globally unique question identifier across all sets (e.g. A_r1_aman_past). Stable across sessions for gauge analytics."
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "description": "Round index within the set (1..10)."
+          },
+          "stage": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3,
+            "description": "Difficulty stage (1=warm-up single person, 2=two people present, 3=two people across time)."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C"
+            ],
+            "description": "Round type. A: single person + time shift. B: two people present tense. C: two people + time shift."
+          },
+          "problemText": {
+            "type": "string",
+            "description": "HTML word-problem panel text shown to the student."
+          },
+          "problemAudioText": {
+            "type": "string",
+            "description": "TTS source text for narrating the word problem."
+          },
+          "people": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "timeDelta": {
+            "description": "Signed time delta in years. Negative = past, positive = future, null = no time shift.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preferredVariable": {
+            "type": "string",
+            "description": "Name of the preferred person to assign x (younger / simpler)."
+          },
+          "step2": {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "directionTiles",
+                  "pieceBank"
+                ],
+                "description": "directionTiles for Type A; pieceBank for Type B/C."
+              },
+              "tiles": {
+                "type": "array",
+                "description": "Tiles for the directionTiles variant (Type A).",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "label",
+                    "correct"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "correct": {
+                      "type": "boolean"
+                    },
+                    "misconception": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "slotTemplate": {
+                "type": "array",
+                "description": "Slot template for pieceBank variant. '__slot__' marks an empty fill-target; other entries are pinned literals.",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                }
+              },
+              "pieceBank": {
+                "type": "array",
+                "description": "Available pieces (correct + distractors).",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                }
+              },
+              "correctPieces": {
+                "type": "array",
+                "description": "Ordered list of pieces that fill the empty slots in slotTemplate.",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                }
+              },
+              "pieceMisconceptions": {
+                "type": "object",
+                "description": "Map from stringified piece value to misconception tag for hint selection.",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": [
+                    "time-shift-direction-flip",
+                    "time-shift-omission",
+                    "time-shift-wrong-delta",
+                    "sign-error-younger-confused-with-older",
+                    "operation-mismatch",
+                    "distractor-number-confusion"
+                  ]
+                }
+              }
+            }
+          },
+          "step3": {
+            "type": "object",
+            "required": [
+              "slotTemplate",
+              "pieceBank",
+              "correctPieces"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "slotTemplate": {
+                "type": "array",
+                "description": "Equation skeleton. '__slot__' marks an empty fill-target.",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                }
+              },
+              "pieceBank": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                }
+              },
+              "correctPieces": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                }
+              },
+              "pieceMisconceptions": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": [
+                    "time-shift-direction-flip",
+                    "time-shift-omission",
+                    "time-shift-wrong-delta",
+                    "sign-error-younger-confused-with-older",
+                    "operation-mismatch",
+                    "distractor-number-confusion"
+                  ]
+                }
+              }
+            }
+          },
+          "solution": {
+            "type": "object",
+            "required": [
+              "variableValue",
+              "solveLines",
+              "captionedAnswers",
+              "successSubtitle",
+              "successAudio"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "variableValue": {
+                "type": "number"
+              },
+              "solveLines": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "captionedAnswers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "successSubtitle": {
+                "type": "string"
+              },
+              "successAudio": {
+                "type": "string"
+              }
+            }
+          },
+          "answer": {
+            "type": "object",
+            "required": [
+              "problemText",
+              "canonicalEquationDisplay",
+              "solveLines",
+              "captionedAnswers",
+              "explanation"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "problemText": {
+                "type": "string"
+              },
+              "canonicalEquationDisplay": {
+                "type": "string"
+              },
+              "solveLines": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "captionedAnswers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "explanation": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

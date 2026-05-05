@@ -1,0 +1,22 @@
+{
+  "publishedGameId": "game_age-matters_v1_0_0-bmokd34ni",
+  "artifactUrl": "https://cdn.mathai.ai/mathai-games-live/game/game_age-matters_v1_0_0-bmokd34ni/game_age-matters_v1_0_0-bmokd34ni_v1_0_0-bmokd34ni.html",
+  "contentSets": [
+    {
+      "name": "Age Matters — Default",
+      "difficulty": "medium",
+      "id": "content_game_age-matters_v1_0_0-bmokd34ni_1777485691350"
+    },
+    {
+      "name": "Age Matters — Easy",
+      "difficulty": "easy",
+      "id": "content_game_age-matters_v1_0_0-bmokd34ni_1777485691445"
+    },
+    {
+      "name": "Age Matters — Hard",
+      "difficulty": "hard",
+      "id": "content_game_age-matters_v1_0_0-bmokd34ni_1777485691532"
+    }
+  ],
+  "gameLink": "https://learn.mathai.ai/game/game_age-matters_v1_0_0-bmokd34ni/content_game_age-matters_v1_0_0-bmokd34ni_1777485691350"
+}

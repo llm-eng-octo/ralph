@@ -79,39 +79,14 @@ Acceptable ONLY when:
 
 ### Preview-wrapper mode (CRITICAL)
 
-When the game uses PART-039 / `previewScreen: true`, the page must not rely on root-document scrolling. The single vertical scroll owner is `.mathai-preview-body`.
+When the game uses PART-039 / `previewScreen: true`, scroll ownership is decided by the components bundle's `mathai-preview-critical-css` block, not by per-game CSS. The bundle picks per device class:
 
-```css
-#mathai-preview-slot {
-  height: 100dvh;
-  overflow: hidden;
-}
+- **Touch (no fine pointer):** `.mathai-preview-body` is the single inner scroll container. The header is `position: fixed`. `html` / `body` / `.page-center` / `#mathai-preview-slot` are locked to `100dvh` with `overflow: hidden` so touch gestures that begin on gameplay surfaces (grids, banks, drag targets) reliably pan the body instead of falling through to the document.
+- **Desktop (`hover:hover` and `pointer:fine`):** the same selectors flip to `height:auto` / `overflow:visible`, the document scrolls natively, and the header switches to `position: sticky; top: 0`. Mouse wheel works anywhere in the window — not just over the centered column.
 
-#mathai-preview-slot .mathai-preview-body {
-  height: 100dvh;
-  box-sizing: border-box;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-}
+Game CSS MUST NOT author rules for `height` / `overflow` on `html`, `body`, `.page-center`, `#mathai-preview-slot`, or `.mathai-preview-body` — they will fight the package CSS and break either mobile gestures or desktop wheel scroll. The package's media-query branch handles both cases.
 
-html,
-body,
-.page-center {
-  height: 100dvh;
-  min-height: 100dvh;
-  overflow-y: hidden;
-}
-
-.game-stack {
-  overflow: visible;
-  height: auto;
-}
-```
-
-Why this matters: in preview-wrapper mode, touch gestures often begin on grids, banks, or drag/drop surfaces. If scrolling is delegated to the root page instead of `.mathai-preview-body`, those gestures can fail to pan the document at all, even though content is taller than the viewport.
-
-Do NOT introduce a second vertical scroll container inside `.game-stack`. Nested scroll areas break momentum scrolling and cause layout jumps during drag interactions.
+Do NOT introduce a second vertical scroll container inside `.game-stack`. Nested scroll areas break momentum scrolling and cause layout jumps during drag interactions, on either device class.
 
 ---
 

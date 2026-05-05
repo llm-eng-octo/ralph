@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Add List with Adjustment Strategy content schema",
+  "description": "Content schema for the Add List with Adjustment Strategy — The Compensation Workout game. Derived from fallbackContent in index.html. Every game_init payload's content field must validate against this schema.",
+  "type": "object",
+  "required": [
+    "previewInstruction",
+    "previewAudioText",
+    "previewAudio",
+    "showGameOnPreview",
+    "totalRounds",
+    "totalLives",
+    "rounds"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "previewInstruction": {
+      "type": "string",
+      "description": "HTML instruction string shown on the PART-039 PreviewScreen."
+    },
+    "previewAudioText": {
+      "type": "string",
+      "description": "TTS source text for the preview audio. The deployment pipeline converts this to mp3 and patches previewAudio."
+    },
+    "previewAudio": {
+      "type": ["string", "null"],
+      "description": "CDN URL of the prerendered preview mp3. Null at build time, populated by deploy step 2.5."
+    },
+    "showGameOnPreview": {
+      "type": "boolean",
+      "description": "Whether to render the live play area behind the preview overlay."
+    },
+    "totalRounds": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of rounds played per session (9)."
+    },
+    "totalLives": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of lives at game start (3)."
+    },
+    "rounds": {
+      "type": "array",
+      "minItems": 9,
+      "description": "Round objects across one or more sets. Length is totalRounds (9) × number-of-sets (3) = 27 in fallback. Round-set cycling MANDATORY (validator GEN-ROUNDSETS-MIN-3).",
+      "items": {
+        "type": "object",
+        "required": [
+          "set",
+          "id",
+          "round",
+          "stage",
+          "type",
+          "addend1Start",
+          "addend2Start",
+          "addend1Friendly",
+          "addend2Friendly",
+          "correct",
+          "successAudio",
+          "successSubtitle",
+          "failAudio",
+          "failSubtitle",
+          "misconception_tags",
+          "answer"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "set": {
+            "type": "string",
+            "enum": ["A", "B", "C"],
+            "description": "Round-set identifier. Set A first attempt; B/C cycle on retry."
+          },
+          "id": {
+            "type": "string",
+            "description": "Globally unique question identifier across all sets (e.g. A_r1_58_72). Stable across sessions for gauge analytics."
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9,
+            "description": "Round index within the set (1..9)."
+          },
+          "stage": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3,
+            "description": "Difficulty stage (1=easy benchmarks, 2=tighter adjustments, 3=wider gaps)."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["adjust-and-add"],
+            "description": "Round type. This game only uses Type A (adjust-and-add)."
+          },
+          "addend1Start": {
+            "type": "integer",
+            "description": "Starting value of addend 1 shown in box 1 when the round loads."
+          },
+          "addend2Start": {
+            "type": "integer",
+            "description": "Starting value of addend 2 shown in box 2 when the round loads."
+          },
+          "addend1Friendly": {
+            "type": "integer",
+            "description": "Friendly target for addend 1 (typically a multiple of 10) used in the correct-answer reveal animation. Compensation invariant: addend1Friendly + addend2Friendly === correct."
+          },
+          "addend2Friendly": {
+            "type": "integer",
+            "description": "Friendly target for addend 2 used in the correct-answer reveal animation. Compensation invariant: addend1Friendly + addend2Friendly === correct."
+          },
+          "correct": {
+            "type": "integer",
+            "description": "Correct integer the student must type. EQUALS addend1Start + addend2Start AND addend1Friendly + addend2Friendly."
+          },
+          "successAudio": {
+            "type": "string",
+            "description": "Dynamic TTS string played on correct submit, parameterised on this round's specific numbers."
+          },
+          "successSubtitle": {
+            "type": "string",
+            "description": "Subtitle text rendered alongside successAudio."
+          },
+          "failAudio": {
+            "type": "string",
+            "description": "Dynamic TTS string played on wrong submit, parameterised on this round's specific numbers."
+          },
+          "failSubtitle": {
+            "type": "string",
+            "description": "Subtitle text rendered alongside failAudio."
+          },
+          "misconception_tags": {
+            "type": "object",
+            "description": "Map from stringified candidate wrong answer to misconception tag. Includes a 'whole-rule-mismatch' fallback key.",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "compensation-applied-only-to-addend1",
+                "compensation-applied-only-to-addend2",
+                "tens-only-no-ones-add",
+                "arithmetic-error-on-friendly-pair",
+                "wrong-direction-compensation",
+                "off-by-ten-place-value-slip",
+                "whole-rule-mismatch"
+              ]
+            }
+          },
+          "answer": {
+            "type": "object",
+            "description": "Answer payload consumed by PART-051 AnswerComponent for the post-victory carousel.",
+            "required": [
+              "addend1Start",
+              "addend2Start",
+              "addend1Friendly",
+              "addend2Friendly",
+              "correct",
+              "strategyStatement"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "addend1Start": { "type": "integer" },
+              "addend2Start": { "type": "integer" },
+              "addend1Friendly": { "type": "integer" },
+              "addend2Friendly": { "type": "integer" },
+              "correct": { "type": "integer" },
+              "strategyStatement": {
+                "type": "string",
+                "description": "Plain-language compensation explanation shown on the answer carousel slide."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
