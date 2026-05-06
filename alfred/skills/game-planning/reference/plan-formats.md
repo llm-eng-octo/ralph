@@ -190,11 +190,15 @@ List every distinct round type.
 
 | Step | gameState fields changed | DOM update |
 |------|------------------------|------------|
-| Round starts | currentRound incremented | syncDOM() called |
-| Correct answer | score++, streak++ | score display, progress bar |
-| Wrong answer | streak=0, lives-- (if applicable) | lives display, correct reveal |
-| Last round | phase='results' | screen transition |
+| Round starts | currentRound incremented | syncDOM() called; progress bar already at post-bump value from previous round |
+| Correct answer (student moves past) | score++ (correct count, feeds end-of-game `getStars()`); progress++ (default policy: rounds passed); progressBar.update(progress, livesLeft) BEFORE next-round / Victory | progress bar advances |
+| Wrong answer, retries available (still on same round) | lives-- (if applicable); **no progress bump**; floatingBtn.setMode('retry'); same-round re-render | heart removed; progress bar unchanged |
+| Wrong answer, lives remaining > 0, NO retry / retries-exhausted (advance — student moves past) | lives--; progress++ (default policy); progressBar.update(progress, livesLeft) BEFORE next-round | progress bar advances + heart removed |
+| Wrong answer, last life (`lives === 0`) — Game Over (round NOT passed) | lives-- (to 0); **no progress bump**; progressBar.update(prior progress, 0) — hearts empty visibly, progress preserved | bar reads "completed N-1, lost on N" + 0 hearts |
+| Last round, correct (Victory) | phase='results' | screen transition; progress bar already at totalRounds/totalRounds from the last bump |
 ```
+
+**Two counters, two purposes** (default policy): `gameState.progress` drives the progress bar (rounds passed, bumps when the student moves past); `gameState.score` feeds `getStars()` at end-of-game (rounds correct). Do NOT collapse these. **The bump fires only when the student moves PAST the round** (correct, OR retries-exhausted with lives remaining). **Game Over does NOT bump** — the student never passed the round. **Wrong-with-retry does NOT bump** — still on the same round. The ActionBar header is end-of-game-only — do NOT update it mid-round. See PART-023 § Bump timing + flow-implementation.md § Round loop pattern.
 
 ## 4. feedback.md Format
 

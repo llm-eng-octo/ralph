@@ -384,6 +384,7 @@
 
   ActionBarComponent.prototype._animateStarAward = function (payload) {
     payload = payload || {};
+    if (Number(payload.count) === 0) return;
     var resolved = this._resolveStarImage(payload.variant, payload.count);
     var key = resolved.variant + ":" + resolved.count + ":" + (payload.silent ? "1" : "0");
     var now = Date.now();

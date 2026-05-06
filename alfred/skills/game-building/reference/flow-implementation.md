@@ -53,8 +53,9 @@ The counter increments AFTER feedback completes, regardless of correct/wrong (pr
 | Runtime start, `totalRounds === 1` | `progressBar.hide()` (standalone) |
 | After Preview → Welcome mount | no new call needed (already at 0 from start) |
 | Entering Round-i intro / body | `update(progress, livesLeft)` — reflects current progression state, **not** `i` or `i-1`. Idempotent no-op if state hasn't changed since last update. |
-| AFTER feedback audio resolves, BEFORE the next round renders / Victory / Game Over fires | Bump `progress` (counts rounds attempted) — correct OR wrong — then `update(progress, livesLeft)`. **Timing: just before the round changes, NOT immediately after submit.** The student sees feedback for the round they just played with the bar still showing the round they're on, and the bar advances as the round changes. The bump MUST still happen BEFORE the awaited round-change UI (`nextRound()` render, `transitionScreen.show(...)` for Victory, `showGameOver()`) — that's what guarantees Victory paints `N/N` and Game Over preserves the post-bump value. Wrong answers also decrement `livesLeft` — single `update(progress, livesLeft)` reflects both. See "Round-complete handler — bump just before round change" in code-patterns.md. |
-| Wrong answer, `livesLeft === 0` after decrement | Bump progress (the failed round still counts as attempted) → `update(progress, 0)` → then `showGameOver()`. The bar shows the post-bump value + 0 hearts; Game Over preserves that state. |
+| AFTER feedback audio resolves, ONLY when the student moves PAST the round, BEFORE the round-change UI fires | Bump `progress` once per round-passed — then `update(progress, livesLeft)`. **A round is "passed" on: correct, OR retries-exhausted with `livesLeft > 0`** (round ends without correct, but the student moves on). The student is "moving past" the current round to the next round or Victory. **Timing: just before `nextRound()` / `loadRound()` (to a new round) or `endGame('victory')` — NOT at submit, NOT before `setMode('retry')`, NOT before `endGame('game_over')`.** Wrong answers also decrement `livesLeft` regardless of bump outcome; the single `update(progress, livesLeft)` reflects both when bumping. See "Round-complete handler — bump just before round change" in code-patterns.md. |
+| Wrong answer, `livesLeft === 0` after decrement (Game Over — round NOT passed) | **No progress bump.** The game ended on this round; the student never moved past it. Call `progressBar.update(state.progress, 0)` (progress is the prior, not-bumped value; hearts empty to 0) → then `showGameOver()`. Game Over preserves the prior progress + 0 hearts so the bar reads "completed N-1, lost on N." |
+| Wrong answer with retries remaining (`livesLeft > 0` AND retry mechanic available) | **No bump.** Trigger the same-round retry path (`floatingBtn.setMode('retry')`, re-render input, etc.). The bar stays on the previous progress. The bump fires on the *next* feedback that finally moves the student past the round (correct or retries-exhausted-with-lives), or stays preserved on Game Over. |
 | Victory entry | `update(totalRounds, livesLeft)` — bar shows full. (With the rounds-attempted counter, `progress` already equals `totalRounds` here; this call is idempotent but explicit.) |
 | Game Over entry | **no call** — state preserved (bar shows prior value + 0 hearts so the student sees their final state) |
 | **Restart-path entry** (after Game Over `Try Again`, or after <3★ Victory `Play Again`) | `update(0, totalLives)` — **reset to the start-at-0 invariant** so a fresh start is visibly signaled before Round 1 begins. *Placement depends on flow shape — see below.* |
@@ -81,14 +82,18 @@ The reset itself is universal; *where* you place the `update(0, totalLives)` cal
 
 ## Round loop pattern
 
-**Default progression policy — "rounds attempted", bump just before round change.** `state.progress` increments after the round's feedback completes, regardless of correct/wrong, **immediately before the round-change UI fires** (next `showRoundIntro` render, Victory transition, or Game Over transition). The bar visibly advances *as the round changes*, not as the student submits. Wrong answers also decrement `livesLeft`; if lives hit 0 the game ends via `showGameOver()` BEFORE the next round renders. `state.score` (correct count) is tracked separately and feeds `getStars()` at end-of-game — it does NOT update the ActionBar header mid-round (the header is end-of-game-only).
+**Default progression policy — "rounds passed", bump only when the student moves PAST the round, just before the next-round / Victory UI.** `state.progress` increments **only when the student passes the current round** (correct, OR retries-exhausted with `livesLeft > 0`), AFTER feedback completes, AND BEFORE the round-change UI fires. The bar advances *as the student moves to the next round / Victory*, not as they submit — and **never on Game Over** (last-life wrong; the game ended on the unfinished round) and **never on a wrong-with-retry** (still on the same round). `state.score` (correct count) is tracked separately and feeds `getStars()` at end-of-game — it does NOT update the ActionBar header mid-round (the header is end-of-game-only).
 
 **Visual sequence per round:**
 1. Student submits → feedback plays (sound + sticker, ~1.5–2 s) → bar still shows previous progress
-2. Feedback resolves → bump `state.progress` → `progressBar.update(progress, livesLeft)` → bar visibly advances
-3. Next round intro renders / Victory / Game Over fires (whichever applies)
+2. Branch:
+   - **Moved past (correct, OR retries-exhausted with lives remaining)** → bump `state.progress` → `progressBar.update(progress, livesLeft)` → next-round / Victory UI
+   - **Last-life wrong (`livesLeft === 0`)** → no bump → `progressBar.update(prior progress, 0)` (hearts empty) → Game Over UI. Bar reads "completed N-1, lost on N."
+   - **Wrong with retry available** → `floatingBtn.setMode('retry')` → same-round re-render → loop back to step 1 on next submit. **No progress bump, no `update()` change.**
 
-The bump still respects the "before the awaited round-change UI" ordering rule — what changes is *when within the round* it fires. Bump after feedback await, before transition await.
+In the default no-retry flow (most existing games), there are only two outcomes per submit: pass-through-correct (bump → next round / Victory) or last-life-wrong (no bump → Game Over) or wrong-with-lives-remaining (advance to next round per default-flow.md, bump → next round). Game Over is the only "no-bump on advance" case. The retry-aware framing is forward-compatible.
+
+The bump still respects the "before the awaited round-change UI" ordering rule — what changes is *when within the round* it fires. Bump after feedback await, only on the moved-past branch, before next-round / Victory UI.
 
 ```js
 async function startGame() {
@@ -109,21 +114,43 @@ async function startGame() {
     state.round = i;
     await showRoundIntro(i);                // transition, auto-advance on sound end
     progressBar.update(state.progress, state.livesLeft);
-    const verdict = await renderRoundAndWaitForSubmit(i);
-    // 1. State mutations (score / lives) — internal counters only, no header refresh
-    if (verdict.correct) {
-      state.score++;                        // score = correct count, feeds getStars() at end
-    } else {
-      state.livesLeft--;
+
+    // Inner submit/retry loop — repeats on wrong-with-retry, breaks otherwise
+    let exitInner = false;
+    while (!exitInner) {
+      const verdict = await renderRoundAndWaitForSubmit(i);
+      // 1. State mutations (score / lives) — internal counters only, no header refresh
+      if (verdict.correct) {
+        state.score++;                      // score = correct count, feeds getStars() at end
+      } else {
+        state.livesLeft--;
+      }
+      // 2. Feedback FIRST — bar still at previous progress while feedback plays
+      await runFeedbackWindow(verdict);     // ~2000ms sound + sticker
+
+      // 3. Wrong-with-retry? (lives remaining + retry mechanic available)
+      const retryAvailable = !verdict.correct && state.livesLeft > 0 && hasRetry(state, i);
+      if (retryAvailable) {
+        // Same round — re-render. No progress bump, no update() change.
+        floatingBtn.setMode('retry');
+        await renderRetryAffordance(i);     // re-render input, await student's tap on Retry
+        continue;                           // loop back, stay on same round
+      }
+      exitInner = true;                     // moved past OR Game Over — exit inner loop
     }
-    // 2. Feedback FIRST — bar still at previous progress while feedback plays
-    await runFeedbackWindow(verdict);       // ~2000ms sound + sticker
-    // 3. Bump progress + update bar JUST BEFORE the round-change UI fires
+
+    // 4. Game Over branch — no progress bump (round NOT passed)
+    if (state.livesLeft === 0) {
+      // Hearts empty visibly; progress preserved at prior value.
+      progressBar.update(state.progress, 0);
+      return showGameOver();                // bar reads "completed (progress)/totalRounds, 0 hearts"
+    }
+
+    // 5. Moved-past branch — bump progress + update bar JUST BEFORE the next-round / Victory UI
     state.progress++;
     progressBar.update(state.progress, state.livesLeft);
-    // 4. Round-change UI
-    if (state.livesLeft === 0) return showGameOver();   // exits with bumped progress + 0 hearts
-    // (loop continues — next iteration's showRoundIntro is the round-change UI)
+    // (loop continues — next iteration's showRoundIntro is the round-change UI;
+    //  on the last round, the for-loop exits to showVictory below.)
   }
   await showVictory();   // bar already at totalRounds/totalRounds from the last bump above
   // End-of-game: fire show_star ONCE with count = getStars() — increments
@@ -180,24 +207,24 @@ Fire location by shape:
 End-of-game sequencing — MANDATORY serial order:
 
 ```
-Beat 1: SFX + sticker (await, min 1500 ms)
-Beat 2: render inline feedback panel + post game_complete (SYNC — never
+Step 1: SFX + sticker (await, min 1500 ms)
+Step 2: render inline feedback panel + post game_complete (SYNC — never
         block on TTS for this, host harness relies on it)
-Beat 3: await dynamic TTS (if the game uses playDynamicFeedback)
-Beat 4: fire show_star (animation takes ~1 s; score applied at END)
+Step 3: await dynamic TTS (if the game uses playDynamicFeedback)
+Step 4: fire show_star (animation takes ~1 s; score applied at END)
         — for multi-round, this fires WHILE Stars Collected is still visible
           (NOT after its hide); animation lands on the celebration screen
-Beat 5: setTimeout(1100) → setMode('next')   ← Next appears AFTER animation,
+Step 5: setTimeout(1100) → setMode('next')   ← Next appears AFTER animation,
         on top of the still-visible Stars Collected (multi-round). Stars
         Collected hides on the Next tap, NOT on audio end (exception to the
         no-button auto-dismiss rule).
 ```
 
-Do NOT overlap these. User-visible order: SFX → feedback panel renders → TTS audio → star animation → Next button. The GEN-FLOATING-BUTTON-NEXT-TIMING validator accepts `await` and `setTimeout(` as separators, so Beat 3's await and Beat 5's setTimeout both satisfy it.
+Do NOT overlap these. User-visible order: SFX → feedback panel renders → TTS audio → star animation → Next button. The GEN-FLOATING-BUTTON-NEXT-TIMING validator accepts `await` and `setTimeout(` as separators, so Step 3's await and Step 5's setTimeout both satisfy it.
 
-**STANDALONE only (`totalRounds: 1`):** `endGame()` is the SINGLE orchestrator — all 5 beats live inside it. The submit handler is one line: `await endGame(correct);`. Do NOT split the beats across multiple async helpers (`runFeedbackSequence`, `finalizeAfterDwell`, etc.) — that fires `game_complete` + Next while TTS is still playing (bodmas-blitz regression). TTS MUST be awaited BEFORE `endGame()` returns.
+**STANDALONE only (`totalRounds: 1`):** `endGame()` is the SINGLE orchestrator — all 5 steps live inside it. The submit handler is one line: `await endGame(correct);`. Do NOT split the steps across multiple async helpers (`runFeedbackSequence`, `finalizeAfterDwell`, etc.) — that fires `game_complete` + Next while TTS is still playing. TTS MUST be awaited BEFORE `endGame()` returns.
 
-**Multi-round (`totalRounds > 1`):** round-N feedback awaits SFX (~1.5 s floor) AND awaits dynamic TTS in the submit handler before advancing — the explanation must finish attached to the answer it explains. End-of-game audio lives in the Stars Collected `onMounted` callback (`sound_stars_collected` awaited → `show_star` → `setTimeout → setMode('next')`) — the round-N submit handler just transitions into Stars Collected after its own SFX + TTS complete. The 5-beat block below applies ONLY when there's no Stars Collected screen, i.e. standalone games.
+**Multi-round (`totalRounds > 1`):** round-N feedback awaits SFX (~1.5 s floor) AND awaits dynamic TTS in the submit handler before advancing — the explanation must finish attached to the answer it explains. End-of-game audio lives in the Stars Collected `onMounted` callback (`sound_stars_collected` awaited → `show_star` → `setTimeout → setMode('next')`) — the round-N submit handler just transitions into Stars Collected after its own SFX + TTS complete. The 5-step block below applies ONLY when there's no Stars Collected screen, i.e. standalone games.
 
 **Round-boundary audio cleanup — MANDATORY (multi-round, defensive).** With awaited TTS, the explanation normally finishes before `showRoundIntro(N+1)` runs, so there's no audio to bleed. But the cleanup remains mandatory as defense-in-depth: TTS streaming can hit its 60 s upper bound, the API can throw mid-stream (caught by the `try/catch`, advancing the flow), or a tail of `sound_round_n` from a previous transition can linger. The first lines of `showRoundIntro(n)` MUST still stop in-flight audio:
 
@@ -224,14 +251,14 @@ async function runFeedbackSequence(sfx, tts, ...) {
   await playDynamicFeedback(tts); // TTS now plays AFTER game ended
 }
 
-// ✅ RIGHT — single endGame() owns all 5 beats end-to-end
+// ✅ RIGHT — single endGame() owns all 5 steps end-to-end
 async function endGame(correct) {
-  await FeedbackManager.sound.play(sfxId, { sticker });    // Beat 1
-  renderInlineFeedbackPanel(correct);                       // Beat 2 (SYNC)
-  postGameComplete();                                       // Beat 2 (SYNC)
-  await FeedbackManager.playDynamicFeedback({...});         // Beat 3
-  if (correct) window.postMessage({ type: 'show_star', data: {...} }, '*');  // Beat 4
-  setTimeout(() => floatingBtn.setMode('next'), 1100);      // Beat 5
+  await FeedbackManager.sound.play(sfxId, { sticker });    // Step 1
+  renderInlineFeedbackPanel(correct);                       // Step 2 (SYNC)
+  postGameComplete();                                       // Step 2 (SYNC)
+  await FeedbackManager.playDynamicFeedback({...});         // Step 3
+  if (correct) window.postMessage({ type: 'show_star', data: {...} }, '*');  // Step 4
+  setTimeout(() => floatingBtn.setMode('next'), 1100);      // Step 5
 }
 ```
 
@@ -241,14 +268,14 @@ Canonical snippet — standalone:
 async function endGame(correct) {
   // ... existing phase / sync / trackEvent updates ...
 
-  // Beat 1 — SFX + sticker.
+  // Step 1 — SFX + sticker.
   await FeedbackManager.sound.play(correct ? 'sound_correct' : 'sound_incorrect', { sticker });
 
-  // Beat 2 — render feedback panel, post game_complete (SYNC).
+  // Step 2 — render feedback panel, post game_complete (SYNC).
   renderInlineFeedbackPanel(correct);
   postGameComplete();
 
-  // Beat 3 — dynamic TTS (awaited, never fire-and-forget at end-of-game).
+  // Step 3 — dynamic TTS (awaited, never fire-and-forget at end-of-game).
   // Omit the block entirely if the game has no TTS.
   try {
     await FeedbackManager.playDynamicFeedback({
@@ -258,7 +285,7 @@ async function endGame(correct) {
     });
   } catch (e) { /* TTS failures must not block the end sequence */ }
 
-  // Beat 4 — star-award animation (applied to header at animation end).
+  // Step 4 — star-award animation (applied to header at animation end).
   if (correct) {
     try {
       window.postMessage({
@@ -272,7 +299,7 @@ async function endGame(correct) {
     } catch (e) {}
   }
 
-  // Beat 5 — reveal Next AFTER the 1 s animation. (Shorten to 300 ms if
+  // Step 5 — reveal Next AFTER the 1 s animation. (Shorten to 300 ms if
   // spec.autoShowStar === false.)
   setTimeout(function () {
     if (floatingBtn) {

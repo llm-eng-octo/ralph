@@ -2,6 +2,8 @@
 
 > Each PART lives in its own file. Skills load only the PARTs they need.
 > Each PART file in this folder is the canonical, self-contained reference. Files named `PART-NNN.md` are distilled summaries; the corresponding full specs (where they exist) are at `PART-NNN-<short-name>.md` (e.g. `PART-039.md` summary → `PART-039-preview-screen.md` full spec).
+>
+> **When you add or rename a PART file, update this catalog AND run `node alfred/scripts/validate-parts-catalog.js` to confirm catalog ↔ disk match.** The build pipeline runs this check at Step 5; failing locally first avoids a sub-agent loop.
 
 | PART | Name | Purpose | Mandatory? |
 |------|------|---------|------------|
@@ -25,6 +27,7 @@
 | [PART-018](PART-018.md) | Case Converter | camelCase/snake_case conversion | Conditional (backend data) |
 | [PART-019](PART-019.md) | Results Screen | End-of-game results via TransitionScreen | Yes |
 | [PART-020](PART-020.md) | CSS Variables & Colors | CSS custom properties from Components | Yes |
+| [PART-021](PART-021.md) | ~~Screen Layout (deprecated)~~ | Superseded by PART-025; do not use | Deprecated |
 | [PART-022](PART-022.md) | Game Buttons | Standard button patterns | Yes |
 | [PART-023](PART-023.md) | ProgressBar Component | Round counter + lives display | Yes |
 | [PART-024](PART-024.md) | TransitionScreen Component | Welcome, results, game-over screens | Yes |
@@ -42,4 +45,7 @@
 | [PART-037](PART-037.md) | Playwright Testing & Ralph Loop | Automated test + fix loop | Post-generation |
 | [PART-038](PART-038.md) | InteractionManager | Suppress interaction during feedback | Conditional (feedback suppression) |
 | [PART-039](PART-039.md) | Preview Screen | Instruction/preview before gameplay | Yes |
+| [PART-040](PART-040-action-bar.md) | ActionBar (Header) | Persistent header inside `#mathai-preview-slot`: back button, avatar videos, question label, score, star — instantiated automatically by PART-039 (not called directly by game code) | Internal (auto via PART-039) |
 | [PART-042](PART-042.md) | SignalCollector | Atomic interaction capture + batch flushing to GCS | Yes |
+| [PART-050](PART-050.md) | FloatingButton | Submit / Retry / Next CTA owning the entire end-game state machine | Conditional (UNLESS spec sets `floatingButton: false`) |
+| [PART-051](PART-051.md) | AnswerComponent | Post-celebration "Correct Answers" reveal — one slide per evaluated answer, render-callback shape | Conditional (UNLESS spec sets `answerComponent: false` — CREATOR-ONLY opt-out) |
