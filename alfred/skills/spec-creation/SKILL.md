@@ -90,6 +90,7 @@ Stars in the platform ActionBar represent **overall game performance**, awarded 
 - **Stars calculation:** spec MUST declare it. If omitted, default rule: `3★ at ≥ 90% correct`, `2★ at ≥ 60%`, `1★ at ≥ 1 correct`, `0★ at 0 correct`, with `y = 3`. Spec MAY override the calculation (e.g., lives-based, accuracy + speed), but the override must be a deterministic function of end-of-game state.
 - **Game-internal counters** (e.g., a fast-tap meter, live point tally, level indicator) belong in `#gameContent` — not in the platform header. Do NOT plan a "running ActionBar score" widget.
 - **Question label** is fixed at `'Q' + N` (e.g., `'Q1'`). Do NOT propose a custom label format like `'L1'` or `'Round 1'`; game-internal vocabulary lives in `#gameContent`.
+- **Progress bar (separate surface from the ActionBar).** The progress bar inside the game body is driven by `gameState.progress` and bumps **once per round, only when the student moves PAST the round** — to the next round OR to Victory. It counts rounds PASSED, not rounds correct. **Game Over does NOT bump** — the game ended on the unfinished round; the student never passed it. The bar preserves the prior progress + 0 hearts on Game Over so it reads "completed N-1, lost on N." A wrong answer that triggers a retry (`floatingBtn.setMode('retry')` while lives > 0 and retries remain) keeps the student on the same round → no bump. The bump fires AFTER feedback resolves, JUST BEFORE the next-round / Victory UI. In the default no-retry flow, wrong-with-lives-remaining advances and bumps; wrong-with-last-life ends the game and does NOT bump. A 10-round game where the student gets 2 wrong (lives remaining) ends at Victory with `10/10`; the same game where last-life-wrong fires on round 7 hits Game Over with `6/10` + 0 hearts. The ActionBar shows the earned star tier (e.g., `2/3`). These are two different surfaces with two different counters. Do NOT propose a progress bar that "fills only on correct", that lives in the ActionBar, that bumps on Game Over, or that bumps on wrong-with-retry — none of those match the canonical pipeline. See `alfred/parts/PART-023-progress-bar.md` § Bump timing.
 
 ## Scoring
 - Points: [formula, e.g., +1 per correct]
@@ -222,6 +223,7 @@ Spec creation is a **faithful translation** of the creator's description. The sp
 - Rules tagged `[SUGGESTED]` in any skill — these are defaults that creators may reasonably override or not want.
 - Pedagogical elaborations not in the creator description (Bloom-level scaffolding, metacognitive prompts, ask-back patterns, retry policies) unless the creator stated them.
 - Feedback strings, button labels, message templates, dialogue text — the spec may say "TTS names the violated clue" but must not invent the exact string template unless the creator wrote one.
+- **Standalone shape (`totalRounds: 1`) end-state has no body-card AND no TransitionScreen.** Do NOT draft a "Puzzle solved!" / "Try again!" / "Game over!" card with sticker + title + subtitle into a standalone spec's Flow / Screens / Feedback sections. Do NOT name `Welcome TS` / `Game Over TransitionScreen` / `Victory TS` / etc. — those are multi-round shape conventions. **The end-state UI is `AnswerComponent` (PART-051 carousel showing the solution) + `FloatingButton` mode lifecycle (`submit` → `next` / `retry`) + the persistent preview-screen header (`show_star` animation).** The puzzle grid stays rendered in `#gameContent` unchanged. Drafting a body-card mimics a forbidden TransitionScreen and duplicates AnswerComponent. The canonical pattern is documented in `game-building/reference/code-patterns.md § Canonical Standalone end-flow`, `default-transition-screens.md § Game shape` table, and `PART-050` Beat 2. Spec-review check Z8 (`SCOPE-CREEP-STANDALONE-END-PANEL`) catches violations; validator `GEN-STANDALONE-END-PANEL-FORBIDDEN` catches the wire-level translation in build.
 - **Sound ids — NOT spec-creation's invention space.** Every audio id referenced anywhere in the spec (Feedback table, round content, fallbackContent, mechanics descriptions) MUST come from the canonical table at `alfred/skills/feedback/reference/feedbackmanager-api.md` § Standard Audio URLs. Spec-creation does NOT invent sound ids — names like `bubble_pop_sfx` / `tap_select_sfx` / `game_correct_sound` that LOOK canonical but are not in the table are forbidden. When the creator's description references a custom audio asset they uploaded (a sound NOT in the canonical table), capture it in an OPTIONAL `creatorSounds` block with the creator-supplied URL — the build merges these alongside canonical sounds. This mirrors `creatorScreenAudio` (Plan A — TS narration) and per-round `*Subtitle` pairing (Plan B): creator content uses creator-quoted strings; everything else comes from canon. Validator: `GEN-SOUND-ID-CANONICAL` blocks games at the build wire if they reference invented ids.
 
   Optional `creatorSounds` block (only present when the creator quoted a custom audio URL):
@@ -257,6 +259,31 @@ Field rules:
 - Either `audioText` or `silent: true` per entry — never both. Never omit both.
 
 Game-planning merges this block on top of the canonical defaults when generating `screens.md`. The build agent reads only the resolved table, never the spec's `creatorScreenAudio` directly.
+
+### Optional `roundMountNarration` flag (standalone games only)
+
+For multi-round games, the per-round mount narration (CASE 3 — `playDynamicFeedback({audio_content: round.questionTTS, ...})` fired inside `renderRound()` whenever the round carries a `questionTTS` field) is on by default and needs no spec field.
+
+For **standalone games (`totalRounds: 1`)**, the per-round mount narration is **OFF by default**. The single puzzle is the entire payoff and the PreviewScreen instruction TTS just finished — auto-narrating the question on mount on top of that clutters first interaction. Include the round's narration ONLY when the creator explicitly asks for the question to be read aloud after the puzzle renders:
+
+```yaml
+# Spec for a standalone game where the creator said "read the puzzle aloud once it loads":
+totalRounds: 1
+roundMountNarration: true       # opt-in; default is false for standalone
+rounds:
+  - id: r1
+    set: A                       # optional for standalone (round-set cycling exempt)
+    questionTTS: "Place the digits 1, 2, 3 so each row sums to six."
+    questionSubtitle: "Place 1, 2, 3 — each row sums to 6"
+    # … rest of round content …
+```
+
+Field rules:
+- `roundMountNarration: true` is the only opted-in shape. `false` and absent are equivalent (default OFF).
+- Only meaningful for `totalRounds: 1`. Setting it on a multi-round spec is a no-op (multi-round always allows mount narration when the round has a `questionTTS`); spec-review WARNs in that case.
+- When `true`, every round (here, the single round) MUST carry a non-empty `questionTTS` AND a paired `questionSubtitle` — the `<X>TTS` ↔ `<X>Subtitle` pairing rule (see § 5e-i / `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO`) applies. Spec-review FAILs if the flag is `true` but a paired field is missing or empty.
+
+The build agent reads `roundMountNarration` directly: when `false` (or absent) on a standalone spec, the build emits NO `playDynamicFeedback` call inside `renderRound()`; when `true`, the build emits the canonical fire-and-forget call.
 
 ### Suggestions section
 
@@ -354,10 +381,11 @@ For EACH decision in the defaults table below, check whether the creator's input
 | Accessibility | Touch-only, 44px targets, contrast only | No further unless specified |
 | Scaffolding | Show correct answer after wrong, auto-advance | Look for hint/retry keywords |
 | `answerComponent` | `true` (always, silently — NOT listed in Defaults Applied) | ONLY set `false` if the creator's prompt explicitly opts out; never auto-infer |
+| Empty / no-input submit | **Submit button hidden until input is valid** (predicate-gated via FloatingButton's `setSubmittable`) | NEVER spec "empty submit = wrong attempt" or "empty submit costs a life" unless the creator's prompt explicitly requests a penalty. The canonical UX is to hide the button — see PART-050 Lifecycle § 2. Spec-review rule `Z10` hard-fails any penalty-based phrasing. |
 
 **Critical rule:** If the creator explicitly specifies a value for any decision, ALWAYS use the creator's value, even if it conflicts with defaults or guidelines. Never silently override. If the creator's choice conflicts with a guideline, add a WARNING but keep the creator's choice.
 
-**`answerComponent` exception (PART-051):** unlike every other row in this table, `answerComponent` MUST default to `true` silently — DO NOT add it to `Defaults Applied`. The flag only appears in the spec body when the creator EXPLICITLY requests `answerComponent: false` (e.g. "no answer review", "no correct-answers carousel", "this is a sandbox / exploration game with no graded answer"). Auto-filling `false` for one-question standalones, "the inline feedback already shows the answer", or any other LLM-judgment reason is a violation of the trust model and was the bodmas-blitz regression that prompted this rule.
+**`answerComponent` exception (PART-051):** unlike every other row in this table, `answerComponent` MUST default to `true` silently — DO NOT add it to `Defaults Applied`. The flag only appears in the spec body when the creator EXPLICITLY requests `answerComponent: false` (e.g. "no answer review", "no correct-answers carousel", "this is a sandbox / exploration game with no graded answer"). Auto-filling `false` for one-question standalones, "the inline feedback already shows the answer", or any other LLM-judgment reason is a violation of the trust model.
 
 ### Step 4: Check for guideline conflicts and generate warnings
 
@@ -425,7 +453,7 @@ Convention: `<X>TTS` ↔ `<X>Subtitle`. Examples:
 }
 ```
 
-**Generic disconnected literals are forbidden** — `subtitle: 'Great job!'` paired with a 30-word `audio_content: round.keyInferenceTTS` is the cross-logic 2026-04-29 regression this rule blocks. The Subtitle MUST share at least one substantive content word (≥4 chars, excluding stopwords) with the paired TTS. Spec-review check Z7 enforces this; static validator `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO` blocks any `playDynamicFeedback({audio_content: <round.*TTS>, subtitle: '<generic literal>'})` shape at the build wire.
+**Generic disconnected literals are forbidden** — `subtitle: 'Great job!'` paired with a 30-word `audio_content: round.keyInferenceTTS` is the failure this rule blocks. The Subtitle MUST share at least one substantive content word (≥4 chars, excluding stopwords) with the paired TTS. Spec-review check Z7 enforces this; static validator `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO` blocks any `playDynamicFeedback({audio_content: <round.*TTS>, subtitle: '<generic literal>'})` shape at the build wire.
 
 ### Step 6: Define scoring and feedback
 

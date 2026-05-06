@@ -35,7 +35,13 @@ async function handleStepAnswer(selected) {
   if (isCorrect) {
     gameState.currentStep++;
     if (gameState.currentStep >= gameState.totalSteps) {
-      // All steps done — round complete
+      // All steps done — round RESOLVES (correct outcome).
+      // Progress bar bump — AFTER feedback resolves, ONLY on round resolution,
+      // BEFORE round-change UI. Default policy: each resolved round = +1.
+      // Inter-step transitions (loadStep below) are NOT round resolutions —
+      // no bump there. See PART-023 § Bump timing + flow-implementation.md § Round loop.
+      gameState.progress++;
+      if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
       gameState.currentRound++;
       if (gameState.currentRound >= gameState.totalRounds) {
         endGame('victory');
@@ -43,7 +49,7 @@ async function handleStepAnswer(selected) {
         loadRound();
       }
     } else {
-      loadStep(); // Next step in same round
+      loadStep(); // Next step in same round — no progress bump (round not resolved yet)
     }
   } else {
     // Wrong — depends on game rules:

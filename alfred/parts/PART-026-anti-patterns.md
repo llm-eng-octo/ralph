@@ -221,14 +221,19 @@ await FeedbackManager.sound.play("dynamic", { text: "Great job!" });
 
 **Correct:** `await FeedbackManager.playDynamicFeedback({ audio_content: '...', subtitle: '...' })` (PART-017).
 
-## Anti-Pattern 16: ProgressBar update() with Current Round Instead of Completed
+## Anti-Pattern 16: ProgressBar update() with currentRound Instead of progress
 
 ```javascript
-// WRONG - On a totalRounds=1 game, this shows "1/1" = 100% at game start
-progressBar.update(gameState.currentRound, lives); // currentRound starts at 1
+// WRONG - couples the bar to the loop index instead of the moved-past policy.
+// On a totalRounds=1 game where currentRound starts at 1, this shows "1/1" = 100% at game start.
+// Even when currentRound starts at 0, this skips the policy choice (rounds passed vs.
+// rounds correct vs. points earned, etc.) and the bump-timing rule (bump only when the
+// student moves PAST the round — to the next round or Victory; never on Game Over;
+// never before a retry).
+progressBar.update(gameState.currentRound, lives);
 ```
 
-**Correct:** Pass rounds COMPLETED (0 at start): `progressBar.update(0, lives)` (PART-023).
+**Correct:** Track a separate `gameState.progress = 0` field. At init: `progressBar.update(0, lives)`. After each round's feedback resolves, ONLY when the student moves past the round (correct, OR retries-exhausted with lives remaining), BEFORE the next-round / Victory UI fires: `gameState.progress++; progressBar.update(gameState.progress, Math.max(0, gameState.lives));`. **Game Over does NOT bump** — the game ended on the unfinished round; call `progressBar.update(gameState.progress, 0)` (prior progress, 0 hearts) before `endGame('game_over')`. **Wrong-with-retry does NOT bump** — re-render same round, `floatingBtn.setMode('retry')`, no progress change. Default policy: each round-passed = +1 (rounds completed). See PART-023 § Bump timing.
 
 ## Anti-Pattern 17: Grid Cells Without overflow:hidden
 

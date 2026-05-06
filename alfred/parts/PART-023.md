@@ -64,7 +64,7 @@ See `alfred/parts/PART-023-progress-bar.md` for full detail.
 - [ ] `createProgressBar()` helper exists (called at init and restart)
 - [ ] `ProgressBarComponent` instantiated with `totalRounds` and `totalLives`
 - [ ] `progressBar.update(0, lives)` called at init (NOT 1) — first-call invariant, enforced by `5e0-PROGRESSBAR-START-ONE`
-- [ ] `update(state.progress, lives)` called as the FIRST action in the round-complete handler (counter bumped in state first, before awaited round-complete SFX, before `nextRound`/`endGame`) — final round must paint the full bar on Victory, not the pre-bump value
+- [ ] `update(state.progress, lives)` called AFTER feedback audio resolves AND BEFORE the round-change UI fires. **Bumps once per round, only when the student moves PAST the round** — correct, OR retries-exhausted with lives remaining. **Does NOT bump on Game Over** (`lives === 0` after decrement) — the game ended on the unfinished round; the student never passed it; bar preserves prior progress + 0 hearts. **Does NOT bump on wrong-with-retry** (`floatingBtn.setMode('retry')` / same-round re-render). On Game Over, still call `progressBar.update(state.progress, 0)` so hearts empty visibly — but progress arg is the prior (not-bumped) value. Default policy: each round-passed = +1 (rounds completed). Final round-passed paints the full bar before Victory renders. See PART-023-progress-bar.md "Bump timing" + flow-implementation.md § Round loop pattern
 - [ ] `destroy()` called before recreation in `createProgressBar()`
 - [ ] ScreenLayout has `progressBar: true` in slots (preview-wrapper) or sections (legacy)
 - [ ] ProgressBar recreated on `handlePostMessage` and `restartGame()`

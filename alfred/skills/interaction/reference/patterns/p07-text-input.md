@@ -107,6 +107,16 @@ async function handleSubmit() {
   input.value = '';
   input.classList.remove('input-correct', 'input-wrong');
 
+  // Progress bar bump — AFTER feedback resolves (above), ONLY on round resolution,
+  // BEFORE the round-change UI. The text-input pattern shown here is the default
+  // no-retry flow — wrong always advances (or hits Game Over via the lives check
+  // upstream of this snippet). For retry-flow variants, gate the bump on
+  // resolution: skip the bump when the spec defines retry-on-wrong and lives > 0
+  // (call floatingBtn.setMode('retry') instead and return). See PART-023 § Bump
+  // timing + flow-implementation.md § Round loop.
+  gameState.progress++;
+  if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
+
   gameState.currentRound++;
   if (gameState.currentRound >= gameState.totalRounds) {
     endGame('victory');
