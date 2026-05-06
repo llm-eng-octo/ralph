@@ -168,7 +168,7 @@ recordAttempt({
 
 ### Step 8 — Play feedback audio (optional)
 
-If `result.feedback` is non-empty and the game uses audio:
+If `result.feedback` is non-empty and the game uses audio, play **the API-returned string verbatim** as both audio and subtitle. Do not synthesize, template, concatenate, or substitute a locally-authored string — the model's feedback is rubric-aware and tone-tuned, and the whole point of subjective evaluation is to surface *that* response to the student.
 
 ```javascript
 if (result.feedback) {
@@ -176,11 +176,13 @@ if (result.feedback) {
   // Fire-and-forget dynamic TTS. The submit handler MUST NOT gate UI on TTS completion —
   // if the TTS network stalls, the next round / user flow should not freeze.
   FeedbackManager.playDynamicFeedback({
-    audio_content: result.feedback,
-    subtitle: result.feedback
+    audio_content: result.feedback,   // MUST be result.feedback verbatim — see Constraint 12
+    subtitle:      result.feedback    // same string, no transformations
   }).catch(function(e) { /* non-blocking — feedback.md constraint 8 */ });
 }
 ```
+
+If `result.feedback` is empty / missing, **play nothing** — do not fall back to a hardcoded "Nice try!" or any stock string. Skipping audio is the correct behaviour when the API didn't return feedback.
 
 Follow `skills/feedback/SKILL.md` constraint 8: audio failure is non-blocking; fire-and-forget with `.catch()`, never await and never `Promise.race`. For games with automatic round transitions, re-enable inputs in `renderRound()` / `loadRound()`, not in the submit handler.
 
@@ -220,7 +222,14 @@ Run the checklist in `alfred/parts/PART-015-validation-llm.md` § Verification. 
 
 11. **STANDARD — Use `FeedbackManager.playDynamicFeedback()` for feedback audio.** Do not call `new Audio()` or hit the TTS endpoint directly — `playDynamicFeedback` handles caching, streaming, subtitles, and stop-on-tap.
 
-12. **ADVISORY — Prefer deterministic validation when possible.** If the question can be answered with a keyword match or range check, use PART-013/014. Subjective evaluation is slower, costs an LLM call, and introduces judgment variance.
+12. **CRITICAL — Only play the API-returned `result.feedback` string.** `audio_content` and `subtitle` passed to `playDynamicFeedback()` MUST be the `feedback` field returned by `evaluate()`, used verbatim. Do not hardcode, template, concatenate with hand-written prefixes/suffixes, transform with string ops, swap in a different string per classification, or fall back to a stock string when `result.feedback` is empty.
+   - ✅ `playDynamicFeedback({ audio_content: result.feedback, subtitle: result.feedback })`
+   - ❌ `playDynamicFeedback({ audio_content: "Great try! " + result.feedback, ... })`
+   - ❌ `playDynamicFeedback({ audio_content: result.correct ? "Nice job!" : "Try again", ... })`
+   - ❌ `playDynamicFeedback({ audio_content: result.feedback || "Keep going!", ... })` (empty → play nothing, do not substitute)
+   - **Why:** the model's feedback is rubric-aware, tone-tuned, and the artefact subjective evaluation exists to produce. Replacing it locally defeats the point of the LLM call and silently desyncs what the student hears from what `recordAttempt` logs.
+
+13. **ADVISORY — Prefer deterministic validation when possible.** If the question can be answered with a keyword match or range check, use PART-013/014. Subjective evaluation is slower, costs an LLM call, and introduces judgment variance.
 
 ## Defaults
 
@@ -264,3 +273,33 @@ Run the checklist in `alfred/parts/PART-015-validation-llm.md` § Verification. 
 10. **Using `{{student_answer}}`, `{{question}}`, or other invented placeholders in `feedback_prompt`.** Only `{{evaluation}}` is substituted.
 
 11. **Changing package load order to "fix" a lottie error.** The order is fixed. If lottie double-registers, it is a package bug, not a skill bug.
+
+12. **Hand-rolling the feedback string passed to `playDynamicFeedback`.** Only `result.feedback` from `evaluate()` is allowed as `audio_content` / `subtitle`.
+    ```javascript
+    // ❌ WRONG — locally-authored stock strings
+    FeedbackManager.playDynamicFeedback({
+      audio_content: result.correct ? "Awesome!" : "Almost there!",
+      subtitle:      result.correct ? "Awesome!" : "Almost there!"
+    });
+
+    // ❌ WRONG — concatenated / templated around the API string
+    FeedbackManager.playDynamicFeedback({
+      audio_content: `Great try, ${studentName}! ${result.feedback}`,
+      subtitle:      `Great try, ${studentName}! ${result.feedback}`
+    });
+
+    // ❌ WRONG — fallback string when API returned nothing
+    FeedbackManager.playDynamicFeedback({
+      audio_content: result.feedback || "Keep going!",
+      subtitle:      result.feedback || "Keep going!"
+    });
+
+    // ✅ RIGHT — verbatim, and skip audio entirely if feedback is empty
+    if (result.feedback) {
+      FeedbackManager.playDynamicFeedback({
+        audio_content: result.feedback,
+        subtitle:      result.feedback
+      }).catch(function(){});
+    }
+    ```
+    Violates Constraint 12. Defeats the purpose of the LLM call and desyncs spoken audio from what `recordAttempt` logs as `feedback`.

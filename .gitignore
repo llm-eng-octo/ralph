@@ -7,3 +7,5 @@ tmp/
 .env
 node_modules/
 worksheet*
+mathai-games*
+games*
