@@ -167,6 +167,8 @@ Read alfred/skills/mobile/SKILL.md
 
 Read alfred/skills/interaction/SKILL.md (mandatory: identify the game's interaction type from the approved spec + archetype, match it to one of the 17 canonical patterns in § Full Pattern Inventory, then load ONLY the pattern file(s) listed under § Reference Files for that pattern. The build sub-agent's final report MUST name the chosen pattern (e.g. "P6 Drag-and-Drop", "P1 Tap-Select Single") and the pattern file(s) it loaded. If the spec's interaction doesn't cleanly map to any of the 17 patterns, stop and AskUserQuestion before improvising — do NOT hand-roll a substitute.)
 
+Read alfred/skills/grid-rendering/SKILL.md (mandatory IF the spec describes a grid playfield — see § When to use for trigger keywords. If triggered, walk § Decision tree and pick exactly one of Mode A / B / C. The build sub-agent's final report MUST name the chosen mode (e.g. "Mode B — carved 3×4, 6 visible cells") and confirm § Validation checklist passes. If the playfield doesn't fit any one mode, stop and AskUserQuestion — do NOT invent a fourth mode or nest modes.)
+
 Read alfred/skills/feedback/SKILL.md (mandatory: § Pre-flight: feedback primitive selection AND § Composition with screen primitives — the build sub-agent's final report MUST include the filled-in primitive-selection table from the Pre-flight section, with one row per feedback moment in the spec. If a moment doesn't match any row in § Composition, follow the § "When a feedback moment isn't on the table" policy: AskUserQuestion before rolling custom DOM; auto-approve = REJECT = fall back to closest matching row.)
 Read alfred/parts/README.md  (canonical PART catalog — every PART, name, purpose, mandatory/conditional flag. Confirm which PARTs the spec/plan/archetype mandates before opening specific PART files below.)
 Read alfred/parts/PART-039-preview-screen.md  (authoritative PreviewScreen spec — MANDATORY in every game)
@@ -486,6 +488,7 @@ The orchestration steps map to the legacy pipeline-v2 step sequence (replaced by
 | mobile | `alfred/skills/mobile/SKILL.md` | Exists |
 | pedagogy | `alfred/skills/pedagogy/SKILL.md` | Exists (rules tagged `[MANDATORY]` / `[SUGGESTED]`) |
 | feedback | `alfred/skills/feedback/SKILL.md` | Exists (with § Composition with screen primitives + § Pre-flight) |
+| grid-rendering | `alfred/skills/grid-rendering/SKILL.md` | Exists (conditional: read in Step 4 only if spec has grid trigger keywords; picks Mode A / B / C) |
 | visual-review | `alfred/skills/visual-review/SKILL.md` | Exists |
 | final-review | `alfred/skills/final-review/SKILL.md` | Exists |
 | deployment | `alfred/skills/deployment/SKILL.md` | Exists |
