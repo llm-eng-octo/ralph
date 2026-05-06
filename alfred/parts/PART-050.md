@@ -1,211 +1,318 @@
 ### PART-050: FloatingButton Component (Submit / Retry / Next)
 
-**Category:** CONDITIONAL | **Condition:** Every game whose flow has a Submit / Check / Done / Commit CTA UNLESS the spec sets `floatingButton: false` | **Dependencies:** PART-002, PART-017 (FeedbackManager), PART-022 (superseded for the floating variant)
+**Category:** CONDITIONAL | **Condition:** Every game whose flow has a Submit / Check / Done / Commit CTA UNLESS the spec sets `floatingButton: false` | **Dependencies:** [PART-002](PART-002.md), [PART-006](PART-006.md), [PART-017](PART-017.md), [PART-022](PART-022.md) (superseded for the floating variant)
 
-**Purpose:** fixed-bottom action button that owns the Submit → Retry / Next state machine for the entire game session. Absorbs PART-022's Submit / Retry / Next lifecycle. Reset remains inline per PART-022.
+> **If you change this PART, also re-read [`game-planning/SKILL.md`](../skills/game-planning/SKILL.md) and [`game-building/SKILL.md`](../skills/game-building/SKILL.md) for any prose that restates a rule below — paraphrased rules can drift from this canonical source.** Update [`alfred/parts/README.md`](README.md) too if the component's mandatory/conditional status changes; run `node alfred/scripts/validate-parts-catalog.js` to confirm catalog ↔ disk match.
 
-**Readiness gate requirement (CRITICAL):** When this part is in scope, `waitForPackages` MUST include `typeof FloatingButtonComponent !== 'undefined'` as a hard `&&` term. NEVER `||`. See [`alfred/skills/game-building/reference/mandatory-components.md`](../skills/game-building/reference/mandatory-components.md). Validators: `GEN-WAITFORPACKAGES-NO-OR`, `GEN-WAITFORPACKAGES-MISSING`, `GEN-SLOT-INSTANTIATION-MATCH`. The `new FloatingButtonComponent(...)` call MUST use an attributable catch (`console.error` + `Sentry.captureException`), never a silent `try { ... } catch (e) {}`.
+## Index — the story this doc tells
 
----
+The doc walks through five questions, in the order a reader actually asks them. Each question's answer leads to the next. Jump in via the links if you only need one section — but the connections are linked, so you may need to back up.
+
+> **1. Why am I reading this file?** — Every game needs a Submit / Retry / Next CTA, and the iframe host needs exactly one `next_ended` message at the right moment. Hand-rolled buttons drift across games and break that contract. This component owns the entire CTA state machine for the session.
+>
+> Open with the [§ 1 Problem](#problem) — what need this exists to fill. Then [§ 2 Canonical names](#canonical-names) — vocabulary the rest of the doc uses (Submittable predicate, Win Confirmation screen, Victory Celebration screen, etc.) so prose doesn't drift.
+>
+> **2. What *is* this thing — what does it look like from outside?** — A state machine with four observable modes. The mode tells you *what's on screen*; cases tell you *when each mode applies* and *what tapping it does*.
+>
+> [§ 3 States](#states) names the four modes (`null` / `submit` / `retry` / `next`) and their entry/exit triggers. The state machine alone is incomplete — it doesn't say WHEN to be in each state. Three case tables answer that:
+> - [§ 4 Submit visibility cases](#submit-visibility-cases) — when the `submit` mode appears (predicate-driven; covers timeout, empty input, pre-filled input, partial input).
+> - [§ 5 Retry and Next visibility cases](#retry-and-next-visibility-cases) — when the mode switches to `retry` or `next` after the player taps Submit, by game shape and outcome.
+> - [§ 6 Click action cases](#click-action-cases) — what tapping the visible mode actually does (one ordered action sequence per mode × shape/phase).
+>
+> Together: § 3 says what states exist · § 4–5 say when each state is allowed · § 6 says what happens on tap.
+>
+> **3. How does it solve the problem — what must always be true while it runs?** — The case tables say what *should* happen; the rules section says what MUST be true to keep the case tables from being subverted.
+>
+> [§ 7 Mandatory rules](#mandatory-rules) — six MECE buckets covering the six dimensions on which the component can go wrong: state integrity, predicate correctness, end-game side-effect ordering, component boundary, teardown contract, readiness. If every rule holds, no case-table row produces a wrong outcome.
+>
+> The rules above reference one spec input and one bypass:
+> - [§ 8 `partialSubmitAllowed` spec flag](#partialsubmitallowed-spec-flag) — the single spec key two Submit-visibility rows depend on.
+> - [§ 9 Opt-out (`floatingButton: false`)](#opt-out-floatingbutton-false) — when the whole component is absent and none of the above applies.
+>
+> **4. How do I actually wire it up — and which variant matches my game?** — Two parts: the boilerplate every game shares, then the variant for the specific game shape.
+>
+> Boilerplate (in the order you write it):
+> - [§ 10 ScreenLayout configuration](#screenlayout-configuration) — reserve the slot.
+> - [§ 11 Instantiation](#instantiation) — construct the instance.
+> - [§ 12 Public API](#public-api) — methods you call on the instance.
+> - [§ 13 Visual design](#visual-design) — colors, sizes, label conventions.
+>
+> Variants — pick by game shape, every variant is a concrete walk-through of § 6 click-action rows:
+> - [§ 14 Standalone lifecycle](#standalone-lifecycle) — `totalRounds: 1`. End-game runs as a single 5-beat orchestrator inside `endGame(correct)`.
+> - [§ 15 Multi-round lifecycle](#multi-round-lifecycle) — `totalRounds > 1`. End-game routes Win Confirmation (optional) → Victory Celebration → AnswerComponent reveal → Next.
+> - [§ 16 Try Again lifecycle](#try-again-lifecycle) — Standalone with `totalLives > 1`. The third visible mode (`retry`) the standard lifecycles don't cover.
+> - [§ 17 Dual-button variant](#dual-button-variant) — replaces the single Submit with two parallel CTAs (Yes/No, True/False).
+>
+> **5. How do I know I got it right — and what should I never do?** — Two enforcement layers (static and human) plus the negative space.
+>
+> [§ 18 Banned patterns](#banned-patterns) — patterns previous LLM runs produced and we rejected, each linked to its enforcing rule. Read this once before writing code; the names are the regression vocabulary.
+>
+> [§ 19 Integration](#integration) — the exact contract surface (postMessage type / awaited promise / slot) this component shares with each neighbor PART. [§ 20 CDN](#cdn) — script tags. [§ 21 Validator rules enforced](#validator-rules-enforced) — static enforcement of § 7. [§ 22 Verification checklist](#verification-checklist) — the human's pre-ship pass for things validators can't see (real browser behavior, real audio).
+
+## Problem
+
+Every game needs a single, predictable CTA the player taps to submit, retry, or finish. Hand-rolled Submit / Retry / Next buttons drift across games (different positions, different timing rules, different audio interactions). Inconsistency confuses players AND breaks the host iframe's teardown contract — the harness needs exactly one `next_ended` postMessage per session, and it must fire at the right moment. **`FloatingButtonComponent`** owns the entire CTA state machine for the session: visibility, mode (submit / retry / next / hidden), styling, and tap routing.
+
+## Canonical names
+
+Defined once; the rest of the doc uses these terms exactly. Drop-in replacements for previously vague references ("the celebration" / "the carousel" / "the header").
+
+- **FloatingButton** — the `FloatingButtonComponent` instance. Lives in `#mathai-floating-button-slot` (a body-level sibling of `.page-center`, not inside scrolling content).
+- **Submittable predicate** — a game-defined function `isSubmittable()` that returns `true` only when current `gameState` is valid to evaluate.
+- **Interaction signal** — a boolean on `gameState` (e.g. `hasInteracted`, `userInteracted`, `touched`, `dirty`) that flips `false → true` on the player's first input. The Submittable predicate ANDs this with the value-valid check so pre-filled inputs do not show Submit on first paint.
+- **Win Confirmation screen** / `showWinConfirmation()` — optional button-gated transition with a "Claim Stars" CTA. No sound, no animation, no `show_star`. Player taps Claim Stars to advance.
+- **Victory Celebration screen** / `showVictoryCelebration()` — celebration TransitionScreen. Plays `victory_sound_effect`, posts `show_star`, stays mounted as backdrop while AnswerComponent appears below it via the `onMounted` `setTimeout` hand-off.
+- **Standalone shape** — `totalRounds: 1`. No TransitionScreen at all. End-of-game UI is FloatingButton + [AnswerComponent](PART-051.md) + the persistent preview header.
+- **Multi-round shape** — `totalRounds > 1`. Round-end uses a TransitionScreen with `buttons: []` (tap-dismissible).
+- **Single-stage Next handler** — the `floatingBtn.on('next', ...)` handler that tears down everything (AnswerComponent, Win/Victory Celebration TS, preview, FloatingButton) and posts `next_ended` in one tap.
+
+## States
+
+FloatingButton has exactly four externally observable states. `setMode(...)` is the only transition driver.
+
+| State | Visible? | Trigger to enter | Trigger to exit |
+|---|---|---|---|
+| `null` (hidden) | No | `setMode(null)` / `hide()` / page load / new round | `setSubmittable(true)` (predicate true) → `submit` |
+| `submit` | Yes | `setSubmittable(true)` / `setMode('submit')` / `show()` | Submit tap (auto-hide before handler) → `null`; `setMode(null)` → `null` |
+| `retry` | Yes | `setMode('retry')` (Standalone wrong + lives>0) | Retry tap → `null` |
+| `next` | Yes | `setMode('next')` (end-of-game CTA reveal) | Next tap → component destroyed |
+
+`disabled` is NOT a separate state — it is a flag (`setDisabled(bool)`) that visually greys the current state without changing it. Use only for transient lockouts.
+
+```
+  page load / new round
+          │
+          ▼
+       null ◀──────── retry / next click ◀────┐
+          │                                    │
+  player edits → predicate true                │
+          │                                    │
+          ▼                                    │
+       submit ──── submit click ──────────────▶│
+                   (auto-hide first)           │
+                                          wrong: retry
+                                          right: next
+```
+
+## Submit visibility cases
+
+MECE. Every leaf has a verdict (`show` / `hide` / `auto-hide`). The Submittable predicate is the single mechanism that produces these verdicts; if your predicate is correct, the table is satisfied for free.
+
+| Shape | Phase | Component visibility | Interaction state | Verdict |
+|---|---|---|---|---|
+| Standalone | Gameplay | (any) | Timeout fired (PART-006 timer expired) | **auto-hide** |
+| Standalone | Gameplay | Hidden | n/a | (Submit not gated on hidden components) |
+| Standalone | Gameplay | Visible | Empty (no interaction) | **hide** |
+| Standalone | Gameplay | Visible | Pre-filled, no interaction | **hide** |
+| Standalone | Gameplay | Visible | Fully attempted | **show** |
+| Standalone | Gameplay | Visible | Partial, [`partialSubmitAllowed: true`](#partialsubmitallowed-spec-flag) (default) | **show** |
+| Standalone | Gameplay | Visible | Partial, `partialSubmitAllowed: false` | **hide** |
+| Standalone | Gameplay | Visible | Started but not attempted | **hide** |
+| Multi-round | Transition screen (Welcome / Round-intro / Win Confirmation / Victory Celebration / Game Over) | n/a | n/a | **hide** |
+| Multi-round | Gameplay (any round, including last) | (same as Standalone Gameplay rows) | (same as Standalone) | (same as Standalone) |
+
+## Retry and Next visibility cases
+
+Decision table for post-evaluation and transition-screen contexts. The AnswerComponent column names whether [PART-051](PART-051.md) is also visible at that moment.
+
+| Shape | Phase | Outcome | Lives remaining | FloatingButton | AnswerComponent |
+|---|---|---|---|---|---|
+| Standalone | Post-eval | Correct | (n/a) | **next** | **hidden** |
+| Standalone | Post-eval | Wrong | > 0 | **retry** | hidden |
+| Standalone | Post-eval | Wrong | 0 | **next** | **shown** |
+| Multi-round | Gameplay post-eval | Correct | (n/a) | hidden (auto-advance) | hidden |
+| Multi-round | Gameplay post-eval | Wrong | > 0 | hidden (auto-advance) | hidden |
+| Multi-round | Gameplay post-eval | Wrong | 0 | hidden (auto-advance to Game Over) | hidden |
+| Multi-round | Victory Celebration screen | (n/a) | (n/a) | **next** | **shown** |
+| Multi-round | Win Confirmation screen | (n/a) | (n/a) | hidden (Claim Stars button is on the TS, not on FloatingButton) | hidden |
+| Multi-round | Welcome / Round-intro / Game Over screens | (n/a) | (n/a) | hidden | hidden |
+
+## Click action cases
+
+Each row is one mode × shape/phase → one ordered action sequence. The [lifecycle sections](#standalone-lifecycle) are concrete walk-throughs of these rows.
+
+| Mode tapped | Shape | Phase / context | Action sequence |
+|---|---|---|---|
+| Submit | Standalone | Gameplay | (1) auto-hide button before handler runs (component-internal) · (2) evaluate `gameState.userInput` · (3) `recordAttempt({correct, ...})` · (4) `endGame(correct)` — runs the [Standalone end-game beats](#standalone-lifecycle) |
+| Submit | Multi-round | Non-last round | (1) auto-hide · (2) evaluate · (3) `recordAttempt` · (4) `await FeedbackManager.play(...)` · (5) advance to next round (auto-advance applies on both correct and wrong; wrong+lives=0 routes to Game Over) |
+| Submit | Multi-round | Last round | Same as non-last, except (5) routes to Win Confirmation (if used) → Victory Celebration on win, or Game Over on lives=0 |
+| Retry | Standalone | Post-eval, wrong, lives > 0 | (1) `gameState.isProcessing = false` · (2) clear input value UNLESS `spec.retryPreservesInput: true` · (3) clear inline feedback DOM · (4) `floatingBtn.setMode(null)` — predicate-driven re-show owned by the next interaction handler · (5) **(mandatory)** MUST NOT call `setSubmittable(...)` ([GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE](../skills/game-building/reference/static-validation-rules.md)) · (6) **(mandatory)** MUST NOT reset `gameState.lives` / `gameState.attempts` / `gameState.score` ([GEN-FLOATING-BUTTON-RETRY-LIVES-RESET](../skills/game-building/reference/static-validation-rules.md)) |
+| Retry | Multi-round | n/a | Not wired. Multi-round games have no per-round retry — wrong always auto-advances. The mode is never set in this shape. |
+| Next | Standalone | Post-eval, correct OR (wrong + lives = 0) | (1) `window.parent.postMessage({type:'next_ended'}, '*')` · (2) `answerComponent.destroy()` if visible · (3) `previewScreen.destroy()` · (4) `floatingBtn.destroy()` — single-stage exit, no branching, no flag-checks ([GEN-ANSWER-COMPONENT-NEXT-SINGLE-STAGE](../skills/game-building/reference/static-validation-rules.md)) |
+| Next | Multi-round | Victory Celebration screen | Same single-stage exit. The Victory Celebration TS is destroyed alongside (it stayed mounted as backdrop). |
+
+If a row's first effect (auto-hide for Submit, post-message for Next) is not the literal first line of the registered handler body, that's a regression.
+
+## Mandatory rules
+
+Every line is `(mandatory)`. The enforcement tag in parentheses names the mechanism that catches violations. Rules are grouped into six MECE buckets — each bucket constrains one dimension of the component's behavior. **Completeness check:** if every rule in every bucket holds, no row of any case table can produce a wrong outcome. If you find a regression that isn't catchable by some rule below, a bucket is missing a rule.
+
+#### A. State integrity — the state machine in [§ States](#states) cannot be subverted
+
+Constrains: which mode is visible at any moment, and how transitions fire. Backstops every row of [Submit visibility cases](#submit-visibility-cases).
+
+1. **(mandatory)** FloatingButton starts hidden on page load AND at the start of every new round. (static: [GEN-FLOATING-BUTTON-SUBMIT-DEFAULT](../skills/game-building/reference/static-validation-rules.md))
+2. **(mandatory)** Submit click auto-hides the button BEFORE the registered `on('submit', ...)` handler runs. The handler's first observable side-effect must not be re-showing the button. (static: component-internal contract)
+3. **(mandatory)** Multi-round Victory Celebration / Game Over TransitionScreens use `buttons: []` and rely on tap-to-dismiss. Any `text: 'Next' / 'Continue' / 'Done' / 'Finish' / 'Play Again'` inside a `buttons:` array is forbidden — Next is owned by FloatingButton, not by a button on the TS. (static: [GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN](../skills/game-building/reference/static-validation-rules.md))
+
+#### B. Predicate correctness — the Submittable predicate is the single mechanism that drives [Submit visibility cases](#submit-visibility-cases)
+
+Constrains: what `isSubmittable()` may and may not gate on. If the predicate is correct, every row of the Submit visibility table is satisfied automatically.
+
+4. **(mandatory)** Submittable predicate must AND a value-valid check with an Interaction signal — the value-valid check alone is forbidden because it lets pre-filled inputs show Submit on first paint. (static: [GEN-FLOATING-BUTTON-SUBMIT-DEFAULT](../skills/game-building/reference/static-validation-rules.md))
+5. **(mandatory)** Empty / no-input submit semantics is "Submit hidden", never "wrong attempt + life lost". (static: [GEN-FLOATING-BUTTON-SUBMIT-DEFAULT](../skills/game-building/reference/static-validation-rules.md), spec-side: [spec-review Z10](../skills/spec-review/SKILL.md))
+6. **(mandatory)** When [PART-006 § TimerComponent](PART-006.md) is in scope, the `onEnd` callback must hide FloatingButton — either by calling `setMode(null)` / `setSubmittable(false)` directly OR by flipping a state flag matching `/timeExpired|timerEnded|timeUp|timeIsUp/i` that the Submittable predicate consumes. (static: [GEN-FLOATING-BUTTON-TIMEOUT-HIDE](../skills/game-building/reference/static-validation-rules.md), test: Step 6 Playwright trigger expiry → assert hidden)
+7. **(mandatory)** Retry handler MUST NOT call `setSubmittable(...)` — predicate-driven re-show is owned by the next interaction handler. (static: [GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE](../skills/game-building/reference/static-validation-rules.md))
+
+#### C. End-game side-effect ordering — the [Click action cases](#click-action-cases) for Submit must run their beats in source order
+
+Constrains: when each side-effect (game_complete, show_star, AnswerComponent reveal, setMode('next')) may fire relative to awaited audio. Backstops every Submit-click row that ends in `endGame(...)`.
+
+8. **(mandatory)** Standalone `endGame()` is a SINGLE 5-step orchestrator (SFX-await → game_complete SYNC → TTS-await → show_star + AnswerComponent reveal → setTimeout setMode). No split chain (`runFeedbackSequence` + `finalizeAfterDwell` + inner `endGame`). Each beat corresponds to one row of [Click actions § Submit / Standalone](#click-action-cases). (static: [GEN-FEEDBACK-ORDER](../skills/game-building/reference/static-validation-rules.md))
+9. **(mandatory)** `setMode('next')` must not sit next to `game_complete` without an `await` / `transitionScreen.onDismiss(` / `transitionScreen.hide()` / `setTimeout(` separator. Next appears AFTER feedback + celebration, never alongside `game_complete`. (static: [GEN-FLOATING-BUTTON-NEXT-TIMING](../skills/game-building/reference/static-validation-rules.md))
+
+#### D. Component boundary — only one Submit/Retry/Next CTA exists per session, and it lives in the FloatingButton slot
+
+Constrains: where the component's DOM lives and what other DOM may compete with it. Backstops the [Standalone shape](#canonical-names) invariant that there is no TransitionScreen and no inline body-card.
+
+10. **(mandatory)** Standalone games (`totalRounds: 1`) MUST NOT use TransitionScreen. End-of-game UI is FloatingButton + AnswerComponent + the persistent preview header. (static: [GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN](../skills/game-building/reference/static-validation-rules.md))
+11. **(mandatory)** Standalone games MUST NOT render an inline body-card ("Puzzle solved!" / "Try again!" / "Game over!") into `#gameContent` inside `endGame` / `endStandaloneGame` / `onCorrect` / `onWrong`. Body-cards duplicate AnswerComponent and visually mimic a forbidden Victory TransitionScreen. (static: [GEN-STANDALONE-END-PANEL-FORBIDDEN](../skills/game-building/reference/static-validation-rules.md))
+12. **(mandatory)** No custom `<button>` with id / class / data-testid / aria-label / inner text matching `/submit|retry|next|check|done|commit|cta/i` inside `#gameContent` when FloatingButton is used. (static: [5e0-FLOATING-BUTTON-DUP](../skills/game-building/reference/static-validation-rules.md))
+
+#### E. Teardown contract — the host iframe receives exactly one `next_ended` per session, on Next-tap, after `game_complete`
+
+Constrains: how the session ends. Backstops the [Click action § Next](#click-action-cases) rows.
+
+13. **(mandatory)** Every game that reaches an end state must reveal Next AND register `on('next', ...)`. (static: [GEN-FLOATING-BUTTON-NEXT-MISSING](../skills/game-building/reference/static-validation-rules.md))
+14. **(mandatory)** The `on('next', ...)` handler must post `{ type: 'next_ended' }` to `window.parent`. (static: [GEN-FLOATING-BUTTON-NEXT-POSTMESSAGE](../skills/game-building/reference/static-validation-rules.md))
+15. **(mandatory)** The Next handler is single-stage — destroy AnswerComponent + post `next_ended` + destroy preview + destroy FloatingButton in one tap. No two-stage `if (firstClick) { ... } else { ... }` branching. (static: [GEN-ANSWER-COMPONENT-NEXT-SINGLE-STAGE](../skills/game-building/reference/static-validation-rules.md))
+16. **(mandatory)** Destroys (`previewScreen.destroy()`, `floatingBtn.destroy()`, `answerComponent.destroy()`) live in the Next handler, AFTER `next_ended` is posted. They MUST NOT live in `endGame()` — the preview header owns the `show_star` animation target and must stay mounted through the entire end-screen view. (review + static: [GEN-FLOATING-BUTTON-NEXT-TIMING](../skills/game-building/reference/static-validation-rules.md))
+
+#### F. Readiness — the component is loaded and constructed before any handler can run
+
+Constrains: how the component enters scope. Backstops the assumption every other rule makes that `floatingBtn` exists.
+
+17. **(mandatory)** Standalone games with `totalLives > 1` must register an `on('retry', ...)` handler. (static: [GEN-FLOATING-BUTTON-RETRY-STANDALONE](../skills/game-building/reference/static-validation-rules.md))
+18. **(mandatory)** `waitForPackages` must include `typeof FloatingButtonComponent !== 'undefined'` as a hard `&&` term. (static: [GEN-WAITFORPACKAGES-NO-OR](../skills/game-building/reference/static-validation-rules.md), [GEN-WAITFORPACKAGES-MISSING](../skills/game-building/reference/static-validation-rules.md))
+19. **(mandatory)** The `new FloatingButtonComponent(...)` call uses an attributable catch (`console.error` + `Sentry.captureException`), never a silent `try { ... } catch (e) {}`. (review + static: [GEN-SLOT-INSTANTIATION-MATCH](../skills/game-building/reference/static-validation-rules.md))
+
+## `partialSubmitAllowed` spec flag
+
+Top-level spec key controlling whether Submit is shown for partial input. Two rows of [Submit visibility cases](#submit-visibility-cases) reference it.
+
+- **Default:** `true` (preserves prior behavior; partial input shows Submit and the game evaluates whatever the player typed).
+- **`false`:** the Submittable predicate must require *fully attempted* state (every required field filled / every required cell occupied). Partial input keeps Submit hidden.
+
+Authoring lives in [spec-creation § Game Parameters](../skills/spec-creation/SKILL.md). Review check lives in [spec-review § H6](../skills/spec-review/SKILL.md). Build consumes the flag when emitting `isSubmittable()` — see [game-building § Predicate emission](../skills/game-building/SKILL.md).
 
 ## Opt-out (`floatingButton: false`)
 
-When the spec declares a top-level `floatingButton: false`, this part **does not apply**:
+When the spec declares a top-level `floatingButton: false`:
 
 - `FloatingButtonComponent` MUST NOT be instantiated, imported, or referenced.
-- `ScreenLayout.inject()` MUST NOT pass `floatingButton: true` in its `slots` — omit the key entirely.
-- The game hand-rolls its Submit / Retry / Next buttons inline per PART-022 (below the play area).
-- All validator rules listed below (`GEN-FLOATING-BUTTON-*`, `5e0-FLOATING-BUTTON-*`) are auto-skipped.
+- `ScreenLayout.inject()` MUST NOT pass `floatingButton: true` in `slots` — omit the key entirely.
+- The game hand-rolls its Submit / Retry / Next buttons inline per [PART-022](PART-022.md).
+- All `GEN-FLOATING-BUTTON-*` and `5e0-FLOATING-BUTTON-*` rules auto-skip.
 
-Two valid reasons to opt out:
-1. **The flow has no Submit CTA at all** — timer-driven auto-advance, drag-to-commit, canvas-only flows. The game should emit NO Submit / Check / Done button anywhere.
-2. **The user explicitly wants inline Submit for this specific game** — the spec author deliberately opts into the PART-022 inline pattern.
+Two valid reasons to opt out: (1) the flow has no Submit CTA at all (timer-driven auto-advance, drag-to-commit, canvas-only flows) — emit NO Submit / Check / Done button anywhere; (2) the spec author deliberately opts into the inline PART-022 pattern.
 
-**Build-step rule (enforced by [game-building/SKILL.md](../skills/game-building/SKILL.md)):** step 4 (Build) MUST NOT write `floatingButton: false` into `spec.md` to silence validator rules. The spec is authored at step 1 and reviewed at step 2 — a build-time mutation shows up in `git diff` and is a visible scope violation the user can revert. Same trust model as PART-039's `previewScreen: false`.
-
----
+**(mandatory)** Step 4 (Build) MUST NOT write `floatingButton: false` into `spec.md` to silence validator rules. Same trust model as [PART-039](PART-039-preview-screen.md) — build-time spec mutations show up in `git diff` and are visible scope violations the user can revert.
 
 ## ScreenLayout configuration
 
 ```javascript
 ScreenLayout.inject('app', {
   slots: {
-    floatingButton: true,     // reserves #mathai-floating-button-slot as a body-level sibling
+    floatingButton: true,
     previewScreen: true,
-    transitionScreen: true
+    transitionScreen: true   // omit / set to false in Standalone (totalRounds: 1)
   }
 });
 ```
 
-The slot is a sibling of `.page-center` / `.mathai-layout-root` (not inside the scrolling body) — the component uses `position: fixed` and must not scroll with content.
+The slot is a body-level sibling of `.page-center` / `.mathai-layout-root`. The component uses `position: fixed` and must not scroll with content.
+
+Standalone variant: `slots.transitionScreen: false` (or omit) — Standalone shape forbids TransitionScreen ([rule 13](#mandatory-rules)).
 
 ## Instantiation
 
 ```javascript
-const floatingBtn = new FloatingButtonComponent({
-  slotId: 'mathai-floating-button-slot'
-});
+let floatingBtn;
+try {
+  floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+} catch (e) {
+  console.error('FloatingButton init failed', e);
+  Sentry.captureException(e);
+}
 ```
+
+`waitForPackages` must include `typeof FloatingButtonComponent !== 'undefined'` as a hard `&&` term ([rule 18](#mandatory-rules)).
 
 ## Public API
 
 | Method | Purpose |
-|--------|---------|
+|---|---|
 | `setMode(mode)` | `'submit'` / `'retry'` / `'next'` / `null`. Mutually exclusive. `null` fully hides the component. |
-| `setSubmittable(bool)` | Convenience: `true` ⇒ `setMode('submit')`; `false` ⇒ `setMode(null)`. **No-op while in `'retry'` or `'next'`.** |
-| `setDisabled(bool)` | Keeps the button visible but greys it out. For transient lockouts only. |
-| `setLabels({submit, retry, next, submitting, secondary})` | Overrides. Passing `secondary: '…'` enables the dual-button variant in `submit` mode. |
-| `setError(text)` | Shows/clears an error line above the button row. |
+| `setSubmittable(bool)` | `true` ⇒ `setMode('submit')`; `false` ⇒ `setMode(null)`. **No-op while in `'retry'` or `'next'`.** |
+| `setDisabled(bool)` | Greys out the visible state without changing it. Transient lockouts only. |
+| `setLabels({submit, retry, next, submitting, secondary})` | Label overrides. Passing `secondary` enables the [Dual-button variant](#dual-button-variant) in `submit` mode. |
+| `setError(text)` | Shows / clears an error line above the button row. |
 | `on(event, handler)` | `event ∈ {submit, retry, next, secondary}`. Handler may be async. |
-| `show()` | `setMode('submit')`. |
-| `hide()` | `setMode(null)`. |
-| `destroy()` | Removes DOM, clears listeners. Call from the FloatingButton `on('next', ...)` handler AFTER `next_ended` is posted (alongside `previewScreen.destroy()` and `answerComponent.destroy()` if applicable). NOT in `endGame()`. |
+| `show()` | Equivalent to `setMode('submit')`. |
+| `hide()` | Equivalent to `setMode(null)`. |
+| `destroy()` | Removes DOM, clears listeners. Call from the Next handler AFTER `next_ended` is posted ([rule 12](#mandatory-rules)). |
 
-## Three modes — all use the same yellow button
+## Visual design
 
-The only per-mode difference is the label text. This mirrors the React FlowButton reference which treats every state as "the CTA is here, tap to proceed". Distinguishing colours by mode would fight the reference design and confuse players.
+All three visible modes share the same yellow button — this matches the canonical React `FlowButton` reference ("the CTA is here, tap to proceed"). Differentiating colors per mode would fight the reference and confuse players.
 
-| Mode | When | Default label | Button background |
-|------|------|---------------|-------------------|
-| `'submit'` | Game state is valid to evaluate | `Submit` | `#FFDE49` (gargoyle-gas) |
-| `'retry'` | Standalone game, wrong submit, lives remaining | `Try again` | `#FFDE49` |
-| `'next'` | Game has ended; player has viewed results and is ready to advance | `Next` | `#FFDE49` |
-| `null` / hidden | Not in a submittable state | — | (not rendered) |
+| Mode | Default label | Background | Notes |
+|---|---|---|---|
+| `submit` | `Submit` | `#FFDE49` | gargoyle-gas yellow |
+| `retry` | `Try again` | `#FFDE49` | same yellow |
+| `next` | `Next` | `#FFDE49` | same yellow |
+| `null` | — | (not rendered) | |
 
-Text colour: `#333333` (dark-charcoal). Secondary button (dual-button variant): `#FFFFFF` (white), same dark text. Disabled: `#DDDDDD`. Height: 68px. Padding: 20px 53px. Border-radius: 8px. Shadow: `0 2px 1px rgba(0,0,0,0.1)`.
+Text color: `#333333` (dark-charcoal). Secondary button (Dual-button variant): `#FFFFFF` background, same text. Disabled: `#DDDDDD`. Height: 68px. Padding: 20px 53px. Border-radius: 8px. Shadow: `0 2px 1px rgba(0,0,0,0.1)`.
 
----
+## Standalone lifecycle
 
-## Lifecycle
+Standalone (`totalRounds: 1`) end-game is a single 5-beat orchestrator inside `endGame(correct)`. The submit handler `await`s `endGame(correct)` and that's it. Each beat below is one row of [Click action cases](#click-action-cases) for the Standalone Submit handler.
 
-1. **Page load:** component instantiated, starts hidden (`mode = null`). NOT shown on page load.
-2. **Submit hidden by default — MANDATORY contract.** The Submit button starts hidden on page load AND at the start of every new round. It is shown ONLY when a predicate over real input returns true. This is non-negotiable, regardless of what the spec says about empty-submit semantics.
-   - `setSubmittable(true)` as a literal (no conditional) is **forbidden**.
-   - Predicates that accept empty input — `length >= 0`, `length >= -1`, `length !== -1`, untrimmed string-length checks on text inputs — are **forbidden**. Use `length >= 1` / `length === N` / `trim().length > 0`.
-   - Empty / no-input submit semantics are **"Submit hidden"**, never "wrong attempt + life lost". A spec that penalises empty submits has been mis-defaulted at Step 1 — send it back to spec-review (rule `Z10`). Statically enforced by validator `GEN-FLOATING-BUTTON-SUBMIT-DEFAULT`.
-3. **Submittable predicate (owned by game code):** define `isSubmittable()` over `gameState`. Call `floatingBtn.setSubmittable(isSubmittable())` from EVERY handler that can change submittability:
-   - `input`, `change`, `keyup` on text / number inputs
-   - `click` on MCQ option chips
-   - `drop`, `dragend` on DnD targets
-   - Any programmatic state mutation (reset, undo, clear)
-4. **On submit click:** the component **auto-hides the button immediately** — internal `setMode(null)` fires BEFORE the `on('submit')` handler runs, so the player sees the button disappear the instant they tap it. The player's focus shifts to feedback audio / inline results, not a still-visible CTA. The handler runs after the auto-hide; its job is to evaluate, await feedback, then re-show the button in the next appropriate mode via `setMode('retry')` / `setMode('next')` / `setMode(null)` (which keeps it hidden and lets the submittable-predicate re-fire on next interaction). The handler can be sync or async — the auto-hide happens regardless, so returning a Promise is not required.
-5. **On retry click:** clear feedback, reset input, set mode to `null` (back to predicate-driven).
-6. **On next click:** advance round, set mode to `null` until the player re-enters a submittable state.
-7. **End-of-game teardown (Next-tap, NOT `endGame()`):** the `on('next', ...)` handler posts `next_ended`, then destroys `previewScreen`, then `floatingBtn`. `endGame()` MUST NOT call any `.destroy()` — destroys move into the Next handler so the header survives the end-screen view.
+Beat ordering is statically enforced by [GEN-FEEDBACK-ORDER](../skills/game-building/reference/static-validation-rules.md). The audio chain is `SFX-await → game_complete SYNC → TTS-await → reveal side-effects`, in that source order.
 
-## Lifecycle diagram
-
-```
-  page load / new round
-          │
-          ▼
-       hidden ◀──────── retry / next click ◀────┐
-          │                                      │
-  player edits → isSubmittable()=true            │
-          │                                      │
-          ▼                                      │
-       submit ──── submit click (promise) ──────▶│
-                                                 │
-                                          wrong: retry
-                                          right: next
-```
-
-## Dual-button variant
-
-Enable the secondary slot for parallel-answer flows (Yes / No, True / False):
-
-```js
-floatingBtn.setLabels({ submit: 'Yes', secondary: 'No' });
-floatingBtn.on('submit',    () => answer(true));
-floatingBtn.on('secondary', () => answer(false));
-```
-
-The secondary button is only rendered in `mode === 'submit'`. Secondary background is white on the same dark text. Dual mode is OFF by default.
-
----
-
-## Next flow — required for every FloatingButton-using game
-
-**Every game that reaches an end state MUST surface a Next button.** This is how the host harness learns "the player is done viewing results" and can tear down the iframe / advance to the next worksheet item. The signal is a new postMessage type `next_ended` (distinct from `game_complete`).
-
-**Next is the LAST thing the player sees.** Its semantic is "player is done, tear down". If Next appears while feedback audio is still playing OR while the results/stars TransitionScreen is still visible, the player can tap it and destroy the iframe mid-audio or before absorbing the result. That defeats the entire purpose.
-
-**The sequence differs by shape.** Pick the right one based on `totalRounds`.
-
-### Standalone variant (`totalRounds: 1`, Shape 1) — NO TransitionScreen, NO inline body-card
-
-Standalone games have ONE question, ONE submit, ONE end state. There is nothing to transition between — TransitionScreen is architecturally redundant. **The end-of-game display is `AnswerComponent` (PART-051 carousel showing the solution) + `FloatingButton` mode lifecycle (`submit` → `next` / `retry`) + the persistent preview-screen header (`show_star` animation).** The puzzle grid stays rendered in `#gameContent` unchanged — the player keeps seeing what they answered. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks `transitionScreen.show()` usage when `totalRounds === 1`.
-
-**Do NOT render an inline body-card** ("Puzzle solved!" / "Try again!" / "Game over!" with sticker + title + subtitle into `#gameContent`). It duplicates AnswerComponent and visually mimics a Victory/Game-Over TransitionScreen, defeating the standalone shape's whole point. Validator `GEN-STANDALONE-END-PANEL-FORBIDDEN` blocks `gameContent.innerHTML = '<...>'` assignments inside `endGame` / `endStandaloneGame` / `onCorrect` / `onWrong` for standalone games.
-
-**`endGame()` is the SINGLE orchestrator function — it owns all 5 steps end-to-end.** The submit handler `await`s `endGame(correct)` and that's it. Do NOT split the sequence into a `runFeedbackSequence` / `finalizeAfterDwell` / inner-`endGame()` chain that calls `endGame()` after Step 1 (SFX) finishes — that fires `game_complete` + Next while TTS is still playing. All five steps live inside `endGame()`; TTS is awaited BEFORE `endGame()` returns.
-
-**This 5-step orchestrator is the STANDALONE (`totalRounds: 1`) shape only.** Multi-round games (`totalRounds > 1`) await SFX **and** TTS in the round-N submit handler (same as every round, validator: `GEN-FEEDBACK-TTS-AWAIT`) before transitioning. End-of-game audio is owned by the Stars Collected `onMounted` (which awaits `sound_stars_collected`, fires `show_star`, and reveals Next via `setTimeout → setMode('next')`). See the Multi-round variant section below + `default-transition-screens.md` § 4.
-
-Five-step sequence:
-
-**Step ordering is statically enforced by validator `GEN-FEEDBACK-ORDER`.** Every step below names its PERMITTED calls and explicitly forbids calls that belong in later beats. Build agents MUST place each call in its prescribed beat — placing a Step 4 call (e.g. `answerComponent.show`) in Step 2 makes the side-effect race the awaited TTS in Step 3. The audio chain is `SFX-await → game_complete SYNC → TTS-await → reveal side-effects`, in that source order.
-
-1. **Step 1 — SFX awaited.** PERMITTED: `await safePlaySound(...)` / `await FeedbackManager.sound.play(...)` / `await Promise.all([safePlaySound(...), setTimeout(1500)])`. FORBIDDEN: any `setMode`, `show_star`, `answerComponent.show`, navigation, destroy. Min 1500 ms floor.
-
-2. **Step 2 — `game_complete` SYNC.** PERMITTED: `postGameComplete()` ONLY (which internally posts `{type:'game_complete', data:{metrics}}`). FORBIDDEN: `answerComponent.show(...)`, `floatingBtn.setMode(...)`, `window.postMessage({type:'show_star', ...})`, `transitionScreen.hide()`, any `*.destroy()`, body-card render (`gameContent.innerHTML = ...` — `GEN-STANDALONE-END-PANEL-FORBIDDEN`). Those calls belong in Steps 4-5 (post-TTS). Placing `answerComponent.show()` in Step 2 is visually a TS-mimic and semantically a TTS race.
-
-3. **Step 3 — TTS awaited.** PERMITTED: `await FeedbackManager.playDynamicFeedback({...})` ONLY. FORBIDDEN: any `setMode`, `show_star`, `answerComponent.show`, navigation, destroy, body-card render. Skip this beat entirely (no TTS call) only when the spec has no TTS — in which case Steps 4-5 still must not appear before Step 1 SFX.
-
-4. **Step 4 — `show_star` + AnswerComponent reveal.** PERMITTED: `window.postMessage({type:'show_star', data:{count, ...}}, '*')` (header star animation, ~1 s) AND `answerComponent.show({slides: getReviewSlides()})` (carousel below puzzle grid). FORBIDDEN: `setMode` directly (deferred via `setTimeout` is Step 5), `transitionScreen.hide()` (standalone has no TS), navigation calls. Skip the `show_star` half on game-over (`correct === false`); still call `answerComponent.show()` so the player learns the solution.
-
-5. **Step 5 — reveal Next / Retry.** PERMITTED: `setTimeout(function(){ floatingBtn.setMode(correct ? 'next' : 'retry'); }, 1100)`. FORBIDDEN: bare `floatingBtn.setMode(...)` outside a setTimeout (would race the star animation), any further audio calls, body-card render. The setTimeout delay (~1100 ms) lets the Step 4 star animation finish before the CTA appears. For last-life-wrong / single-life games, use `'next'` so the player can advance to game_exit; the harness owns retry semantics.
-
-The `await` chain through Steps 1+3 is the separator that satisfies `GEN-FLOATING-BUTTON-NEXT-TIMING` — `setMode('next')` is safe inside Step 5's `setTimeout` because all feedback has already completed.
-
-Canonical wiring:
+1. **(mandatory)** SFX awaited (≥ 1500 ms floor). PERMITTED: `await safePlaySound(...)` / `await FeedbackManager.sound.play(...)` / `await Promise.all([safePlaySound(...), setTimeout(1500)])`. FORBIDDEN: any `setMode`, `show_star`, `answerComponent.show`, navigation, `destroy`.
+2. **(mandatory)** `game_complete` SYNC. PERMITTED: `postGameComplete()` / `window.parent.postMessage({type:'game_complete', data:{...}}, '*')`. FORBIDDEN: `answerComponent.show(...)`, `floatingBtn.setMode(...)`, `window.postMessage({type:'show_star', ...})`, `transitionScreen.hide()`, any `*.destroy()`, body-card render into `#gameContent` ([rule 14](#mandatory-rules)).
+3. **(mandatory)** TTS awaited. PERMITTED: `await FeedbackManager.playDynamicFeedback({...})`. FORBIDDEN: any side-effect from beats 4–5. Skip this beat only when the spec has no TTS.
+4. **(mandatory)** `show_star` (correct only) + AnswerComponent reveal (wrong + lives=0 only). PERMITTED: `window.postMessage({type:'show_star', data:{count, ...}}, '*')` (header animation, ~1 s) AND `answerComponent.show({slides: getReviewSlides()})` gated on `!correct`. FORBIDDEN: bare `setMode` (deferred via setTimeout is beat 5), `transitionScreen.hide()` (Standalone has no TS), navigation. AnswerComponent on standalone correct is forbidden ([Retry & Next visibility](#retry-and-next-visibility-cases) — Standalone correct row).
+5. **(mandatory)** Reveal Next / Retry. PERMITTED: `setTimeout(function(){ floatingBtn.setMode(correct ? 'next' : (gameState.lives > 0 ? 'retry' : 'next')); }, 1100)`. FORBIDDEN: bare `floatingBtn.setMode(...)` outside a setTimeout (would race the star animation), any further audio calls, body-card render. The ~1100 ms delay lets beat 4's animation finish.
 
 ```js
 async function endGame(correct) {
-  // Step 1 — SFX + sticker (minimum 1500 ms, awaited).
+  // Beat 1 — SFX.
   await FeedbackManager.play(correct ? 'correct' : 'incorrect');
 
-  // Step 2 — post game_complete SYNC. NO body-card render in #gameContent.
-  // The puzzle grid stays as-is; AnswerComponent (Step 4) is the end-state UI.
-  // Rendering an inline "Puzzle solved!" card here duplicates AnswerComponent
-  // and visually mimics a forbidden Victory TransitionScreen.
-  // Validator: GEN-STANDALONE-END-PANEL-FORBIDDEN.
-  window.parent.postMessage({ type: 'game_complete', data: {...} }, '*');
+  // Beat 2 — game_complete SYNC.
+  window.parent.postMessage({ type: 'game_complete', data: { /* metrics */ } }, '*');
 
-  // Step 3 — dynamic TTS (if the game uses playDynamicFeedback). AWAIT IT.
-  // The star-award animation must play AFTER feedback audio ends, not on top.
-  // Omit this block entirely if the game has no TTS.
+  // Beat 3 — TTS (omit if no TTS).
   try {
-    await FeedbackManager.playDynamicFeedback({
-      audio_content: ttsText,
-      subtitle: subtitle,
-      sticker: sticker
-    });
-  } catch (e) { /* TTS failures must never block the end sequence */ }
+    await FeedbackManager.playDynamicFeedback({ audio_content: ttsText, subtitle, sticker });
+  } catch (e) { /* TTS failures must not block */ }
 
-  // Step 4 — star-award animation + AnswerComponent reveal. The carousel slides
-  // in below the puzzle grid showing the solution; the header animates 3/3 ⭐.
-  // Skip show_star on wrong (correct === false); still reveal AnswerComponent
-  // so the player learns the solution.
+  // Beat 4 — show_star (correct only) + AnswerComponent reveal (wrong+lives=0 only).
   if (correct) {
     window.postMessage({
       type: 'show_star',
-      data: {
-        count: gameState.stars || 1,
-        variant: 'yellow',
-        score: gameState.score + '/' + gameState.totalRounds
-      }
+      data: { count: gameState.stars || 1, variant: 'yellow', score: gameState.score + '/1' }
     }, '*');
-  }
-  if (answerComponent) {
-    answerComponent.show({ slides: getReviewSlides(correct) });
+  } else if (gameState.lives === 0 && answerComponent) {
+    answerComponent.show({ slides: getReviewSlides() });
   }
 
-  // Step 5 — reveal Next / Retry. setTimeout(1100) so the CTA appears AFTER
-  // the star-award animation finishes. Use 'retry' on wrong (lives remain) or
-  // 'next' on correct / last-life-wrong so the player can advance to game_exit.
+  // Beat 5 — reveal Next or Retry.
   setTimeout(function () {
-    floatingBtn.setMode(correct ? 'next' : 'retry');
+    floatingBtn.setMode(correct ? 'next' : (gameState.lives > 0 ? 'retry' : 'next'));
   }, 1100);
 }
 
@@ -217,239 +324,258 @@ floatingBtn.on('next', function () {
 });
 ```
 
-**Note on targets:** `game_complete` and `next_ended` travel to the host via `window.parent.postMessage` (cross-frame). `show_star` is an **intra-frame** message consumed by the ActionBar in the same window, so it uses `window.postMessage` (no `.parent`). See PART-040.
+**postMessage targets.** `game_complete` and `next_ended` cross frames — `window.parent.postMessage`. `show_star` is intra-frame (consumed by the ActionBar in the same window) — `window.postMessage`, no `.parent`. See [PART-040](PART-040-action-bar.md).
 
-`ScreenLayout.inject()` for standalone MUST omit `transitionScreen`: `slots: { floatingButton: true, previewScreen: true, transitionScreen: false }` (or omit the key entirely). Do NOT instantiate `new TransitionScreenComponent(...)`.
+## Multi-round lifecycle
 
-### Multi-round variant (`totalRounds > 1`, Shape 2 / Shape 3) — TransitionScreen with `buttons: []`
+Multi-round (`totalRounds > 1`) end-game routes through Win Confirmation (optional) → Victory Celebration → AnswerComponent reveal → Next.
 
-Multi-round games end after the final round when the per-round feedback has already cleared. The victory / game_over TransitionScreen card is the end-of-game display.
+Per-round (non-final) submit handler awaits SFX + TTS, then auto-advances. There is no per-round retry ([Retry & Next visibility](#retry-and-next-visibility-cases) — Multi-round wrong rows).
 
-Five-step sequence:
+End-of-game beats (final round resolves):
 
-1. Game evaluates the final submit → decide outcome.
-2. **Await feedback** — `await FeedbackManager.play(...)`.
-3. Post `game_complete` with metrics.
-4. Show victory / game_over via `transitionScreen.show({ content: ..., buttons: [] })` — **NO buttons**, tap-dismissible only.
-5. Register `transitionScreen.onDismiss(() => { transitionScreen.hide(); floatingBtn.setMode('next'); })` — `setMode('next')` lives ONLY inside this callback.
-
-Canonical wiring:
+1. `await FeedbackManager.play(...)` for the final round.
+2. `window.parent.postMessage({ type: 'game_complete', data: {...} }, '*')`.
+3. `if (gameState.stars > 0) showWinConfirmation();` (or skip directly to `showVictoryCelebration()` if no Win Confirmation gate). On lives exhausted: `showGameOver()` (no AnswerComponent).
+4. Win Confirmation's `Claim Stars` button calls `showVictoryCelebration()`.
+5. Victory Celebration's `onMounted` plays `victory_sound_effect`, posts `show_star`, and via `setTimeout` calls a `showAnswerCarousel()` that calls `answerComponent.show({ slides })` + `floatingBtn.setMode('next')`. The Victory Celebration TS stays mounted (`persist: true`).
+6. Player taps Next → single-stage exit ([rule 11](#mandatory-rules)).
 
 ```js
-async function endRound(correct) {
-  await FeedbackManager.play(correct ? 'correct' : 'incorrect');
-  window.parent.postMessage({ type: 'game_complete', data: {...} }, '*');
+async function endGame() {
+  await FeedbackManager.play(/* final round */);
+  window.parent.postMessage({ type: 'game_complete', data: { /* metrics */ } }, '*');
+  if (gameState.stars > 0) {
+    showWinConfirmation();    // optional; or call showVictoryCelebration() directly
+  } else {
+    showGameOver();
+  }
+}
 
+// Optional pre-celebration gate.
+function showWinConfirmation() {
   transitionScreen.show({
-    stars: correct ? 3 : 0,
-    content: resultsHtml,
-    buttons: []                          // tap-dismissible only
+    stars: gameState.stars,
+    title: 'Victory!',
+    buttons: [{
+      text: 'Claim Stars',
+      type: 'primary',
+      action: function () {
+        transitionScreen.hide();
+        showVictoryCelebration();
+      }
+    }]
   });
-  transitionScreen.onDismiss(() => {
-    transitionScreen.hide();
-    // Star-award animation — fires AFTER the transition dismisses. Omit
-    // the postMessage if spec.autoShowStar === false.
-    if (correct) {
-      window.postMessage({
-        type: 'show_star',
-        data: {
-          count: gameState.stars || 1,
-          variant: 'yellow',
-          score: gameState.score + '/' + gameState.totalRounds  // applied AFTER the animation
-        }
-      }, '*');
+}
+
+// Celebration + hand-off.
+async function showVictoryCelebration() {
+  await transitionScreen.show({
+    title: 'Yay! Stars collected!',
+    stars: gameState.stars,
+    buttons: [],
+    persist: true,
+    onMounted: function () {
+      (async function () {
+        await FeedbackManager.sound.play('victory_sound_effect', { sticker: STICKER_CELEBRATE });
+        window.postMessage({
+          type: 'show_star',
+          data: { count: gameState.stars, variant: 'yellow', score: gameState.score + '/' + gameState.totalRounds }
+        }, '*');
+        setTimeout(function () { showAnswerCarousel(); }, 1500);
+      })();
     }
-    // Reveal Next AFTER the 1 s animation. If spec.autoShowStar === false,
-    // shorten the delay to 300 ms (no animation to wait for).
-    setTimeout(function () { floatingBtn.setMode('next'); }, 1100);
   });
+}
+
+function showAnswerCarousel() {
+  answerComponent.show({
+    slides: rounds.map(function (r) {
+      return { render: function (c) { renderAnswerForRound(r, c); } };
+    })
+  });
+  floatingBtn.setMode('next');
 }
 
 floatingBtn.on('next', function () {
   window.parent.postMessage({ type: 'next_ended' }, '*');
+  try { answerComponent.destroy(); } catch (e) {}
   try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
   floatingBtn.destroy();
 });
 ```
 
-**Opt-in Claim-Stars button.** Instead of the `buttons: []` tap-dismiss, a victory screen may expose an explicit `Claim Stars` CTA. The button's own `action()` posts `show_star` — TransitionScreen has no knowledge of the star protocol, so authors retain full control over count, variant, timing, and whether to fire at all:
+**`spec.autoShowStar: false`.** When the author wires their own `show_star` postMessage (e.g. from a `Claim Stars` action), set `autoShowStar: false` to suppress the generator-emitted default. ActionBar dedupes identical payloads within 500 ms, so an unintentional double-fire is safe. The Next-reveal `setTimeout` delay shortens to 300 ms when `autoShowStar: false` (no star animation to wait for); the default 1100 ms applies when the animation fires.
 
-```js
-transitionScreen.show({
-  stars: 3,
-  title: 'Victory!',
-  buttons: [{
-    text: 'Claim Stars',
-    type: 'primary',
-    action: () => {
-      window.postMessage({
-        type: 'show_star',
-        data: { count: 3, variant: 'yellow' }
-      }, '*');
-      transitionScreen.hide();
-      floatingBtn.setMode('next');
-    }
-  }]
-});
-```
+## Try Again lifecycle
 
-`Claim Stars` is NOT on the `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN` reserved list, so it is allowed alongside the FloatingButton-owned Next. **When you use this variant, set `spec.autoShowStar: false` to suppress the generator-emitted `show_star` inside `onDismiss` — otherwise the animation fires twice (once from the author's action, once from the default hook).**
+**Scope:** Standalone (`totalRounds: 1`) with `totalLives > 1`. Multi-round games have no per-round retry.
 
-**Note on targets:** `game_complete` / `next_ended` travel to the host via `window.parent.postMessage`. `show_star` is **intra-frame** (ActionBar listens in the same window) — use `window.postMessage`. See PART-040.
+Why not multi-round: in multi-round, wrong either advances to the next round or ends the game (lives exhausted). In Standalone, the single round IS the game, so "retry this question" is the only way to use a spare life.
 
-**Spec-level opt-out.** `spec.autoShowStar: false` tells the generator to skip emitting the default `show_star` postMessage in both standalone and multi-round templates. The game author then fires `show_star` manually wherever they want — ActionBar dedupes identical payloads within 500 ms, so an unintentional double-fire is safe.
+Beats:
 
-**Hard rules for both variants.** `setMode('next')` MUST NOT be in `endGame()`, `handleGameOver()`, `postGameComplete()`, or any function that immediately precedes `setMode('next')` with a `game_complete` postMessage and nothing else. The only valid separators between `game_complete` and `setMode('next')` are: `await` (standalone — feedback already awaited), OR `transitionScreen.onDismiss(...)` + `transitionScreen.hide()` (multi-round), OR a `setTimeout(...)` deferral (e.g. the short 300 ms delay the standalone star-award template uses). Validator `GEN-FLOATING-BUTTON-NEXT-TIMING` catches all other patterns.
-
-**Destroy ordering.** `previewScreen.destroy()` MUST NOT be called inside `endGame()` — the preview wrapper owns the ActionBar header + `#previewStar`, which are the target of the star-award animation that plays AFTER `endGame()` fires `show_star`. Destroys happen once, inside the `floatingBtn.on('next', ...)` handler, AFTER `window.parent.postMessage({type:'next_ended'}, '*')`. This keeps the header mounted through the entire end-screen view and matches PART-039's destroy mandate.
-
-**Banned — DO NOT do any of these** (the exact patterns previous runs have produced and each was rejected):
-
-- ❌ `postGameComplete(sr, su); floatingBtn.setMode('next');` in the body of `endGame()` — Next appears during feedback audio.
-- ❌ `setMode('next')` in the same function as `game_complete` postMessage — same issue, regardless of wrapping try/catch.
-- ❌ Fire-and-forget feedback at the end of game (`FeedbackManager.play(...).catch(...)`) — end-of-game feedback MUST be awaited so the TransitionScreen shows AFTER audio completes.
-- ❌ `setMode('next')` inside `.then(...)` of feedback play without also dismissing the TransitionScreen — Next appears while the stars card is still visible.
-- ❌ **`transitionScreen.show({ buttons: [{ text: 'Next', action: ... }] })` — WRONG.** The Next CTA is owned by FloatingButton, NOT by a button inside the TransitionScreen card. Victory / game_over TransitionScreens MUST use `buttons: []` (empty array) and rely on tap-to-dismiss. Any `text: 'Next'` / `'Continue'` / `'Done'` / `'Finish'` / `'Play Again'` inside a TransitionScreen's `buttons:` array is a validator error (`GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN`). A Next button on the card followed by a floating Next produces a confusing double-Next UX — players click the card's Next, see another Next appear at the bottom, and don't know which one actually fires. Welcome / round-intro / motivation screens may still have buttons (`I'm ready`, `Let's go`, `Skip`) — those labels are NOT in the reserved-word list.
-
-**Contract:** the `next_ended` postMessage fires ONCE per game session, AFTER `game_complete`, specifically in response to the user clicking Next. Host listens for both. See [alfred/skills/data-contract/schemas/postmessage-schema.md](../skills/data-contract/schemas/postmessage-schema.md).
-
-Validator rules enforcing this:
-- `GEN-FLOATING-BUTTON-NEXT-MISSING` — must call `setMode('next')` AND register `on('next', ...)`.
-- `GEN-FLOATING-BUTTON-NEXT-POSTMESSAGE` — the handler body must emit `next_ended`.
-- `GEN-FLOATING-BUTTON-NEXT-TIMING` — `setMode('next')` must not sit next to `game_complete` without an `await` / transition-dismiss separator.
-
----
-
-## Try Again flow — standalone games with `totalLives > 1` only
-
-**Scope:** ONLY applies to Shape 1 Standalone games (`totalRounds: 1`) where the spec sets `totalLives > 1`. Multi-round games continue to use TransitionScreen retry buttons — they are NOT affected by this section.
-
-**Why not multi-round?** In multi-round games, a wrong answer either advances to the next round (no retry) or ends the game (lives exhausted, TransitionScreen shows Play Again). There's no "retry the same round" moment mid-round. In standalone, the single round IS the game, so "retry this question" is the only way to use a spare life.
-
-**Flow:**
-
-1. User submits → wrong.
-2. Game code: `gameState.lives -= 1`; record the attempt with `is_retry: (gameState.retryCount || 0) > 0`.
-3. Await feedback (`FeedbackManager.play('incorrect')`).
-4. Check `gameState.lives > 0`:
-   - **Yes** → show Try Again (`floatingBtn.setMode('retry')`).
-   - **No** → `endGame(false)` → goes through the Next flow (TransitionScreen game_over → Next button).
-5. User taps Try Again:
-   - If `spec.retryPreservesInput: true`: input value is kept, player can edit it.
-   - Otherwise (default): input is cleared before the click handler returns.
-   - Interaction is re-enabled (`gameState.isProcessing = false`).
-   - **Attempt history, score, and the already-decremented lives are PRESERVED** — do NOT reset them.
-   - `floatingBtn.setMode(null)` → the submittable predicate takes over again as the player edits.
-
-Canonical wiring:
+1. Submit click → wrong.
+2. **(mandatory)** `gameState.lives -= 1`; `recordAttempt({correct: false, is_retry: (gameState.retryCount || 0) > 0, ...})`.
+3. `await FeedbackManager.play('incorrect')`.
+4. Branch on `gameState.lives`:
+   - `> 0` → `floatingBtn.setMode('retry')`.
+   - `=== 0` → `endGame(false)` → routes to Next via [Standalone lifecycle](#standalone-lifecycle) beat 5 (gates AnswerComponent on `!correct`).
+5. Player taps Try Again → handler runs the [Click actions Retry row](#click-action-cases).
 
 ```js
 // Inside the wrong-answer branch of on('submit'):
 gameState.lives -= 1;
-gameState.attempts.push({
-  correct: false,
-  is_retry: (gameState.retryCount || 0) > 0,
-  /* other required fields */
-});
+gameState.attempts.push({ correct: false, is_retry: (gameState.retryCount || 0) > 0 /* ... */ });
 await FeedbackManager.play('incorrect');
 
 if (gameState.lives > 0) {
   gameState.retryCount = (gameState.retryCount || 0) + 1;
-  if (!RETRY_PRESERVES_INPUT) {
-    inputEl.value = '';
-    gameState.userInput = '';
-  }
+  if (!RETRY_PRESERVES_INPUT) { inputEl.value = ''; gameState.userInput = ''; }
   gameState.isProcessing = false;
   floatingBtn.setMode('retry');
 } else {
-  endGame(false);     // triggers the Next flow
+  endGame(false);
 }
 
 floatingBtn.on('retry', function () {
-  floatingBtn.setMode(null);
+  floatingBtn.setMode(null);   // predicate-driven re-show owned by next interaction handler
   if (inputEl && !RETRY_PRESERVES_INPUT) inputEl.focus();
 });
 ```
 
-`RETRY_PRESERVES_INPUT` is a game-scope const the generator emits from `spec.retryPreservesInput`.
+`RETRY_PRESERVES_INPUT` is a game-scope const emitted from `spec.retryPreservesInput`.
 
-**Retry handler MUST NOT call `setSubmittable(...)` — MANDATORY.** The handler's only mode action is `setMode(null)`. Calling `setSubmittable(isSubmittable())` (or `setSubmittable(true)`) inside the retry handler defeats the canonical UX: when `retryPreservesInput: true`, the predicate is still satisfied by the preserved input and the call **immediately re-shows Submit**, letting the player tap-tap through Try Again → Submit with the same wrong answer. The correct flow is **predicate-driven re-show from the player's NEXT interaction** — the input/drag/tap handlers (which already call `setSubmittable(isSubmittable())`) will re-show Submit as soon as the player edits. Forcing the player to make at least one change before re-submitting is the whole point of the Try Again gate. Statically enforced by validator `GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE`. Caught the kakuro 2026-05 regression where the handler called `setSubmittable(isSubmittable())` after `setMode(null)` and Submit reappeared instantly with the unchanged grid.
+**Must reset / re-enable:** `gameState.isProcessing = false`; clear input value (unless `retryPreservesInput: true`); clear inline feedback DOM. **Must NOT reset:** `gameState.lives` (already decremented), `gameState.attempts`, `gameState.score`, `gameState.retryCount`. ([rule 6](#mandatory-rules), [GEN-FLOATING-BUTTON-RETRY-LIVES-RESET](../skills/game-building/reference/static-validation-rules.md))
 
-**Must NOT reset:**
-- `gameState.lives` — already decremented, do not restore
-- `gameState.attempts` — every attempt stays in the history with `is_retry: true`
-- `gameState.score`, `gameState.retryCount`, `recordAttempt` data
+## Dual-button variant
 
-**Must reset / re-enable:**
-- `gameState.isProcessing = false` (so the input responds to typing again)
-- Clear input value (unless `retryPreservesInput: true`)
-- Clear any inline feedback UI the game rendered for the wrong attempt
+Enable the secondary slot for parallel-answer flows (Yes / No, True / False):
 
-Validator rules that enforce this: `GEN-FLOATING-BUTTON-RETRY-STANDALONE` (standalone + lives>1 must register `on('retry', ...)`), `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET` (retry handler must not contain a lives reset), `GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE` (retry handler must not call `setSubmittable(...)` — predicate-driven re-show is owned by the next interaction handler).
+```js
+floatingBtn.setLabels({ submit: 'Yes', secondary: 'No' });
+floatingBtn.on('submit',    () => answer(true));
+floatingBtn.on('secondary', () => answer(false));
+```
 
----
+Secondary button is rendered only in `mode === 'submit'`. White background, same dark text. Off by default.
 
-## Invariants
+## Banned patterns
 
-- Only one of {submit, retry, next} visible at a time — enforced by `setMode`.
-- Button MUST be hidden when the game is in a non-submittable state, even if the player has already interacted. "Player touched the input" is NOT sufficient — the current state must be valid for evaluation.
-- No custom `<button>` with id / class / data-testid / aria-label / inner text matching `/submit|retry|next|check|done|commit|cta/i` inside `#gameContent` when FloatingButton is used. Duplicate action buttons confuse the player and break the validator (`5e0-FLOATING-BUTTON-DUP`).
-- Component container lives in `#mathai-floating-button-slot`, NOT inside `#gameContent`.
-- Reset button (if applicable) remains inline per PART-022 — NOT absorbed by this component.
+Patterns that look reasonable but break one of the [Mandatory rules](#mandatory-rules). Each entry links to its enforcing rule. LLM build agents hallucinate these regularly; listing them here lets the validator and the human reviewer catch them by name.
 
-## Integration with FeedbackManager (PART-017)
+- `postGameComplete(...); floatingBtn.setMode('next');` in `endGame()` — Next during feedback audio. ([GEN-FLOATING-BUTTON-NEXT-TIMING](../skills/game-building/reference/static-validation-rules.md))
+- `setMode('next')` in the same function as a `game_complete` postMessage. ([GEN-FLOATING-BUTTON-NEXT-TIMING](../skills/game-building/reference/static-validation-rules.md))
+- Fire-and-forget end-of-game feedback (`FeedbackManager.play(...).catch(...)`). End-of-game feedback MUST be awaited.
+- `setMode('next')` inside `.then(...)` of feedback play without dismissing the TransitionScreen — Next appears while the celebration is still visible.
+- `transitionScreen.show({ buttons: [{ text: 'Next', ... }] })` — Next is owned by FloatingButton, not by a button on the TS. ([GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN](../skills/game-building/reference/static-validation-rules.md))
+- `setSubmittable(true)` literal (no conditional). ([GEN-FLOATING-BUTTON-SUBMIT-DEFAULT](../skills/game-building/reference/static-validation-rules.md))
+- Empty-allowing predicates: `length >= 0`, `length >= -1`, `length !== -1`, `length > -1`. ([GEN-FLOATING-BUTTON-SUBMIT-DEFAULT](../skills/game-building/reference/static-validation-rules.md))
+- Predicate that omits the Interaction signal (value-valid only). ([GEN-FLOATING-BUTTON-SUBMIT-DEFAULT](../skills/game-building/reference/static-validation-rules.md))
+- Two-stage Next handler with `if (firstClick) { showNextScreen(); ... } else { exit(); }`. ([GEN-ANSWER-COMPONENT-NEXT-SINGLE-STAGE](../skills/game-building/reference/static-validation-rules.md))
+- `previewScreen.destroy()` called from `endGame()`. ([rule 12](#mandatory-rules))
+- TransitionScreen used in Standalone games. ([GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN](../skills/game-building/reference/static-validation-rules.md))
+- Inline body-card render in `#gameContent` inside Standalone end-game handlers. ([GEN-STANDALONE-END-PANEL-FORBIDDEN](../skills/game-building/reference/static-validation-rules.md))
+- Custom `<button>` matching `/submit|retry|next|check|done|commit|cta/i` in `#gameContent` while FloatingButton is in use. ([5e0-FLOATING-BUTTON-DUP](../skills/game-building/reference/static-validation-rules.md))
+- Retry handler that calls `setSubmittable(...)` after `setMode(null)`. ([GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE](../skills/game-building/reference/static-validation-rules.md))
+- AnswerComponent reveal on Standalone correct end. ([Retry & Next visibility](#retry-and-next-visibility-cases))
 
-Submit handlers should await FeedbackManager audio / sticker cues before deciding the next mode:
+## Integration
+
+One subsection per neighbor PART. Each names the exact contract surface (postMessage type / awaited promise / slot).
+
+### [PART-006 § TimerComponent](PART-006.md)
+
+When TimerComponent is in scope, the `onEnd` callback must hide FloatingButton ([rule 4](#mandatory-rules)). The canonical pattern:
+
+```js
+new TimerComponent('timer-container', {
+  timerType: 'decrease',
+  onEnd: function () {
+    gameState.timeExpired = true;
+    floatingBtn.setMode(null);   // or: rely on isSubmittable() reading gameState.timeExpired
+  }
+});
+```
+
+### [PART-017 § FeedbackManager](PART-017.md)
+
+Submit handlers await FeedbackManager audio / sticker cues before deciding the next mode:
 
 ```js
 floatingBtn.on('submit', async () => {
   const correct = evaluate(gameState.userInput);
   recordAttempt({ correct, /* … */ });
   await FeedbackManager.play(correct ? 'correct' : 'incorrect');
-
-  if (correct) {
-    endGame(true);     // triggers the Next flow (see "Next flow" section above)
-  } else if (isStandaloneWithLivesRemaining()) {
-    floatingBtn.setMode('retry');    // see "Try Again flow" section above
-  } else {
-    endGame(false);    // triggers the Next flow
-  }
+  if (correct) endGame(true);
+  else if (gameState.lives > 0) floatingBtn.setMode('retry');
+  else endGame(false);
 });
 ```
 
-The button auto-hides on submit click, so the feedback sequence has no CTA competing for attention. When feedback completes, the handler explicitly sets the next mode — `setMode(null)` in multi-round (predicate will re-drive on next interaction), `setMode('retry')` in standalone+lives, or continues to end-game flow. Never call `setMode('next')` directly from the submit handler for the victory path — Next appears AFTER the end TransitionScreen dismisses (multi-round) or AFTER the inline-feedback render (standalone), not alongside it.
+The button auto-hides on submit click ([rule 5](#mandatory-rules)), so the feedback sequence has no CTA competing for attention.
 
----
+### [PART-040 § ActionBar](PART-040-action-bar.md) (postMessage targets)
+
+- `game_complete`, `next_ended` → `window.parent.postMessage(...)` (cross-frame).
+- `show_star` → `window.postMessage(...)` (intra-frame; ActionBar listens in the same window).
+
+### [postmessage-schema](../skills/data-contract/schemas/postmessage-schema.md)
+
+`next_ended` fires ONCE per game session, AFTER `game_complete`, in response to the Next tap.
+
+### [PART-022 § Reset](PART-022.md)
+
+Reset stays inline per PART-022. NOT absorbed into FloatingButton.
 
 ## CDN
+
+Bundle (auto-loads `FloatingButtonComponent`):
 
 ```html
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
 ```
 
-The bundle auto-loads `FloatingButtonComponent`. Standalone alternative:
+Standalone alternative:
 
 ```html
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/floating-button/index.js"></script>
 ```
 
----
-
 ## Validator rules enforced
 
-| Rule | What it checks |
-|------|----------------|
-| `GEN-FLOATING-BUTTON-CDN` | Script tag for `floating-button/index.js` OR the `components/index.js` bundle is present when `FloatingButtonComponent` is referenced. |
-| `GEN-FLOATING-BUTTON-SLOT` | `slots.floatingButton: true` in `ScreenLayout.inject()` when the component is instantiated. |
-| `GEN-FLOATING-BUTTON-PREDICATE` | Source calls `setSubmittable(` from at least one input/state-change handler. |
-| `GEN-FLOATING-BUTTON-MISSING` | Hand-rolled Submit / Check / Done / Commit `<button>` in source but `FloatingButtonComponent` is NOT instantiated. |
-| `5e0-FLOATING-BUTTON-DUP` | No custom submit/retry/next/check/done/commit/cta `<button>` inside `#gameContent` when FloatingButton is used. Scans id, class, data-testid, aria-label, inner text — all 5 attributes. |
-| `GEN-FLOATING-BUTTON-NEXT-MISSING` | FloatingButton used AND `game_complete` posted somewhere, but no `setMode('next')` call AND no `on('next', ...)` handler — the Next button MUST be wired at every game end. |
-| `GEN-FLOATING-BUTTON-NEXT-POSTMESSAGE` | `on('next', ...)` handler body does NOT post `{ type: 'next_ended' }` — a silent Next handler breaks the harness teardown signal. |
-| `GEN-FLOATING-BUTTON-NEXT-TIMING` | `setMode('next')` sits within 400 chars of a `game_complete` reference without a `transitionScreen.hide()` / `transitionScreen.onDismiss(` / `await` / `.then(` separator — Next MUST appear only after feedback + TransitionScreen dismiss, not alongside `game_complete`. |
-| `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN` | TransitionScreen button object with `text: 'Next' / 'Continue' / 'Done' / 'Finish' / 'Play Again'` found while FloatingButton is in use — the Next CTA is owned by FloatingButton, NOT by a button inside the TransitionScreen card. Victory / game_over screens must use `buttons: []` + tap-dismiss. (Applies to multi-round games; standalone games use no TransitionScreen at all per the rule below.) |
-| `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` | Spec has `totalRounds: 1` AND FloatingButton is used, but source references TransitionScreen (`new TransitionScreenComponent(` or `transitionScreen.show(`). Standalone games MUST NOT use TransitionScreen — the inline feedback panel in `#gameContent` is the end-of-game display. Multi-round games are unaffected. |
-| `GEN-FLOATING-BUTTON-RETRY-STANDALONE` | Spec has `totalRounds: 1` AND `totalLives > 1` AND FloatingButton used, but no `on('retry', ...)` handler — standalone+lives games MUST wire Try Again. |
-| `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET` | `on('retry', ...)` handler body contains a lives reset (`gameState.lives = gameState.totalLives` or `gameState.lives = <literal>`) — Try Again MUST preserve the already-decremented lives state. |
+Static enforcement of the [Mandatory rules](#mandatory-rules). Auto-skipped when the spec has `floatingButton: false`.
 
-All rules above are auto-skipped when the spec declares `floatingButton: false` (see the Opt-out section at the top of this part). No other opt-out path exists.
+| Rule | What it checks |
+|---|---|
+| [GEN-FLOATING-BUTTON-CDN](../skills/game-building/reference/static-validation-rules.md) | Script tag for `floating-button/index.js` OR `components/index.js` bundle present when `FloatingButtonComponent` is referenced. |
+| [GEN-FLOATING-BUTTON-SLOT](../skills/game-building/reference/static-validation-rules.md) | `slots.floatingButton: true` in `ScreenLayout.inject()` when the component is instantiated. |
+| [GEN-FLOATING-BUTTON-PREDICATE](../skills/game-building/reference/static-validation-rules.md) | Source calls `setSubmittable(` from at least one input/state-change handler. |
+| [GEN-FLOATING-BUTTON-MISSING](../skills/game-building/reference/static-validation-rules.md) | Hand-rolled Submit / Check / Done / Commit `<button>` in source but `FloatingButtonComponent` is NOT instantiated. |
+| [GEN-FLOATING-BUTTON-SUBMIT-DEFAULT](../skills/game-building/reference/static-validation-rules.md) | No `setSubmittable(true)` literal; no empty-allowing predicates; predicate must AND a value-valid check with an Interaction signal (`/hasInteracted\|userInteracted\|touched\|dirty\|interacted\|isInteracted/i`). |
+| [GEN-FLOATING-BUTTON-TIMEOUT-HIDE](../skills/game-building/reference/static-validation-rules.md) | When `new TimerComponent({...})` is present, the `onEnd` callback must hide FloatingButton — direct `setMode(null)` / `setSubmittable(false)` OR a state flag matching `/timeExpired\|timerEnded\|timeUp\|timeIsUp/i` consumed by `isSubmittable()`. |
+| [5e0-FLOATING-BUTTON-DUP](../skills/game-building/reference/static-validation-rules.md) | No custom submit/retry/next/check/done/commit/cta `<button>` inside `#gameContent` when FloatingButton is used. Scans id, class, data-testid, aria-label, inner text. |
+| [GEN-FLOATING-BUTTON-NEXT-MISSING](../skills/game-building/reference/static-validation-rules.md) | FloatingButton used AND `game_complete` posted, but no `setMode('next')` call OR no `on('next', ...)` handler. |
+| [GEN-FLOATING-BUTTON-NEXT-POSTMESSAGE](../skills/game-building/reference/static-validation-rules.md) | `on('next', ...)` handler body does NOT post `{ type: 'next_ended' }`. |
+| [GEN-FLOATING-BUTTON-NEXT-TIMING](../skills/game-building/reference/static-validation-rules.md) | `setMode('next')` sits within 400 chars of a `game_complete` reference without a `transitionScreen.hide()` / `transitionScreen.onDismiss(` / `await` / `.then(` separator. |
+| [GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN](../skills/game-building/reference/static-validation-rules.md) | TransitionScreen button object with `text: 'Next' / 'Continue' / 'Done' / 'Finish' / 'Play Again'` while FloatingButton is in use. |
+| [GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN](../skills/game-building/reference/static-validation-rules.md) | Spec has `totalRounds: 1` AND FloatingButton is used, but source references `new TransitionScreenComponent(` or `transitionScreen.show(`. |
+| [GEN-FLOATING-BUTTON-RETRY-STANDALONE](../skills/game-building/reference/static-validation-rules.md) | Spec has `totalRounds: 1` AND `totalLives > 1` AND FloatingButton used, but no `on('retry', ...)` handler. |
+| [GEN-FLOATING-BUTTON-RETRY-LIVES-RESET](../skills/game-building/reference/static-validation-rules.md) | `on('retry', ...)` handler body contains a lives reset (`gameState.lives = gameState.totalLives` or `gameState.lives = <literal>`). |
+| [GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE](../skills/game-building/reference/static-validation-rules.md) | `on('retry', ...)` handler body calls `setSubmittable(...)`. |
+| [GEN-STANDALONE-END-PANEL-FORBIDDEN](../skills/game-building/reference/static-validation-rules.md) | `gameContent.innerHTML = '<...>'` assignments inside `endGame` / `endStandaloneGame` / `onCorrect` / `onWrong` for Standalone games. |
+
+## Verification checklist
+
+The human's pre-ship pass for things the validator can't see (real browser behavior, real audio).
+
+- [ ] FloatingButton starts hidden; first appears only when the Submittable predicate returns true.
+- [ ] Submittable predicate ANDs a value-valid check with an Interaction signal.
+- [ ] Pre-filled input does NOT show Submit on first paint.
+- [ ] Timer expiry hides Submit (test: trigger expiry, screenshot, button gone).
+- [ ] Standalone end-game runs the 5-beat orchestrator in source order.
+- [ ] AnswerComponent appears on Standalone end ONLY when `correct === false && lives === 0`.
+- [ ] Multi-round Victory Celebration is reached via `showVictoryCelebration()`; AnswerComponent reveal happens via `onMounted` `setTimeout`.
+- [ ] `floatingBtn.on('next', ...)` is single-stage and posts `next_ended` first.
+- [ ] No `*.destroy()` calls inside `endGame()`.
+- [ ] `node alfred/scripts/validate-static.js <game-html>` exits 0.
