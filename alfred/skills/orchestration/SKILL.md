@@ -168,15 +168,16 @@ Read alfred/skills/mobile/SKILL.md
 Read alfred/skills/interaction/SKILL.md (mandatory: identify the game's interaction type from the approved spec + archetype, match it to one of the 17 canonical patterns in § Full Pattern Inventory, then load ONLY the pattern file(s) listed under § Reference Files for that pattern. The build sub-agent's final report MUST name the chosen pattern (e.g. "P6 Drag-and-Drop", "P1 Tap-Select Single") and the pattern file(s) it loaded. If the spec's interaction doesn't cleanly map to any of the 17 patterns, stop and AskUserQuestion before improvising — do NOT hand-roll a substitute.)
 
 Read alfred/skills/feedback/SKILL.md (mandatory: § Pre-flight: feedback primitive selection AND § Composition with screen primitives — the build sub-agent's final report MUST include the filled-in primitive-selection table from the Pre-flight section, with one row per feedback moment in the spec. If a moment doesn't match any row in § Composition, follow the § "When a feedback moment isn't on the table" policy: AskUserQuestion before rolling custom DOM; auto-approve = REJECT = fall back to closest matching row.)
+Read alfred/parts/README.md  (canonical PART catalog — every PART, name, purpose, mandatory/conditional flag. Confirm which PARTs the spec/plan/archetype mandates before opening specific PART files below.)
 Read alfred/parts/PART-039-preview-screen.md  (authoritative PreviewScreen spec — MANDATORY in every game)
 Read alfred/parts/PART-051.md  (authoritative AnswerComponent spec — MANDATORY unless spec declares `answerComponent: false`. NOTE: `answerComponent: false` is a CREATOR-ONLY opt-out — no LLM step may auto-default it. If a spec arrives at step 4 with `answerComponent: false` lacking quoted creator opt-out, send it back to step 2.)
 
 Using the approved spec and plan, generate the complete game as a single index.html file.
 All CSS and JS must be inline. Follow the archetype skeleton from game-archetypes/SKILL.md.
 Implement the flow inline per pre-generation/game-flow.md using the three CDN components (PreviewScreen, TransitionScreen, ProgressBar) — see game-building's reference/flow-implementation.md for the screen→component mapping, progress bar lifecycle, and round loop pattern.
-PreviewScreen is MANDATORY: `ScreenLayout.inject({ slots: { previewScreen: true, ... } })`, instantiate with `{ slotId: 'mathai-preview-slot' }` only, render `#gameContent` before `previewScreen.show()`, call `destroy()` from the FloatingButton `on('next', ...)` handler (AFTER `next_ended` is posted — NOT in `endGame()`, because the header must stay mounted while the end-screen `show_star` animation plays), and do NOT re-show on restart. See PART-039 + code-patterns.md § Preview screen integration.
+PreviewScreen wiring (slot, instantiation, destroy ordering, restart behavior) is fully specified in [PART-039](../parts/PART-039-preview-screen.md). Follow it — do not re-derive.
 **Round-set cycling is MANDATORY for multi-round games** (validator rule `GEN-ROUNDSETS-MIN-3`; standalone games with `totalRounds: 1` are exempt and may ship a single round with no `set` key): `fallbackContent.rounds` MUST seed at least 3 sets (`'A'`, `'B'`, `'C'`), each with exactly `totalRounds` rounds — so `rounds.length === totalRounds × 3` (or more), NOT `totalRounds`. Every round object MUST carry a `set: 'A'|'B'|'C'` key. All `id` values globally unique across sets (prefix convention `'A_r1_…'`, `'B_r1_…'`, `'C_r1_…'`). Parallel difficulty across sets (Set A Round 1 ≈ Set B Round 1 ≈ Set C Round 1). `gameState` includes `setIndex: 0`. `getRounds()` filters by current set via `getAvailableSets()` helper. `restartGame()` rotates `setIndex` BEFORE `resetGameState()` (rotation is NOT in the reset list — `setIndex` persists across in-session restarts so each Try Again / Play Again advances to the next set; resets to 0 only on fresh page load). See game-building/SKILL.md Step 4 + code-patterns.md `getRounds` / `restartGame`.
-AnswerComponent is MANDATORY unless the spec declares `answerComponent: false`: `ScreenLayout.inject({ slots: { answerComponent: true, ... } })`, instantiate with `{ slotId: 'mathai-answer-slot' }`. **Multi-round chain:** `endGame()` posts `game_complete` and routes to `showVictory()` / `showStarsCollected()`. Stars Collected's `onMounted` plays the yay sound + `show_star` animation, then via `setTimeout` calls a `showAnswerCarousel()` function that calls `answerComponent.show({ slides })` + `floatingBtn.setMode('next')`. The Stars Collected TS stays mounted (NO `transitionScreen.hide()` in `onMounted` — see default-transition-screens.md); the answer card appears over the celebration backdrop. The Next handler is **single-stage**: destroy AnswerComponent + post `next_ended` + destroy preview + destroy floating button. **NEVER call `answerComponent.show(...)` from `endGame()` or from a Victory `Claim Stars` action — that triggers `GEN-ANSWER-COMPONENT-AFTER-CELEBRATION` and the two-stage Next regression caught by `GEN-ANSWER-COMPONENT-NEXT-SINGLE-STAGE`.** Standalone (`totalRounds: 1`): show + setMode('next') in `endGame()` directly (no TransitionScreen). Slides are render-callback only. See PART-051 + code-patterns.md § AnswerComponentComponent.
+AnswerComponent wiring + the end-game chain (Standalone 5-beat orchestrator, multi-round Victory Celebration hand-off, single-stage Next handler) are fully specified in [PART-050](../parts/PART-050.md) and [PART-051](../parts/PART-051.md). Follow both — do not re-derive.
 Wire all required platform integrations (recordAttempt, game_complete, FeedbackManager).
 **Round mount narration (CASE 3 — fire-and-forget question TTS inside `renderRound()`) is shape-conditional.** Multi-round games (`totalRounds > 1`): emit the canonical `if (round.questionTTS) { FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker}).catch(...); }` block — it is a no-op when the round lacks `questionTTS`. Standalone games (`totalRounds: 1`): emit ONLY when the spec sets `roundMountNarration: true` (creator-quoted opt-in); when the flag is absent or `false`, the build MUST NOT emit any mount-time `playDynamicFeedback` inside `renderRound()`. End-game feedback narration (Beat 3 of `endStandaloneGame`) is unaffected. See feedback/SKILL.md § CASE 3, spec-creation/SKILL.md § Optional `roundMountNarration` flag, spec-review Z9, code-patterns.md § Round mount narration.
 
@@ -186,7 +187,7 @@ STEP 5 — Deterministic Validation [SUB-AGENT]
 Read alfred/skills/data-contract/SKILL.md
 Read alfred/skills/game-building/reference/static-validation-rules.md
 
-Run BOTH deterministic checks against the generated HTML:
+Run THREE deterministic checks:
 
 1. Contract validation — follow the procedure in data-contract/SKILL.md.
    Covers: gameState, recordAttempt, postMessage (game_ready/game_init/game_complete),
@@ -198,9 +199,17 @@ Run BOTH deterministic checks against the generated HTML:
    duplicate lives UI, etc.) — see static-validation-rules.md for the full rule
    table. Exit code must be 0 before this step is considered passed.
 
-If any check fails, fix the HTML immediately and re-run until both pass.
-Report: number of issues found and fixed per check, and confirm exit code 0 from
-`node alfred/scripts/validate-static.js`.
+3. PART catalog consistency — run `node alfred/scripts/validate-parts-catalog.js`
+   (no arguments). Asserts every PART-NNN file in `alfred/parts/` has a row in
+   `alfred/parts/README.md` and vice versa. Catches the failure mode where a
+   new PART file was added without a catalog row. Exit code must be 0. (This
+   check is repo-level, not per-game; running it here ensures every build
+   surfaces catalog drift early.)
+
+If any check fails, fix the relevant artefact (HTML for #1/#2, catalog for #3)
+and re-run until all three pass.
+Report: number of issues found and fixed per check, and confirm exit code 0
+from both `validate-static.js` and `validate-parts-catalog.js`.
 
 STEP 6 — Test and Fix [MAIN CONTEXT — requires Playwright]
 Read alfred/skills/game-testing/SKILL.md

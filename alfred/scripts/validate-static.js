@@ -2912,7 +2912,31 @@ if (hasStartGame) {
           'Empty / no-input submits MUST be prevented by hiding the button (setSubmittable(false)) — ' +
           'never by counting as a wrong attempt or costing a life. Use `length >= 1` / `length === N` / ' +
           '`trim().length > 0`, never `length >= 0` or `setSubmittable(true)`. ' +
-          '(PART-050 Lifecycle § 2, GEN-FLOATING-BUTTON-SUBMIT-DEFAULT)'
+          '(PART-050 Mandatory rules § 3, GEN-FLOATING-BUTTON-SUBMIT-DEFAULT)'
+      );
+    }
+    // Interaction-signal gate. The Submittable predicate must AND a value-valid
+    // check with a "user has interacted" signal — otherwise a pre-filled input
+    // shows Submit on first paint (regression: player has not interacted yet).
+    // Heuristic: the source must reference at least one well-known interaction-
+    // signal name OR opt out via spec.partialSubmitAllowed=false (which is
+    // strictly stricter — a fully-attempted predicate already gates against
+    // pre-filled-with-empty-cells). PART-050 § Mandatory rules § 2.
+    //
+    // Surfaced as WARNING for now: existing approved games predate this contract
+    // and don't all use the canonical signal names. New builds must adopt it
+    // (the rule body is mandatory; LLM build prompts should emit it). Promote
+    // to ERROR after legacy games are migrated.
+    const interactionSignalRe = /\b(?:hasInteracted|userInteracted|isInteracted|hasBeenTouched|touched|isDirty|dirty|interactedAtLeastOnce|hasUserInteracted)\b/;
+    if (!interactionSignalRe.test(html)) {
+      warnings.push(
+        'WARNING [GEN-FLOATING-BUTTON-SUBMIT-DEFAULT]: The Submittable predicate should AND a value-valid ' +
+          'check with an Interaction signal — value-valid alone lets pre-filled inputs show Submit on first ' +
+          'paint before the player has interacted. The source contains no interaction-signal flag matching ' +
+          '`hasInteracted` / `userInteracted` / `touched` / `dirty` / similar. Track "user has interacted at ' +
+          'least once" on gameState (set `gameState.hasInteracted = true` in your input/click/drop handlers ' +
+          'BEFORE calling setSubmittable) and AND it into isSubmittable(). ' +
+          '(PART-050 § Mandatory rules § 2, GEN-FLOATING-BUTTON-SUBMIT-DEFAULT)'
       );
     }
   }
@@ -4119,7 +4143,7 @@ if (hasStartGame) {
       // F — setMode 'next' / 'retry' (advance modes)
       { type: 'F', re: /floatingBtn\s*\.\s*setMode\s*\(\s*['"`](?:next|retry)['"`]\s*\)/g },
       // N — navigation/reveal
-      { type: 'N', re: /\b(?:nextRound|advanceOrFinish|showStarsCollected|showVictory|showAnswerCarousel)\s*\(/g },
+      { type: 'N', re: /\b(?:nextRound|advanceOrFinish|showStarsCollected|showVictoryCelebration|showVictory|showWinConfirmation|showAnswerCarousel)\s*\(/g },
       { type: 'N', re: /\banswerComponent\s*\.\s*show\s*\(/g },
       { type: 'N', re: /\btransitionScreen\s*\.\s*hide\s*\(/g },
       // D — destroy
@@ -4354,9 +4378,112 @@ if (hasStartGame) {
           'immediately re-shows Submit because the input is still satisfied, letting the player tap-tap through ' +
           'Try Again → Submit with the same wrong answer. The whole point of Try Again is to force at least one edit ' +
           'before re-evaluating. Remove the setSubmittable call from the retry handler. ' +
-          '(PART-050 "Try Again flow", GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE)'
+          '(PART-050 § Try Again lifecycle, GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE)'
       );
     }
+  }
+})();
+
+// ─── GEN-FLOATING-BUTTON-TIMEOUT-HIDE ───────────────────────────────────────
+// When PART-006's TimerComponent is in scope (canonical timer shape), the
+// `onEnd` callback MUST hide FloatingButton — either by calling setMode(null)
+// / setSubmittable(false) / hide() directly, OR by setting a state flag whose
+// name matches the canonical pattern (`timeExpired`, `timerEnded`, `timeUp`,
+// `timeIsUp`) so the Submittable predicate consumes it. This catches games
+// where the timer fires but Submit stays clickable, letting the player submit
+// after time is up.
+//
+// Only applies when both TimerComponent AND FloatingButton are in scope. Games
+// that opt out of PART-006 (no TimerComponent in source) are caught by Step 6
+// Playwright as a backstop. PART-050 § Mandatory rules § 4.
+(function checkFloatingButtonTimeoutHide() {
+  const usesTimerComponent = /\bnew\s+TimerComponent\s*\(/.test(html);
+  const usesFloatingButton =
+    /\bnew\s+FloatingButtonComponent\s*\(/.test(html) ||
+    /\bnew\s+FloatingButton\s*\(/.test(html);
+  if (!usesTimerComponent || !usesFloatingButton) return;
+
+  // Find every `onEnd:` (or `onEnd =`) callback body inside a TimerComponent
+  // constructor. Heuristic: locate `new TimerComponent(`, walk forward, find
+  // the first `onEnd` property whose value is a function literal, capture the
+  // function body via brace-matching.
+  const tcRe = /\bnew\s+TimerComponent\s*\(/g;
+  let m;
+  let timeoutHandlerOk = false;
+  let foundOnEnd = false;
+  while ((m = tcRe.exec(html)) !== null) {
+    // Walk to the matching close-paren of the constructor call.
+    let depth = 1;
+    let i = m.index + m[0].length;
+    const ctorStart = i;
+    while (i < html.length && depth > 0) {
+      const ch = html[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      if (depth === 0) break;
+      i++;
+    }
+    const ctorArgs = html.slice(ctorStart, i);
+    // Look for `onEnd:` or `onEnd =` followed by a function literal or arrow.
+    const onEndRe = /\bonEnd\s*[:=]\s*(?:async\s+)?(?:function\s*\([^)]*\)|\([^)]*\)\s*=>)\s*\{/;
+    const oem = onEndRe.exec(ctorArgs);
+    if (!oem) continue;
+    foundOnEnd = true;
+    // Extract the function body via brace matching.
+    let bodyStart = oem.index + oem[0].length;
+    let bdepth = 1;
+    let j = bodyStart;
+    while (j < ctorArgs.length && bdepth > 0) {
+      const ch = ctorArgs[j];
+      if (ch === '{') bdepth++;
+      else if (ch === '}') bdepth--;
+      if (bdepth === 0) break;
+      j++;
+    }
+    const body = ctorArgs.slice(bodyStart, j);
+    // Direct hide pattern.
+    const directHide =
+      /\bfloatingBtn\s*\.\s*setMode\s*\(\s*(?:null|['"]hidden['"])\s*\)/.test(body) ||
+      /\bfloatingBtn\s*\.\s*setSubmittable\s*\(\s*false\s*\)/.test(body) ||
+      /\bfloatingBtn\s*\.\s*hide\s*\(\s*\)/.test(body) ||
+      /\bfloatingButton\s*\.\s*setMode\s*\(\s*(?:null|['"]hidden['"])\s*\)/.test(body) ||
+      /\bfloatingButton\s*\.\s*setSubmittable\s*\(\s*false\s*\)/.test(body) ||
+      /\bfloatingButton\s*\.\s*hide\s*\(\s*\)/.test(body);
+    // State-flag pattern: assignment to a flag whose name matches.
+    const flagNameRe = /(?:timeExpired|timerEnded|timeUp|timeIsUp)/i;
+    const flagAssignRe = new RegExp(
+      '\\b(?:gameState|state|window\\.gameState)\\s*\\.\\s*(?:timeExpired|timerEnded|timeUp|timeIsUp)\\s*=',
+      'i'
+    );
+    const flagInBody = flagAssignRe.test(body);
+    // Confirm the predicate / source consumes the flag elsewhere.
+    const flagConsumed = flagInBody && flagNameRe.test(html.replace(body, ''));
+    if (directHide || flagConsumed) {
+      timeoutHandlerOk = true;
+      break;
+    }
+  }
+
+  // WARNING for now: existing approved games with TimerComponent predate this
+  // gate. New builds must adopt the canonical hide pattern. Promote to ERROR
+  // after legacy games are migrated.
+  if (foundOnEnd && !timeoutHandlerOk) {
+    warnings.push(
+      'WARNING [GEN-FLOATING-BUTTON-TIMEOUT-HIDE]: TimerComponent `onEnd` callback does not hide ' +
+        'FloatingButton. When the timer expires, Submit must auto-hide — otherwise the player can submit ' +
+        'after time is up. Inside `onEnd`, either: (a) call `floatingBtn.setMode(null)` / ' +
+        '`floatingBtn.setSubmittable(false)` / `floatingBtn.hide()` directly, OR (b) set a state flag ' +
+        'whose name matches `timeExpired` / `timerEnded` / `timeUp` / `timeIsUp` AND ensure ' +
+        '`isSubmittable()` consumes that flag. ' +
+        '(PART-050 § Mandatory rules § 4, GEN-FLOATING-BUTTON-TIMEOUT-HIDE)'
+    );
+  } else if (!foundOnEnd) {
+    warnings.push(
+      'WARNING [GEN-FLOATING-BUTTON-TIMEOUT-HIDE]: `new TimerComponent({...})` is in scope but no `onEnd` ' +
+        'callback was found. The timer expiry path must hide FloatingButton — define an `onEnd` callback ' +
+        'on the TimerComponent constructor that hides Submit (see PART-050 § Mandatory rules § 4). ' +
+        '(PART-050 § Mandatory rules § 4, GEN-FLOATING-BUTTON-TIMEOUT-HIDE)'
+    );
   }
 })();
 
@@ -6090,6 +6217,53 @@ if (/new\s+Audio\s*\(/.test(html)) {
     );
   }
 
+  // (3.5) GEN-ANSWER-COMPONENT-SHOW-AFTER-FEEDBACK — Standalone branch gate.
+  //       For `totalRounds === 1`, the `.show(` call site MUST sit inside a
+  //       branch gated on `!correct` / `correct === false` / `else` of an
+  //       `if (correct)`. AnswerComponent on Standalone correct is forbidden
+  //       per PART-051 Cases — visibility (Standalone correct row): the player
+  //       already produced the right answer, no need to review.
+  const isStandalone = specContext.totalRounds === 1;
+  if (isStandalone && ansShowMatches.length > 0) {
+    for (const showIdx of ansShowMatches) {
+      // Look back ~600 chars to find the most recent enclosing if/else context.
+      const winStart = Math.max(0, showIdx - 600);
+      const window = html.slice(winStart, showIdx);
+      // Branch shapes that gate on `!correct`:
+      //   if (!correct) { ... show(
+      //   if (correct === false) { ... show(
+      //   if (!isCorrect) { ... show(
+      //   } else { ... show(   (must be preceded by if (correct) within window)
+      const negCorrectIfRe = /\bif\s*\(\s*!\s*(?:correct|isCorrect)\b/;
+      const correctEqFalseRe = /\bif\s*\(\s*(?:correct|isCorrect)\s*===?\s*false\s*\)/;
+      const correctEqZeroRe = /\bif\s*\(\s*(?:correct|isCorrect)\s*===?\s*0\s*\)/;
+      const elseAfterCorrectRe = /\bif\s*\(\s*(?:correct|isCorrect)\s*\)[\s\S]*?\}\s*else\s*\{[\s\S]*$/;
+      const livesZeroIfRe = /\bif\s*\(\s*gameState\s*\.\s*lives\s*===?\s*0\s*\)/;
+      const inWrongBranch =
+        negCorrectIfRe.test(window) ||
+        correctEqFalseRe.test(window) ||
+        correctEqZeroRe.test(window) ||
+        elseAfterCorrectRe.test(window) ||
+        livesZeroIfRe.test(window);
+      if (!inWrongBranch) {
+        // WARNING for now: existing approved standalone games predate this
+        // gate (old PART-050 revealed AnswerComponent on every standalone end).
+        // New builds must adopt the !correct gate. Promote to ERROR after
+        // legacy games are migrated.
+        warnings.push(
+          'WARNING [GEN-ANSWER-COMPONENT-SHOW-AFTER-FEEDBACK]: Standalone game (totalRounds=1) calls ' +
+            '`answerComponent.show(...)` outside a `!correct` / `correct === false` / `else` of `if (correct)` ' +
+            'branch. AnswerComponent on Standalone correct is forbidden — the player already produced the ' +
+            'correct answer; revealing the carousel duplicates that. Reveal AnswerComponent ONLY on the ' +
+            'wrong-with-no-lives branch: `if (!correct) { if (gameState.lives === 0) answerComponent.show(...); }` ' +
+            'or equivalent. See PART-051 § Cases — visibility (Standalone correct row hidden, Standalone wrong+lives=0 row shown). ' +
+            '(PART-051, GEN-ANSWER-COMPONENT-SHOW-AFTER-FEEDBACK)'
+        );
+        break;  // one warning is enough
+      }
+    }
+  }
+
   // (4a) GEN-ANSWER-COMPONENT-AFTER-CELEBRATION — for multi-round games that
   //      use TransitionScreen, `answerComponent.show(...)` MUST NOT appear
   //      inside `endGame()` (or be called directly from any path before the
@@ -6148,6 +6322,7 @@ if (/new\s+Audio\s*\(/.test(html)) {
     const body = html.slice(bodyStart, bodyStart + 2000);
     const callsCelebration =
       /\bshowStarsCollected\s*\(/.test(body) ||
+      /\bshowVictoryCelebration\s*\(/.test(body) ||
       /\btransitionScreen\s*\.\s*show\s*\(/.test(body);
     const hidesNextMidHandler = /\.\s*setMode\s*\(\s*(?:null|['"]hidden['"])/.test(body);
     const hasBranchingFlag =

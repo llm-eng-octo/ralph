@@ -15,9 +15,7 @@ When a creator provides a game description (1-10 sentences) and a new spec.md ne
 
 ## Reads
 
-- `game-archetypes.md` — ALWAYS — 10 archetype profiles (structure + interaction + scoring + feedback combinations). Includes constraint #8 (FloatingButton is flow-driven and overrides the per-archetype PART flag list — any flow with a Submit / Check / Done / Commit CTA mandates PART-050).
-- `alfred/parts/PART-050.md` — WHEN the creator's description includes a Submit / Check / Done CTA — FloatingButton planning contract (slot, submittable predicate, submit handler, opt-out policy).
-- `alfred/parts/PART-051.md` — ALWAYS — AnswerComponent planning contract (per-round answer payload shape, opt-out via `answerComponent: false`). Drives the "Answer payload schema" subsection of the spec's content structure.
+- `game-archetypes.md` — ALWAYS — 10 archetype profiles (structure + interaction + scoring + feedback combinations). Includes constraint #8 (FloatingButton is flow-driven and overrides the per-archetype PART flag list — any flow with a Submit / Check / Done / Commit CTA mandates PART-050 at build time).
 - `pedagogy.md` — ON-DEMAND — Bloom level mapping, misconception design principles (load when assigning Bloom level or generating misconception tags)
 - `data-contract.md` — ON-DEMAND — recordAttempt schema, game_complete schema, required fields (load when building fallbackContent structure)
 - alfred/skills/game-planning/reference/default-flow.md -- canonical multi-round default; copy verbatim into spec's ## Flow when any rounds-based game is described -- ALWAYS
@@ -74,8 +72,9 @@ A structured `spec.md` file with ALL of the following sections. Every section is
 - **Rounds:** [exact number]
 - **Timer:** [None, or seconds per round]
 - **Lives:** [0 or exact number]
-- **retryPreservesInput:** [true | false — default `false`. Applicable only when `Rounds: 1` AND `Lives > 1` (standalone + Try Again reachable). `true` keeps the input value intact after the player taps Try Again; `false` clears it. See PART-050 "Try Again flow". Ignored for multi-round games and for standalone games with Lives = 1.]
-- **autoShowStar:** [true | false — default `true`. When `true`, the generator emits the default `show_star` postMessage at PART-050's canonical end-of-game spot (before `floatingBtn.setMode('next')` in standalone, inside `transitionScreen.onDismiss(...)` in multi-round). Set `false` to suppress the default trigger and fire `show_star` yourself at a custom beat. See PART-050 "Next flow".]
+- **retryPreservesInput:** [true | false — default `false`. Applicable only when `Rounds: 1` AND `Lives > 1` (standalone + Try Again reachable). `true` keeps the input value intact after the player taps Try Again; `false` clears it. See [PART-050 § Try Again lifecycle](../../parts/PART-050.md#try-again-lifecycle). Ignored for multi-round games and for standalone games with Lives = 1.]
+- **autoShowStar:** [true | false — default `true`. When `true`, the generator emits the default `show_star` postMessage at the canonical end-of-game spot (before `floatingBtn.setMode('next')` in standalone, inside `transitionScreen.onDismiss(...)` in multi-round). Set `false` to suppress the default trigger and fire `show_star` yourself at a custom beat. See [PART-050 § Multi-round lifecycle](../../parts/PART-050.md#multi-round-lifecycle).]
+- **partialSubmitAllowed:** [true | false — default `true`. When `true` (default), Submit appears as soon as the player has entered any partial-but-non-empty input that the predicate accepts. When `false`, the [Submittable predicate](../../parts/PART-050.md#canonical-names) requires fully-attempted state — every required field filled / every required cell occupied. Set to `false` for games where partial submits are pedagogically wrong (e.g. Sudoku, Kakuro: a partially-filled grid is not a valid answer). See [PART-050 § Cases — Submit visibility](../../parts/PART-050.md#cases--submit-visibility) — the Partial / `partialSubmitAllowed: false` row hides Submit; the Partial / `partialSubmitAllowed: true` row shows it.]
 - **Star rating:** 3 stars = [threshold], 2 stars = [threshold], 1 star = [threshold]
 - **Star denominator (`y`):** [default `3`; only declare if non-default — e.g., `5` for a 5-tier game. Sets the locked denominator of the ActionBar `x/y` display. Sent via `game_init.data.score.y`.]
 - **Input:** [input type(s) with specifics]

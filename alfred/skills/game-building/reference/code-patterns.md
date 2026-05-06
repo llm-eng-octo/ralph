@@ -460,34 +460,34 @@ Per PART-051. Game-building rules:
 - **Slide payload — `render(container)` callbacks ONLY.** Each slide is `{ render(container) { /* mount evaluated answer view */ } }`. Validator `GEN-ANSWER-COMPONENT-SLIDE-SHAPE` rejects `html:` and `element:` keys. The component clears the container before each render — games can construct DOM from `gameState` / round data without leak concerns.
 - **Render only the EVALUATED elements.** For drag-drop questions the slide must show the drop-zones in their solved state, NOT the draggable bank. For grid questions, the solved grid. For tables, the rows in their correct state. Anything that is "input affordance" (drag bank, MCQ option chips, text input box) is NOT shown — only the parts that were graded.
 - **Use the `.mathai-answer-stack` and `.mathai-answer-row` utility classes** (provided by the component, no game CSS needed) to lay out multi-section answer views. The slide container itself is plain block flow with auto `> * + *` margins, so loose children get a 14 px rhythm by default; for richer layouts wrap content in `<div class="mathai-answer-stack">` (vertical column with `gap`) and use `<div class="mathai-answer-row">` for horizontal chip groups. Avoid emitting tightly-packed sibling `<div>`s with no wrapper — they default to centred block flow but games that need horizontal grouping or richer spacing should use the helpers. See PART-051 § "Layout helpers".
-- **End-game multi-round chain (REQUIRED — supersedes the FloatingButton "Multi-round Next flow" pattern when AnswerComponent is in use):** the celebration step (Stars Collected yay + `show_star` animation) plays FIRST, hands off to AnswerComponent via its `onMounted` setTimeout, and the floating Next is single-stage exit. `answerComponent.show(...)` MUST NOT appear inside `endGame()`.
+- **End-game multi-round chain (REQUIRED — supersedes the FloatingButton "Multi-round lifecycle" pattern when AnswerComponent is in use):** the [Victory Celebration screen](../../../parts/PART-050.md#canonical-names) (yay + `show_star` animation) plays FIRST, hands off to AnswerComponent via its `onMounted` setTimeout, and the floating Next is single-stage exit. `answerComponent.show(...)` MUST NOT appear inside `endGame()`. **Function-name canon:** `showWinConfirmation()` is the optional button-gated pre-screen with Claim Stars; `showVictoryCelebration()` is the celebration with sound + animation. Legacy code may use `showVictory()` / `showStarsCollected()` — these names still work but new builds emit the canonical names.
   ```js
   async function endGame(/* called after the final round resolves */) {
     await FeedbackManager.play(/* final round */);                          // 1. await feedback
     window.parent.postMessage({ type: 'game_complete', data: {...} }, '*'); // 2. post game_complete
-    if (gameState.stars > 0) showVictory(); else showGameOver();            // 3. route to celebration / game-over
+    if (gameState.stars > 0) showWinConfirmation(); else showGameOver();    // 3. route to Win Confirmation / Game Over
   }
 
-  // Optional intermediate Victory transition (game-specific). When present,
-  // its sole job is to show stars + a "Claim Stars" button whose action calls
-  // showStarsCollected(). NEVER call answerComponent.show(...) from here.
-  async function showVictory() {
+  // Optional Win Confirmation gate (game-specific button-gated pre-screen).
+  // Shows stars + a "Claim Stars" button whose action calls
+  // showVictoryCelebration(). NEVER call answerComponent.show(...) from here.
+  async function showWinConfirmation() {
     await transitionScreen.show({
       title: 'Victory 🎉',
       stars: gameState.stars,
       buttons: [{
         text: 'Claim Stars',
         primary: true,
-        action: function () { transitionScreen.hide(); showStarsCollected(); }
+        action: function () { transitionScreen.hide(); showVictoryCelebration(); }
       }],
       persist: true,
-      onMounted: function () { /* victory sound + dynamic VO */ }
+      onMounted: function () { /* dynamic VO if any */ }
     });
   }
 
-  // Stars Collected — the celebration step. Plays the yay sound + show_star
+  // Victory Celebration — the celebration step. Plays the yay sound + show_star
   // animation, then HANDS OFF to the answer carousel via setTimeout.
-  async function showStarsCollected() {
+  async function showVictoryCelebration() {
     await transitionScreen.show({
       title: 'Yay! Stars collected!',
       stars: gameState.stars,
@@ -501,7 +501,7 @@ Per PART-051. Game-building rules:
             data: { count: gameState.stars, variant: 'yellow', score: gameState.score + '/' + gameState.totalRounds }
           }, '*');
           // After the star animation lands, reveal the answer carousel.
-          // Stars Collected stays mounted (persist:true, no hide() here per
+          // Victory Celebration stays mounted (persist:true, no hide() here per
           // default-transition-screens.md) — it is the celebration backdrop
           // for the answer review. Both surfaces tear down together on Next.
           setTimeout(function () {
