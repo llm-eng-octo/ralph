@@ -3,6 +3,14 @@
 ## In one line
 A timed mental-addition game where the student stares at a row of six to eight numbers laid out as `a + b + c + d + ...`, with the *friendly pairs* (numbers that sum to 10, 20, 30, 40, or 50) colour-matched, and types the total before the clock runs out.
 
+## Alfred mapping
+- **Archetype:** Speed Blitz.
+- **Interaction pattern:** **P7 Text/Number Input** with `inputmode="numeric"`.
+- **Evaluation:** Deterministic equality (timed, 15s per round).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** TimerComponent; PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** Decomposition is the implicit *strategy*; it is NOT shown on screen. The student must do the break-down mentally — surfacing the decomposition would defeat the purpose.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who can add two-digit numbers cleanly with a pencil but add a six-number row left-to-right and lose track halfway. The game is for the in-between phase where the student *can* do the arithmetic but hasn't yet learned to *re-order* the numbers in their head to make the work easier. It targets the specific stuck-point where students don't yet trust the commutative property as a mental tool — they treat the numbers as a fixed sequence to be processed, not a flexible bag to be re-grouped.
 

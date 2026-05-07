@@ -3,6 +3,14 @@
 ## In one line
 A two-step shop game where the student decides whether a target quantity (like *exactly 10 bottles*) can be bought from a shop that only sells in fixed packs (like *packs of 6*), and then types **why** in plain words — turning a yes/no gut feeling into a real explanation about multiples.
 
+## Alfred mapping
+- **Archetype:** MCQ Quiz + Subjective (binary choice + open-ended justification).
+- **Interaction pattern:** **P1 Tap-Select** (Yes / No) **+ P17 Voice Input** (justification — typed *or* spoken via the canonical VoiceInput CDN component).
+- **Evaluation:** **Composite.** (1) Binary choice → deterministic equality. (2) Justification → **Subjective Evaluation** (LLM-graded) — the grader checks the response *names a relevant multiple* (e.g. for "packs of 6, target 10" the response should reference 6 and/or 12 / the times-table of 6). Vague text (just "because") triggers a soft re-prompt, not a heart loss.
+- **Game shape:** Multi-round.
+- **Required components:** PART-017 VoiceInput; subjective-evaluation skill; PART-051 AnswerComponent (each round's answer slide shows the bracketing multiples, e.g. *"6 × 1 = 6, 6 × 2 = 12, 10 sits between"*); PART-050 FloatingButton (Submit gate); FeedbackManager.
+- **Notes:** A heart fires only on the binary choice being wrong; the justification step never costs a heart on its own — it asks for a do-over with a hint. Use Subjective Evaluation, NEVER a regex / keyword-list match in the spec.
+
 ## Who it's for
 Class 3–5 students (ages ~8–11) who have just met the words *multiple*, *factor*, and *pack of n* and can recite the 6-times table, but freeze when a word problem dresses the same idea up in shop language. The game is for the student who can answer "is 12 a multiple of 6?" on a quiz but pauses at *"can you buy exactly 10 from a pack-of-6 shop?"* — same maths, different costume.
 

@@ -3,6 +3,14 @@
 ## In one line
 A pencil-puzzle-flavoured drag-and-drop game where the student fills a tiny cross-shaped grid with numbers from a pool, making sure every empty box contains a *factor* of its neighbours and the special teal box contains the *highest common factor* of the numbers around it.
 
+## Alfred mapping
+- **Archetype:** Board Puzzle (single deep round of factor reasoning).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — grid-cell drop variant. Student drags candidate digits from a pool into empty grid cells.
+- **Evaluation:** **Predicate** — every empty white cell must hold a factor of its filled neighbours, AND the teal cell must hold the *highest* common factor of its neighbours. Full-board check on Submit.
+- **Game shape:** **Standalone** (`totalRounds: 1`). Per Alfred standalone canon: end-state = AnswerComponent slide showing the solved grid + FloatingButton lifecycle (`submit` → `next`/`retry`); NO Welcome / Game Over / Victory TransitionScreens.
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent (renders solved grid); PART-050 FloatingButton (Submit gates predicate evaluation, `partialSubmitAllowed: false` — partial board is invalid); FeedbackManager.
+- **Notes:** Wrong individual drops bounce back without penalty (exploration is free). Lives only fire on a wrong full-board Submit.
+
 ## Who it's for
 Class 5–6 students (ages ~10–12) who can list the factors of a number when asked but haven't internalised that *finding common factors* and *finding HCF* are the same hunt at different depths. The game is for students who can answer *"what are the factors of 12?"* without trouble but stumble when asked *"what's the largest number that divides both 12 and 18?"* — the moment they have to hold two factor lists in their head at the same time.
 

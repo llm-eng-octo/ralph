@@ -3,6 +3,14 @@
 ## In one line
 A pattern-spotting and addition game where the student studies three little circle puzzles, works out the missing number from the pattern, then drags as many number tags as they need from a pool into a single drop zone — so that the tags they choose *add up* to the number they figured out.
 
+## Alfred mapping
+- **Archetype:** Construction (pattern induction → subset-sum).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — drop-zone variant. Student drags any number of tags from a pool into a single drop zone; running total surfaces below.
+- **Evaluation:** Deterministic equality — dropped tag-set must sum to the target inferred from the worked-example pattern.
+- **Game shape:** Multi-round (10 rounds, 30s per-round timer).
+- **Required components:** `@dnd-kit/dom` (P6); TimerComponent; PART-051 AnswerComponent; PART-050 FloatingButton (Submit); FeedbackManager.
+- **Notes:** Multiple valid tag-sets typically exist; accept any subset whose sum matches the target. Pattern is provided via two fully-worked examples; the third diagram is the question.
+
 ## Who it's for
 Class 4–6 students (ages ~9–12) who are comfortable with two-digit addition but who treat *finding a sum* as a one-step task: pick a number, type it, done. The game is for the student who has never had to *build* a target from parts, and who needs to discover that there are usually many ways to make a number — that *81 = 50 + 20 + 8 + 4 − 1* is a different but equally valid path to *81 = 40 + 40 + 1*. It's also for the student who can do the addition but freezes on pattern problems where they have to *find* the target before adding to it.
 

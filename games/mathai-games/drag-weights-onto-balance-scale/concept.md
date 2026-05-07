@@ -3,6 +3,14 @@
 ## In one line
 A pan-balance puzzle where the left pan holds a few fruit with their weights labelled (a 303 g mango, a 96 g apple, a 101 g avocado), and the student must drag the right combination of iron-block weights onto the empty right pan to make the scale tip flat — quietly turning addition into a search problem.
 
+## Alfred mapping
+- **Archetype:** Lives Challenge (subset-sum search via balance scale).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — drop-zone variant. The right pan accepts any subset of weight blocks; running pan total updates per drop. Tap a placed block to remove it.
+- **Evaluation:** Deterministic equality on subset-sum — running right-pan total must equal the left side's total. Auto-detect on flat-beam, or via a Submit confirm.
+- **Game shape:** Multi-round (10 rounds, 60s per-round timer).
+- **Required components:** `@dnd-kit/dom` (P6); TimerComponent; PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** Multiple valid subsets often exist; accept any subset whose sum matches. Beam-tilt is presentational only — evaluation is on the numeric subset-sum.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who can compute `303 + 96 + 101` if you ask them to, but who freeze when the question becomes *"which of these blocks add up to 500?"* The game is for the in-between phase where addition *forward* is solid but addition as a *target search* — *"what subset of these numbers gives me X?"* — is still missing. It also doubles as a soft introduction to the balance-scale model that becomes algebraic equation-solving in Class 6, where what you do to one side you must do to the other.
 

@@ -3,6 +3,14 @@
 ## In one line
 A spy-themed decoding game where the student is handed a tattered alphabet key and a message written entirely in numbers — `13-1-20-8` — and has to type back the word those digits spell.
 
+## Alfred mapping
+- **Archetype:** Lives Challenge.
+- **Interaction pattern:** **P7 Text/Number Input** — student types the decoded word into an input box (uses `inputmode="text"` since letters are expected, NOT numeric).
+- **Evaluation:** Deterministic equality (string match, case-insensitive).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-051 AnswerComponent (renders the decoded word above the cipher key); FeedbackManager.
+- **Notes:** Text input (not numeric). Submit is auto-checked when the input length matches the expected word length and the student pauses typing.
+
 ## Who it's for
 Class 2–4 students (ages ~7–10) who already know their alphabet cold and can count past 26, but who have never been asked to *map* one symbol system onto another. The stuck-point isn't reading or arithmetic — it's the cognitive jump of holding "A=1, B=2, C=3..." in working memory while scanning a list of numbers and turning each one into a letter without losing the place. Children who can recite the alphabet flawlessly often freeze when asked "what's the 13th letter?" because they've never had to *index* the alphabet before.
 

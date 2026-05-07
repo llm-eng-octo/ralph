@@ -3,6 +3,14 @@
 ## In one line
 A two-pan balance scale where the student drags fruits and known weights onto the trays until the scale tips level — and from those balanced positions, deduces the weight of one apple and one orange, typing each into a labelled input.
 
+## Alfred mapping
+- **Archetype:** Lives Challenge (drag-and-drop exploration → typed commitment).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) for placing fruits and weights onto pans + **P7 Text/Number Input** for typing the apple weight and orange weight into two labelled inputs.
+- **Evaluation:** Deterministic equality on the two typed values (apple weight and orange weight). The drag-and-balance phase is exploration — only the typed answer is graded.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent; PART-050 FloatingButton (Submit gates evaluation); FeedbackManager.
+- **Notes:** Drag freely without penalty — lives are spent only on a wrong typed answer.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who are about to meet algebra and need a concrete model of *unknown* and *equation*. They can do simple arithmetic but freeze at a sentence like *"if 3 apples weigh 60g, what does one apple weigh?"* — because they don't see the equation hiding in the words. The balance scale gives them a physical representation of equality: whatever's on the left side weighs the same as whatever's on the right.
 

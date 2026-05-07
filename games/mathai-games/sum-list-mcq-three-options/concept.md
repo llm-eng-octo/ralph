@@ -3,6 +3,14 @@
 ## In one line
 A timed mental-addition game where the student stares at a small flock of numbers, totals them in their head, and slaps the correct answer out of three close-together choices before fifteen seconds run out.
 
+## Alfred mapping
+- **Archetype:** MCQ Quiz / Speed Blitz.
+- **Interaction pattern:** **P1 Tap-Select** (3-option) — tap commits immediately, no separate Submit step.
+- **Evaluation:** Deterministic equality (timed, 15s per round).
+- **Game shape:** Multi-round (5 rounds; later rounds weight higher).
+- **Required components:** TimerComponent (15s); PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** Decoys are diagnostic — *missed-one* and *double-counted* sums sit on either side of the right answer. Spec MUST define misconception_tags accordingly.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who already know how to add two-digit numbers on paper but freeze, finger-count, or grab a pencil the moment a list of more than three numbers shows up. The game is for the in-between phase where addition *facts* are solid but mental *strategy* — pairing to ten, doubling, running totals — has not yet replaced laborious left-to-right addition.
 

@@ -3,6 +3,14 @@
 ## In one line
 A 30-second mental-math beat where the student looks at two near-twin numbers like `7513` and `7553`, spots the single column that changed, and drags the matching `±` tag (`+40`, `−40`, `+400`) into the drop zone before the timer runs out.
 
+## Alfred mapping
+- **Archetype:** Speed Blitz.
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — drop-zone variant. Student drags exactly one `±N` tag from the pool into a single drop zone.
+- **Evaluation:** Deterministic equality — the dropped tag must transform the *given number* into the *new number*.
+- **Game shape:** Multi-round (10 rounds, 30-second per-round timer).
+- **Required components:** `@dnd-kit/dom` (P6); TimerComponent (30s); PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** No lives — running out of time is a 0-star round, not a death. Decoys (wrong sign / wrong magnitude) are diagnostic.
+
 ## Who it's for
 Class 3–4 students (ages ~8–10) who can rattle off place-value names but freeze when asked *"what's 7553 − 7513?"* — a question their textbook treats as a paper-subtraction problem but which a fluent student solves in two seconds by glancing at the digits. The game is for the kid who can *do* place-value but doesn't yet *see* it. It's a deliberately micro-sized version of mental arithmetic — one column changes, one move fixes it — designed to hammer the spot-the-difference reflex.
 

@@ -3,6 +3,14 @@
 ## In one line
 A crossword-style number puzzle where the student drags single digits from a pool into a grid riddled with `+`, `-`, and `=` signs, making horizontal *and* vertical equations true at the same time — turning arithmetic into a constraint satisfaction puzzle.
 
+## Alfred mapping
+- **Archetype:** Construction / Board Puzzle (constraint-satisfaction).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — grid-cell drop variant. Student drags digits from a finite pool into empty grid cells.
+- **Evaluation:** **Predicate** — every horizontal AND vertical equation in the grid must be true simultaneously. Full-grid check on Submit.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent; PART-050 FloatingButton (Submit; `partialSubmitAllowed: false`); FeedbackManager.
+- **Notes:** Per-drop conflict warnings (amber) are advisory and DO NOT cost a life — only confidently wrong full submits do.
+
 ## Who it's for
 Class 3–5 students (ages ~8–11) who are comfortable with single-digit addition and subtraction but treat each equation as an isolated calculation. The game is for the moment when students need to learn that *the same number can play two roles at once* — a 6 in the grid might be both the answer to `9 - 3` and a piece of the equation `6 + 4 = 10`. This bidirectional thinking is what algebra is built on, and this game is the gateway.
 

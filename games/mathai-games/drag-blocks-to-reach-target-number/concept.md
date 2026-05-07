@@ -3,6 +3,14 @@
 ## In one line
 A 20-second mental-math sprint where the student stares at a starting number, a target number, and a tray of `±1 / ±10 / ±100 / ±1000` jump blocks — and drags exactly the right combination into a drop zone to leap from one to the other before the clock runs out.
 
+## Alfred mapping
+- **Archetype:** Speed Blitz.
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — drop-zone variant. Student drags `±` block tiles into a single drop zone; running total updates per drop.
+- **Evaluation:** Deterministic equality — running total of dropped blocks must transform the *given number* into the *new number*.
+- **Game shape:** Multi-round (10 rounds, 20-second per-round timer).
+- **Required components:** `@dnd-kit/dom` (P6); TimerComponent (20s countdown); PART-051 AnswerComponent; PART-050 FloatingButton; FeedbackManager.
+- **Notes:** Wrong blocks can be dragged back out — no per-drop penalty. Lives are lost only on round timeout.
+
 ## Who it's for
 Class 3–4 students (ages ~8–10) who can read a four-digit number and chant the place values back at you, but still slow down or finger-count when asked *"what's 1250 + 200?"* The game is for the in-between phase where place-value *names* are known but place-value *moves* — adding and subtracting hundreds, thousands, tens — are not yet automatic. It's for the kid who can write `3550 − 1250 = 2300` on paper but freezes when the same calculation flashes on a screen.
 

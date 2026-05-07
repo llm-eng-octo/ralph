@@ -3,6 +3,14 @@
 ## In one line
 A drag-and-drop place-value puzzle where movable white tiles and locked grey tiles share a cross-shaped grid forming three 4-digit numbers, and the student must drag the loose digits into seats that make the total sum as small as it can be.
 
+## Alfred mapping
+- **Archetype:** Construction (place-value optimisation, with locked tiles).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — swap-on-drop variant. Movable tiles can be swapped; locked grey tiles refuse drops.
+- **Evaluation:** **Optimal-tier** — 3★ exact minimum, 2★ within 1%, 1★ within 5%, 0★ worse. Locked tiles constrain the search space.
+- **Game shape:** Multi-round (10 puzzles, 90s per-puzzle timer).
+- **Required components:** `@dnd-kit/dom` (P6); TimerComponent; PART-051 AnswerComponent; PART-050 FloatingButton (Submit); FeedbackManager.
+- **Notes:** Locked grey tiles must be `disabled` in `@dnd-kit/dom` (cannot be picked up AND cannot be a drop target). Live sum shown below grid.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who know that the `4` in `4,253` is "four thousand" but who have never had to *exploit* that knowledge under a real constraint. The game is for the student who can read place values fluently but does not yet *feel* place values as different-sized levers. They're the same students who, asked to make the smallest 4-digit number from `4, 1, 7, 2`, sometimes write `1247` and sometimes write `1742` because they're guessing rather than reasoning.
 

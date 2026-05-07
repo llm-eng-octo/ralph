@@ -3,6 +3,14 @@
 ## In one line
 A tap-to-toggle grid puzzle where five rows of numbers each contain too much, and the student must black out exactly the right cells in each row so the visible numbers sum to 45.
 
+## Alfred mapping
+- **Archetype:** Board Puzzle.
+- **Interaction pattern:** **P8 Click-to-Toggle** — tap to hide (black out), tap again to reveal. No Submit step — auto-checks per row, auto-resolves when all rows match.
+- **Evaluation:** **Predicate** — every row's visible numbers must sum to the target (e.g. 45). Round resolves when ALL rows simultaneously satisfy the predicate.
+- **Game shape:** Multi-round (5 puzzles per session, 60s per puzzle).
+- **Required components:** TimerComponent; PART-051 AnswerComponent (renders the correct hide/show pattern for each row); FeedbackManager.
+- **Notes:** No lives — the timer is the constraint. No running-sum displayed (mental addition is the lesson). Per-row green-glow feedback when a row hits target.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who are fluent at adding two-digit numbers and have started to enjoy "search" problems — the kind where you scan a small space of options for the one that fits. The skill the game targets is **mental subtraction wearing a costume**: each row is really asking *"which subset of these five numbers sums to 45?"*, but framed as a hide-some-show-some game so the student's brain stays in additive mode.
 

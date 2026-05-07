@@ -3,6 +3,14 @@
 ## In one line
 A timed mental-addition game where the student stares down a six-row shopping receipt — books, pencils, plates, a watch — rounds the prices in their head, and types the total into the bottom of the table before forty seconds tick out.
 
+## Alfred mapping
+- **Archetype:** Speed Blitz.
+- **Interaction pattern:** **P7 Text/Number Input** with `inputmode="numeric"`.
+- **Evaluation:** Deterministic equality (timed, 40s per round).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** TimerComponent (40s); PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** Prices designed to round cleanly (most ending in `99` or `49`). No on-screen scratch space — mental rounding is the lesson.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who can add three-digit numbers cleanly on paper but stall the moment six prices land on screen and a clock starts running. The game targets the specific stuck-point where the student *knows* how to add `399 + 499` but reaches for a notebook before they think to estimate. It's for kids who haven't yet learned that "shopping addition" is mostly rounding plus a small correction.
 

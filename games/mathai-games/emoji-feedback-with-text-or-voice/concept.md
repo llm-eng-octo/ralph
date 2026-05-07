@@ -3,6 +3,14 @@
 ## In one line
 A short, warm reflection prompt where the student picks the emoji that matches how an activity *felt* and then explains it in a sentence — typed or spoken — so a teacher can see not just whether the math landed but whether the child enjoyed it landing.
 
+## Alfred mapping
+- **Archetype:** No-Penalty Explorer (single-round reflection — NOT a math game).
+- **Interaction pattern:** **P1 Tap-Select** (one of four emoji tiles) **+ P17 Voice Input** (free-text or voice, optional length).
+- **Evaluation:** **Completion-only — no grading**. Round resolves when (a) an emoji tile is selected AND (b) the VoiceInput response is non-empty (≥1 character of text or ≥1 second of audio). There is no "right answer", no Subjective Evaluation, no LLM grade — reflection is the lesson.
+- **Game shape:** **Standalone** (`totalRounds: 1`). Per Alfred standalone canon: end-state = AnswerComponent slot is suppressed (`answerComponent: false`, creator opt-out — explicitly justified) + FloatingButton lifecycle (`submit` → `next`). NO Welcome / Game Over / Victory TransitionScreens.
+- **Required components:** PART-017 VoiceInput; PART-039 PreviewScreen (optional); PART-050 FloatingButton; FeedbackManager (gentle nudges only — no correct/incorrect SFX). Set `answerComponent: false` and document the reason in the spec body.
+- **Notes:** No lives, no timer, no stars-from-accuracy. The platform `0/N` star tally in the header reflects only completion of the worksheet this screen sits inside; this screen does NOT award or deduct stars itself.
+
 ## Who it's for
 Students of any age (Class 2 onwards), but especially Class 2–6 children at the end of a math worksheet, lesson, or game session. It is not a math task; it is the small, structured pause that comes *right after* one. The specific stuck-point is the wall most kids hit when an adult asks "did you like that?" and they shrug — unsure how to answer, unsure if "no" is allowed, unsure how to be specific. Four labelled emojis lower the bar from "compose a sentence" to "tap a face."
 

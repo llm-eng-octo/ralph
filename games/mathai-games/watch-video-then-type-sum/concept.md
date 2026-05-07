@@ -3,6 +3,14 @@
 ## In one line
 A short video flashes a sequence of numbers on screen, one after another, and the student has to mentally add them as they go — with only **one** play allowed and a single text box waiting at the bottom for the final total.
 
+## Alfred mapping
+- **Archetype:** Speed Blitz with **Observe-then-Respond modifier** (video plays exactly once).
+- **Interaction pattern:** **P7 Text/Number Input** with `inputmode="numeric"`.
+- **Evaluation:** Deterministic equality. 1★ tier accepts ±10% (strategy was right but arithmetic slipped).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** Video player (one-shot — controls disabled after first play); TimerComponent (~24s per round); PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** During video playback, set `gameState.phase = 'observing'` and disable input; switch to `'responding'` when video ends. Replay/scrub hard-blocked.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who can add two-digit numbers on paper but who don't yet trust their working memory. The game is for the child who, on a list of *"7, 13, 8, 12, 5, 25"*, will pause the video, scribble each number on the back of their hand, and add at the end — defeating the whole point. The constraint of *"watch only once, no pencil"* turns out to be the most pedagogically useful part of the screen.
 

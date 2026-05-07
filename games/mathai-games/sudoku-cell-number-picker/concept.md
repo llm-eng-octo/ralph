@@ -3,6 +3,14 @@
 ## In one line
 A pocket-sized sudoku where the student fills a 4×4 grid with the digits 1–4 so every row, every column, and every 2×2 box contains all four digits exactly once — by tapping each empty cell to cycle through candidates until the whole grid clicks shut.
 
+## Alfred mapping
+- **Archetype:** Board Puzzle.
+- **Interaction pattern:** **P8 Click-to-Toggle** — tap-cycle through digits `1 → 2 → 3 → 4 → blank → 1 → ...` on each empty cell. (Concept text wins over folder name — NOT P15 number picker.)
+- **Evaluation:** **Predicate** — sudoku rules: every row, every column, AND every 2×2 sub-box must contain the digits 1–4 each exactly once. Auto-resolves when all cells filled and constraints satisfied.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** TimerComponent; PART-051 AnswerComponent (renders the solved grid); FeedbackManager. Reset is free.
+- **Notes:** Per-tap conflict highlighting — when a tap breaks a constraint, the *conflicting neighbour cell* also pulses red, so the student sees *what* it conflicts with. NOT a P15 number-picker (no popup).
+
 ## Who it's for
 Class 3–5 students (ages ~8–11) meeting their first sudoku. Most children encounter the 9×9 version too early, get overwhelmed by the search space, and walk away with the impression that "sudoku is hard." The 4×4 version is the right entry point: small enough to hold in working memory, structured enough to require the same deductive habits as the full puzzle. The stuck-point this game targets isn't arithmetic — it's the **deductive habit of saying "this cell *must* be 3, because it can't be 1, 2, or 4."** Students who guess randomly hit dead ends; students who reason from the constraints solve it on the first pass. The game is built to nudge them from the first behaviour to the second.
 

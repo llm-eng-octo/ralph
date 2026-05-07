@@ -3,6 +3,14 @@
 ## In one line
 A timed mental-addition game where six small numbers are stacked vertically in a tidy tower and the student must total them and type the answer into a single input — no grouping hint, no scratch space, just the column and the clock.
 
+## Alfred mapping
+- **Archetype:** Speed Blitz.
+- **Interaction pattern:** **P7 Text/Number Input** with `inputmode="numeric"`.
+- **Evaluation:** Deterministic equality (timed; per-round timer ramps from 60s → 30s).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** TimerComponent; PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** Tower layout (vertical column) is presentational; no on-screen pairing or grouping aid. Mental running-total is the lesson.
+
 ## Who it's for
 Class 3–4 students (ages ~8–10) who can add two-digit numbers but freeze when they see more than three numbers in a column. They've memorised number bonds to 10 but haven't yet trained the *running-total* skill — the discipline of holding a partial sum in working memory while adding the next number. The game targets the precise moment when addition stops being a single bond lookup and starts being a multi-step accumulation.
 

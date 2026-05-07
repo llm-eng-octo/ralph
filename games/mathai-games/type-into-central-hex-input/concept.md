@@ -1,7 +1,15 @@
 # Hexa Numbers — The Honeycomb Place-Value Builder
 
 ## In one line
-A honeycomb-shaped place-value game where the student stares at two clusters of hexagons — each cluster a flower of six numbers around a hollow centre — and types in the centre the *sum* of the six surrounding values, building a number out of its place-value components.
+A honeycomb-shaped place-value game where the student stares at two clusters of hexagons — each cluster a flower of six numbers around a hollow centre — and **drags place-value tags from a pool into the hollow centre** so the dropped tags sum to the value of the six surrounding hexagons, building a number out of its place-value components.
+
+## Alfred mapping
+- **Archetype:** Construction (drag-and-drop place-value composition).
+- **Interaction pattern:** **P6 Drag-and-Drop** via `@dnd-kit/dom` — student drags **place-value tags** from a pool below the flowers into the **hollow centre hexagon** of each cluster. NOT P7 typed input (an earlier draft of this concept used typing — it is now a drag-and-drop puzzle, per default-DnD preference).
+- **Evaluation:** **Deterministic equality** — each centre hexagon's dropped-tag set must sum to the surrounding hexagons' total. Both centres must be correct to clear the round.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent (each round's slide shows the solved flowers with the correct tag sets in each centre); PART-050 FloatingButton (Submit gates evaluation); FeedbackManager; PART-039 PreviewScreen.
+- **Notes:** Drag, do not type. Pool tags are place-value values (e.g. `1000`, `500`, `40`, `5`); each centre accepts multiple tags that stack visually. A running total surfaces inside each centre as tags drop. Reset is per-centre (tap a placed tag to return it to the pool).
 
 ## Who it's for
 Class 3–5 students (ages ~8–11) who can read a number like `5,724` and name its digits' place values out loud, but haven't yet *built* a number from its parts the other way around. The game is for the conceptual move from *decomposition* (taking 5,724 apart into 5000 + 700 + 20 + 4) to *composition* (looking at scattered components like `2000`, `40`, `5`, `100`, and assembling them into 2,145 in your head).
@@ -25,12 +33,14 @@ The body of the screen is the headline visual: two honeycomb flowers laid out si
 
 The two flowers overlap along their facing edge, sharing one or two hexagons (in the reference layout the `20` hexagon and the `5000` hexagon are shared between the two clusters). The shared cells are visually identical to the others; the student has to *notice* the sharing.
 
-The student plays by tapping into a centre input and typing a number on a soft on-screen number pad (or the device keyboard):
+The student plays by **dragging place-value tags from a pool** beneath the two flowers into either of the two **hollow centre hexagons**, building each centre's value tag by tag:
 
-- **Type the correct sum into a centre and confirm** → the centre fills with a soft mint colour, the typed number locks in dark green, and a small *bloom* animation ripples outward through the surrounding hexagons.
-- **Type a wrong sum and confirm** → the centre flashes red briefly and the input clears, with a one-line hint such as *"close — check the hundreds column"* (the game compares the typed number to the correct one and points to the place-value column where they differ).
-- **Tap a surrounding hexagon** → no interaction; the surrounding hexagons are read-only. (Some variants let you tap to "highlight" a hexagon while computing, like a mental abacus, but it does not change values.)
-- **Both centres correctly filled** → the whole flower lattice glows gold for a second, a chord plays, and the round resolves.
+- A pool of small draggable tag tiles sits below the flowers — each tile holds a single place-value value (`1000`, `500`, `40`, `5`, etc.). Surrounding hexagons are read-only givens, NOT drop targets.
+- **Drag a tag onto a centre hexagon** → the tag stacks visually inside the centre; a running total surfaces inside the centre showing the cumulative value of the tags placed so far. The student can drop tags into either centre in any order.
+- **Tap a placed tag** → it returns to the pool, freeing it for the other centre.
+- **Submit a centre with the correct tag set** (running total = sum of that centre's surrounding hexagons) → the centre's tags lock in; success feedback plays.
+- **Submit a centre with a wrong total** → the tags shake and return to the pool, and a hint nudges the student toward the place-value column where the gap sits (e.g. *"close — check the hundreds column"*).
+- **Both centres correct** → the round resolves.
 
 The student can switch between the two centres freely; both must be correct to clear the round.
 

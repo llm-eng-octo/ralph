@@ -3,6 +3,14 @@
 ## In one line
 A timed mental-addition sprint where one two-digit-plus-two-digit problem appears in the centre of a calm yellow strip, and the student must break each number apart in their head — *forty plus twenty, two plus five* — and type the answer into a single small box before the clock runs out.
 
+## Alfred mapping
+- **Archetype:** Speed Blitz.
+- **Interaction pattern:** **P1 Tap-Select** (3-option MCQ) — student taps one of three close-together answer tiles.
+- **Evaluation:** Deterministic equality (timed, 15s per round).
+- **Game shape:** Multi-round (5 rounds).
+- **Required components:** TimerComponent; PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** Folder name says "typed" but the canonical interaction is 3-option MCQ tap (concept text wins). NOT P7 typed input. Decoys are diagnostic (off-by-one-number / double-counted).
+
 ## Who it's for
 Class 3–4 students (ages ~8–10) who can add two-digit numbers on paper using the standard column algorithm but freeze when asked to do the same problem in their head. The skill the game targets is the **break-down strategy**: rewriting `42 + 25` as `(40 + 20) + (2 + 5)` and computing each chunk separately. This is the most important mental-addition strategy in primary school, and the one most students learn as a sentence rather than a habit.
 

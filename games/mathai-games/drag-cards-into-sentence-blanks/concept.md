@@ -3,6 +3,14 @@
 ## In one line
 A drag-and-drop cloze game where the student looks at a worked-out math fact (a long division, a number line, a fraction picture) and finishes a sentence about it — *"3 is __ of 12 and 12 is __ of 3"* — by dragging the right vocabulary word into each blank.
 
+## Alfred mapping
+- **Archetype:** Sort/Classify (vocabulary cloze).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — student drags vocabulary word cards from a pool into sentence-blank drop zones.
+- **Evaluation:** Deterministic equality (each blank must hold the correct card; auto-evaluates when all blanks are filled).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent (each round's slide shows the completed sentence with cards in their correct slots); FeedbackManager.
+- **Notes:** Per-drop predicate is fine; round-complete evaluation when all blanks filled.
+
 ## Who it's for
 Class 4–6 students (ages ~9–12) who can *do* the calculation — they can divide 12 by 3 and tell you it works out evenly — but who muddle up the words *factor* and *multiple*, *numerator* and *denominator*, *prime* and *composite* the moment they have to talk about what they did. The game is for the student whose math is correct but whose vocabulary is shaky, and for whom that gap is starting to cost marks on word problems and conceptual questions.
 

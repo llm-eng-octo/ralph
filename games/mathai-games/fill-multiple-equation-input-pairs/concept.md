@@ -3,6 +3,14 @@
 ## In one line
 A guided addition worksheet where a long messy expression like *"6 + 35 + 23 + 7 + 38 + 2 + 5"* is pre-sorted into a table of friendly pairs, and the student fills in each pair-sum, then the grand total — turning a hard-looking line of seven numbers into four short, easy additions.
 
+## Alfred mapping
+- **Archetype:** Worked Example (friendly-pairs decomposition).
+- **Interaction pattern:** **P7 Text/Number Input** — multiple inputs in a table (one per pair-sum + one for grand total).
+- **Evaluation:** Deterministic equality per cell. Total cell is gated on all pair-sums being correct.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-051 AnswerComponent (renders the completed table); PART-050 FloatingButton; FeedbackManager.
+- **Notes:** Auto-advance focus moves to the next input on each correct entry. The "lonely term" check (digit not paired) is the round's pedagogical hinge — the total cell explicitly includes it.
+
 ## Who it's for
 Class 3–4 students (ages ~8–10) who can add two two-digit numbers without mistakes but stall when the expression is long enough to need a strategy. The game is for the child whose finger lands on `6 + 35` first because that's the leftmost pair, then on `+ 23 = 64`, then mis-tracks at `+ 7`, and finally produces a number that is *almost* right but off by 4. The bottleneck isn't arithmetic — it's *what to add first*. This screen demonstrates a strategy and asks the child to walk through it themselves.
 

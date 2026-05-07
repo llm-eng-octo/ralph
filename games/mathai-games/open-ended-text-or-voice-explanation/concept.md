@@ -3,6 +3,14 @@
 ## In one line
 A reflection prompt where, after grinding through a slow one-by-one method, the student is asked — in their own words, by typing or speaking — *what would be a faster way?* and articulates the named strategy (division, repeated subtraction, grouping) that the curriculum is about to introduce.
 
+## Alfred mapping
+- **Archetype:** Subjective (open-ended reflection)
+- **Interaction pattern:** **P17 Voice Input** — student speaks **or** types their answer through the canonical **VoiceInput** CDN component. NEVER hand-roll a `<textarea>` or a custom mic button; always use the VoiceInput component (per `interaction/SKILL.md` § Pattern 17 + `parts/PART-017`).
+- **Evaluation:** **Subjective Evaluation** (LLM-graded) — invoked via the `subjective-evaluation` skill. The grader checks whether the response *names a faster strategy* (division, equal grouping, repeated subtraction, multiplication, or a paraphrase of one). Generous matching: any phrasing that captures the strategy is accepted; off-topic or empty responses re-prompt rather than instantly penalise.
+- **Game shape:** Multi-round (5 rounds; one round per scenario).
+- **Required components:** PART-017 VoiceInput; subjective-evaluation skill; PART-039 PreviewScreen; PART-051 AnswerComponent (each round's answer slide names the canonical strategy, e.g. *"Faster way: division"*); PART-050 FloatingButton; FeedbackManager.
+- **Notes:** Lives are gentle — a heart fires only after **two consecutive non-answers in a single round**, not on a single off-topic reply. Subjective Evaluation runs server-side; the round MUST NOT ship a hard-coded answer-string match or a regex.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who have just spent a few questions distributing items by counting one at a time (108 pins to 4 students, one at a time, until they ran out of pins or patience). They've felt the pain of the slow method. They might know the word "division" but haven't connected it to *this* situation yet. The game is for the moment when a student is *ripe* to invent the next idea — and needs only a prompt to put words to it.
 

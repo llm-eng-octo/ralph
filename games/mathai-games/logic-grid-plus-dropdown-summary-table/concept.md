@@ -3,6 +3,14 @@
 ## In one line
 A logic-puzzle game where four friends each picked a different starting number, performed a different operation, and got a different result — and the student uses three clues plus a tappable tick/cross grid to deduce who did what, then locks in the answer through dropdowns.
 
+## Alfred mapping
+- **Archetype:** Board Puzzle (deductive logic).
+- **Interaction pattern:** **P8 Click-to-Toggle (tri-state ✓/✘/blank scratch grid)** **+ P1 Tap-Select (dropdowns in summary table)**.
+- **Evaluation:** Deterministic equality on the **dropdown summary table only** — the grid is unscored scratchpad. All dropdown rows must be valid against the puzzle's clues.
+- **Game shape:** **Standalone** (one deep puzzle, 5–10 min). Per Alfred standalone canon: end-state = AnswerComponent slide showing the completed table + FloatingButton lifecycle (`submit` → `next`/`retry`); NO Welcome / Game Over / Victory TransitionScreens.
+- **Required components:** PART-051 AnswerComponent (renders solved summary table); PART-050 FloatingButton (Submit; `partialSubmitAllowed: false` — all 12 dropdowns must be set); FeedbackManager.
+- **Notes:** Grid is the student's scratch surface — never auto-corrects (would short-circuit the deductive skill). Lives lost only on the dropdown commit, never on grid taps.
+
 ## Who it's for
 Class 5–7 students (ages ~10–13) who can perform basic arithmetic operations confidently but have never been asked to *reason backwards* through a constraint puzzle. The game is for the student who knows that *4 × 3 = 12* but has never thought to use *"the result is 12, the operation is ×3"* as a clue to identify *who* the person was. It's the bridge between mechanical computation and logical inference — the kind of thinking that shows up in IMC-style competition maths.
 

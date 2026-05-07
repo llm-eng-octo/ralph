@@ -3,6 +3,14 @@
 ## In one line
 A spatial puzzle game where the student fits a small bag of oddly-shaped polyomino pieces into a grid shaped like a cat's face — covering every empty cell exactly once, leaving the cat's two eyes uncovered, and finishing before the 60-second clock runs out.
 
+## Alfred mapping
+- **Archetype:** Board Puzzle (spatial tiling).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — grid-cell drop variant. Drop validity checked against piece shape vs. available cells; pieces snap to grid.
+- **Evaluation:** **Predicate** — every grid cell covered exactly once, eye cells uncovered, no piece overlaps the silhouette outline.
+- **Game shape:** Multi-round (10 rounds, 60–90s per-round timer).
+- **Required components:** `@dnd-kit/dom` (P6) with custom collision detection for polyomino vs. grid; TimerComponent; PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** Rotation disabled for early rounds (single fixed orientation per piece); enabled in stretch rounds. Tap a placed piece to lift it back to the tray.
+
 ## Who it's for
 Class 3–6 students (ages ~8–12) who can count squares but who haven't yet developed a *spatial planner* — the part of math thinking that says *"this L-shape will fit in that corner if I rotate it"*. The game is for the student who solves jigsaws by trial and error and never by inspection, and who freezes on area-and-perimeter problems the moment the shape isn't a rectangle. It's also a wonderful one for the strong arithmetic student who has never been challenged on geometry.
 

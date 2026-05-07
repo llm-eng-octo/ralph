@@ -3,6 +3,14 @@
 ## In one line
 A money-themed subtraction game where the student watches a 4-digit balance lose a few notes of various denominations, then taps each digit on a small display to *click* it down to the correct new balance — feeling the place-value subtraction column by column.
 
+## Alfred mapping
+- **Archetype:** Worked Example (place-value subtraction).
+- **Interaction pattern:** **P9 Stepper** — each tap on a digit decrements it by 1 (rolls 0 → 9 for over-correction).
+- **Evaluation:** Deterministic equality — the four-digit display must equal the new balance after the named withdrawal.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-050 FloatingButton (Submit gates evaluation); PART-051 AnswerComponent (renders the correct final balance); FeedbackManager. Reset is free.
+- **Notes:** Borrow rounds (Stage 3) are the bridge to regrouping; spec should encode misconception_tags for the canonical "rolled past zero without borrowing" mistake.
+
 ## Who it's for
 Class 3–4 students (ages ~8–10) who have learned the standard subtraction algorithm on paper but treat each digit-by-digit step as a magic ritual rather than a withdrawal of a *specific quantity from a specific column*. The game is for the awkward middle stage where a child can mechanically compute `6789 - 2340` on a notebook (line up the digits, borrow if needed, write the answer below) but cannot answer *"if I take three hundred-rupee notes, which digit changes and by how much?"* without recomputing.
 

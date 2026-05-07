@@ -3,6 +3,14 @@
 ## In one line
 A puzzle-maze where the student steers a yellow block through a grid of numbers, each step subtracting the new cell's value from the block's running total, and has to land next to the orange goal with a value of exactly zero.
 
+## Alfred mapping
+- **Archetype:** Board Puzzle (path-finding with running difference).
+- **Interaction pattern:** **P1 Tap-Select** — tap an adjacent cell to step the yellow block onto it (each tap is a discrete commitment). Visited cells are forbidden re-entry.
+- **Evaluation:** Deterministic equality — block must reach a cell *adjacent to* the orange goal cell with running value = 0.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-051 AnswerComponent (renders one canonical valid path); FeedbackManager. Reset is free (does not cost a heart).
+- **Notes:** NOT P5 continuous-drag — each tap is a discrete step. Negative intermediate values are allowed. Block stops *next to* (not on) the goal — adjacency check, not occupation check.
+
 ## Who it's for
 Class 3–5 students (ages ~8–11) who can subtract two numbers on paper but have never had to *plan a sequence* of subtractions to hit a specific target. The stuck-point is forward-looking arithmetic: most school subtraction is reactive (the problem hands you two numbers, you subtract them), but real number sense is *predictive* — given a goal, can you choose the operations that get you there? Students who do well at "what is 47 minus 23" can struggle for ten minutes at "starting from 47, what numbers should I subtract to land on zero?" The game targets exactly that gap.
 

@@ -3,6 +3,14 @@
 ## In one line
 A word-problem game where the child reads a real-life sharing scenario, then picks from three sentences which *strategy* they'd use to solve it — not the answer, the **method** — turning the moment of "what operation do I even reach for?" into the actual game.
 
+## Alfred mapping
+- **Archetype:** MCQ Quiz.
+- **Interaction pattern:** **P1 Tap-Select** with explicit Submit gate.
+- **Evaluation:** Deterministic equality (timed, 15s — speed bonus tier).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-050 FloatingButton (Submit; `partialSubmitAllowed: true` — lights up on first selection); PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** Three options vertically stacked (e.g. "Better Way" strategy picker). The *I-don't-know* hedge option is intentional and stays available.
+
 ## Who it's for
 Class 3–4 students (ages ~8–10) who can do division when an exam tells them *"divide 108 by 4"* but freeze when a word problem says *"how can you find how many pins each student gets?"* The game is built for the gap between *knowing how* and *recognising when*. The student who picks "guess and check" or "do it one by one" instead of the obvious operation isn't bad at division — they don't yet have a mental cue that says *"this is a division-shaped problem."*
 

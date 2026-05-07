@@ -3,6 +3,14 @@
 ## In one line
 A focused single-question game where the student reads a math statement, weighs exactly two answers — *yes / no, true / false, correct / not-yet* — and only commits once they've thought it through, by tapping a deliberate **Submit & check** button.
 
+## Alfred mapping
+- **Archetype:** MCQ Quiz (binary).
+- **Interaction pattern:** **P1 Tap-Select** with explicit Submit gate (selection is sticky; round only resolves on Submit).
+- **Evaluation:** Deterministic equality.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-050 FloatingButton (Submit gates evaluation — `partialSubmitAllowed: true` means Submit lights up as soon as a tile is selected); PART-051 AnswerComponent (renders the correct option's full sentence); FeedbackManager.
+- **Notes:** No timer — deliberation is the lesson. Each option is a full sentence (*"Yes, because..."*) so a wrong tap commits to a wrong reason.
+
 ## Who it's for
 Class 4–7 students (ages ~9–13) who are confident enough with the underlying math but tend to *guess fast* on multiple-choice questions. The game is for the student who reads the question, picks the first option that sounds right, and moves on without checking. Two options is the smallest possible MCQ — the entire game is about killing the gap between *gut* and *check*.
 

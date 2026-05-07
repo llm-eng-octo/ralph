@@ -176,8 +176,11 @@ Each cell carries **at most one** content type:
 | `tappable` | Cycles through fixed value set | Tap to cycle |
 | `drop-target` | Empty receptacle | Drop onto |
 | `draggable` | Pre-filled, movable | Drag to swap |
+| `prose` | Static text / label / heading rendered **inside a grid track without cell chrome** | None |
 
 Never combine two on the same cell. If the spec seems to demand both, you've misread it — usually the spec means two distinct cells of UI.
+
+**Prose cells.** When surround content (instructions, column labels like *Number 1*, sentence fragments in a re-arrange puzzle, kakuro sum hints) has a fixed row/column slot, render it inside the grid — not as a sibling above/beside — so tracks stay aligned on resize. Strip the chrome: `.cell.prose { border: 0; background: transparent; padding: 0; font-weight: 400; }`. Prose cells DO occupy a grid track but DO NOT count toward the spec's visible-cell count in § Validation checklist.
 
 ---
 
@@ -227,6 +230,7 @@ Live readouts beside the grid are not optional decoration — for cross-sum, hex
 4. **`tappable` + `drop-target` on the same cell.** Pick one model. The spec almost always means two distinct cells.
 5. **Conflict highlight only colours the offender.** The constraint-neighbour must pulse too.
 6. **Hallucinated Reset / Submit buttons.** Render only what the spec lists.
+7. **Surround prose rendered as a sibling when it has a fixed grid slot.** Column labels, sentence fragments, in-grid instruction lines belong inside the grid as `prose` cells. Sibling DOM drifts on resize.
 
 ---
 

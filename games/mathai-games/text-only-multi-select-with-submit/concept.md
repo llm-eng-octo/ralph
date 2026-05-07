@@ -3,6 +3,14 @@
 ## In one line
 A multi-select game that shows a target sum like `7 + 8` and asks the student to tap *every* expression that secretly equals it — `8 + 8 − 1`, `7 + 7 + 1` — while leaving the impostors untapped, then commit with a single Submit button.
 
+## Alfred mapping
+- **Archetype:** MCQ Quiz (multi-select).
+- **Interaction pattern:** **P10 Multi-Select + Submit** — student toggles multiple tiles on/off, commits via Submit.
+- **Evaluation:** **Set-equal — all-or-nothing.** Selected set must exactly match the correct set (every correct tile chosen, no decoys, no missing).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-050 FloatingButton (Submit gates evaluation — `partialSubmitAllowed: true`); PART-051 AnswerComponent (renders the correct set); FeedbackManager.
+- **Notes:** No partial credit — partial selection is wrong. Decoys (e.g. `7+7-1` for target `7+8`) are diagnostic and must carry misconception_tags.
+
 ## Who it's for
 Class 2–3 students (ages ~7–9) who have memorised most of their addition facts up to ten but stall on near-doubles like `7 + 8` or `6 + 7`. The skill the game targets is exactly the fluency move every Class-2 textbook eventually preaches: *"if you know `7 + 7`, then `7 + 8` is just one more."* Students learn this rule as a sentence; the game lets them feel it as a click.
 

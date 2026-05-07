@@ -3,6 +3,14 @@
 ## In one line
 A place-value optimisation puzzle where ten digits sit on a cross-shaped grid that forms three intersecting numbers, and the student must swap them around — without any digits to spare — until the sum of those numbers is the smallest it can possibly be.
 
+## Alfred mapping
+- **Archetype:** Construction (place-value optimisation).
+- **Interaction pattern:** **P1 Tap-Select** with tap-then-tap swap — tap a tile to highlight, tap a second tile to swap the two digits.
+- **Evaluation:** **Optimal-tier** — 3★ exact minimum, 2★ within 5%, 1★ within 20%. Live sum visible. Submission is implicit (timer ends the round).
+- **Game shape:** Multi-round (10 puzzles, 60s per puzzle).
+- **Required components:** TimerComponent (60s); PART-051 AnswerComponent (renders the optimal arrangement); FeedbackManager.
+- **Notes:** NOT drag-and-drop — tap-tap swap is the pattern. Hearts only lost on a 0-star puzzle (>20% off). Live sum shown; target minimum hidden.
+
 ## Who it's for
 Class 5–6 students (ages ~10–12) who fully understand place value (they can tell you the `2` in `2,847` is worth two thousand) but have never had to *use* place value as a strategic tool. The skill the game targets is one that most curricula skip entirely: **understanding that a digit's location matters more than the digit itself**, and using that to optimise a multi-number arrangement under a constraint.
 

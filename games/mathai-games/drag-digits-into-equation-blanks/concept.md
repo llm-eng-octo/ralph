@@ -3,6 +3,14 @@
 ## In one line
 A column-addition puzzle where four digits have been knocked out of a partly-filled sum, and the student drags them back into place by reasoning column by column from the ones up — the way a fluent adder actually thinks.
 
+## Alfred mapping
+- **Archetype:** Construction (vertical-addition fill-the-blanks).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — grid-cell drop variant. Student drags digit tiles from a 0–9 pool into empty blanks. Pool tiles persist (drag creates a copy — same digit may be reused).
+- **Evaluation:** Deterministic equality per blank; round resolves when all blanks correct.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6) with copy-on-drag (pool persistent); PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** Per-blank evaluation gives column-specific hints on wrong drops; this is the canonical pattern for column-by-column reasoning.
+
 ## Who it's for
 Class 2–3 students (ages ~7–9) who have learnt vertical addition with carrying but are still mechanical about it — they can compute `568 + 258` if you write it out for them, but they panic the moment a digit goes missing. The game is for the in-between phase where addition *procedure* is solid but addition *structure* — knowing that the ones column constrains the ones, that a carry comes from the column to the right, that the answer's hundreds digit can be predicted from the addends' hundreds digits — has not yet clicked. It's also a quiet first taste of algebraic thinking: "what number, if I put it here, would make this true?"
 

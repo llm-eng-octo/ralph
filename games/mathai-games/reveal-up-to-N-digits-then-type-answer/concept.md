@@ -3,6 +3,14 @@
 ## In one line
 A logic-deduction game where the student is told a 4-digit number is hiding behind four purple blocks, given three carefully crafted clues, and allowed to peek at *exactly one* digit before they have to type the whole number into an input field.
 
+## Alfred mapping
+- **Archetype:** Lives Challenge / Construction.
+- **Interaction pattern:** **P1 Tap-Select** (single block reveal — exactly one per round) **+ P7 Text/Number Input** (the assembled multi-digit number).
+- **Evaluation:** Deterministic equality on the typed full number.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-051 AnswerComponent (renders the full revealed number); FeedbackManager.
+- **Notes:** Reveal budget is hard-capped at 1 block per round (track via `gameState.revealsUsed`). Star tier upgrades when the reveal is used on a digit the clues couldn't pin down (i.e. the *informative* reveal).
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who know what *thousands*, *hundreds*, *tens*, and *ones* mean — they can write the place value of each digit on a worksheet — but haven't yet *used* place value as a tool for solving anything. The game targets the specific stuck-point where students have place value as vocabulary but not as a deduction strategy. It's the bridge from "I can label the digits" to "I can solve a number puzzle by reasoning about each place separately."
 

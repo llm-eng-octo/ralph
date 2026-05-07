@@ -3,6 +3,14 @@
 ## In one line
 A focused listening game where a calm voice reads a list of numbers — *"twelve... eight... nineteen..."* — exactly once, and the student must hold a running sum in their head as they hear it, then type the total when the recording ends.
 
+## Alfred mapping
+- **Archetype:** Speed Blitz with **Observe-then-Respond modifier** (audio plays exactly once).
+- **Interaction pattern:** **P7 Text/Number Input** for the typed total.
+- **Evaluation:** Deterministic equality.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** Audio player (one-shot — replay disabled after first play; do NOT use a custom mic-styled button — use a clearly-marked Play button); TimerComponent (~30s per round); PART-051 AnswerComponent (renders the read list with friendly pairs highlighted at end of round); FeedbackManager.
+- **Notes:** During audio playback, set `gameState.phase = 'observing'` and disable input; switch to `'responding'` when audio ends. Replay is hard-blocked (greyed Play button) — single-shot is the lesson.
+
 ## Who it's for
 Class 4–6 students (ages ~9–12) who can comfortably add two-digit numbers on paper but who have never been forced to do it without seeing the numbers. The skill the game targets is the one mental-arithmetic move that almost no worksheet trains: **maintaining a running total while new addends arrive faster than you can write them down**. It's auditory working memory wearing arithmetic's clothes — and it's the bottleneck for everything from rapid mental change-counting to following a multi-step instruction in a busy classroom.
 

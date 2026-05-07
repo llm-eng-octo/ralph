@@ -3,6 +3,14 @@
 ## In one line
 A drag-and-drop sorting game where the student is handed a tray of numbers and two labelled boxes — *Factors of 20* and *Factors of 30* — and has to slot every number into the right box (or both boxes, when a number is a common factor) to feel for the first time what *common factor* really means.
 
+## Alfred mapping
+- **Archetype:** Sort/Classify.
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — sort-into-zones variant. Student drags number tiles into one of two (or more) labelled boxes.
+- **Evaluation:** **Set-equal** — each box must hold exactly the correct factor set; in late rounds, non-factors must be left in the pool.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent (renders the correctly-sorted boxes); PART-050 FloatingButton (Submit; `partialSubmitAllowed: false`); FeedbackManager.
+- **Notes:** Some numbers are common factors (belong in *both* boxes) — duplicate tiles in pool, or allow zone-to-zone copy. Non-factors in late rounds must be left in the pool to clear the round.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who can recite times tables but freeze when asked *"Is 6 a factor of 30?"* — they know `5 × 6 = 30` but don't yet automatically reverse the fact into divisibility language. The game is for the student standing at that exact threshold: they have the multiplication facts, they don't yet have the *factor instinct*, and they are about to meet the idea of *common factor* for the first time.
 

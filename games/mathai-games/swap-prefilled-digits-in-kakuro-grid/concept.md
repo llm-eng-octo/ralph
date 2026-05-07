@@ -3,6 +3,14 @@
 ## In one line
 A pencil-puzzle game where Bindu has *almost* solved a cross-shaped number puzzle but her digits are in the wrong cells, and the student drags-and-drops digits between cells to satisfy a tricky condition like *"the difference between Number 2 and Number 1 should be the smallest possible 3-digit number"*.
 
+## Alfred mapping
+- **Archetype:** Board Puzzle / Construction (digit-permutation under condition).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — swap-on-drop. Pure permutation — every cell already holds a digit, no insert / no delete.
+- **Evaluation:** **Predicate** — the difference between Number 2 and Number 1 must be a 3-digit number AND must be the *minimum* such 3-digit difference reachable from the puzzle's digit set. Valid-but-non-optimal earns a 2-star tier (with a *"can you make it smaller?"* nudge).
+- **Game shape:** **Standalone** (single deep round). Per Alfred standalone canon: end-state = AnswerComponent slide showing the optimal arrangement + FloatingButton lifecycle (`submit` → `next`/`retry`); NO Welcome / Game Over / Victory TransitionScreens.
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent; PART-050 FloatingButton (Submit; `partialSubmitAllowed: true` since the layout is always valid permutation); FeedbackManager.
+- **Notes:** Shared intersection cell is enforced by the swap mechanic (its digit lives in two read-outs). No new digits enter; nothing leaves.
+
 ## Who it's for
 Class 4–6 students (ages ~9–12) who have met place value, can do multi-digit subtraction on paper, but have never been asked to *design* numbers to optimise a result. The game is for the student who can compute *4621 − 312 = 4309* but has never thought *"hmm, if I rearranged those digits differently, would the answer be smaller?"* — the leap from computing to controlling.
 

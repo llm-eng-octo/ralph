@@ -3,6 +3,14 @@
 ## In one line
 A two-step packing puzzle where the student first decides *whether* a pile of teddy bears can be split evenly into a given number of boxes, and then types *how many* go in each box — turning division from a pure calculation into a yes-or-no judgement followed by a quotient.
 
+## Alfred mapping
+- **Archetype:** Worked Example (two-step gated).
+- **Interaction pattern:** **P1 Tap-Select** (Yes/No dropdown, step 1) **+ P7 Text/Number Input** (quotient, step 2). The P7 input only opens *after* a correct Yes/No answer.
+- **Evaluation:** Deterministic equality on both steps — independently graded; quotient input is gated on a correct yes/no.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-051 AnswerComponent (each round's slide shows yes/no + correct quotient); FeedbackManager.
+- **Notes:** When the yes/no answer is *No*, the quotient step is skipped (round resolves immediately). For *Yes*, both gates must pass to clear the round.
+
 ## Who it's for
 Class 2–3 students (ages ~7–9) who are just meeting the idea of division as equal sharing. They can count, they can group, they may even know "9 divided by 3 is 3" if asked directly — but they haven't yet wired the *judgement* part: looking at 9 things and 4 boxes and instantly knowing "no, that won't share evenly." This game targets the moment when sharing is still concrete (real bears, real boxes) and students need to learn to *check* before they divide.
 

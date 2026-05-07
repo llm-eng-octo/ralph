@@ -3,6 +3,14 @@
 ## In one line
 A visual puzzle where a wrong arithmetic equation is built out of matchsticks (`8 + 8 = 8`) and the student must drag exactly *one* stick — from a digit, an operator, or anywhere — to a new position to turn the equation into a true statement, with the option to convert a `+` into a `−` (or vice versa) on the way.
 
+## Alfred mapping
+- **Archetype:** Construction / Board Puzzle (lateral thinking, single-stick budget).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — student drags ONE matchstick from any segment to any empty 7-segment slot.
+- **Evaluation:** **Path-validity** — after the single move, the resulting equation must evaluate to a true arithmetic statement. Multiple valid solutions accepted (any move that produces a true equation wins).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent (renders one canonical solved equation); FeedbackManager. Reset is unlimited and free (does not cost a heart).
+- **Notes:** No fail state on a round — student can Reset and try again. Stick may move *between digits*, may also turn `+` into `−` (or vice versa) by repositioning the operator's vertical segment.
+
 ## Who it's for
 Class 5–7 students (ages ~10–13) who can do single-digit arithmetic in their sleep but think of arithmetic as a one-way pipe — *given inputs, compute output*. The game is for the kid who can solve `8 + 8` instantly but has never asked themselves *"what other digits can I make from this 8 by removing a stick?"* It's a sideways teaching of digit anatomy, operator structure, and equation balance — exactly the kind of lateral thinking that classroom math rarely rewards but competitions and engineering reasoning demand.
 

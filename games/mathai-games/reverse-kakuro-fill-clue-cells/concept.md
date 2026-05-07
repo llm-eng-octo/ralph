@@ -3,6 +3,14 @@
 ## In one line
 A logic-grid puzzle where every two-cell pair — read horizontally or vertically — must form a two-digit multiple of 8, and the student fills the empty cells with digits drawn from a small pool, using each digit at most once (except `4`, which gets two uses).
 
+## Alfred mapping
+- **Archetype:** Board Puzzle.
+- **Interaction pattern:** **P15 Cell Select → Number Picker** — tap an empty cell to select, tap a digit in the picker pool to place. Tap a placed cell to lift its digit back to the pool.
+- **Evaluation:** **Predicate** — every two-cell pair (horizontal AND vertical) must form a valid two-digit multiple of the round's modulus (8 by default). Each digit is used once except `4` (used twice).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-051 AnswerComponent (renders the solved grid); FeedbackManager. Picker dismisses on outside-tap.
+- **Notes:** No timer — careful thinking is the lesson. Digit-frequency tracking (`4` used `≤2`, others `≤1`) is part of the predicate. Pre-filled "anchor" digits scaffold the deduction.
+
 ## Who it's for
 Class 4–6 students (ages ~9–12) who have learned the multiples of 8 in their times tables but only as a *list* (8, 16, 24, 32...) — not as a *set*. The stuck-point is recognition: ask a student "is 56 a multiple of 8?" and they'll often start at 8 and count up, taking ten seconds to confirm. Ask them "starting from `8_`, which one-digit values complete a multiple of 8?" and they freeze — they've never been asked to *generate* multiples around a fixed digit. This game forces that lookup-from-the-other-direction, which is how multiples actually need to work in flexible problem-solving.
 

@@ -3,6 +3,14 @@
 ## In one line
 A tap-all-that-apply game where the student looks at a 4×5 grid of numbers from 1 to 20, hunts down every multiple of 5 (or 3, or 4) tucked among the rest, and taps each one — without picking up a single non-multiple along the way.
 
+## Alfred mapping
+- **Archetype:** MCQ Quiz (multi-select).
+- **Interaction pattern:** **P10 Multi-Select + Submit** — student taps multiples on (toggles `.selected`); wrong taps are filtered immediately by per-tap check (small heart cost), then Submit evaluates the set.
+- **Evaluation:** **Set-equal — all-or-nothing on Submit** — every multiple selected, no non-multiples selected.
+- **Game shape:** Multi-round (10 rounds across 3 stages).
+- **Required components:** PART-050 FloatingButton (Submit; `partialSubmitAllowed: false` — at least one tile must be selected); PART-051 AnswerComponent (renders the correct multiples set); FeedbackManager.
+- **Notes:** Per-tap penalty for tapping a non-multiple (heart loss + auto-deselect). Untapping a correctly-tapped tile before Submit is free. Lives exhausted = round ends with full correct set revealed.
+
 ## Who it's for
 Class 3–4 students (ages ~8–10) who can chant *"5, 10, 15, 20"* on cue but can't yet *recognize* `15` as a multiple of `5` when it's sitting in a grid next to `13` and `17`. The game targets the specific stuck-point where students know multiples as a chant-list but not yet as a *property of a number* they can spot at a glance. It's the bridge between skip-counting and divisibility.
 

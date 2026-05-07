@@ -3,6 +3,14 @@
 ## In one line
 A divide-and-discover game where the student tries different divisors against a target number, watches the long division play out live, and writes down every factor pair that lands a clean zero remainder.
 
+## Alfred mapping
+- **Archetype:** Worked Example / Construction.
+- **Interaction pattern:** **P1 Tap-Select** (divisor cards) **+ P7 Text/Number Input** (factor-pair equations).
+- **Evaluation:** Deterministic equality per pair input — both numbers in the pair must multiply to the target.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-051 AnswerComponent (renders all factor pairs); FeedbackManager.
+- **Notes:** Long-division animation is presentational; the *graded* action is typing the factor pair. Tapping divisors is exploration (no penalty).
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who can recite times tables for 2, 5, and 10 but stall the moment a number sits outside their fluency window. The game is for the student who, asked "find all the factors of 42," confidently writes `1, 42, 6, 7` — because those came from the times tables they know — and then stops, because they have no systematic way to check whether 3 or 4 or 5 might also work. The stuck-point is the *missing tool*: students need a reliable, non-times-table way to ask "does this divide evenly?" and the long-division algorithm is exactly that tool, but they've never used it as a *checker* — only as a procedure to grind through homework.
 

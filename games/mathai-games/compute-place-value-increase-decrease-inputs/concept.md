@@ -3,6 +3,14 @@
 ## In one line
 A timed mental-math game where the student stares at two four-digit numbers, works out how much went *up* in some places and *down* in others, and types both deltas into two side-by-side input fields before the 40-second timer runs out.
 
+## Alfred mapping
+- **Archetype:** Speed Blitz.
+- **Interaction pattern:** **P7 Text/Number Input** — two paired inputs (`increased by` and `decreased by`).
+- **Evaluation:** Deterministic equality on BOTH inputs (independently graded; round resolves only when both correct).
+- **Game shape:** Multi-round (5 rounds, 40s per-round timer).
+- **Required components:** TimerComponent (40s); PART-051 AnswerComponent (shows both deltas); FeedbackManager.
+- **Notes:** NOT a stepper (despite "increase/decrease" in the folder name). Two paired typed inputs — the form forces the student to commit *which places went up* vs. *which went down* separately.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who already know what a "thousands" or "hundreds" digit is when you point at it, but who freeze when asked something like *"How does 2006 become 2024?"* and reach for column subtraction. The game is for the student who thinks of place value as a column-counting trick rather than a way of seeing numbers as bundles, and who has no instinct yet for *changing* a number by adjusting one place at a time.
 

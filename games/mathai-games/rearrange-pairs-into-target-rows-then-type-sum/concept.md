@@ -3,6 +3,14 @@
 ## In one line
 A two-stage addition puzzle where the student first drags six numbers into rows that pair up to friendly totals (30, 40, 50), and only *after* the table is correctly arranged types in the grand total — turning a messy six-number sum into a tidy mental-math drill.
 
+## Alfred mapping
+- **Archetype:** Worked Example / Construction.
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) for arranging numbers into pair rows **+ P7 Text/Number Input** for the typed grand total.
+- **Evaluation:** **Composite — gated.** (1) Predicate: every row must lock at a friendly total (30/40/50). (2) Deterministic equality on the typed grand total. **The P7 input only activates AFTER all rows lock at friendly totals** (see SKILL.md spec-creation gating clarification F).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent (renders the locked pair-rows + grand total); PART-050 FloatingButton (Submit on grand total); FeedbackManager.
+- **Notes:** Pairs lock when they hit a friendly target — locked rows can no longer be disturbed. Lives are spent only on a wrong typed total.
+
 ## Who it's for
 Class 3–4 students (ages ~8–10) who can add two-digit numbers but still grind through `9 + 45 + 34 + 6 + 21 + 5` left-to-right with a finger and a pencil. They've heard the phrase *"make it ten"* but haven't yet generalised it to *"make it thirty"* or *"make it fifty"*. The game is for the in-between phase where students know addition but don't yet *strategise* addition.
 

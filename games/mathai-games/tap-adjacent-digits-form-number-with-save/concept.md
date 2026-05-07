@@ -3,6 +3,14 @@
 ## In one line
 A "find the hidden treasure" game where four secret numbers are buried in a 4×4 grid of digits, the student gets a clue for each one (*"half of 500"*, *"100 less than 365"*), and they swipe-tap a horizontal or vertical run of adjacent cells to reveal the number that matches the clue.
 
+## Alfred mapping
+- **Archetype:** Construction (digit-spelling from clue).
+- **Interaction pattern:** **P5 variant** — tap-path, adjacency-constrained (horizontal-only or vertical-only run). Each tap must be on the cell immediately right of, or immediately below, the previous tap.
+- **Evaluation:** Deterministic equality — number formed by the cell-run digits must equal the clue's computed target.
+- **Game shape:** Multi-round (4 treasures × 4 rounds = 16 sub-rounds; or treat as 4 rounds with 4 sub-targets each).
+- **Required components:** TimerComponent; PART-050 FloatingButton (CHECK button gates per-treasure evaluation); PART-051 AnswerComponent (renders the grid with each treasure highlighted); FeedbackManager.
+- **Notes:** Clue language is verbal (e.g. *"half of 500"*); evaluator computes the target server-side and compares to the formed-number. Multiple valid runs may exist (e.g. `2 5 0` may appear in multiple grid positions); accept any valid run.
+
 ## Who it's for
 Class 3–5 students (ages ~8–11) who can perform a single-step calculation when *given* the calculation, but freeze when asked to do the calculation *and* spell out the resulting digits separately. The game is for students who can compute *half of 500 = 250* in their head but can't yet glance at a digit grid and know they're hunting for the digits `2`, `5`, `0` in that order, sitting next to each other.
 

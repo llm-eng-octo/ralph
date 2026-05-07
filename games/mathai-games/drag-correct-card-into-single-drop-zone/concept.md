@@ -3,6 +3,14 @@
 ## In one line
 A drag-and-drop mental-math game where the student is handed two known doubles (`Double of 7 is 14`, `Double of 8 is 16`) and a small pool of `+1` / `-1` adjuster tiles, and must build the sum `7 + 8` by dragging *one* double card and *one* adjuster into a single drop zone above.
 
+## Alfred mapping
+- **Archetype:** Construction (near-doubles via drag-build).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — drop-zone variant. Single drop zone accepts up to two tags (one double, one ±1 adjuster).
+- **Evaluation:** Deterministic equality — the two tags' sum must equal the target near-double.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent; PART-050 FloatingButton (Submit gates evaluation); FeedbackManager.
+- **Notes:** Multiple correct tag pairs may exist (e.g. `14 + (+1)` and `16 + (-1)`); accept any pair whose sum equals the target.
+
 ## Who it's for
 Class 2–3 students (ages ~7–9) who have memorized their doubles (`6+6=12`, `7+7=14`, `8+8=16`) but freeze on near-doubles like `7+8` because they think it's a brand-new fact to learn. The game targets the very specific stuck-point where a student has the doubles in their pocket but hasn't realized they can *use* them as a stepping stone to neighbouring sums. It's the bridge from rote doubles to flexible mental addition.
 

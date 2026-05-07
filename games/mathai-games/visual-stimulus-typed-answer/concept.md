@@ -3,6 +3,14 @@
 ## In one line
 A real-world estimation game where the student studies two side-by-side land-use diagrams (last year vs this year), uses one known acreage as an anchor, and types in their best estimate of an unknown area — learning that *good math* sometimes means *good guessing with reasons*.
 
+## Alfred mapping
+- **Archetype:** No-Penalty Explorer (estimation).
+- **Interaction pattern:** **P7 Text/Number Input** with `inputmode="numeric"`.
+- **Evaluation:** **Tolerance band** — 3★ within ±10% of the true value, 1★ within ±25%, 0★ outside ±25%. NOT exact equality.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** TimerComponent (~30s); PART-051 AnswerComponent (renders the true value alongside the student's answer + the accepted range band); FeedbackManager.
+- **Notes:** Tolerance band is the headline feature — spec MUST declare exact `±%` thresholds for 3★/2★/1★. NEVER use exact equality for estimation games.
+
 ## Who it's for
 Class 4–6 students (ages ~9–12) who are confident with exact arithmetic but freeze the moment a problem says *"about how much"* or *"estimate"*. The game is for the child who has been told their whole life that math has *one right answer*, and now has to face a question whose answer is *somewhere between 18 and 24 acres*. The specific stuck-point is the discomfort of committing to a number you can't verify by computation — and learning that the **process** of getting close on purpose is its own valid mathematical move.
 

@@ -3,6 +3,14 @@
 ## In one line
 A clean, focused word-problem game where the student reads a short real-life story — *"Tanya has Rs 100. Every day she buys an ice-cream for Rs 15. How much does she have left after 3 days?"* — and types the single number that closes the story out.
 
+## Alfred mapping
+- **Archetype:** Lives Challenge.
+- **Interaction pattern:** **P7 Text/Number Input** with `inputmode="numeric"`.
+- **Evaluation:** Deterministic equality.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-051 AnswerComponent (renders the worked-out solution chain); FeedbackManager.
+- **Notes:** No timer (reading is the lesson). Wrong-answer hints are diagnostic (per the canonical mistakes named in the concept) — spec should encode misconception_tags accordingly.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who can comfortably multiply a one-digit number by a two-digit number and subtract on paper, but who lock up the moment a problem arrives wrapped in a sentence instead of stacked between an `=` sign. The skill they're missing is not arithmetic — it is the ordering of operations *implied by the words*. This game is for the student who, given `100 − 15 × 3`, can compute `55`, but given the same story, types `255`, `85`, or `45` because they processed the sentence one word at a time.
 

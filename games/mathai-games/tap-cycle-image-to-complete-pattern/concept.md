@@ -3,6 +3,14 @@
 ## In one line
 A pattern-completion game where the student looks at three short visual sequences side by side, taps the question-mark slot to cycle through possible answers, and lands on the one image that finishes each sequence the way it wants to be finished.
 
+## Alfred mapping
+- **Archetype:** Tracking/Attention (visual pattern induction).
+- **Interaction pattern:** **P8 variant** — tap-cycle through candidate images at each `?` slot (no separate Submit). Round resolves when all `?` slots simultaneously hold their correct image.
+- **Evaluation:** Deterministic equality — all three slots correct at once.
+- **Game shape:** Multi-round (10 rounds, 60s per round).
+- **Required components:** TimerComponent (60s); PART-051 AnswerComponent (renders all three completed sequences); FeedbackManager.
+- **Notes:** No per-tap penalty — tapping is exploration. Hearts only fire on round timeout. Candidates per slot are *adjacent positions in rule-space* (not random distractors).
+
 ## Who it's for
 Class 2–4 students (ages ~7–10) who are starting to see "patterns" as a real skill in school but tend to confuse *the rule* with *the next picture*. The game is for the moment when a child can recognise an obvious AB-AB-AB pattern but freezes when the pattern involves rotation, fractional fill, or a subtle change of position — the kinds of patterns that show up on entrance tests, math olympiads, and the visual-reasoning section of every standardised exam from here onward.
 

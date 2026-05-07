@@ -3,6 +3,14 @@
 ## In one line
 A grid puzzle where the student stares at sixteen small numbers, a target total, and decides which numbers to *double* — by tapping them — so that the new sum of the whole grid lands exactly on the target.
 
+## Alfred mapping
+- **Archetype:** Board Puzzle.
+- **Interaction pattern:** **P10 variant** (toggle multi-select with running-sum check). Tapping a cell toggles its "doubled" state (toggling = adding the cell's value once more to the grid sum).
+- **Evaluation:** Deterministic equality — grid sum after toggles must equal the target. Wrong final state on Next-Round = life lost; experimenting freely is fine.
+- **Game shape:** Multi-round (3 rounds).
+- **Required components:** PART-050 FloatingButton (Next/Submit gates evaluation); PART-051 AnswerComponent; FeedbackManager.
+- **Notes:** Doubling = adding the value again, not replacing the cell. Spec MUST make this rule explicit in the round mechanic. Decoy: a cell whose value equals the gap exactly (tapping it overshoots).
+
 ## Who it's for
 Class 3–5 students (ages ~8–11) who already know how to add a column of numbers and roughly understand "doubling" but haven't yet developed the *search* skill — the ability to look at a target, look at a current state, and figure out which moves close the gap. The game is for the moment a child stops solving math by trying random things and starts solving math by *measuring the gap and choosing the right-sized move*.
 

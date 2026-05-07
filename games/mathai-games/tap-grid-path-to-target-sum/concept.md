@@ -3,6 +3,14 @@
 ## In one line
 A grid path-finding game where the student traces a route from a green `Start Here` cell to a treasure island, picking only *connected* cells whose coin values add up to exactly the target — turning addition into a small navigational adventure.
 
+## Alfred mapping
+- **Archetype:** Construction (path-finding with running sum).
+- **Interaction pattern:** **P5 variant** — *tap-path*, adjacency-constrained (each tap must be on a cell up/down/left/right of the previous; no diagonals, no jumps). Tap a previously-stepped cell to retract the path back to it.
+- **Evaluation:** Deterministic equality — running sum on reaching the island cell must equal the target.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-051 AnswerComponent (renders one canonical valid path); FeedbackManager. Reset is free (does not cost a heart).
+- **Notes:** No timer. Multiple valid paths often exist — accept any path whose running sum hits the target on reaching the island.
+
 ## Who it's for
 Class 2–3 students (ages ~7–9) who can add small numbers but haven't yet developed the *running-total* habit — the constant background skill of mentally tracking "how much have I added so far, and how much more do I need?" The game is for the moment a child stops adding numbers in isolated pairs and starts holding a sum live in their head while comparing it to a target.
 

@@ -3,6 +3,14 @@
 ## In one line
 A short, video-led estimation game where the student watches two characters explain *different ways* of guessing the total water in two jars, and then commits to whichever strategy they trust more before the answer is revealed.
 
+## Alfred mapping
+- **Archetype:** MCQ Quiz with **Observe-then-Respond modifier** (video is replayable, NOT one-shot).
+- **Interaction pattern:** **P1 Tap-Select** (between two strategy buttons) with explicit Submit gate.
+- **Evaluation:** Deterministic equality (which strategy was more accurate for *this scenario*). No lives — the student is never penalised for picking either strategy; stars are based on rate of correct picks across rounds.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** Video player (full controls — play/pause/scrub/replay); PART-050 FloatingButton (Submit); PART-051 AnswerComponent (shows both strategies' computed estimates next to the true value on a number line); FeedbackManager.
+- **Notes:** No timer — judgment is the lesson. NO lives. Submit is the deliberate commitment moment.
+
 ## Who it's for
 Class 3–5 students (ages ~8–11) who can compute exact answers in tidy textbook problems but freeze in the face of *real-world* quantities — the messy ones with no labels, no rulers, just a picture of a jar and a question. The game is for the moment a child needs to learn that *estimation is a real strategy with rules of its own*, not just "guessing because you don't know how to compute."
 

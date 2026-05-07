@@ -3,6 +3,14 @@
 ## In one line
 A visual logic puzzle where the student stares at a broken equation built from matchsticks (`3 - 2 = 0`), drags exactly two sticks to new positions, and has to leave behind a mathematical statement that's actually true.
 
+## Alfred mapping
+- **Archetype:** Construction / Board Puzzle (lateral thinking, two-stick budget).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — student drags TWO matchsticks within the budget into empty 7-segment slots. Auto-check fires when both moves are committed.
+- **Evaluation:** **Path-validity** — after both moves, the resulting equation must evaluate to a true arithmetic statement. Multiple valid solutions accepted.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent (renders one canonical solved equation); FeedbackManager. Reset is free (does not cost a heart).
+- **Notes:** Move budget is hard (cannot drag a third stick); auto-check on second move commit. Use `gameState.movesUsed` to gate.
+
 ## Who it's for
 Class 3–6 students (ages ~8–12) who can read a digital-display digit and do basic arithmetic but have never had to think about *which segments make which digit*. The game is for the student who knows `8` is "8" without ever having noticed it's the only digit using all seven segments — and so has never thought of digits as *constructions*. The stuck-point is dual: it's a number-sense problem (which equations are true?) and a perceptual problem (what digit can I make if I add or remove a segment from this one?). Together, those make the student see digits as objects with parts, not just labels — which is a small but powerful piece of mathematical structure.
 

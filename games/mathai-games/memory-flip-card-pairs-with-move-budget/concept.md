@@ -3,6 +3,14 @@
 ## In one line
 A 4×4 memory game where 16 themed cards (Moon, Sun, Saturn, Comet) hide ten pairs of numbers — but instead of guessing blindly, the student gets four logical clues that narrow down where each number could be, and must find every pair within a tight 30-tap budget.
 
+## Alfred mapping
+- **Archetype:** Memory Match.
+- **Interaction pattern:** **P3 Tap-Select (Two-Phase Match)** — tap card A, tap card B; if they match, both lock face-up.
+- **Evaluation:** Deterministic equality — find all 10 pairs within the 30-tap move budget.
+- **Game shape:** **Standalone** (single deep round, ~5 minutes). Per Alfred standalone canon: end-state = AnswerComponent slide showing the solved card grid + FloatingButton lifecycle (`submit` → `next`/`retry`); NO Welcome / Game Over / Victory TransitionScreens.
+- **Required components:** PART-051 AnswerComponent; FeedbackManager. Move-budget bar visible at all times.
+- **Notes:** No lives — running out of moves locks the star tier based on pairs-found-so-far. Clue panel stays visible above the grid (re-reading clues mid-puzzle is the correct strategy).
+
 ## Who it's for
 Class 4–6 students (ages ~9–12) who can handle "ordinary" memory games (just keep flipping until you remember) but who haven't yet learned that **the constraints in a problem are themselves clues, not just trivia**. The game is for the kid who reads "two corners hide numbers more than 15" and skims past it instead of using it. It targets the leap from random search to *informed* search — the same leap that separates kids who solve logic puzzles from kids who guess at them, and the same skill that underlies number-property reasoning all the way to algebra.
 

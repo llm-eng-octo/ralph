@@ -3,6 +3,14 @@
 ## In one line
 A friendly word-problem game where Ravi (and friends) keep planning birthday parties — *"3 pencils each for 4 friends, how many pencils?"* — and the student types the total, learning to translate "each" into multiplication without the multiplication sign ever scaring them off.
 
+## Alfred mapping
+- **Archetype:** MCQ Quiz (multi-select).
+- **Interaction pattern:** **P10 Multi-Select + Submit** — student taps multiple tile cards (toggle on/off) then commits via Submit.
+- **Evaluation:** **Set-equal — all-or-nothing.** Selected set must exactly match the correct set (every correct tile chosen, no decoys).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-050 FloatingButton (Submit gates evaluation); PART-051 AnswerComponent (renders all correct tiles); FeedbackManager.
+- **Notes:** Folder name says "typed", but the canonical interaction is multi-select tap of tiles. NOT P7 typed input.
+
 ## Who it's for
 Class 2–3 students (ages ~7–9) who can comfortably skip-count by 2s, 5s, and 10s but freeze when a story problem says "each." The game is for the in-between moment where repeated addition (`3 + 3 + 3 + 3`) is solid but the student hasn't yet seen that *that's the same as `3 × 4`*. It targets the specific stuck-point where a child reads "3 pencils to each of 4 friends" and has no idea whether to add, subtract, multiply, or guess.
 

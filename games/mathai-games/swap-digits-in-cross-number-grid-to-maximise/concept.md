@@ -3,6 +3,14 @@
 ## In one line
 A digit-rearrangement puzzle where the student looks at a crossword-shaped grid of two interlocking numbers, and decides which loose digits go in which slots so the two numbers add up to the biggest sum possible.
 
+## Alfred mapping
+- **Archetype:** Construction (place-value optimisation, with locked tiles).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — swap-on-drop. Movable white tiles can be swapped with each other; locked grey tiles refuse drops.
+- **Evaluation:** **Optimal-tier** — first wrong submit gives a hint (no life lost); second wrong submit costs a life. Round resolves when the arrangement equals the true maximum given the locked-tile constraints.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6) with `disabled` flag on locked tiles; PART-051 AnswerComponent (renders optimal arrangement); PART-050 FloatingButton (Submit); FeedbackManager.
+- **Notes:** No timer. Running sum is shown; target maximum is hidden — student must commit.
+
 ## Who it's for
 Class 4–6 students (ages ~9–12) who can already add multi-digit numbers and know what "place value" means in a textbook sense, but haven't yet *felt* it — they don't intuitively know that swapping a 9 from the ones place to the thousands place is worth nearly a thousand more, not just six more. The game is for the moment a child stops reading every digit as "just a digit" and starts reading them as "this digit, multiplied by where it lives."
 

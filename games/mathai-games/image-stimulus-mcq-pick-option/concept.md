@@ -3,6 +3,14 @@
 ## In one line
 A picture-matching logic game where a single short clue — *"Neha sits across from Samir."* — appears in a soft yellow box, and the student taps the seating chart, out of two side-by-side options, that actually obeys the clue.
 
+## Alfred mapping
+- **Archetype:** MCQ Quiz.
+- **Interaction pattern:** **P1 Tap-Select** — student taps one of two illustrated cards.
+- **Evaluation:** Deterministic equality.
+- **Game shape:** Multi-round (4 rounds in the canonical version).
+- **Required components:** PART-051 AnswerComponent (renders the correct illustration with the clue); FeedbackManager; ProgressBar (drives the *Rounds Completed 0/4* indicator).
+- **Notes:** No Submit gate — tap commits immediately. Generous lives (one per round) so a single wrong tap doesn't trap the student.
+
 ## Who it's for
 Class 3–4 students (ages ~8–10) who can read short sentences fluently but have never been asked to *check a picture against a sentence*. The skill the game targets is the foundational pre-algebra move of **constraint-checking**: holding a rule in mind ("X is across from Y") and verifying it against a candidate state. It is, in disguise, the first cousin of "is `x = 5` a solution to the equation?" — the kind of yes/no logic check that quietly underwrites everything from inequality solving to proof reading.
 

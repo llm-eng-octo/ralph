@@ -3,6 +3,14 @@
 ## In one line
 A digit-arranging puzzle laid out as a plus-sign-shaped grid where the centre cell is shared by two numbers, and the student has to drag the six given digits around until the sum of both numbers is as large as it can possibly be — which only happens when they realise the *middle* digit gets counted twice.
 
+## Alfred mapping
+- **Archetype:** Construction (place-value optimisation).
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — swap-on-drop variant. Dragging a tile onto another tile swaps the two digits; the running sum updates live.
+- **Evaluation:** **Optimal-tier** — 3★ at the exact maximum sum, partial tiers based on closeness. The puzzle is "live" (current arrangement = active answer); `Submit` (Done) commits the arrangement for evaluation.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent (renders the optimal arrangement at end of round); PART-050 FloatingButton (Submit); FeedbackManager.
+- **Notes:** All cells are pre-filled; this is a permutation puzzle (no insert / no delete). The shared centre cell is the puzzle's keystone — its digit contributes to both numbers.
+
 ## Who it's for
 Class 4–5 students (ages ~9–11) who already know what a place value is — they can tell you the `7` in `4732` is "in the hundreds place" — but who haven't yet *internalised* that bigger digits in higher places dominate everything else. The game is for the child who, when asked to arrange `5, 7, 9, 2, 7, 2` into a 4-digit and a 3-digit number for the largest sum, will write `9752 + 722` and feel pretty good about it, never noticing they could have written `9772 + 522` instead and gained 50.
 

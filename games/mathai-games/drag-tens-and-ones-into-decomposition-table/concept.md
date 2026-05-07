@@ -3,6 +3,14 @@
 ## In one line
 A guided drag-and-drop game where the student watches a worked example of *"break the number into tens and ones, then add"*, then has to do the same to a new addition like `23 + 45` — dragging `20`, `3`, `40`, `5` from a pool into two side-by-side decomposition tables.
 
+## Alfred mapping
+- **Archetype:** Worked Example.
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) — grid-cell drop variant into two side-by-side decomposition tables (one for tens, one for ones).
+- **Evaluation:** Deterministic equality per slot; round resolves when all four slots correct.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent (renders the filled tables + final sum); FeedbackManager.
+- **Notes:** Two tables (tens + ones) physically separate the place-value columns — the cross-table constraint (`3` cannot drop into the tens slot) is the lesson. Decoys in the pool are deliberate (`30`, `4` for `23 + 45`).
+
 ## Who it's for
 Class 1–3 students (ages ~6–9) who can add single-digit numbers fluently, but who freeze when asked to add two two-digit numbers in their head. The game is for the student whose teacher just said *"23 plus 45 — do it in your head!"* and who immediately reached for fingers, paper, or a panicked guess. It's the pre-column-addition stage where mental math happens by *splitting numbers up* — and the game makes that split visible and physical.
 

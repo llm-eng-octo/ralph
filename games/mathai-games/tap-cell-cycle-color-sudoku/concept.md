@@ -3,6 +3,14 @@
 ## In one line
 A miniature sudoku built from three colours instead of digits — the student taps each empty square to cycle through pink, purple, and blue until every row holds one of each, training the *one-of-each-per-line* logic that real sudoku is built on.
 
+## Alfred mapping
+- **Archetype:** Board Puzzle.
+- **Interaction pattern:** **P8 Click-to-Toggle** — tap-cycle through colours (`blue → pink → purple → blue → ...`).
+- **Evaluation:** **Predicate** — every row must contain one of each colour (in late rounds, every column too).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-051 AnswerComponent (renders the solved colour grid); FeedbackManager.
+- **Notes:** Lives only fire when the student attempts to *advance* with a broken row (not on individual taps — cycling is exploration). No numbers anywhere; pure colour-logic for early-primary students.
+
 ## Who it's for
 Class 1–3 students (ages ~6–8) who are too young for digit sudoku but old enough to spot a missing colour in a row. The game is for kids who haven't yet met formal logic puzzles and need the cognitive scaffolding of *colours you can see* rather than *numbers you have to hold in your head*. It's also a gentle introduction to *constraint reasoning* — the idea that a solution has to satisfy multiple simultaneous rules.
 

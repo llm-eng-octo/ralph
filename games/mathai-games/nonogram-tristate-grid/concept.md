@@ -3,6 +3,14 @@
 ## In one line
 A miniature nonogram where the student is given a single column of empty cells and a pair of numbers like *"2, 2"* — and must tap to colour exactly two cells in a run, leave at least one cell as a gap, then colour two more cells, with a third tri-state (`x` mark) to keep track of the gaps.
 
+## Alfred mapping
+- **Archetype:** Board Puzzle.
+- **Interaction pattern:** **P8 Click-to-Toggle** with **tri-state cycle** — tap once = filled, tap again = `x` mark, tap again = blank. Cycle is `blank → filled → x → blank`.
+- **Evaluation:** **Predicate** — the run-and-gap pattern must match the clue. Auto-checked when no further changes possible (or via a Done button).
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** PART-050 FloatingButton (Done/Submit; `partialSubmitAllowed: false` — partial pattern is invalid); PART-051 AnswerComponent (renders the correct fill pattern); FeedbackManager. Reset is free.
+- **Notes:** Tri-state tap is the canonical nonogram interaction — the `x` mark is mandatory ("I know this is empty") for the predicate to evaluate cleanly. Multiple valid placements often exist for single-clue rounds — any valid pattern wins.
+
 ## Who it's for
 Class 2–3 students (ages ~7–9) who count fluently to ten but still treat *"how many"* and *"in a row"* as separate ideas. The game is for the child who, when asked *"colour 2 in a row, then leave a gap, then colour 2 more,"* will colour two random cells, two more random cells, and not understand why the answer is wrong. It's a primer on **runs of consecutive items** — a small but missing concept that underpins later work on patterns, time blocks, and even number-line reasoning.
 

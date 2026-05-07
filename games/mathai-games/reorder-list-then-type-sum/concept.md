@@ -3,6 +3,14 @@
 ## In one line
 A pirate-themed addition game where the student adds up the coins scattered along a path between a tiny pirate and a treasure chest, and types the total into a single input box to claim the gold.
 
+## Alfred mapping
+- **Archetype:** Worked Example / Construction.
+- **Interaction pattern:** **P6 Drag-and-Drop** (`@dnd-kit/dom`) for sorting numbers into pair rows **+ P7 Text/Number Input** for the typed grand total. **P7 input gated on P6 success.**
+- **Evaluation:** **Composite — gated.** (1) Predicate: each row pairs to a target (30/40/50). (2) Deterministic equality on grand total. P7 input activates only after all rows lock.
+- **Game shape:** Multi-round (10 rounds).
+- **Required components:** `@dnd-kit/dom` (P6); PART-051 AnswerComponent; PART-050 FloatingButton (Submit on total); FeedbackManager.
+- **Notes:** Same gating rule as `rearrange-pairs-into-target-rows-then-type-sum`. Lives spent only on the typed total.
+
 ## Who it's for
 Class 2–4 students (ages ~7–10) who can add two-digit numbers but freeze when one of the addends is a much bigger number — like adding `6000 + 10 + 3`. The stuck-point is **mixed-magnitude addition**: a child fluent at `34 + 27` will often write `6013` as `60103` or `7013` because they line up the wrong digits, or they try to do the whole calculation in their head and lose track of the place values. The game is for the moment when the student needs to internalise that adding `6000` and `10` doesn't change the `6` or the `1` — they live in different "places" and ignore each other.
 
