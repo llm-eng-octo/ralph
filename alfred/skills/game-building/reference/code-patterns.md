@@ -276,17 +276,8 @@ Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
   - **Transition screens (level/round/game-over) with CTA:** `await FeedbackManager.playDynamicFeedback(...)` — same reason; CTA can interrupt at any time.
   - **Round-start dynamic TTS (welcome / contextual intro after round mounts):** fire-and-forget — student should be able to interact immediately.
   - **Partial progress / chain audio:** fire-and-forget — ambient acknowledgement, don't pause mid-chain.
-- **Sequential audio (transitions, end-game, SFX+TTS):** Always `await` first audio before starting second. Never fire both simultaneously. Use `audioStopped` flag to prevent second audio if CTA tapped during first:
-  ```javascript
-  var audioStopped = false;
-  ctaButton.onclick = function() { audioStopped = true; FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); proceed(); };
-  try {
-    await FeedbackManager.sound.play('rounds_sound_effect', {sticker});
-    if (audioStopped) return;
-    await FeedbackManager.playDynamicFeedback({audio_content: 'Round 3', subtitle: 'Round 3', sticker});
-  } catch(e) {}
-  ```
-- **Stop:** `FeedbackManager.sound.stopAll()` + `FeedbackManager._stopCurrentDynamic()` on CTA taps
+- **Sequential audio (transitions, end-game, SFX+TTS):** wrap in `FeedbackManager.runSequence(async () => { ... })`. `sound.stopAll()` / `stream.stopAll()` automatically abort the in-flight `runSequence`, so existing CTA stop calls keep working. Legacy `audioStopped` flag is forbidden. See `feedback/reference/feedbackmanager-api.md` § Sequential Audio. Validator: `GEN-FEEDBACK-RUN-SEQUENCE`.
+- **Stop:** `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` on CTA taps and screen-change handlers (same as before — they now also abort the ambient `runSequence`).
 - **Pause/Resume:** `FeedbackManager.sound.pause()/resume()` + `FeedbackManager.stream.pauseAll()/resumeAll()` on visibility change
 - Subtitle under 60 chars. Never use "wrong" -- use "Not quite," "Close," "Almost."
 - **No `Promise.race` on FeedbackManager calls (CRITICAL).** Package already bounds resolution (`sound.play` → audio-duration + 1.5s guard; `playDynamicFeedback` → 60s streaming / 3s TTS API). A helper like `audioRace(p) => Promise.race([p, setTimeout(r, 800)])` truncates normal TTS (1–3s) and causes phase/round transitions to fire before audio ends. Validator rule `5e0-FEEDBACK-RACE-FORBIDDEN` blocks any such race. "Non-blocking" means `try/catch` around awaited SFX / TTS, or `.catch()` on fire-and-forget round-start / chain TTS — NEVER `Promise.race`. See PART-017 + PART-026 Anti-Pattern 32.
@@ -815,7 +806,7 @@ async function showVictory() {
     subtitle: getVictorySubtitle(),                                     // game-specific from screens.md
     buttons,
     persist: true,
-    onMounted: () => (async () => {
+    onMounted: () => FeedbackManager.runSequence(async () => {
       postGameComplete();                                               // BEFORE audio (data-contract)
       try { await safePlaySound('sound_game_victory', { sticker: STICKER_CELEBRATE }); } catch (e) {}
       if (ttsText) {                                                    // null when Screen Audio marks silent
@@ -823,7 +814,7 @@ async function showVictory() {
           audio_content: ttsText, subtitle: ttsText, sticker: STICKER_CELEBRATE
         }); } catch (e) {}
       }
-    })()
+    })
   });
 }
 ```
@@ -831,10 +822,9 @@ async function showVictory() {
 ### Canonical Round Intro snippet
 ```javascript
 async function showRoundIntro(n) {
-  // Cross-Cutting Rule 10 cleanup before opening a new TS
-  try { FeedbackManager.sound.pause(); } catch (e) {}
+  // Cross-Cutting Rule 10 cleanup before opening a new TS — also aborts in-flight runSequence
+  try { FeedbackManager.sound.stopAll(); } catch (e) {}
   try { FeedbackManager.stream.stopAll(); } catch (e) {}
-  try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
   try { floatingBtn.setMode('hidden'); } catch (e) {}
   const ttsText = `Puzzle ${n} of ${gameState.totalRounds}`;            // from screens.md Screen Audio
   return new Promise(resolve => {
@@ -842,7 +832,7 @@ async function showRoundIntro(n) {
       title: `Puzzle ${n} of ${gameState.totalRounds}`,
       icons: ['🧩'],
       persist: true,
-      onMounted: () => (async () => {
+      onMounted: () => FeedbackManager.runSequence(async () => {
         try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
         if (ttsText) {
           try { await FeedbackManager.playDynamicFeedback({
@@ -851,9 +841,8 @@ async function showRoundIntro(n) {
         }
         try { transitionScreen.hide(); } catch (e) {}
         resolve();
-      })()
+      })
     });
-    // Safety timeout in case audio stalls past the package's 60s limit
     setTimeout(() => { try { transitionScreen.hide(); } catch (e) {} resolve(); }, 8000);
   });
 }
@@ -870,19 +859,19 @@ async function showWelcome() {
       icons: ['👋'],
       persist: true,
       buttons: [{ text: "Let's go!", type: 'primary', action: () => {
-        try { FeedbackManager.sound.pause(); } catch (e) {}
+        try { FeedbackManager.sound.stopAll(); } catch (e) {}           // also aborts the in-flight runSequence
         try { FeedbackManager.stream.stopAll(); } catch (e) {}
         try { transitionScreen.hide(); } catch (e) {}
         resolve();
       } }],
-      onMounted: () => (async () => {
+      onMounted: () => FeedbackManager.runSequence(async () => {
         try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
         if (ttsText) {
           try { await FeedbackManager.playDynamicFeedback({
             audio_content: ttsText, subtitle: ttsText, sticker: STICKER_LEVEL
           }); } catch (e) {}
         }
-      })()
+      })
     });
   });
 }

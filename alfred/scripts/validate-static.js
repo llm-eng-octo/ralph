@@ -2655,6 +2655,130 @@ if (hasStartGame) {
   }
 })();
 
+// ─── GEN-FEEDBACK-RUN-SEQUENCE. Sequential awaited audio MUST use runSequence ──
+// Any function body that awaits two or more FeedbackManager audio calls in
+// sequence (sound.play / safePlaySound / playDynamicFeedback / safeDynamic) MUST
+// be wrapped in `FeedbackManager.runSequence(async () => { ... })`. Without
+// runSequence, calling sound.stopAll() (or its fold-in cancel()) mid-first-audio
+// resolves the first await but does NOT prevent the second await from firing
+// on the next screen — the TTS leaks. The legacy `audioStopped` flag is also
+// forbidden because it does not cover the in-flight fetch() inside
+// playDynamicFeedback (CTA tap during the 100–800 ms TTS API call still plays
+// audio on the next screen). Canonical pattern in
+// alfred/skills/feedback/reference/feedbackmanager-api.md § Sequential Audio.
+(function checkRunSequence() {
+  if (!/FeedbackManager\b/.test(html)) return;
+
+  const audioAwaitRe =
+    /\bawait\s+(?:safePlaySound|safeDynamic|FeedbackManager\.sound\.play|FeedbackManager\.playDynamicFeedback|playDynamicFeedback)\s*\(/g;
+
+  // Helper: find all `onMounted: <body>` callbacks (arrow / async / IIFE forms)
+  // and extract their body text. Naive but effective: balanced-brace scan after
+  // the colon. Returns an array of { startIndex, body }.
+  function extractOnMountedBodies(src) {
+    const bodies = [];
+    const sigRe = /onMounted\s*:\s*(?:async\s*)?(?:\(\s*\)\s*=>|function\s*\([^)]*\))\s*/g;
+    let m;
+    while ((m = sigRe.exec(src)) !== null) {
+      let i = m.index + m[0].length;
+      // Skip whitespace and any leading `(` from `() => (async () => {...})()` IIFE form
+      while (i < src.length && /\s/.test(src[i])) i++;
+      if (src[i] === '(') {
+        // IIFE form: skip over the wrapping `(` and find the inner async function
+        const innerSigRe = /\(?\s*async\s*(?:\(\s*\)\s*=>|function\s*\([^)]*\))\s*\{/g;
+        innerSigRe.lastIndex = i;
+        const inner = innerSigRe.exec(src);
+        if (!inner) continue;
+        i = inner.index + inner[0].length;
+      } else if (src[i] === '{') {
+        i++;
+      } else {
+        continue;
+      }
+      let depth = 1;
+      const start = i;
+      while (i < src.length && depth > 0) {
+        const ch = src[i];
+        if (ch === '{') depth++;
+        else if (ch === '}') depth--;
+        i++;
+      }
+      if (depth !== 0) continue;
+      bodies.push({ startIndex: start, body: src.slice(start, i - 1) });
+    }
+    return bodies;
+  }
+
+  // Returns true if the body's audio awaits are all transitively inside a
+  // `FeedbackManager.runSequence(...)` callback. We don't AST-parse; we just
+  // require the body text contains a `FeedbackManager.runSequence(` call AND
+  // every audio await comes AFTER that call's opening paren and BEFORE the
+  // matching closing paren. For the simple canonical shape this suffices.
+  function awaitsAreInsideRunSequence(body) {
+    const rsIdx = body.search(/FeedbackManager\.runSequence\s*\(/);
+    if (rsIdx < 0) return false;
+    // Find matching `)` for the runSequence call by paren balance
+    const open = body.indexOf('(', rsIdx);
+    if (open < 0) return false;
+    let depth = 1;
+    let i = open + 1;
+    while (i < body.length && depth > 0) {
+      const ch = body[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      i++;
+    }
+    const close = depth === 0 ? i - 1 : body.length;
+    // Every audio-await must lie within (open, close)
+    audioAwaitRe.lastIndex = 0;
+    let m;
+    while ((m = audioAwaitRe.exec(body)) !== null) {
+      if (m.index < open || m.index > close) return false;
+    }
+    return true;
+  }
+
+  const violations = [];
+  const onMountedBodies = extractOnMountedBodies(html);
+  for (const { body } of onMountedBodies) {
+    audioAwaitRe.lastIndex = 0;
+    const matches = body.match(audioAwaitRe) || [];
+    if (matches.length < 2) continue; // only one audio await — sequencing risk doesn't apply
+    if (!awaitsAreInsideRunSequence(body)) {
+      violations.push(matches.length + ' audio awaits in onMounted');
+    }
+  }
+
+  // Also flag the legacy `audioStopped` flag pattern anywhere in the file —
+  // it is the deprecated alternative to runSequence and shouldn't appear in
+  // newly generated code.
+  const audioStoppedFlagRe =
+    /\b(?:var|let|const)\s+audioStopped\s*=\s*false\b[\s\S]{0,800}\bif\s*\(\s*audioStopped\s*\)\s*return\b/;
+  const hasLegacyFlag = audioStoppedFlagRe.test(html);
+
+  if (violations.length > 0 || hasLegacyFlag) {
+    const parts = [];
+    if (violations.length > 0) {
+      parts.push(
+        violations.length +
+          ' onMounted callback(s) await two or more FeedbackManager audio calls without a `FeedbackManager.runSequence(async () => { ... })` wrapper'
+      );
+    }
+    if (hasLegacyFlag) {
+      parts.push(
+        'legacy `audioStopped` flag pattern detected (forbidden — does not cover the in-flight fetch() window inside playDynamicFeedback)'
+      );
+    }
+    errors.push(
+      'ERROR [GEN-FEEDBACK-RUN-SEQUENCE]: ' +
+        parts.join('; ') +
+        '. Wrap the body of every onMounted (or any sequential audio chain) in `FeedbackManager.runSequence(async () => { ... })`. ' +
+        'CTA stop calls (`sound.stopAll()` / `stream.stopAll()`) keep working as before — they now also abort the ambient `runSequence`. ' +
+        'See alfred/skills/feedback/reference/feedbackmanager-api.md § Sequential Audio + PART-026 Anti-Pattern 37.'
+    );
+  }
+})();
+
 // ─── 5e0-FEEDBACK-MIN-DURATION. Bare await on answer-feedback sound.play ───────
 // FeedbackManager.sound.play() can resolve before the audio finishes playing.
 // Any code after `await sound.play(...)` (round advance, tile reset, game-over

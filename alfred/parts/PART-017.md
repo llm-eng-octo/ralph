@@ -4,6 +4,7 @@
 **API (preload):** `await FeedbackManager.sound.preload([{ id, url }, ...])` — NO `register()` method
 **API (play):** `await FeedbackManager.sound.play('correct_tap', { subtitle, sticker: { image, duration } })`
 **Key rules:**
+- **Sequential audio (CRITICAL).** Any function body awaiting 2+ FeedbackManager audio calls wraps in `FeedbackManager.runSequence(async () => { ... })`. CTA / screen-change handlers keep calling `sound.stopAll()` + `stream.stopAll()` — those now also abort the ambient `runSequence`. Legacy `audioStopped` flag is forbidden. Validator: `GEN-FEEDBACK-RUN-SEQUENCE`. See `feedback/reference/feedbackmanager-api.md` § Sequential Audio.
 - Simple games: preload `correct_tap` + `wrong_tap`
 - Multi-part games: preload `all_correct`, `partial_correct_attempt1`, `partial_correct_last_attempt`, `all_incorrect_attempt1`, `all_incorrect_last_attempt`
 - Sticker object: `{ image: URL, duration: seconds }` — shows animated GIF overlay

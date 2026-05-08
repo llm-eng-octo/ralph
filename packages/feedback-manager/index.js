@@ -33,6 +33,40 @@
     return Math.max(0, Math.min(1, x));
   }
 
+  // ----- Cancellation helpers (ambient AbortController on FeedbackManager) -----
+  function _isAborted() {
+    return !!(
+      typeof FeedbackManager !== "undefined" &&
+      FeedbackManager &&
+      FeedbackManager._currentAbort &&
+      FeedbackManager._currentAbort.signal &&
+      FeedbackManager._currentAbort.signal.aborted
+    );
+  }
+  function _throwIfAborted() {
+    if (_isAborted()) {
+      var err = new Error("aborted");
+      err.name = "AbortError";
+      throw err;
+    }
+  }
+  function _getAbortSignal() {
+    return typeof FeedbackManager !== "undefined" &&
+      FeedbackManager &&
+      FeedbackManager._currentAbort
+      ? FeedbackManager._currentAbort.signal
+      : null;
+  }
+  function _abortAmbient() {
+    if (
+      typeof FeedbackManager !== "undefined" &&
+      FeedbackManager &&
+      FeedbackManager._currentAbort
+    ) {
+      try { FeedbackManager._currentAbort.abort(); } catch (_) {}
+    }
+  }
+
   // ----- Timer State Management -----
   var TIMER_DURATION_THRESHOLD = 1.0;
 
@@ -286,7 +320,21 @@
         return false;
       }
     },
+    _currentFeedbackId: 0,
+    /**
+     * Hide feedback only if the given id is still the most-recent one shown.
+     * Lets a preempted audio clear its own sticker/subtitle without killing
+     * a newer audio's feedback that already replaced it.
+     */
+    hideIfStillActive: function (id) {
+      if (id != null && this._currentFeedbackId === id) {
+        this.hideAll();
+      }
+    },
     showFeedback: function (options, audioDuration) {
+      // Bump the active feedback id so older calls can no-op their hide.
+      this._currentFeedbackId = (this._currentFeedbackId || 0) + 1;
+      var myId = this._currentFeedbackId;
       // If audioDuration is Infinity or "stream", don't auto-hide — caller is responsible for hiding via hideAll()
       var isManualHide = audioDuration === Infinity || audioDuration === "stream";
       var feedbackDuration = isManualHide ? 86400 : Math.min(audioDuration || 10, 10);
@@ -306,7 +354,7 @@
         stickerOptions.duration = stickerOptions.duration || feedbackDuration;
         this.showSticker(stickerOptions);
       }
-      return { duration: feedbackDuration };
+      return { duration: feedbackDuration, id: myId };
     },
     hideAll: function () {
       this.hideSubtitle();
@@ -559,6 +607,17 @@
         });
       }
 
+      // Clear feedback when this voice ends — for any status. The CDN
+      // StickerComponent does not reliably auto-hide based on the duration
+      // prop, so we need to hide explicitly. hideIfStillActive is a no-op
+      // when a newer feedback has been shown (e.g., when this voice was
+      // preempted by a new audio that already replaced the sticker).
+      if (voice.feedbackId != null) {
+        try {
+          FeedbackComponentsManager.hideIfStillActive(voice.feedbackId);
+        } catch (_) {}
+      }
+
       if (voice.resolve) {
         voice.resolve({ status: status, id: id, error: error });
       }
@@ -615,6 +674,7 @@
         finalized: false,
         startAt: audioCtx.currentTime,
         timer: null,
+        feedbackId: opts.feedbackId != null ? opts.feedbackId : null,
       };
 
       src.onended = function () {
@@ -645,6 +705,7 @@
         opts: voice.opts,
         pausedOffset: Math.max(0, pausedOffset),
         resolve: voice.resolve,
+        feedbackId: voice.feedbackId,
       };
 
       try {
@@ -685,6 +746,7 @@
         finalized: false,
         startAt: audioCtx.currentTime - pv.pausedOffset / (pv.opts.rate || 1),
         timer: null,
+        feedbackId: pv.feedbackId,
       };
 
       src.onended = function () {
@@ -928,6 +990,9 @@
   SoundManager.prototype.play = async function (id, opts) {
     opts = opts || {};
 
+    // Cancellation: bail before doing any work
+    _throwIfAborted();
+
     // Check if sound exists before attempting unlock — avoid showing popup for missing sounds
     if (!this.audioKit.has(id) && !this.sounds[id]) {
       console.warn("[AudioKit] Sound not preloaded: " + id + ". Call sound.preload() first.");
@@ -944,6 +1009,8 @@
       }
     }
 
+    _throwIfAborted();
+
     // JIT Load Support
     if (!this.audioKit.has(id) && this.sounds[id]) {
       try {
@@ -956,6 +1023,8 @@
         return { status: "error", id: id, error: "JIT_LOAD_FAILED" };
       }
     }
+
+    _throwIfAborted();
 
     if (!this.audioKit.has(id)) return { status: "missing", id: id };
 
@@ -1002,10 +1071,11 @@
         volume: opts.volume !== undefined ? opts.volume : 1,
         rate: opts.rate,
         priority: opts.priority || 0,
+        feedbackId: feedbackResult ? feedbackResult.id : null,
       });
       return result;
     } catch (e) {
-      if (feedbackResult) FeedbackComponentsManager.hideAll();
+      if (feedbackResult) FeedbackComponentsManager.hideIfStillActive(feedbackResult.id);
 
       // InteractionManager integration - re-enable interaction on play error
       if (
@@ -1036,7 +1106,8 @@
     }
   };
 
-  SoundManager.prototype.stopAll = function () {
+  SoundManager.prototype.stopAll = function (opts) {
+    if (!(opts && opts.skipAbort)) _abortAmbient();
     this.audioKit.stopAll();
     this.pendingPlayQueue = [];
     if (
@@ -1592,6 +1663,10 @@
   StreamManager.prototype.play = function (id, callbacks, options) {
     callbacks = callbacks || {};
     options = options || {};
+    if (_isAborted()) {
+      callbacks.error && callbacks.error("aborted");
+      return false;
+    }
     try {
       var s = this.streams.get(id);
       if (!s) {
@@ -1643,6 +1718,7 @@
           );
         } catch (e) {}
       }
+      s.feedbackId = feedbackResult ? feedbackResult.id : null;
       s.onComplete = function () {
         if (
           window.timer?.shouldAllowAudioControl() &&
@@ -1661,7 +1737,7 @@
           });
         }
 
-        if (feedbackResult) FeedbackComponentsManager.hideAll();
+        if (feedbackResult) FeedbackComponentsManager.hideIfStillActive(feedbackResult.id);
         if (originalComplete) originalComplete();
       };
       s.onPlay = callbacks.onPlay || null;
@@ -1684,7 +1760,7 @@
           });
         }
 
-        if (feedbackResult) FeedbackComponentsManager.hideAll();
+        if (feedbackResult) FeedbackComponentsManager.hideIfStillActive(feedbackResult.id);
         if (originalError) originalError(error);
       };
       s.timeout = options.timeout || 0;
@@ -1757,7 +1833,18 @@
   };
   StreamManager.prototype.stop = function (id) {
     var s = this.streams.get(id);
-    if (!s || !s.isPlaying) return false;
+    if (!s) return false;
+    // Clear feedback registered for this stream BEFORE returning early on
+    // !isPlaying — a stream that finished its decode but was force-stopped
+    // mid-playback never fires onComplete (onended is nulled below), so the
+    // sticker/subtitle would otherwise linger.
+    if (s.feedbackId != null) {
+      try {
+        FeedbackComponentsManager.hideIfStillActive(s.feedbackId);
+      } catch (_) {}
+      s.feedbackId = null;
+    }
+    if (!s.isPlaying) return false;
     this._clearTimeout(s);
     s.playingNodes.forEach(function (node) {
       try {
@@ -1839,7 +1926,8 @@
   StreamManager.prototype.has = function (id) {
     return this.streams.has(id);
   };
-  StreamManager.prototype.stopAll = function () {
+  StreamManager.prototype.stopAll = function (opts) {
+    if (!(opts && opts.skipAbort)) _abortAmbient();
     var self = this;
     this.getAll().forEach(function (id) {
       self.stop(id);
@@ -1914,6 +2002,64 @@
     _currentDynamicId: null,
     _currentDynamicType: null, // 'sound' or 'stream'
     _firstChunkTimeout: null,
+    _currentAbort: null, // ambient AbortController for runSequence/cancel
+
+    /**
+     * Run an async callback under an ambient AbortController.
+     * Any of sound.stopAll() / stream.stopAll() / _stopCurrentDynamic()
+     * (or starting another runSequence) aborts the controller; every
+     * FeedbackManager.sound.play / stream.play / playDynamicFeedback await
+     * inside the callback short-circuits with AbortError, which runSequence
+     * swallows. Game code does NOT pass a signal — cancellation is internal.
+     *
+     * Concurrency: only one runSequence is active at a time. Calling
+     * runSequence while another is in flight aborts the prior AND waits for
+     * its cb to finish bailing before installing the new controller — without
+     * this serialization, the prior cb's next audio await would read the new
+     * controller (not aborted) and play on the wrong screen.
+     */
+    runSequence: async function (cb) {
+      if (typeof cb !== "function") return;
+
+      // Abort the prior controller so its cb bails on its next audio await.
+      if (this._currentAbort) {
+        try { this._currentAbort.abort(); } catch (_) {}
+      }
+      // Wait for the prior cb to finish bailing through its remaining awaits.
+      // Each audio await throws AbortError → caught by per-call try/catch →
+      // next await runs, sees same aborted signal → throws again. The cb
+      // typically drains in a few microtasks. We must NOT install our
+      // controller until then, otherwise the prior cb sees our signal.
+      while (this._runSequenceInFlight) {
+        try { await this._runSequenceInFlight; } catch (_) {}
+      }
+
+      var ctrl;
+      try {
+        ctrl = new AbortController();
+      } catch (_) {
+        // Environments without AbortController — fall through and just run cb
+        try { return await cb(); } catch (e) { console.warn("[FeedbackManager] runSequence error:", e); return; }
+      }
+
+      this._currentAbort = ctrl;
+      var resolveDone;
+      this._runSequenceInFlight = new Promise(function (r) { resolveDone = r; });
+
+      try {
+        return await cb();
+      } catch (e) {
+        if (!e || e.name !== "AbortError") {
+          console.warn("[FeedbackManager] runSequence error:", e);
+        }
+      } finally {
+        if (this._currentAbort === ctrl) {
+          this._currentAbort = null;
+        }
+        this._runSequenceInFlight = null;
+        if (resolveDone) resolveDone();
+      }
+    },
 
     init: async function () {
       try {
@@ -1987,15 +2133,17 @@
         if (this._currentDynamicType === "stream") {
           _stream.remove(this._currentDynamicId);
         } else if (this._currentDynamicType === "sound") {
-          _sound.stopAll();
+          // Internal pre-cleanup before a new dynamic call — must NOT abort
+          // the ambient runSequence we're about to play into.
+          _sound.stopAll({ skipAbort: true });
         }
 
         this._currentDynamicId = null;
         this._currentDynamicType = null;
       }
 
-      // Also stop all other streams to be safe
-      _stream.stopAll();
+      // Also stop all other streams to be safe — same skipAbort rationale.
+      _stream.stopAll({ skipAbort: true });
       FeedbackComponentsManager.hideAll();
     },
 
@@ -2013,6 +2161,9 @@
     playDynamicFeedback: async function (params) {
       var self = this;
       params = params || {};
+
+      // Cancellation: bail before doing any work
+      _throwIfAborted();
 
       if (!params.audio_content) {
         console.warn("[FeedbackManager] No audio_content provided");
@@ -2050,6 +2201,8 @@
           : null,
       };
 
+      var abortSignal = _getAbortSignal();
+
       try {
         console.log(
           "[FeedbackManager] Fetching dynamic audio for:",
@@ -2063,7 +2216,7 @@
           }, 3000);
         });
 
-        var fetchPromise = fetch(apiUrl);
+        var fetchPromise = fetch(apiUrl, abortSignal ? { signal: abortSignal } : undefined);
 
         var response = await Promise.race([fetchPromise, timeoutPromise]);
 
@@ -2072,6 +2225,8 @@
           clearTimeout(self._firstChunkTimeout);
           self._firstChunkTimeout = null;
         }
+
+        _throwIfAborted();
 
         if (!response.ok) {
           throw new Error("API returned " + response.status);
@@ -2083,12 +2238,15 @@
           // ===== CACHED AUDIO - Use sound manager =====
           console.log("[FeedbackManager] Cache HIT - using sound manager");
           var jsonData = await response.json();
+          _throwIfAborted();
           var audioId = "dynamic-" + Date.now();
 
           self._currentDynamicId = audioId;
           self._currentDynamicType = "sound";
 
           await _sound.preload([{ id: audioId, url: jsonData.audio_url }]);
+
+          _throwIfAborted();
 
           // Check if we were stopped while preloading
           if (self._currentDynamicId !== audioId) {
@@ -2108,6 +2266,8 @@
           // Add stream with response
           await _stream.addFromResponse(streamId, response);
 
+          _throwIfAborted();
+
           // Check if we were stopped while adding stream
           if (self._currentDynamicId !== streamId) {
             console.log("[FeedbackManager] Stopped during stream setup");
@@ -2119,9 +2279,17 @@
           // resolve after 60s to prevent hanging forever
           await new Promise(function (resolve, reject) {
             var settled = false;
+            var onAbort = null;
+            var cleanup = function () {
+              clearTimeout(safetyTimer);
+              if (abortSignal && onAbort) {
+                try { abortSignal.removeEventListener("abort", onAbort); } catch (_) {}
+              }
+            };
             var safetyTimer = setTimeout(function () {
               if (!settled) {
                 settled = true;
+                cleanup();
                 console.warn("[FeedbackManager] Stream safety timeout (60s) — resolving to prevent hang");
                 try { _stream.remove(streamId); } catch (_) {}
                 if (self._currentDynamicId === streamId) {
@@ -2133,13 +2301,37 @@
               }
             }, 60000);
 
+            // Abort: external stop (sound.stopAll / stream.stopAll / new
+            // runSequence) settles immediately so the outer await doesn't
+            // sit on the 60s safety timer. Stream.stop() nulls onended on
+            // playing nodes, so the `complete` callback never fires on a
+            // force-stop — without this listener, the wrapper would hang.
+            onAbort = function () {
+              if (!settled) {
+                settled = true;
+                cleanup();
+                try { _stream.remove(streamId); } catch (_) {}
+                if (self._currentDynamicId === streamId) {
+                  self._currentDynamicId = null;
+                  self._currentDynamicType = null;
+                }
+                var err = new Error("aborted");
+                err.name = "AbortError";
+                reject(err);
+              }
+            };
+            if (abortSignal) {
+              if (abortSignal.aborted) { onAbort(); return; }
+              abortSignal.addEventListener("abort", onAbort);
+            }
+
             var playSuccess = _stream.play(
               streamId,
               {
                 complete: function () {
                   if (settled) return;
                   settled = true;
-                  clearTimeout(safetyTimer);
+                  cleanup();
                   console.log("[FeedbackManager] Dynamic stream completed");
                   _stream.remove(streamId);
                   if (self._currentDynamicId === streamId) {
@@ -2151,7 +2343,7 @@
                 error: function (msg) {
                   if (settled) return;
                   settled = true;
-                  clearTimeout(safetyTimer);
+                  cleanup();
                   console.error("[FeedbackManager] Stream error:", msg);
                   if (self._currentDynamicId === streamId) {
                     self._currentDynamicId = null;
@@ -2166,13 +2358,20 @@
             if (!playSuccess) {
               if (!settled) {
                 settled = true;
-                clearTimeout(safetyTimer);
+                cleanup();
                 reject(new Error("Failed to start stream playback"));
               }
             }
           });
         }
       } catch (error) {
+        // Cancellation path — clean up silently, no fallback sticker
+        if (error && error.name === "AbortError") {
+          console.log("[FeedbackManager] Dynamic feedback aborted");
+          self._stopCurrentDynamic();
+          throw error;
+        }
+
         console.error(
           "[FeedbackManager] Error playing dynamic feedback:",
           error

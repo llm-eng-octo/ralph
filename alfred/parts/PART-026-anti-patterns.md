@@ -703,6 +703,31 @@ Validator: `GEN-FEEDBACK-TTS-AWAIT` ([alfred/scripts/validate-static.js](../../a
 
 Cross-reference: validator rule `GEN-FEEDBACK-TTS-AWAIT`, feedback/SKILL.md "Default Feedback by Game Type", timing-and-blocking.md submit-handler pattern, code-patterns.md "Dynamic VO".
 
+## Anti-Pattern 37: Sequential awaited audio without `FeedbackManager.runSequence(...)`
+
+Symptom: welcome / round-intro / victory TTS plays on the *next* screen after a CTA tap. CTA tapped mid-first-audio resolves the first `await`, then the second awaited audio fires on the new screen.
+
+```javascript
+// WRONG — two awaited audio calls with no runSequence wrapper; stop calls
+// can't prevent the second await from firing on the next screen.
+onMounted: async () => {
+  try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+  try { await safeDynamic({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_LEVEL }); } catch (e) {}
+}
+
+// RIGHT — runSequence installs an ambient AbortController. sound.stopAll() /
+// stream.stopAll() (called from the CTA action as before) now ALSO abort it,
+// so the next await short-circuits at its first line.
+onMounted: () => FeedbackManager.runSequence(async () => {
+  try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+  try { await safeDynamic({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_LEVEL }); } catch (e) {}
+})
+```
+
+Forbidden alternative: `var audioStopped = false; ... if (audioStopped) return;` flag. Does not cover the in-flight `fetch()` window inside `playDynamicFeedback`.
+
+Cross-reference: `GEN-FEEDBACK-RUN-SEQUENCE`, `feedback/reference/feedbackmanager-api.md` § Sequential Audio.
+
 ## Verification
 
 - [ ] All 4 script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` — no relative paths, no `cdn.homeworkapp.ai`, no invented domains
@@ -749,4 +774,5 @@ Cross-reference: validator rule `GEN-FEEDBACK-TTS-AWAIT`, feedback/SKILL.md "Def
 - [ ] No `new Audio()` anywhere (RULE-006)
 - [ ] No `Promise.race` wrapping `FeedbackManager.sound.play` / `playDynamicFeedback` / `audioRace` helper (PART-017 Anti-Pattern 32, validator rule `5e0-FEEDBACK-RACE-FORBIDDEN`)
 - [ ] Answer-feedback `sound.play()` calls (`sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_*`, `partial_correct_*`) wrapped in `Promise.all` with 1500ms minimum delay (Anti-Pattern 34, validator rule `5e0-FEEDBACK-MIN-DURATION`)
+- [ ] Sequential audio (2+ awaited audio calls in any body) wrapped in `FeedbackManager.runSequence(async () => {...})`; no `audioStopped` flag (Anti-Pattern 37, validator `GEN-FEEDBACK-RUN-SEQUENCE`)
 - [ ] No game-code reach-ins to PreviewScreenComponent private DOM (no `getElementById`/`querySelector` on `#previewInstruction`, `#previewProgressBar`, `#previewTimerText`, `#previewQuestionLabel`, `#previewScore`, `#previewStar`, `#previewSkipBtn`, `#previewBackBtn`, `#previewAvatarSpeaking`, `#previewAvatarSilent`, `#previewGameContainer`, `#popup-backdrop`; no `.mathai-preview-*` class selectors or `classList` toggles) — Anti-Pattern 35, validator rule `5e0-DOM-BOUNDARY`, PART-039

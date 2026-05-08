@@ -100,19 +100,18 @@ if (gameState.isProcessing) return;
 
 ## Stop Triggers
 
+`sound.stopAll()` and `stream.stopAll()` now also abort the ambient `runSequence` automatically. Existing call patterns work unchanged; you do NOT need a new method.
+
 | Trigger | What to call |
 |---------|-------------|
-| CTA tapped on transition screen | `FeedbackManager._stopCurrentDynamic()` + `FeedbackManager.sound.stopAll()` |
-| CTA tapped on results/game-over screen | `FeedbackManager._stopCurrentDynamic()` + `FeedbackManager.sound.stopAll()` |
-| New transition screen appearing | `FeedbackManager.sound.stopAll()` (clear previous screen's audio) |
-| Student taps during dynamic TTS | `FeedbackManager.stream.stopAll()` (stop TTS, then process tap) |
+| CTA tapped on transition / results / game-over | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` |
+| New transition screen appearing | same (clear previous screen's audio) |
+| Student taps during dynamic TTS | `FeedbackManager.stream.stopAll()` |
 | Restart / Try Again | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` |
-| Game cleanup (endGame) | `FeedbackManager._stopCurrentDynamic()` + `FeedbackManager.sound.pause()` + `FeedbackManager.stream.stopAll()` |
-| `nextRound()` / `scheduleNextRound()` silent auto-advance (no CTA) | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — FIRST line, before `currentRound++` |
-| `showRoundIntro(n)` entry (multi-round, between-round transition) | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` + `FeedbackManager._stopCurrentDynamic()` — FIRST lines, BEFORE the new round's `transitionScreen.show()` / `sound_round_n`. With awaited TTS in submit handlers (`GEN-FEEDBACK-TTS-AWAIT`) the explanation normally finishes before this point — the cleanup remains mandatory as defense-in-depth: TTS streaming can hit its 60 s upper bound, the try/catch can swallow a mid-stream rejection that left audio partially playing, or a tail of `sound_round_n` from a previous transition can linger. Validator: `GEN-ROUND-BOUNDARY-STOP`. |
-| `endGame()` entry (victory/game-over TransitionScreen) | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — FIRST line after the `gameEnded` guard, before phase mutation |
-| `restartGame()` entry | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — FIRST line, before recreating SignalCollector / Timer / ProgressBar |
-| Level-transition button `action` callback | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — before `startLevel()` / `nextLevel()` |
+| `nextRound()` / `scheduleNextRound()` / `showRoundIntro(n)` entry | same — FIRST line, before `currentRound++` / `transitionScreen.show()`. Validator: `GEN-ROUND-BOUNDARY-STOP`. |
+| `endGame()` / `restartGame()` entry | same — FIRST line after the `gameEnded` guard. |
+| Level-transition button `action` | same — before `startLevel()` / `nextLevel()`. |
+| Pause (visibility hidden) | `FeedbackManager.sound.pause()` + `FeedbackManager.stream.pauseAll()` — pause is NOT stop; does NOT abort `runSequence`. |
 
 **Why the last four rows exist:** The FeedbackManager overlay auto-clear fires only when a NEW `playDynamicFeedback()` call starts. Silent round auto-advance, restart, end-screen entry, and level transitions do NOT necessarily start a new dynamic feedback — so the previous round's subtitle + sticker + audio will bleed into the new phase unless stopped explicitly. See Feedback SKILL Cross-Cutting Rule 10 and Anti-pattern 13.
 
@@ -170,104 +169,24 @@ timer.resume({ fromVisibilityTracker: true });
 
 Pause ≠ Stop. Pause keeps the audio position so it can resume. Stop discards it.
 
-## Round/Level Transition Audio Sequence
+## Round/Level/End-Game Audio Sequence
 
-Transition screens always play **two sequential awaited calls**: SFX first, then dynamic VO. The second audio MUST NOT start until the first completes. CTA can interrupt at any point in the sequence.
+Sequential awaited audio (SFX → TTS) MUST be wrapped in `FeedbackManager.runSequence(async () => { ... })`. CTA `action` calls the existing stop methods (`sound.stopAll()` / `stream.stopAll()`) — those now also abort the ambient `runSequence`, so any *next* awaited call inside the callback short-circuits. Rationale + ban on legacy `audioStopped` flag in `feedbackmanager-api.md` § Sequential Audio. Validator: `GEN-FEEDBACK-RUN-SEQUENCE`.
 
-**Round transition (auto-advance, no CTA):**
 ```javascript
-// No CTA — student cannot skip, both audios play fully
-await FeedbackManager.sound.play('rounds_sound_effect', { sticker: ROUND_STICKER });
-await FeedbackManager.playDynamicFeedback({ audio_content: 'Round 3', subtitle: 'Round 3', sticker: ROUND_STICKER });
-// Both done → hide transition, start gameplay
-```
-
-**Round transition (with CTA):**
-```javascript
-// CTA visible — student can tap anytime to skip
-var audioStopped = false;
-
-ctaButton.addEventListener('click', function() {
-  audioStopped = true;
-  FeedbackManager.sound.stopAll();
-  FeedbackManager._stopCurrentDynamic();
-  hideTransition();
-  loadRound();
+// Transition / end-game canonical shape — applies to round, level, victory, game-over.
+ctaButton.onclick = function () {
+  try { FeedbackManager.sound.stopAll(); } catch (e) {}
+  try { FeedbackManager.stream.stopAll(); } catch (e) {}
+  proceed();
+};
+FeedbackManager.runSequence(async () => {
+  try { await FeedbackManager.sound.play(sfxId, { sticker }); } catch (e) {}
+  try { await FeedbackManager.playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker }); } catch (e) {}
 });
-
-// Play sequentially — await each in order
-try {
-  await FeedbackManager.sound.play('rounds_sound_effect', { sticker: ROUND_STICKER });
-  if (audioStopped) return; // CTA was tapped between the two calls
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'Round 3', subtitle: 'Round 3', sticker: ROUND_STICKER });
-} catch(e) {}
-// If CTA not tapped, screen stays until tapped
 ```
 
-**Level transition (with CTA):**
-```javascript
-var audioStopped = false;
-
-ctaButton.addEventListener('click', function() {
-  audioStopped = true;
-  FeedbackManager.sound.stopAll();
-  FeedbackManager._stopCurrentDynamic();
-  hideTransition();
-  startLevel();
-});
-
-try {
-  await FeedbackManager.sound.play('rounds_sound_effect', { sticker: LEVEL_STICKER });
-  if (audioStopped) return;
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'Level 2', subtitle: 'Level 2', sticker: LEVEL_STICKER });
-} catch(e) {}
-```
-
-**Key pattern:** The `audioStopped` flag prevents the second `await` from firing if CTA was tapped during the first audio. Without this check, the second audio would start immediately after `stopAll()` clears the first.
-
----
-
-## End-Game Audio Sequence
-
-End-game audio always plays as two sequential awaited calls: SFX first, then dynamic VO. Same `audioStopped` flag pattern as transitions — CTA is visible and can interrupt at any point.
-
-**Victory (3★):**
-```javascript
-var audioStopped = false;
-ctaButton.onclick = function() { audioStopped = true; FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); restartGame(); };
-try {
-  await FeedbackManager.sound.play('victory_sound_effect', { sticker: VICTORY_STICKER });
-  if (audioStopped) return;
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'Victory! 3 stars!', subtitle: 'Victory! 3 stars!', sticker: VICTORY_STICKER });
-} catch(e) {}
-```
-
-**Game complete (2★):**
-```javascript
-try {
-  await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: COMPLETE_STICKER });
-  if (audioStopped) return;
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'Well done! 2 stars!', subtitle: 'Well done! 2 stars!', sticker: COMPLETE_STICKER });
-} catch(e) {}
-```
-
-**Game complete (1★):**
-```javascript
-try {
-  await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: COMPLETE_STICKER });
-  if (audioStopped) return;
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'Good try! 1 star!', subtitle: 'Good try! 1 star!', sticker: COMPLETE_STICKER });
-} catch(e) {}
-```
-
-**Game over:**
-```javascript
-try {
-  await FeedbackManager.sound.play('game_over_sound_effect', { sticker: GAMEOVER_STICKER });
-  if (audioStopped) return;
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'You completed 2 rounds', subtitle: 'You completed 2 rounds', sticker: GAMEOVER_STICKER });
-} catch(e) {}
-```
+Auto-advance (no CTA) variants use the same wrapper; just omit the `ctaButton.onclick` line.
 
 ## Wrong Answer Visual Timing
 

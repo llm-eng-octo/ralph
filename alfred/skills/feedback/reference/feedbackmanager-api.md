@@ -48,6 +48,30 @@ await new Promise(function(resolve) {
 
 This only needs to run once — on the first transition screen. After that, audio is unlocked for the session.
 
+## Sequential Audio — `FeedbackManager.runSequence(callback)` (MANDATORY)
+
+Any function body awaiting 2+ audio calls back-to-back wraps in `runSequence`. CTA / screen-change handlers keep calling the existing stop methods (`sound.stopAll()` / `stream.stopAll()` / `_stopCurrentDynamic()`) — those now also abort the in-flight `runSequence` automatically.
+
+```javascript
+ctaButton.action = function () {
+  try { FeedbackManager.sound.stopAll(); } catch (e) {}
+  try { FeedbackManager.stream.stopAll(); } catch (e) {}
+  transitionScreen.hide(); done();
+};
+FeedbackManager.runSequence(async () => {
+  try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+  try { await FeedbackManager.playDynamicFeedback({ audio_content: 'Round 3', subtitle: 'Round 3', sticker: STICKER_ROUND }); } catch (e) {}
+});
+```
+
+**Mechanism.** `runSequence` installs an ambient `AbortController` on `FeedbackManager`. Every internal `sound.play`, `stream.play`, and `playDynamicFeedback` (including its `fetch()`) checks that signal at entry and after each internal await. Calling `sound.stopAll()` / `stream.stopAll()` / `_stopCurrentDynamic()` — or starting another `runSequence` — aborts the controller. In-flight calls throw `AbortError` (caught silently by per-call `try/catch`); any *next* awaited call inside the callback short-circuits at its first line. Game code does NOT pass a signal — cancellation is internal.
+
+**Why mandatory.** Without `runSequence`, calling `sound.stopAll()` mid-first-audio resolves the first await but does not stop the next awaited line from firing on the next screen. The legacy `var audioStopped = false; ... if (audioStopped) return;` flag is **forbidden** — it does not cover the in-flight `fetch()` window inside `playDynamicFeedback`. Validator: `GEN-FEEDBACK-RUN-SEQUENCE`.
+
+Concurrency: only one sequence runs at a time; calling `runSequence` again aborts the previous.
+
+---
+
 ## Two Audio APIs
 
 ### 1. Static Audio — `FeedbackManager.sound.play(id, options)`
@@ -102,14 +126,13 @@ FeedbackManager.playDynamicFeedback({
 
 | Method | When to use |
 |--------|------------|
-| `FeedbackManager.sound.stopAll()` | CTA tapped on transition/results screen; new transition appearing |
-| `FeedbackManager.sound.pause()` | Visibility hidden (tab switch) |
-| `FeedbackManager.sound.resume()` | Visibility restored |
-| `FeedbackManager.stream.pauseAll()` | Visibility hidden |
-| `FeedbackManager.stream.resumeAll()` | Visibility restored |
-| `FeedbackManager.stream.stopAll()` | Game cleanup / restart |
-| `FeedbackManager._stopCurrentDynamic()` | Student interacts during TTS; new transition screen |
-| `FeedbackManager.canPlayAudio()` | Audio readiness check before first play |
+| `FeedbackManager.runSequence(cb)` | Wrap any body awaiting 2+ audio calls. See § Sequential Audio. |
+| `FeedbackManager.sound.stopAll()` | CTA tap, screen change, restart, round/level boundary. Also aborts the ambient `runSequence`. |
+| `FeedbackManager.stream.stopAll()` | Same; stops streaming TTS. Also aborts the ambient `runSequence`. |
+| `FeedbackManager._stopCurrentDynamic()` | Stop in-flight dynamic feedback (calls into stopAll under the hood). |
+| `FeedbackManager.sound.pause()` / `.resume()` | Visibility change (tab switch / restore). Pause ≠ stop; does NOT abort `runSequence`. |
+| `FeedbackManager.stream.pauseAll()` / `.resumeAll()` | Visibility change. |
+| `FeedbackManager.canPlayAudio()` | Audio readiness check before first play. |
 
 ## Sticker Durations
 
