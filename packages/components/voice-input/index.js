@@ -36,16 +36,16 @@
      GLOBAL PERMISSION STATE (shared across all instances)
      ============================================================ */
   var _globalPermission = {
-    state: "idle",        // "idle" | "pending" | "resolved"
-    permitted: false,     // whether mic is granted
-    callbacks: [],        // callbacks waiting for the result
+    state: "idle",              // "idle" | "pending" | "resolved"
+    permissionState: "prompt",  // "granted" | "denied" | "prompt" — actual browser state
+    callbacks: [],              // callbacks waiting for the result
   };
 
   function globalCheckPermission(cb) {
     // If already fully resolved, return immediately
     if (_globalPermission.state === "resolved") {
-      console.log("[VoiceInput][globalCheckPermission] Already resolved, permitted:", _globalPermission.permitted);
-      cb(_globalPermission.permitted);
+      console.log("[VoiceInput][globalCheckPermission] Already resolved, permissionState:", _globalPermission.permissionState);
+      cb(_globalPermission.permissionState);
       return;
     }
 
@@ -63,42 +63,36 @@
     console.log("[VoiceInput][globalCheckPermission] Starting global permission check... (protocol:", window.location.protocol, "origin:", window.location.origin + ")");
 
     if (!navigator.permissions || !navigator.permissions.query) {
-      console.log("[VoiceInput][globalCheckPermission] permissions.query not available, defaulting to not-yet-granted");
-      globalResolve(false);
+      console.log("[VoiceInput][globalCheckPermission] permissions.query not available, defaulting to 'prompt' so getUserMedia can ask");
+      globalResolve("prompt");
       return;
     }
 
     navigator.permissions.query({ name: "microphone" })
       .then(function (status) {
         console.log("[VoiceInput][globalCheckPermission] Permission query result: state =", status.state);
-        if (status.state === "granted") {
-          console.log("[VoiceInput][globalCheckPermission] Already granted — no getUserMedia needed");
-          globalResolve(true);
-        } else {
-          console.log("[VoiceInput][globalCheckPermission] State is '" + status.state + "' — waiting for user-triggered recording to request access");
-          globalResolve(false);
-        }
+        globalResolve(status.state);
 
         // Listen for future changes
         status.onchange = function () {
           console.log("[VoiceInput][globalCheckPermission] Permission state changed to:", status.state);
-          _globalPermission.permitted = (status.state === "granted");
+          _globalPermission.permissionState = status.state;
         };
       })
       .catch(function (err) {
-        console.log("[VoiceInput][globalCheckPermission] permissions.query failed:", err);
-        globalResolve(false);
+        console.log("[VoiceInput][globalCheckPermission] permissions.query failed, defaulting to 'prompt':", err);
+        globalResolve("prompt");
       });
   }
 
-  function globalResolve(permitted) {
-    _globalPermission.permitted = permitted;
+  function globalResolve(permissionState) {
+    _globalPermission.permissionState = permissionState;
     _globalPermission.state = "resolved";
-    console.log("[VoiceInput][globalResolve] Resolved. permitted:", permitted, "notifying", _globalPermission.callbacks.length, "instances");
+    console.log("[VoiceInput][globalResolve] Resolved. permissionState:", permissionState, "notifying", _globalPermission.callbacks.length, "instances");
     var cbs = _globalPermission.callbacks;
     _globalPermission.callbacks = [];
     for (var i = 0; i < cbs.length; i++) {
-      cbs[i](permitted);
+      cbs[i](permissionState);
     }
   }
 
@@ -590,7 +584,7 @@
      MIC TOGGLE (big drawer button)
      ============================================================ */
   VoiceInput.prototype._onMicToggleClick = function () {
-    console.log("[VoiceInput][_onMicToggleClick] Mic toggle clicked. isRecording:", this._isRecording, "isLoading:", this._isLoading, "_isPermitted:", this._isPermitted, "_disabled:", this._disabled);
+    console.log("[VoiceInput][_onMicToggleClick] Mic toggle clicked. isRecording:", this._isRecording, "isLoading:", this._isLoading, "_permissionState:", this._permissionState, "_disabled:", this._disabled);
     if (this._isLoading) return;
     if (this._disabled) return;
 
@@ -603,8 +597,10 @@
       playSound(MIC_OFF_SOUND);
       this._syncUI();
     } else {
-      // React: if (!isPermitted) { setPopupOpen(true); return; }
-      if (!this._isPermitted) {
+      // Only short-circuit to the popup when the user has explicitly denied.
+      // "prompt" must fall through to getUserMedia so the browser shows its
+      // native permission dialog.
+      if (this._permissionState === "denied") {
         this._openPermissionPopup();
         return;
       }
@@ -617,7 +613,7 @@
      ============================================================ */
   VoiceInput.prototype._startRecording = function () {
     var self = this;
-    console.log("[VoiceInput][_startRecording] Starting recording flow. _isPermitted:", self._isPermitted);
+    console.log("[VoiceInput][_startRecording] Starting recording flow. _permissionState:", self._permissionState);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       self._emit("error", { type: "mic_error", message: "getUserMedia is not available in this browser/context" });
@@ -628,8 +624,9 @@
     navigator.mediaDevices.getUserMedia({ audio: true })
     .then(function (stream) {
       console.log("[VoiceInput][_startRecording] getUserMedia SUCCESS — got recording stream");
-      if (!self._isPermitted) {
-        self._isPermitted = true;
+      if (self._permissionState !== "granted") {
+        self._permissionState = "granted";
+        _globalPermission.permissionState = "granted";
         self._emit("permission_change", { permitted: true });
       }
       self._stream = stream;
@@ -672,7 +669,8 @@
       console.log("[VoiceInput][_startRecording] getUserMedia FAILED:", err.name, err.message);
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError" ||
           err.message === "permission_denied") {
-        self._isPermitted = false;
+        self._permissionState = "denied";
+        _globalPermission.permissionState = "denied";
         self._emit("permission_change", { permitted: false });
         self._emit("error", { type: "permission_denied", message: "Microphone permission denied" });
         // React mirror: setPopupOpen(true) inside recordAudio catch
@@ -833,11 +831,11 @@
      ============================================================ */
   VoiceInput.prototype._checkPermission = function () {
     var self = this;
-    self._isPermitted = false;
-    globalCheckPermission(function (permitted) {
-      self._isPermitted = permitted;
-      console.log("[VoiceInput][_checkPermission] Instance notified. _isPermitted:", permitted);
-      self._emit("permission_change", { permitted: permitted });
+    self._permissionState = "prompt";
+    globalCheckPermission(function (permissionState) {
+      self._permissionState = permissionState;
+      console.log("[VoiceInput][_checkPermission] Instance notified. _permissionState:", permissionState);
+      self._emit("permission_change", { permitted: permissionState === "granted" });
     });
   };
 
