@@ -55,6 +55,7 @@
     this.currentSticker = null;
     this.timeoutId = null;
     this.isVisible = false;
+    this.timeStart = null;
 
     this._init();
   }
@@ -242,6 +243,7 @@
     }
 
     this.isVisible = true;
+    this.timeStart = Date.now();
 
     // Call onShow callback
     if (typeof this.config.onShow === "function") {
@@ -270,6 +272,7 @@
     this.container.style.display = "none";
     this.container.innerHTML = "";
     this.isVisible = false;
+    this.timeStart = null;
 
     // Call onHide callback
     if (typeof this.config.onHide === "function") {
@@ -307,6 +310,7 @@
     return {
       isVisible: this.isVisible,
       currentSticker: this.currentSticker ? { ...this.currentSticker } : null,
+      timeElapsed: this.timeStart ? Date.now() - this.timeStart : 0,
     };
   };
 

@@ -19,13 +19,14 @@ For each game moment, exactly which feedback types fire. No ambiguity.
 | Level transition | ✅ level SFX | ✅ "Level N" VO (static or dynamic) | — | ✅ mascot (5s) | ✅ "Level N" | **Yes** (sequential, CTA interrupts) |
 | Round transition (auto-advance) | ✅ round SFX | ✅ "Round N" VO (static or dynamic) | — | ✅ (per round) | ✅ "Round N" | **Yes** (sequential) |
 | Round transition (with CTA) | ✅ round SFX | ✅ "Round N" VO (static or dynamic) | — | ✅ (per round) | ✅ "Round N" | **Yes** (sequential, CTA interrupts) |
-| Round start | — | — | ✅ reads question | — | ✅ question text | No |
+| Round start (multi-round games) | — | — | ✅ reads question (fire-and-forget) | — | ✅ question text | No |
+| Round start (standalone games) | — | — | OFF by default; opt-in via `roundMountNarration: true` (CASE 3) | — | — | n/a |
 | Correct (single-step) | ✅ correct SFX | — | ✅ explanation TTS (always) | ✅ celebration (2s) | ✅ explanation subtitle | **Yes** (sequential) |
 | Correct (multi-step mid-round) | ✅ correct SFX | — | — | ✅ celebration (2s) | — | No |
 | Round complete (all matched) | ✅ all-correct SFX | — | ✅ explanation TTS **only if Bloom L2+** | ✅ (2s) | ✅ "All matched!" | **Yes** (SFX always awaited; TTS awaited only when present) |
 | Wrong — single-step (lives remaining) | ✅ wrong SFX | — | ✅ explanation TTS (always) | ✅ sad (2s) | ✅ explanation subtitle | **Yes** (sequential) |
 | Wrong — multi-step (lives remaining) | ✅ wrong SFX | — | — | ✅ sad (2s) | — | No |
-| Wrong (last life) | ✅ wrong SFX (awaited, 1500ms min) | — | — | ✅ sad (2s) | — | **Yes** — then game-over flow (CASE 8) |
+| Wrong (last life) | ✅ wrong SFX (awaited via `FeedbackManager.sound.play`, package bounds failures at 2.5s) | — | — | ✅ sad (2s) | — | **Yes** — then game-over flow (CASE 8) |
 | Tile select | ✅ bubble SFX | — | — | — | — | No |
 | Tile deselect | ✅ bubble SFX | — | — | — | — | No |
 | Partial progress (chain) | ✅ chain SFX | — | — | ✅ | — | No (fire-and-forget; no mid-chain TTS/VO — see CASE 10) |
@@ -135,6 +136,6 @@ Mid-round matches/actions only play SFX with a sticker. No dynamic TTS — it wo
 - Stickers are always attached to a `FeedbackManager.sound.play()` or `playDynamicFeedback()` call
 - Stickers never render without accompanying audio
 - Each sticker is a CDN-hosted animated GIF
-- Sticker type is always `'IMAGE_GIF'`
+- Game code passes a **string URL** to the `sticker` param; FeedbackManager wraps it internally into `{ image, duration, type: 'IMAGE_GIF' }`. Do NOT construct the object yourself — that's the package's internal shape.
 - Different GIFs for: correct, wrong, each level, each star tier, game over, round transition, restart
 - A game should have unique sticker URLs — don't reuse the same GIF for correct and wrong

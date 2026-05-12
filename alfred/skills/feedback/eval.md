@@ -24,7 +24,7 @@ A feedback implementation passes when ALL of the following are true:
 2. **Every event has a response.** No student action is silent — correct, wrong, round complete, victory, game over all handled.
 3. **Await/fire-and-forget rules followed.** Single-step submit-handler SFX **and** TTS are both awaited (validators `5e0-FEEDBACK-MIN-DURATION` + `GEN-FEEDBACK-TTS-AWAIT`); multi-step mid-round partial-match SFX is fire-and-forget.
 4. **Input blocking correct.** `isProcessing` set BEFORE any await; cleared by `renderRound()` / `loadRound()`, never in the submit handler. Never set for fire-and-forget micro-interactions.
-5. **Priority rules respected.** Last-life wrong SFX plays (with 1500ms floor) BEFORE the game-over screen renders. CTA stops audio via `sound.stopAll()` + `stream.stopAll()`. Game-over/results screen renders BEFORE end-game audio.
+5. **Priority rules respected.** Last-life wrong SFX plays (awaited via `FeedbackManager.sound.play` inside try/catch) BEFORE the game-over screen renders. CTA stops audio via `sound.stopAll()` + `stream.stopAll()`. Game-over/results screen renders BEFORE end-game audio.
 6. **recordAttempt before audio.** Data captured before FeedbackManager plays.
 7. **Emotional safety maintained.** No punitive language, game-over is encouraging, failure recovery at 3+ consecutive wrong.
 
@@ -61,10 +61,10 @@ Student selects: Isosceles (correct)
 - [ ] Correct option gets green CSS class (`.correct` / `.selected-correct`)
 - [ ] `recordAttempt({...correct: true})` called BEFORE audio
 - [ ] `progressBar.update(round, lives)` called
-- [ ] Correct SFX played via `safePlaySound('correct_sound_effect', { sticker: <URL> })` — string URL only; FeedbackManager wraps internally. SFX is awaited with `Promise.all` 1500ms minimum floor (PART-017 Minimum Feedback Duration, validator `5e0-FEEDBACK-MIN-DURATION`)
-- [ ] `FeedbackManager.playDynamicFeedback({...})` is AWAITED inside `try { ... } catch(e){}` — explanation MUST finish before round advance; validator `GEN-FEEDBACK-TTS-AWAIT`. Package bounds at 3s API / 60s streaming so it cannot freeze the game
+- [ ] Correct SFX played via `try { await FeedbackManager.sound.play('correct_sound_effect', { sticker: <URL> }); } catch(e){}` — string URL only; package wraps sticker internally. Package bounds JIT-load at 2.5s and resolves with a status object on failure.
+- [ ] TTS awaited via `try { await FeedbackManager.playDynamicFeedback({...}); } catch(e){}` — explanation MUST finish before round advance; validator `GEN-FEEDBACK-TTS-AWAIT`. Package bounds API + stream-setup + first-chunk at 2.5s; playing audio runs to natural end (no truncation).
 - [ ] Advance to next round via `renderRound()` / `loadRound()` — which clears `gameState.isProcessing = false` and re-enables inputs (single source of truth). Submit handler does NOT clear `isProcessing` itself
-- [ ] [LLM] No `setTimeout` used to pace audio — SFX duration + 1500ms floor IS the timing; no `Promise.race` wrapping FeedbackManager calls
+- [ ] [LLM] No `setTimeout`, no `Promise.race`, no `Promise.all` wrapping FeedbackManager calls. Package owns all timeouts; game just awaits play methods directly.
 
 **Why:** Tests the core correct-answer flow with proper await pattern and production API.
 
@@ -93,7 +93,7 @@ Student answers incorrectly. Lives: 3 → 2.
 - [ ] Life decremented: `gameState.lives--`
 - [ ] `progressBar.update(round, lives)` called immediately (student sees lost heart)
 - [ ] `recordAttempt({...correct: false})` called BEFORE audio
-- [ ] Wrong SFX played via `safePlaySound('incorrect_sound_effect', { sticker: <URL> })` — string URL only; SFX awaited with `Promise.all` 1500ms minimum floor (validator `5e0-FEEDBACK-MIN-DURATION`)
+- [ ] Wrong SFX played via `try { await FeedbackManager.sound.play('incorrect_sound_effect', { sticker: <URL> }); } catch(e){}` — string URL only; package wraps sticker. JIT-load bounded at 2.5s on failure.
 - [ ] `FeedbackManager.playDynamicFeedback({...})` is AWAITED inside `try { ... } catch(e){}` — explanation MUST finish before retry/advance; validator `GEN-FEEDBACK-TTS-AWAIT`
 - [ ] Red flash clears after ~600ms
 - [ ] Retry path: `renderRound()` / `loadRound()` clears `gameState.isProcessing = false` and re-enables inputs (single source of truth). Submit handler does NOT clear `isProcessing` itself
@@ -120,9 +120,9 @@ Student answers incorrectly. Lives: 1 → 0.
 **Expect:**
 
 - [ ] Life decremented to 0
-- [ ] **Wrong-answer SFX plays FIRST** — same SFX + sticker as Case 2 (awaited via `safePlaySound` with `Promise.all` 1500ms minimum floor)
+- [ ] **Wrong-answer SFX plays FIRST** — same SFX + sticker as Case 2 (awaited via `FeedbackManager.sound.play` inside try/catch)
 - [ ] After wrong SFX finishes, game proceeds to the game-over flow
-- [ ] Game Over screen renders FIRST (title, sad emoji, rounds completed, "Try Again" CTA)
+- [ ] Game Over screen renders AFTER the final wrong-answer SFX finishes (title, sad emoji, rounds completed, "Try Again" CTA)
 - [ ] `game_complete` postMessage sent to parent BEFORE game-over audio
 - [ ] Game-over SFX plays (with sad sticker) → game-over dynamic VO plays (sequential, wrapped in `runSequence`, both awaited)
 - [ ] CTA is already visible during audio — if tapped: `sound.stopAll()` + `stream.stopAll()`, game restarts
@@ -176,8 +176,9 @@ Student matches the last pair in the round. All pairs complete.
 
 **Expect:**
 
-- [ ] "Round complete" SFX plays with sticker and subtitle (e.g., "All cards matched!")
-- [ ] This audio IS awaited — input paused until it finishes
+- [ ] "Round complete" SFX plays with sticker and subtitle (e.g., "All cards matched!") via `try { await FeedbackManager.sound.play('all_correct', {sticker, subtitle:'All matched!'}); } catch(e){}`
+- [ ] This SFX IS awaited — input paused until it finishes
+- [ ] If the spec includes a Bloom L2+ explanation for the round, an awaited `playDynamicFeedback` follows the SFX (same SFX-await → TTS-await shape as single-step CASE 4). Bloom L1 multi-step rounds skip the TTS — SFX + subtitle is enough.
 - [ ] After audio: game advances to next round transition, level transition, or end-game
 - [ ] [LLM] Round-complete audio is the gate — next round does not load until it finishes
 
@@ -225,11 +226,12 @@ PART-017: YES
 **Expect:**
 
 - [ ] Timer pauses
-- [ ] Results screen renders FIRST (stars, metrics, "Play Again" button visible)
+- [ ] Results screen renders AFTER the final answer feedback finishes (stars, metrics, "Play Again" button visible)
 - [ ] `game_complete` postMessage sent to parent BEFORE audio
-- [ ] Victory SFX plays (with celebration sticker, 3-5s) — awaited
-- [ ] Then victory VO plays — awaited
-- [ ] If student taps "Play Again" while audio is playing: all audio stops, game restarts
+- [ ] Victory SFX plays via `try { await FeedbackManager.sound.play('victory_sound_effect', { sticker: VICTORY_STICKER }); } catch(e){}` — awaited
+- [ ] Then victory VO plays via awaited `playDynamicFeedback({ audio_content: 'Victory! 3 stars!', subtitle, sticker })`
+- [ ] Both calls wrapped in `FeedbackManager.runSequence(async () => { ... })`
+- [ ] If student taps "Play Again" while audio is playing: canonical stop pair (`sound.stopAll()` + `stream.stopAll()`) called, game restarts
 - [ ] [LLM] Student never waits for a blank screen while audio plays
 
 **Why:** Tests the end-game ordering: screen → postMessage → audio. And CTA interrupt.
@@ -254,8 +256,11 @@ Game is mid-round. Student switches tabs.
 - [ ] `FeedbackManager.sound.pause()` called
 - [ ] `FeedbackManager.stream.pauseAll()` called
 - [ ] `VisibilityTracker`'s built-in `PopupComponent` pause popup appears (default title "Resume Activity", or whatever `popupProps.title` overrides it to) — **no game-local pause overlay**
-- [ ] On return: timer resumes, audio resumes, streams resume, and the `VisibilityTracker` popup dismisses itself
+- [ ] [LLM] If audio was playing mid-sentence, audio is frozen — not stopped. Subtitle frozen in place. Sticker frozen on its current animation frame.
+- [ ] On return: timer resumes, audio resumes from **exact byte position** (not restarted, not skipped), streams resume, sticker animation continues, and the `VisibilityTracker` popup dismisses itself
+- [ ] After resume, `gameState.isProcessing` is unchanged across the pause window
 - [ ] Gameplay continues from exactly where it was
+- [ ] Only ONE pause overlay appears during pause; ZERO after dismissal (no duplicates)
 - [ ] No bespoke `.*pause-overlay`/`#*PauseOverlay` div in game HTML (anti-pattern — duplicates `VisibilityTracker`)
 
 **Why:** Tests pause/resume behavior — audio must pause (not stop) so it can resume.

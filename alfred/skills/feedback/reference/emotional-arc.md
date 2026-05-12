@@ -2,6 +2,8 @@
 
 The emotional arc shapes the student's journey — every design choice serves one goal: the student finishes feeling capable, even if they got questions wrong.
 
+> **Status note (2026-05).** The pacing rhythm, language rules, victory tone, and game-over tone in this file are **wired and reviewable** — they map to CASE 11 (Victory), CASE 12 (Game Over), and Constraint 7 (no "wrong" in student text). **Streak Celebration and Failure Recovery (below) are currently aspirational** — they describe intended behavior but are not enforced by any behavioral CASE, build rule, or validator. A spec that doesn't implement them won't fail review. If you want them in a specific game, the spec must explicitly request them and the build must wire them by hand (CSS class `.streak-glow` exists in `juice-animations.md`; soften-language and auto-hint have no scaffolding yet).
+
 ## Pacing Rhythm (The Core Loop)
 
 ```
@@ -35,7 +37,7 @@ When a student gets 3+ wrong answers in a row, their confidence is collapsing. T
 
 The game-over screen is NOT punitive. It is the moment the student is most vulnerable.
 
-- The screen renders FIRST, then game-over SFX + VO play after
+- The final wrong-answer feedback finishes first; then the game-over screen renders, then game-over SFX + VO play
 - Title: "Game Over" with sad emoji (😔)
 - Subtitle shows what they achieved: "You completed 2 rounds" — not just the failure
 - In some games, the game-over VO is contextual — different audio per number of rounds completed
@@ -45,7 +47,7 @@ The game-over screen is NOT punitive. It is the moment the student is most vulne
 
 ## Victory Tone
 
-- Results screen renders FIRST with stars and metrics, then victory SFX + VO play after
+- Final answer feedback finishes first; then the results screen renders with stars and metrics, then victory SFX + VO play
 - Different audio and stickers per star tier:
   - **3★:** Victory SFX (big celebration sticker) → Victory VO
   - **2★:** Game complete SFX (moderate sticker) → 2-star VO

@@ -2509,42 +2509,42 @@ if (hasStartGame) {
 })();
 
 // ─── 5e0-FEEDBACK-RACE-FORBIDDEN. Promise.race on FeedbackManager calls ──────
-// FeedbackManager already bounds every call internally (sound.play → audio-duration
-// + 1.5s guard; playDynamicFeedback → 60s streaming / 3s TTS API timeout). Any
-// template-level `Promise.race([FeedbackManager..., setTimeout(...)])` or an
-// `audioRace` helper truncates normal TTS (1-3s) and advances phase/round
-// transitions before audio ends. Canonical pattern is plain `await` inside
-// try/catch (PART-017, PART-026 Anti-Pattern 32, feedback SKILL Rule 8).
+// All audio timeout/failure logic now lives inside the FeedbackManager package
+// (sound.play and playDynamicFeedback resolve with status objects after at
+// most 2.5s on failure; playing audio runs to its natural end). Game code MUST
+// NOT wrap FeedbackManager calls in Promise.race — that would either truncate
+// playing audio or duplicate the package's own bounds. Bare `await` inside
+// try/catch is the only allowed shape.
 (function checkFeedbackRaceForbidden() {
   const racesReferencingFeedback =
     /FeedbackManager\b|\.sound\.play\s*\(|playDynamicFeedback\s*\(/;
   const helperNameRe =
-    /function\s+(?:audioRace|audio_race|feedbackRace|avRace|raceAudio)\b|\b(?:audioRace|audio_race|feedbackRace|avRace|raceAudio)\s*=\s*function/;
+    /function\s+(?:audioRace|audio_race|feedbackRace|avRace|raceAudio|safePlaySound|safeTTS)\b|\b(?:audioRace|audio_race|feedbackRace|avRace|raceAudio|safePlaySound|safeTTS)\s*=\s*function/;
   const raceRe = /Promise\.race\s*\(\s*\[([\s\S]*?)\]\s*\)/g;
   let flagged = false;
   let m;
   while ((m = raceRe.exec(html)) !== null) {
     const body = m[1];
-    const surrounding = html.slice(Math.max(0, m.index - 200), m.index);
+    const surrounding = html.slice(Math.max(0, m.index - 500), m.index);
     const inFeedbackRace =
       racesReferencingFeedback.test(body) || helperNameRe.test(surrounding);
     if (!inFeedbackRace) continue;
     errors.push(
       'ERROR (5e0-FEEDBACK-RACE-FORBIDDEN): Promise.race wraps a FeedbackManager audio call. ' +
-        'FeedbackManager already bounds resolution internally (PART-017): sound.play → audio-duration + 1.5s, ' +
-        'playDynamicFeedback → 60s streaming / 3s API timeout. Template-level races truncate normal audio (1-3s TTS) ' +
-        'and advance phase/round transitions before feedback finishes. Use plain `await` inside try/catch. ' +
-        'See PART-017 "No Promise.race on FeedbackManager Calls" and PART-026 Anti-Pattern 32.'
+        'The package now owns all audio failure timeouts (2.5s ceiling for sound.play JIT-load, ' +
+        'playDynamicFeedback API fetch, and stream first-chunk; no max-duration cap on playing audio). ' +
+        'Game code must call FeedbackManager.sound.play / playDynamicFeedback directly inside try/catch — ' +
+        'no Promise.race, no safePlaySound / safeTTS / audioRace wrappers. See PART-017 and PART-026 Anti-Pattern 32.'
     );
     flagged = true;
     break;
   }
-  // Also flag a helper definition even if no call site yet references it.
   if (!flagged && helperNameRe.test(html) && /Promise\.race\s*\(/.test(html)) {
     errors.push(
-      'ERROR (5e0-FEEDBACK-RACE-FORBIDDEN): A helper named audioRace/feedbackRace/avRace is defined ' +
-        'and Promise.race is used elsewhere in the file. Remove the helper — FeedbackManager calls ' +
-        'must be awaited directly inside try/catch. See PART-017 and PART-026 Anti-Pattern 32.'
+      'ERROR (5e0-FEEDBACK-RACE-FORBIDDEN): A helper named audioRace/feedbackRace/avRace/safePlaySound/safeTTS ' +
+        'is defined alongside Promise.race. These wrappers are forbidden — the FeedbackManager package owns ' +
+        'all timeout/failure logic. Call FeedbackManager.sound.play / playDynamicFeedback directly inside try/catch. ' +
+        'See PART-017 and PART-026 Anti-Pattern 32.'
     );
   }
 })();
@@ -2779,64 +2779,11 @@ if (hasStartGame) {
   }
 })();
 
-// ─── 5e0-FEEDBACK-MIN-DURATION. Bare await on answer-feedback sound.play ───────
-// FeedbackManager.sound.play() can resolve before the audio finishes playing.
-// Any code after `await sound.play(...)` (round advance, tile reset, game-over
-// check) may run while audio/sticker is still audible.  Answer-feedback sound
-// IDs (sound_life_lost, sound_correct, wrong_tap, correct_tap, sound_incorrect,
-// all_correct, all_incorrect_*, partial_correct_*) MUST be wrapped in
-// Promise.all([sound.play(...), new Promise(r => setTimeout(r, 1500))]) to
-// guarantee the audio fully plays before the game proceeds.  VO and transition
-// audio (vo_*, sound_game_complete, sound_game_over, sound_game_victory) are
-// exempt — they play during transition screens where no immediate state change
-// follows.  Validator: find each feedback sound.play, check if Promise.all
-// wraps it within ~80 chars preceding.
-(function checkFeedbackMinDuration() {
-  // Only check games that use FeedbackManager
-  if (!/FeedbackManager\.sound\.play\s*\(/.test(html)) return;
-
-  // Answer-feedback sound IDs that need the Promise.all wrapper
-  const feedbackIds = [
-    'sound_life_lost', 'sound_correct', 'wrong_tap', 'correct_tap',
-    'sound_incorrect', 'all_correct', 'all_incorrect_attempt1',
-    'all_incorrect_last_attempt', 'partial_correct_attempt1',
-    'partial_correct_last_attempt'
-  ];
-  const idPattern = feedbackIds.map(function(id) {
-    return id.replace(/_/g, '_');
-  }).join('|');
-
-  // Match: FeedbackManager.sound.play('sound_life_lost'  (with optional whitespace)
-  const playRe = new RegExp(
-    'FeedbackManager\\.sound\\.play\\s*\\(\\s*[\'"](' + idPattern + ')[\'"]',
-    'g'
-  );
-
-  const violations = [];
-  let m;
-  while ((m = playRe.exec(html)) !== null) {
-    // Look backwards up to 80 chars for Promise.all(
-    const start = Math.max(0, m.index - 80);
-    const preceding = html.slice(start, m.index);
-    if (/Promise\.all\s*\(\s*\[/.test(preceding)) continue; // correctly wrapped
-
-    violations.push(m[1]); // the sound ID
-    if (violations.length >= 3) break;
-  }
-
-  if (violations.length > 0) {
-    errors.push(
-      'ERROR (5e0-FEEDBACK-MIN-DURATION): ' + violations.length + ' answer-feedback ' +
-        'sound.play() call(s) (' + violations.join(', ') + ') are awaited without ' +
-        'Promise.all minimum-duration wrapper. FeedbackManager.sound.play() can resolve ' +
-        'BEFORE the audio finishes — code after await runs while audio/sticker is still ' +
-        'playing, causing round transitions mid-feedback. Wrap in: await Promise.all([ ' +
-        'FeedbackManager.sound.play(id, { sticker }), new Promise(function(r) { ' +
-        'setTimeout(r, 1500); }) ]); See PART-017 "Minimum Feedback Duration" and ' +
-        'PART-026 Anti-Pattern 34.'
-    );
-  }
-})();
+// ─── 5e0-FEEDBACK-MIN-DURATION (RETIRED) ────────────────────────────────────────
+// Previously required a 1500ms minimum floor on answer-feedback sound.play via
+// Promise.all + setTimeout. Retired 2026-05 — the game now just awaits
+// FeedbackManager.sound.play(...) directly. If you want a longer minimum visual
+// duration, that's a package-level concern (sticker/subtitle display time).
 
 // ─── 5e0-LASTLIFE-SKIP-FORBIDDEN. endGame inside lives<=0 block without preceding feedback
 // When lives reaches 0 (last life lost), wrong-answer SFX MUST play BEFORE endGame.

@@ -1,4 +1,8 @@
+# Juice Animations
+
 The 7 required micro-animations every game ships with, plus CSS classes, application code, and the round presentation sequence that defines what the student sees before they can interact.
+
+> **Scope note (2026-05).** Most of this file (score-bounce, shake, fade-in, star-pop, confetti, round-presentation sequence) is visual/animation guidance that's only loosely feedback-related. `heart-break` and `streak-glow` are the feedback-adjacent ones. Listed as a follow-up in `feedback-skill-audit.md` § Open follow-ups (move to game-building / presentation skill).
 
 ## Required Animations
 

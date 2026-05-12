@@ -15,7 +15,9 @@ This is the **exact production URL** — do not modify it, do not use any other 
 ## Initialization
 
 ```javascript
-// 1. Wait for all packages to load
+// 1. Wait for all packages to load — bounded at 2.5s
+//    If the package fails to load within 2.5s, scaffolding shows a retry tile;
+//    game code never touches FeedbackManager.* unless the await succeeded.
 await waitForPackages(); // polls for FeedbackManager, TimerComponent, etc.
 
 // 2. Initialize FeedbackManager
@@ -35,7 +37,7 @@ All three steps happen once during DOMContentLoaded, before the first screen app
 
 ## Audio Readiness Check
 
-Before the first audio plays (typically on the first level/round screen), wait for audio permission:
+Before the first audio plays (typically on the first level/round screen), wait for audio permission. **Bounded at 2.5s** — same as every other audio failure path:
 
 ```javascript
 await new Promise(function(resolve) {
@@ -43,11 +45,11 @@ await new Promise(function(resolve) {
   var check = setInterval(function() {
     if (FeedbackManager.canPlayAudio()) { clearInterval(check); resolve(); }
   }, 200);
-  setTimeout(function() { clearInterval(check); resolve(); }, 15000);
+  setTimeout(function() { clearInterval(check); resolve(); }, 2500); // 2.5s autoplay-block cap
 });
 ```
 
-This only needs to run once — on the first transition screen. After that, audio is unlocked for the session.
+This only needs to run once — on the first transition screen. After that, audio is unlocked for the session. If the 2.5s cap fires (autoplay permanently blocked), the game still advances; subsequent audio calls fail silently and the student plays a silent game.
 
 ## Sequential Audio — `FeedbackManager.runSequence(callback)` (MANDATORY)
 
@@ -60,7 +62,7 @@ ctaButton.action = function () {
   transitionScreen.hide(); done();
 };
 FeedbackManager.runSequence(async () => {
-  try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+  try { await FeedbackManager.sound.play('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
   try { await FeedbackManager.playDynamicFeedback({ audio_content: 'Round 3', subtitle: 'Round 3', sticker: STICKER_ROUND }); } catch (e) {}
 });
 ```
@@ -90,28 +92,33 @@ await FeedbackManager.sound.play('correct_sound_effect', {
 - `options.sticker` (string, optional) — **plain URL string** to the animated GIF. FeedbackManager wraps it internally into `{ image, duration, type: 'IMAGE_GIF' }`. Game code MUST pass a string, never the object form.
 - `options.subtitle` (string, optional) — on-screen text
 
-**Returns:** Promise that resolves when the audio finishes playing.
+**Returns:** Promise that always resolves with a status object — never rejects (except `AbortError` from `runSequence` cancellation, which propagates for the cancellation chain). Status shapes:
+- `{ status: 'ok', ... }` — audio played to natural end
+- `{ status: 'missing', id }` — id not preloaded and not registered
+- `{ status: 'locked', id, error }` — user gesture required (autoplay not yet unlocked)
+- `{ status: 'timeout', id, reason: 'jit-load' }` — JIT-load took more than 2.5s
+- `{ status: 'error', id, error }` — decode / playback failed
 
-**WARNING — bare `await sound.play()` resolves early.** The promise can resolve before the audio actually finishes. For **answer-feedback SFX** (correct/wrong/life-lost/all-correct/round-complete) and any submit-handler SFX, always wrap in `Promise.all` with a 1500ms minimum floor — typically through the `safePlaySound(id, opts)` helper. Validator: `5e0-FEEDBACK-MIN-DURATION`. See PART-026 Anti-Pattern 34.
-
-#### `safePlaySound(id, opts)` — required wrapper for answer-feedback SFX
-
-`safePlaySound` is the canonical wrapper helper games use everywhere a SFX must fully play before the next side-effect. It is provided in game scaffolding (not part of the CDN package). Implementation shape:
+**Game code: just `await FeedbackManager.sound.play(...)` inside `try/catch`.** No wrappers, no `Promise.race`, no minimum-duration floors. The package handles every failure path:
 
 ```javascript
-async function safePlaySound(id, opts) {
-  try {
-    await Promise.all([
-      FeedbackManager.sound.play(id, opts),
-      new Promise(function (r) { setTimeout(r, 1500); }),
-    ]);
-  } catch (e) {
-    console.error('SFX error:', JSON.stringify({ id, error: e.message }, null, 2));
-  }
+try {
+  var result = await FeedbackManager.sound.play('correct_sound_effect', {
+    sticker: 'https://...gif',
+    subtitle: 'Great!',
+  });
+  // Optional: inspect result.status if you want to log degraded paths.
+} catch (e) {
+  // Only reached for AbortError (runSequence cancellation) — normal failures
+  // resolve with a status object instead of throwing.
 }
 ```
 
-Use `safePlaySound` for: correct/wrong SFX in submit handlers, round-complete SFX, level/round transition SFX, victory/game-over SFX. Do NOT use it for fire-and-forget micro-interactions (tile select/deselect, ambient `new_cards`, chain partial-match) — those use bare `sound.play(...).catch(...)`.
+**Failure ceilings (all enforced inside the package, no game-code wrappers):**
+- JIT-load (preload of a registered-but-unloaded id) — **2.5s**
+- Otherwise, playing audio resolves at its natural end. No max-duration cap.
+
+If you want a longer minimum visual feedback duration (sticker stays on screen for a second after a short SFX), that's a sticker/subtitle authoring concern — pass appropriate values; the overlay duration is managed by FeedbackManager.
 
 ### 2. Dynamic TTS — `FeedbackManager.playDynamicFeedback(options)`
 
@@ -127,26 +134,38 @@ try {
   });
 } catch (e) {}
 
-// Submit/answer handler context: ALSO awaited. The explanation must finish
-// before round advance, else its subtitle/audio paints over the next round.
-// Package bounds at 3s (API) / 60s (streaming); try/catch swallows rejection
-// so a network failure still advances. Validator: GEN-FEEDBACK-TTS-AWAIT.
+// Submit/answer handler context: awaited directly. The package bounds failure
+// at 2.5s and resolves with a status object. Wrap in try/catch only for AbortError
+// from runSequence cancellation. Validator: GEN-FEEDBACK-TTS-AWAIT.
 try {
   await FeedbackManager.playDynamicFeedback({
     audio_content: 'Great! 5 in the thousands place gives 5000',
     subtitle: 'Great! 5 in the thousands place gives 5000',
     sticker: CORRECT_STICKER
   });
-} catch (e) { console.error('TTS error:', e.message); }
+} catch (e) { /* AbortError only */ }
 ```
 
 **When to await vs fire-and-forget:**
-- **Await (default — transition-screen VO, end-game VO, submit/answer handlers, round-complete):** The explanation must finish before the next screen/round paints, else its subtitle/audio bleeds into the new phase. Package bounds at 3s API / 60s streaming + `try/catch` prevents freezes. Validator: `GEN-FEEDBACK-TTS-AWAIT` (see PART-026 Anti-Pattern 36). Re-enabling inputs is handled by `renderRound()` / `loadRound()` — the single source of truth.
-- **Fire-and-forget carve-outs:** round-start TTS in `showRoundIntro` / `onMounted` for multi-round games (student should interact immediately) is the only fire-and-forget `playDynamicFeedback` site. Chain-progress / partial-match / tile-select / ambient SFX moments use `sound.play(...).catch(...)` instead — they play SFX only with no TTS (see CASE 10).
+- **Await (default — transition-screen VO, end-game VO, submit/answer handlers, round-complete):** `try { await FeedbackManager.playDynamicFeedback({...}); } catch(e){}`. Validator: `GEN-FEEDBACK-TTS-AWAIT` (see PART-026 Anti-Pattern 36). Re-enabling inputs is handled by `renderRound()` / `loadRound()`.
+- **Fire-and-forget carve-outs:** round-start TTS in `showRoundIntro` / `onMounted` for multi-round games — `FeedbackManager.playDynamicFeedback(...).catch(...)`. Chain-progress / partial-match / tile-select / ambient SFX moments use `FeedbackManager.sound.play(...).catch(...)` — they play SFX only with no TTS (see CASE 10).
+
+**Failure handling — package-owned.** Game code does NOT wrap `playDynamicFeedback` in `Promise.race`, `audioRace`, or any helper. The package bounds every failure path at 2.5s and resolves with a status object — playing audio runs to its natural end (no max-duration cap; long TTS is not truncated).
+
+Status shapes returned by `playDynamicFeedback`:
+- `{ status: 'ok' }` — TTS played to natural end
+- `{ status: 'noop', reason: 'no-audio_content' }` — no text supplied
+- `{ status: 'timeout', reason: 'api' }` — API didn't respond within 2.5s
+- `{ status: 'timeout', reason: 'stream-setup' }` — stream decoder/reader setup did not finish within 2.5s
+- `{ status: 'timeout', reason: 'first-chunk' }` — stream opened but no audio chunk played within 2.5s
+- `{ status: 'error', reason: 'api-status', code }` — non-OK HTTP from the TTS endpoint
+- `{ status: 'error', reason: 'stream', message }` — stream playback errored mid-play
+- `{ status: 'error', reason: 'unexpected', message }` — unexpected exception (logged)
+- `{ status: 'aborted' }` — `runSequence` / `stopAll` cancelled mid-flight (also throws `AbortError` from awaited paths)
 
 **Parameters:**
 - `audio_content` (string, required) — text to speak
-- `subtitle` (string, optional) — on-screen text, under 60 characters
+- `subtitle` (string, optional) — on-screen text. The full string renders (FeedbackManager wraps; no truncation, no ellipsis). **Authoring target: ≤60 chars** so it fits on 2 lines at 480px viewport width. Long strings still render but wrap to 3+ lines. For puzzle-specific TTS, prefer a short authored paraphrase paired with `audio_content` rather than the full audio string (validator `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO`).
 - `sticker` (string, optional) — URL to sticker GIF
 
 **Returns:** Promise. Can be stored and stopped later via `FeedbackManager._stopCurrentDynamic()`.
@@ -171,8 +190,8 @@ The values below are **approximate expected durations** (used by reviewers to sp
 
 | Moment | Expected paired-audio duration |
 |--------|--------------------------------|
-| Correct answer | ~2s (SFX + 1500ms floor, then TTS explanation) |
-| Wrong answer | ~2s (SFX + 1500ms floor, then TTS explanation) |
+| Correct answer | Paired audio duration (correct SFX, then awaited TTS explanation) |
+| Wrong answer | Paired audio duration (wrong SFX, then awaited TTS explanation) |
 | Round/level transition | ~5s (SFX → "Round N" / "Level N" TTS) |
 | Victory / game complete | ~3–5s (victory SFX → victory VO) |
 | Game over | ~3–5s (game-over SFX → game-over VO) |
@@ -201,7 +220,7 @@ Every game preloads sounds from these categories:
 
 ## Standard Audio URLs (Production CDN)
 
-**AUTHORITATIVE — single source of truth for sound ids.** Every id used in `FeedbackManager.sound.preload([{id, url}])`, `FeedbackManager.sound.play('<id>', ...)`, or any wrapper helper (`safePlaySound`, `awaitedPlay`) MUST come from the canonical table below. Invented ids — names like `bubble_pop_sfx` / `tap_select_sfx` / `game_correct_sound` that look canonical but are not in this table — are forbidden. The (id, URL) pair is fixed: an id always points at the same URL across all games. Custom sounds (a creator-supplied audio asset not in this table) require a spec-level declaration with both the id and the URL the creator wants attached; spec-creation captures these in a `creatorSounds` block (see spec-creation/SKILL.md). The static validator `GEN-SOUND-ID-CANONICAL` enforces this contract at build time.
+**AUTHORITATIVE — single source of truth for sound ids.** Every id used in `FeedbackManager.sound.preload([{id, url}])` or `FeedbackManager.sound.play('<id>', ...)` MUST come from the canonical table below. Invented ids — names like `bubble_pop_sfx` / `tap_select_sfx` / `game_correct_sound` that look canonical but are not in this table — are forbidden. The (id, URL) pair is fixed: an id always points at the same URL across all games. Custom sounds (a creator-supplied audio asset not in this table) require a spec-level declaration with both the id and the URL the creator wants attached; spec-creation captures these in a `creatorSounds` block (see spec-creation/SKILL.md). The static validator `GEN-SOUND-ID-CANONICAL` enforces this contract at build time.
 
 **CRITICAL: Use these exact URLs. Do NOT invent or modify audio URLs.**
 
@@ -263,7 +282,57 @@ try {
 }
 ```
 
-Audio failure never breaks gameplay. The game continues even if every audio call fails.
+Audio failure never breaks gameplay. The game continues even if every audio call fails. This file owns the per-failure-mode contract and status shapes; SKILL.md only carries the compact behavior summary.
+
+## Monitoring / Feedback System Health
+
+Feedback failures are non-blocking in production by design — the game continues and the student gets a degraded but functioning experience. The FeedbackManager package emits structured `feedback.*` `console.error` lines for package-detected failure statuses; game code may additionally inspect returned status objects when it needs phase-specific context.
+
+### Canonical log tags
+
+The package uses these exact tags so dashboard queries can aggregate cleanly:
+
+| Tag | Fires on | Severity |
+|---|---|---|
+| `feedback.sfx.error` | `FeedbackManager.sound.play` resolves with `status === 'error'` / `'timeout'` / `'missing'` | warn |
+| `feedback.tts.error` | Package detects dynamic TTS status `error` / `timeout` (including API, stream setup, first chunk, stream playback) | warn |
+| `feedback.preload.error` | `FeedbackManager.sound.preload([...])` partial / full failure at init | error |
+| `feedback.autoplay.blocked` | `canPlayAudio()` 2.5s poll completes without ever resolving true | warn |
+| `feedback.package.failed` | `waitForPackages()` times out (FeedbackManager never loads) | error |
+| `feedback.sticker.404` | Sticker GIF URL returns 404. Optional — the package silently skips, so this requires explicit `Image()` preflight in the game scaffolding if you want to detect it. | info |
+
+### Optional game-level logging shape
+
+The package already emits the canonical `feedback.sfx.error` / `feedback.tts.error` lines for package-detected failures. Game code may add context-specific breadcrumbs, but should not duplicate package logs for the same status.
+
+```javascript
+try {
+  var r = await FeedbackManager.sound.play(id, opts);
+  if (r && r.status && r.status !== 'ok') {
+    console.warn('feedback.sfx.context', JSON.stringify({ id, status: r.status, phase: gameState.phase }));
+  }
+} catch (e) {
+  if (e && e.name !== 'AbortError') {
+    console.warn('feedback.sfx.context', JSON.stringify({ id, error: e.message, phase: gameState.phase }));
+  }
+}
+```
+
+### What "healthy" looks like
+
+| Tag | Healthy session rate |
+|---|---|
+| `feedback.preload.error` | 0 |
+| `feedback.package.failed` | 0 |
+| `feedback.autoplay.blocked` | <2% (mobile Safari occasional) |
+| `feedback.tts.error` | <1% (rare network blips) |
+| `feedback.sfx.error` | ~0 |
+
+### Where these surface
+
+This skill doesn't own the observability backend — telemetry lands wherever the parent harness consumes `console.error` lines. Owning skill: `data-contract`. The parent host page forwards `feedback.*`-tagged errors to the org's logging pipeline.
+
+**Gap (current).** As of 2026-05, there is no auto-generated "Feedback Health" dashboard — fixes get triaged from per-session error reports. Adding one is on the roadmap; until then, monitoring is by-grep against the host-page log stream.
 
 ## Feedback Per Bloom Level (Subtitle Templates)
 

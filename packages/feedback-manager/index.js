@@ -66,6 +66,13 @@
       try { FeedbackManager._currentAbort.abort(); } catch (_) {}
     }
   }
+  function _logFeedbackHealth(tag, data) {
+    try {
+      console.error(tag, JSON.stringify(data || {}));
+    } catch (_) {
+      try { console.error(tag); } catch (__) {}
+    }
+  }
 
   // ----- Timer State Management -----
   var TIMER_DURATION_THRESHOLD = 1.0;
@@ -321,6 +328,7 @@
       }
     },
     _currentFeedbackId: 0,
+    _pausedFeedback: null,
     /**
      * Hide feedback only if the given id is still the most-recent one shown.
      * Lets a preempted audio clear its own sticker/subtitle without killing
@@ -332,12 +340,14 @@
       }
     },
     showFeedback: function (options, audioDuration) {
+      this.resumeFeedbackClock();
       // Bump the active feedback id so older calls can no-op their hide.
       this._currentFeedbackId = (this._currentFeedbackId || 0) + 1;
       var myId = this._currentFeedbackId;
       // If audioDuration is Infinity or "stream", don't auto-hide — caller is responsible for hiding via hideAll()
       var isManualHide = audioDuration === Infinity || audioDuration === "stream";
       var feedbackDuration = isManualHide ? 86400 : Math.min(audioDuration || 10, 10);
+      this._pausedFeedback = null;
       if (options.subtitle) {
         this.showSubtitle({
           text: options.subtitle.text || options.subtitle,
@@ -356,7 +366,58 @@
       }
       return { duration: feedbackDuration, id: myId };
     },
+    pauseFeedbackClock: function () {
+      var now = Date.now();
+      var paused = { at: now };
+      try {
+        if (window.SubtitleComponent && window.SubtitleComponent.getState) {
+          var subState = window.SubtitleComponent.getState();
+          if (subState && subState.isVisible) {
+            var subDuration = subState.currentFeedback && subState.currentFeedback.duration;
+            var elapsed = subState.timeElapsed ? Math.max(0, subState.timeElapsed / 1000) : 0;
+            paused.subtitleRemaining = subDuration ? Math.max(0, subDuration - elapsed) : null;
+            if (window.SubtitleComponent.clearTimeout) window.SubtitleComponent.clearTimeout();
+          }
+        }
+      } catch (_) {}
+      try {
+        if (window.StickerComponent && window.StickerComponent.getState) {
+          var stickerState = window.StickerComponent.getState();
+          if (stickerState && stickerState.isVisible) {
+            var stickerDuration = stickerState.currentSticker && stickerState.currentSticker.duration;
+            var stickerElapsed = stickerState.timeElapsed ? Math.max(0, stickerState.timeElapsed / 1000) : 0;
+            paused.stickerRemaining = stickerDuration ? Math.max(0, stickerDuration - stickerElapsed) : null;
+            if (window.StickerComponent.clearTimeout) window.StickerComponent.clearTimeout();
+          }
+        }
+      } catch (_) {}
+      try {
+        var nodes = document.querySelectorAll(".sticker-image, lottie-player");
+        nodes.forEach(function (node) { node.style.animationPlayState = "paused"; });
+      } catch (_) {}
+      this._pausedFeedback = paused;
+    },
+    resumeFeedbackClock: function () {
+      var paused = this._pausedFeedback;
+      this._pausedFeedback = null;
+      try {
+        var nodes = document.querySelectorAll(".sticker-image, lottie-player");
+        nodes.forEach(function (node) { node.style.animationPlayState = ""; });
+      } catch (_) {}
+      if (!paused) return;
+      try {
+        if (paused.subtitleRemaining && window.SubtitleComponent && window.SubtitleComponent.extendDuration) {
+          window.SubtitleComponent.extendDuration(paused.subtitleRemaining);
+        }
+      } catch (_) {}
+      try {
+        if (paused.stickerRemaining && window.StickerComponent && window.StickerComponent.extendDuration) {
+          window.StickerComponent.extendDuration(paused.stickerRemaining);
+        }
+      } catch (_) {}
+    },
     hideAll: function () {
+      this._pausedFeedback = null;
       this.hideSubtitle();
       this.hideSticker();
     },
@@ -540,39 +601,65 @@
         url = init.cdnBase.replace(/\/$/, "") + "/" + it.base + ".mp3";
       }
 
-      try {
-        // 1. Get Bytes (Cache -> Network)
-        var arrayBuffer = await cacheFirstBytes(url);
+      // Each item bounded at 2.5s — fetchWithRetry has 3 attempts + 600ms backoff,
+      // a single 404 retry chain can take 3-6s on a real network. The 2.5s cap
+      // makes failure detection deterministic and matches the universal audio
+      // failure ceiling. The inner work keeps running in the background after
+      // timeout but its result is discarded.
+      var PRELOAD_TIMEOUT = "__fm_preload_timeout__";
+      var work = (async function () {
+        try {
+          // 1. Get Bytes (Cache -> Network)
+          var arrayBuffer = await cacheFirstBytes(url);
 
-        // 2. Decode
-        var audioBuffer = await decodeAudio(it.id, arrayBuffer);
+          // 2. Decode
+          var audioBuffer = await decodeAudio(it.id, arrayBuffer);
 
-        // 3. Transform (Mono)
-        if (init.transform && init.transform.downmixToMono !== false) {
-          audioBuffer = await transformToMono(audioBuffer);
+          // 3. Transform (Mono)
+          if (init.transform && init.transform.downmixToMono !== false) {
+            audioBuffer = await transformToMono(audioBuffer);
+          }
+
+          // 4. Store (Trigger Eviction)
+          putInBufferStore(it.id, audioBuffer);
+        } catch (e) {
+          console.error("[AudioKit] Failed to preload " + it.id, e);
+          throw e;
         }
+      })();
 
-        // 4. Store (Trigger Eviction)
-        putInBufferStore(it.id, audioBuffer);
-      } catch (e) {
-        console.error("[AudioKit] Failed to preload " + it.id, e);
-        throw e;
+      var result = await Promise.race([
+        work.then(function () { return "ok"; }),
+        new Promise(function (resolve) {
+          setTimeout(function () { resolve(PRELOAD_TIMEOUT); }, 2500);
+        }),
+      ]);
+
+      if (result === PRELOAD_TIMEOUT) {
+        console.warn("[AudioKit] preload timeout (2.5s) for: " + it.id);
+        // Swallow the work's eventual rejection so it doesn't bubble as unhandled.
+        work.catch(function () {});
+        throw new Error("preload timeout (2.5s)");
       }
     }
 
+    // Parallel batch preload. Each item is independently bounded by preloadOne's
+    // 2.5s race, so a batch of N broken URLs still resolves within ~2.5s total
+    // (NOT N × 2.5s — sequential would multiply wait time on every failure).
     async function preloadCritical(list, opts) {
       opts = opts || {};
       var loaded = 0;
-      for (var i = 0; i < list.length; i++) {
-        try {
-          await preloadOne(list[i]);
-          loaded++;
-          if (opts.onProgress)
-            opts.onProgress(loaded / list.length, list[i].id);
-        } catch (e) {
-          if (opts.onError) opts.onError(list[i].id, e);
-        }
-      }
+      await Promise.all(
+        list.map(async function (item) {
+          try {
+            await preloadOne(item);
+            loaded++;
+            if (opts.onProgress) opts.onProgress(loaded / list.length, item.id);
+          } catch (e) {
+            if (opts.onError) opts.onError(item.id, e);
+          }
+        })
+      );
     }
 
     // --- Playback Logic (Preserved from iOS Fix) ---
@@ -929,6 +1016,10 @@
     } catch (e) {
       this.unlockAttempted = true;
       console.error("[AudioKit] Failed to unlock audio:", e);
+      _logFeedbackHealth("feedback.autoplay.blocked", {
+        status: "locked",
+        error: e && e.message ? e.message : String(e),
+      });
       throw e;
     }
   };
@@ -963,6 +1054,11 @@
         },
         onError: function (id, error) {
           console.error("[AudioKit] Preload failed:", id, error);
+          _logFeedbackHealth("feedback.preload.error", {
+            id: id,
+            status: "error",
+            error: error && error.message ? error.message : String(error),
+          });
           results.push({ id: id, status: "error", error: error.message });
         },
       });
@@ -996,6 +1092,7 @@
     // Check if sound exists before attempting unlock — avoid showing popup for missing sounds
     if (!this.audioKit.has(id) && !this.sounds[id]) {
       console.warn("[AudioKit] Sound not preloaded: " + id + ". Call sound.preload() first.");
+      _logFeedbackHealth("feedback.sfx.error", { id: id, status: "missing" });
       return { status: "missing", id: id };
     }
 
@@ -1005,28 +1102,65 @@
         var showPopup = opts.showPopup !== undefined ? opts.showPopup : !this.unlockAttempted;
         await this.unlock({ showPopup: showPopup });
       } catch (e) {
+        _logFeedbackHealth("feedback.sfx.error", { id: id, status: "locked", error: e && e.message });
         return { status: "locked", id: id, error: e.message };
       }
     }
 
     _throwIfAborted();
 
-    // JIT Load Support
+    // Mono feedback guarantee: a static SFX that starts while dynamic TTS is
+    // active must cut the old audio/subtitle/sticker cleanly before playing.
+    if (
+      typeof FeedbackManager !== "undefined" &&
+      FeedbackManager._currentDynamicId &&
+      FeedbackManager._currentDynamicId !== id
+    ) {
+      if (FeedbackManager._currentDynamicType === "stream") {
+        _stream.stopAll({ skipAbort: true });
+      } else if (FeedbackManager._currentDynamicType === "sound") {
+        this.audioKit.stopAll();
+      }
+      FeedbackManager._currentDynamicId = null;
+      FeedbackManager._currentDynamicType = null;
+      FeedbackComponentsManager.hideAll();
+    }
+
+    // JIT Load Support — bounded at 2.5s.
+    // If the URL 404s, the network stalls, or decode hangs, return a status
+    // object so the caller can move on. Audio that loads in time plays normally
+    // with no further timeout (the play step below has no max-duration cap).
     if (!this.audioKit.has(id) && this.sounds[id]) {
+      var JIT_TIMEOUT = "__fm_jit_timeout__";
       try {
-        await this.audioKit.preloadCritical([
+        var loadPromise = this.audioKit.preloadCritical([
           { id: id, url: this.sounds[id].url },
         ]);
+        var loadResult = await Promise.race([
+          loadPromise.then(function () { return "ok"; }),
+          new Promise(function (resolve) {
+            setTimeout(function () { resolve(JIT_TIMEOUT); }, 2500);
+          }),
+        ]);
+      if (loadResult === JIT_TIMEOUT) {
+        console.warn("[AudioKit] JIT load timeout (2.5s) for: " + id);
+        _logFeedbackHealth("feedback.sfx.error", { id: id, status: "timeout", reason: "jit-load" });
+        return { status: "timeout", id: id, reason: "jit-load" };
+      }
         this.sounds[id].loaded = true;
         this.sounds[id].duration = this.audioKit.getDuration(id);
-      } catch (e) {
-        return { status: "error", id: id, error: "JIT_LOAD_FAILED" };
-      }
+    } catch (e) {
+      _logFeedbackHealth("feedback.sfx.error", { id: id, status: "error", reason: "jit-load", error: e && e.message });
+      return { status: "error", id: id, error: "JIT_LOAD_FAILED" };
+    }
     }
 
     _throwIfAborted();
 
-    if (!this.audioKit.has(id)) return { status: "missing", id: id };
+    if (!this.audioKit.has(id)) {
+      _logFeedbackHealth("feedback.sfx.error", { id: id, status: "missing" });
+      return { status: "missing", id: id };
+    }
 
     var audioDuration = this.audioKit.getDuration(id) || 5;
 
@@ -1073,6 +1207,9 @@
         priority: opts.priority || 0,
         feedbackId: feedbackResult ? feedbackResult.id : null,
       });
+      if (result && result.status && result.status !== "ok" && result.status !== "preempted" && result.status !== "stopped") {
+        _logFeedbackHealth("feedback.sfx.error", { id: id, status: result.status, error: result.error });
+      }
       return result;
     } catch (e) {
       if (feedbackResult) FeedbackComponentsManager.hideIfStillActive(feedbackResult.id);
@@ -1088,6 +1225,7 @@
         });
       }
 
+      _logFeedbackHealth("feedback.sfx.error", { id: id, status: "error", error: e && e.message });
       return { status: "error", id: id, error: e };
     }
   };
@@ -1130,6 +1268,7 @@
     console.log("[AudioKit] Pausing");
     this.pauseSound = true;
     var pausedState = this.audioKit.pauseVoice();
+    try { FeedbackComponentsManager.pauseFeedbackClock(); } catch (_) {}
     if (pausedState) {
       this.pausedAudioId = pausedState.id;
     } else if (!this.pausedAudioId) {
@@ -1150,6 +1289,7 @@
     try {
       await this.audioKit.resume();
       this.audioKit.resumeVoice();
+      try { FeedbackComponentsManager.resumeFeedbackClock(); } catch (_) {}
       this.pausedAudioId = null;
       return true;
     } catch (e) {
@@ -1571,6 +1711,16 @@
 
     stream.playingNodes.push(source);
     source.start(startAt);
+
+    // Fire onFirstChunk once per stream — the moment a chunk is actually
+    // scheduled to play. After this, audio is committed to play and no
+    // further "did the stream start?" timeout should apply.
+    if (!stream._firstChunkFired) {
+      stream._firstChunkFired = true;
+      try {
+        if (typeof stream.onFirstChunk === "function") stream.onFirstChunk();
+      } catch (_) {}
+    }
     stream.totalScheduled += buffer.duration;
   };
   StreamManager.prototype._addInternal = async function (id, source, loadedCb) {
@@ -1708,17 +1858,24 @@
         try { FeedbackManager._onAudioPlayed({ id: id, type: "stream" }); } catch (_) {}
       }
       var originalComplete = callbacks.complete || null;
+      var originalFirstChunk = callbacks.onFirstChunk || null;
       var feedbackResult = null;
-      if (options.subtitle || options.sticker) {
-        try {
-          // Pass Infinity — subtitle stays visible until stream onComplete/onError calls hideAll()
-          feedbackResult = FeedbackComponentsManager.showFeedback(
-            { subtitle: options.subtitle, sticker: options.sticker },
-            Infinity
-          );
-        } catch (e) {}
-      }
       s.feedbackId = feedbackResult ? feedbackResult.id : null;
+      s.onFirstChunk = function () {
+        if (!feedbackResult && (options.subtitle || options.sticker)) {
+          try {
+            // Mount feedback only when audio is actually scheduled. This keeps
+            // dynamic stream subtitle/sticker from appearing without audio.
+            feedbackResult = FeedbackComponentsManager.showFeedback(
+              { subtitle: options.subtitle, sticker: options.sticker },
+              Infinity
+            );
+            s.feedbackId = feedbackResult ? feedbackResult.id : null;
+          } catch (e) {}
+        }
+        if (originalFirstChunk) originalFirstChunk();
+      };
+      s._firstChunkFired = false;
       s.onComplete = function () {
         if (
           window.timer?.shouldAllowAudioControl() &&
@@ -1905,6 +2062,7 @@
   StreamManager.prototype.pauseAll = function () {
     if (this.audioCtx && this.audioCtx.state === "running") {
       this.audioCtx.suspend();
+      try { FeedbackComponentsManager.pauseFeedbackClock(); } catch (_) {}
       return true;
     }
     return false;
@@ -1912,6 +2070,7 @@
   StreamManager.prototype.resumeAll = function () {
     if (this.audioCtx && this.audioCtx.state === "suspended") {
       this.audioCtx.resume();
+      try { FeedbackComponentsManager.resumeFeedbackClock(); } catch (_) {}
       return true;
     }
     return false;
@@ -2148,15 +2307,22 @@
     },
 
     /**
-     * Play dynamic feedback with audio, subtitle, and sticker
-     * Automatically stops any previous dynamic audio
-     * Has 3-second timeout for first chunk arrival
+     * Play dynamic feedback with audio, subtitle, and sticker.
+     * Automatically stops any previous dynamic audio.
+     *
+     * Failure handling (all bounded at 2.5s; resolves with a status object — never rejects):
+     *  - API fetch doesn't respond in 2.5s    → resolve {status:'timeout', reason:'api'}
+     *  - Stream setup doesn't finish in 2.5s  → resolve {status:'timeout', reason:'stream-setup'}
+     *  - First audio chunk not playing in 2.5s → resolve {status:'timeout', reason:'first-chunk'}
+     *  - API returns non-ok                   → resolve {status:'error', reason:'api-status', code}
+     *  - Stream playback error                 → resolve {status:'error', reason:'stream', message}
+     * Once audio is actually playing, there is NO timeout — audio plays to its natural end.
      *
      * @param {Object} params - Configuration object
      * @param {string} params.audio_content - Text to convert to speech
      * @param {string} [params.subtitle] - Subtitle text to display
      * @param {string} [params.sticker] - Sticker URL (gif/lottie)
-     * @returns {Promise<void>}
+     * @returns {Promise<Object>} Always resolves with a status object.
      */
     playDynamicFeedback: async function (params) {
       var self = this;
@@ -2167,23 +2333,7 @@
 
       if (!params.audio_content) {
         console.warn("[FeedbackManager] No audio_content provided");
-        // Show sticker only if provided
-        if (params.sticker) {
-          FeedbackComponentsManager.showFeedback(
-            {
-              subtitle: params.subtitle || null,
-              sticker: params.sticker
-                ? {
-                    type: "IMAGE_GIF",
-                    image: params.sticker,
-                    alignment: "RIGHT",
-                  }
-                : null,
-            },
-            5
-          );
-        }
-        return;
+        return { status: "noop", reason: "no-audio_content" };
       }
 
       // Stop any currently playing dynamic audio
@@ -2203,17 +2353,19 @@
 
       var abortSignal = _getAbortSignal();
 
+      var TIMEOUT_API = "__fm_timeout_api__";
       try {
         console.log(
           "[FeedbackManager] Fetching dynamic audio for:",
           params.audio_content
         );
 
-        // Race the API fetch with a 3-second timeout
-        var timeoutPromise = new Promise(function (_, reject) {
+        // Race the API fetch with a 2.5s timeout. Resolve (not reject) with a
+        // sentinel so we can return a status object cleanly instead of throwing.
+        var timeoutPromise = new Promise(function (resolve) {
           self._firstChunkTimeout = setTimeout(function () {
-            reject(new Error("API response timeout (3 seconds)"));
-          }, 3000);
+            resolve(TIMEOUT_API);
+          }, 2500);
         });
 
         var fetchPromise = fetch(apiUrl, abortSignal ? { signal: abortSignal } : undefined);
@@ -2226,11 +2378,21 @@
           self._firstChunkTimeout = null;
         }
 
+      if (response === TIMEOUT_API) {
+        console.warn("[FeedbackManager] API response timeout (2.5s)");
+        self._stopCurrentDynamic();
+        _logFeedbackHealth("feedback.tts.error", { status: "timeout", reason: "api" });
+        return { status: "timeout", reason: "api" };
+      }
+
         _throwIfAborted();
 
-        if (!response.ok) {
-          throw new Error("API returned " + response.status);
-        }
+      if (!response.ok) {
+        console.warn("[FeedbackManager] API returned " + response.status);
+        self._stopCurrentDynamic();
+        _logFeedbackHealth("feedback.tts.error", { status: "error", reason: "api-status", code: response.status });
+        return { status: "error", reason: "api-status", code: response.status };
+      }
 
         var contentType = response.headers.get("content-type");
 
@@ -2251,10 +2413,15 @@
           // Check if we were stopped while preloading
           if (self._currentDynamicId !== audioId) {
             console.log("[FeedbackManager] Stopped during preload");
-            return;
+            return { status: "aborted" };
           }
 
-          await _sound.play(audioId, feedbackOptions);
+          var playResult = await _sound.play(audioId, feedbackOptions);
+          if (playResult && typeof playResult === "object" && playResult.status && playResult.status !== "ok") {
+            // _sound.play already called _abortAmbient on failure paths.
+            return playResult;
+          }
+          return { status: "ok" };
         } else {
           // ===== STREAMING AUDIO - Use stream manager =====
           console.log("[FeedbackManager] Cache MISS - using stream manager");
@@ -2263,49 +2430,81 @@
           self._currentDynamicId = streamId;
           self._currentDynamicType = "stream";
 
-          // Add stream with response
-          await _stream.addFromResponse(streamId, response);
+        // Add stream with response — bounded before playback starts. Without
+        // this race, decoder/reader setup can hang before the first-chunk
+        // timeout below is even installed.
+        var STREAM_SETUP_TIMEOUT = "__fm_stream_setup_timeout__";
+        var setupResult = await Promise.race([
+          _stream.addFromResponse(streamId, response).then(function (ok) {
+            return ok ? "ok" : "failed";
+          }),
+          new Promise(function (resolve) {
+            setTimeout(function () { resolve(STREAM_SETUP_TIMEOUT); }, 2500);
+          }),
+        ]);
+        if (setupResult === STREAM_SETUP_TIMEOUT) {
+          console.warn("[FeedbackManager] Stream setup timeout (2.5s)");
+          try { _stream.remove(streamId); } catch (_) {}
+          if (self._currentDynamicId === streamId) {
+            self._currentDynamicId = null;
+            self._currentDynamicType = null;
+          }
+          FeedbackComponentsManager.hideAll();
+          _logFeedbackHealth("feedback.tts.error", { status: "timeout", reason: "stream-setup" });
+          return { status: "timeout", reason: "stream-setup" };
+        }
+        if (setupResult === "failed") {
+          _logFeedbackHealth("feedback.tts.error", { status: "error", reason: "stream-setup" });
+          return { status: "error", reason: "stream-setup" };
+        }
 
           _throwIfAborted();
 
           // Check if we were stopped while adding stream
           if (self._currentDynamicId !== streamId) {
             console.log("[FeedbackManager] Stopped during stream setup");
-            return;
+            return { status: "aborted" };
           }
 
-          // Play the stream — wrap in Promise so await waits for audio to finish
-          // Safety timeout: if stream breaks (network error, chunks stop arriving),
-          // resolve after 60s to prevent hanging forever
-          await new Promise(function (resolve, reject) {
+          // Play the stream — wrap in Promise so await waits for audio to finish.
+          //
+          // Failure model:
+          //  - If no audio chunk starts playing within 2.5s → resolve {status:'timeout', reason:'first-chunk'}.
+          //  - Once the first chunk fires, the timer is cleared and the stream
+          //    plays to its natural end (or to a stream error / external abort).
+          //    There is NO maximum-duration timeout on a playing stream.
+          //  - External stop (sound.stopAll / stream.stopAll / new runSequence)
+          //    aborts via abortSignal — re-throws AbortError so the runSequence
+          //    cancellation chain works.
+          var streamResult = await new Promise(function (resolve, reject) {
             var settled = false;
             var onAbort = null;
+            var firstChunkTimer = null;
             var cleanup = function () {
-              clearTimeout(safetyTimer);
+              if (firstChunkTimer) { clearTimeout(firstChunkTimer); firstChunkTimer = null; }
               if (abortSignal && onAbort) {
                 try { abortSignal.removeEventListener("abort", onAbort); } catch (_) {}
               }
             };
-            var safetyTimer = setTimeout(function () {
+
+            // 2.5s timeout — fires ONLY if first chunk never arrives.
+            firstChunkTimer = setTimeout(function () {
               if (!settled) {
                 settled = true;
                 cleanup();
-                console.warn("[FeedbackManager] Stream safety timeout (60s) — resolving to prevent hang");
+                console.warn("[FeedbackManager] Stream first-chunk timeout (2.5s)");
                 try { _stream.remove(streamId); } catch (_) {}
                 if (self._currentDynamicId === streamId) {
                   self._currentDynamicId = null;
                   self._currentDynamicType = null;
-                }
-                FeedbackComponentsManager.hideAll();
-                resolve();
               }
-            }, 60000);
+              FeedbackComponentsManager.hideAll();
+              _logFeedbackHealth("feedback.tts.error", { status: "timeout", reason: "first-chunk" });
+              resolve({ status: "timeout", reason: "first-chunk" });
+            }
+            }, 2500);
 
-            // Abort: external stop (sound.stopAll / stream.stopAll / new
-            // runSequence) settles immediately so the outer await doesn't
-            // sit on the 60s safety timer. Stream.stop() nulls onended on
-            // playing nodes, so the `complete` callback never fires on a
-            // force-stop — without this listener, the wrapper would hang.
+            // External abort path (re-throws AbortError so runSequence sees cancellation).
             onAbort = function () {
               if (!settled) {
                 settled = true;
@@ -2328,6 +2527,11 @@
             var playSuccess = _stream.play(
               streamId,
               {
+                // First chunk has been scheduled to play — clear the timer so
+                // the stream can run to completion at its natural duration.
+                onFirstChunk: function () {
+                  if (firstChunkTimer) { clearTimeout(firstChunkTimer); firstChunkTimer = null; }
+                },
                 complete: function () {
                   if (settled) return;
                   settled = true;
@@ -2338,34 +2542,38 @@
                     self._currentDynamicId = null;
                     self._currentDynamicType = null;
                   }
-                  resolve();
+                  resolve({ status: "ok" });
                 },
                 error: function (msg) {
                   if (settled) return;
                   settled = true;
                   cleanup();
                   console.error("[FeedbackManager] Stream error:", msg);
-                  if (self._currentDynamicId === streamId) {
-                    self._currentDynamicId = null;
-                    self._currentDynamicType = null;
-                  }
-                  reject(new Error(msg || "Stream playback error"));
-                },
+                if (self._currentDynamicId === streamId) {
+                  self._currentDynamicId = null;
+                  self._currentDynamicType = null;
+                }
+                _logFeedbackHealth("feedback.tts.error", { status: "error", reason: "stream", message: msg || "Stream playback error" });
+                resolve({ status: "error", reason: "stream", message: msg || "Stream playback error" });
+              },
               },
               feedbackOptions
             );
 
             if (!playSuccess) {
-              if (!settled) {
-                settled = true;
-                cleanup();
-                reject(new Error("Failed to start stream playback"));
-              }
+            if (!settled) {
+              settled = true;
+              cleanup();
+              _logFeedbackHealth("feedback.tts.error", { status: "error", reason: "stream-start-failed" });
+              resolve({ status: "error", reason: "stream-start-failed" });
+            }
             }
           });
+          if (streamResult && streamResult.status !== "ok") return streamResult;
+          return { status: "ok" };
         }
       } catch (error) {
-        // Cancellation path — clean up silently, no fallback sticker
+        // Cancellation path — clean up silently, no fallback sticker, rethrow so runSequence sees it.
         if (error && error.name === "AbortError") {
           console.log("[FeedbackManager] Dynamic feedback aborted");
           self._stopCurrentDynamic();
@@ -2380,20 +2588,8 @@
         // Clean up
         self._stopCurrentDynamic();
 
-        // Show sticker as fallback if provided
-        if (params.sticker) {
-          FeedbackComponentsManager.showFeedback(
-            {
-              subtitle: params.subtitle || null,
-              sticker: {
-                type: "IMAGE_GIF",
-                image: params.sticker,
-                alignment: "RIGHT",
-              },
-            },
-            5
-          );
-        }
+      _logFeedbackHealth("feedback.tts.error", { status: "error", reason: "unexpected", message: error && error.message ? error.message : String(error) });
+      return { status: "error", reason: "unexpected", message: error && error.message ? error.message : String(error) };
       }
     },
 

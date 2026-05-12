@@ -477,35 +477,32 @@ document.getElementById('gameAudio').play();
 </div>
 ```
 
-## Anti-Pattern 32: Promise.race Around FeedbackManager Calls
+## Anti-Pattern 32: Promise.race with Non-2.5s Timeout on FeedbackManager Calls
 
 ```javascript
-// WRONG — 800ms ceiling wins over normal 1–3s TTS; round advances while audio still plays
+// WRONG — 800ms ceiling truncates normal 1–3s TTS
 function audioRace(p) {
   return Promise.race([ p, new Promise(r => setTimeout(r, 800)) ]);
 }
-await audioRace(FeedbackManager.sound.play('correct_sound_effect', { sticker }));
+await audioRace(FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker }));
 ```
 
-Symptom: rounds advance before feedback / VO finishes. Validator rule: `5e0-FEEDBACK-RACE-FORBIDDEN`.
+Symptom: rounds advance before TTS finishes. Validator rule: `5e0-FEEDBACK-RACE-FORBIDDEN`.
 
-**Correct:** For awaited calls (submit-handler SFX, submit-handler TTS, round-complete SFX/TTS, transition-screen SFX/VO), plain `await` inside `try/catch`. For fire-and-forget calls (round-start TTS, chain-progress SFX, ambient SFX), `.catch()` on the unawaited Promise. Any template-level race is either redundant or bug-inducing. FeedbackManager already bounds resolution internally (see PART-017) — `sound.play` resolves within audio-duration + 1.5s, `playDynamicFeedback` within 60s.
+**Canonical rule.** Game code calls `FeedbackManager.sound.play(...)` and `FeedbackManager.playDynamicFeedback(...)` DIRECTLY inside `try/catch`. The package bounds every failure path at 2.5s (API fetch, stream setup, stream first-chunk, JIT-load) and resolves with a status object. Playing audio runs to its natural end — long TTS is NOT truncated. There are no `safePlaySound` / `safeTTS` / `audioRace` wrappers, no minimum-duration floors, no game-side timeouts.
 
 ```javascript
-// RIGHT — submit-handler pattern: SFX awaited, TTS awaited (validator: GEN-FEEDBACK-TTS-AWAIT)
+// RIGHT — submit-handler pattern: bare play calls inside try/catch.
 try {
   await FeedbackManager.sound.play('correct_sound_effect', { sticker });
-} catch (e) { /* non-blocking per feedback SKILL Rule 8 */ }
-// Dynamic TTS is AWAITED — explanation must finish before round advance, else
-// the subtitle/audio paints over the next round (equivalent-ratios regression).
-// Package bounds at 3 s API / 60 s streaming; try/catch swallows rejection.
+} catch (e) { /* AbortError only */ }
 try {
   await FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker });
-} catch (e) { /* non-blocking */ }
+} catch (e) { /* AbortError only */ }
 // Do NOT re-enable inputs here. renderRound() / loadRound() is the single source of truth.
 ```
 
-On transition screens (level / round / game-over with CTA), both may be awaited sequentially since the CTA is visible for interrupt.
+On transition screens (level / round / game-over with CTA), the SFX → TTS sequence is awaited inside `FeedbackManager.runSequence(...)`; the CTA `action` calls `sound.stopAll()` + `stream.stopAll()` to interrupt.
 
 ## Anti-Pattern 33: Custom Lives / Hearts Display Duplicating ProgressBar
 
@@ -558,17 +555,17 @@ Symptom: incorrect/correct feedback audio gets cut short — next round starts, 
 
 Validator rule: `5e0-FEEDBACK-MIN-DURATION`.
 
-**Correct:** Wrap answer-feedback `sound.play()` in `Promise.all` with a 1500ms minimum delay floor. This guarantees the audio/sticker has at least 1.5 seconds to play AND waits for the sound promise, whichever is longer.
+**Correct:** Call `FeedbackManager.sound.play()` directly inside `try/catch`. The package's JIT-load bounds at 2.5s on load failure and resolves with `{status:'timeout', reason:'jit-load'}`; playing audio resolves at its natural end. There is no game-side minimum-duration floor — if you need a long sticker/subtitle, set them on the play call and the package overlay handles the timing.
 
 ```javascript
-// RIGHT — minimum 1500ms AND full audio duration, whichever is longer
+// RIGHT — bare play call. Package owns timeouts.
 try {
-  await Promise.all([
-    FeedbackManager.sound.play('sound_life_lost', { sticker }),
-    new Promise(function(r) { setTimeout(r, 1500); })
-  ]);
-} catch (e) { /* ... */ }
-// Audio has fully played — safe to proceed
+  var r = await FeedbackManager.sound.play('sound_life_lost', { sticker });
+  // Optional: r.status may be 'ok' / 'timeout' / 'missing' / 'locked' / 'error'
+} catch (e) {
+  if (e && e.name !== 'AbortError') console.error('SFX error:', e.message);
+}
+// Safe to proceed.
 ```
 
 **Applies to these feedback sound IDs:** `sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_attempt1`, `all_incorrect_last_attempt`, `partial_correct_attempt1`, `partial_correct_last_attempt`.
@@ -668,7 +665,7 @@ function finishRoundCorrect(round) {
 
 Symptom: in multi-round games, the player hears the previous round's explanation playing on top of the current round's `sound_round_n` and gameplay. Subtitle + sticker overlay also paint over the wrong screen. SFX feedback appears to "play in the next round."
 
-**Why it happens:** `playDynamicFeedback` is async — it has to hit the streaming TTS endpoint, decode, mount the subtitle/sticker overlay, and start audio. That's 200–800 ms of network + decode latency. Fire-and-forget gives it zero time to render before the next-round transition replaces the UI. Older docs (pre-2026-04) said "NEVER await dynamic TTS in a submit handler" because of a stalled-network worry, but the package already bounds resolution at 3 s (TTS API) / 60 s (streaming), so the network can't actually freeze the game indefinitely.
+**Why it happens:** `playDynamicFeedback` is async — it has to hit the streaming TTS endpoint, decode, mount the subtitle/sticker overlay, and start audio. That's typically 200–800 ms of network + decode latency. Fire-and-forget gives it zero time to render before the next-round transition replaces the UI. Older docs (pre-2026-04) said "NEVER await dynamic TTS in a submit handler" because of a stalled-network worry, but the package now bounds failure paths at 2.5s (API fetch, stream setup, first chunk) and never truncates audio once it is playing, so the network can't freeze the game indefinitely.
 
 **Fix — wrap each `playDynamicFeedback` call in `try { await ... } catch(e){}`:**
 
@@ -711,7 +708,7 @@ Symptom: welcome / round-intro / victory TTS plays on the *next* screen after a 
 // WRONG — two awaited audio calls with no runSequence wrapper; stop calls
 // can't prevent the second await from firing on the next screen.
 onMounted: async () => {
-  try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+  try { await FeedbackManager.sound.play('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
   try { await safeDynamic({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_LEVEL }); } catch (e) {}
 }
 
@@ -719,7 +716,7 @@ onMounted: async () => {
 // stream.stopAll() (called from the CTA action as before) now ALSO abort it,
 // so the next await short-circuits at its first line.
 onMounted: () => FeedbackManager.runSequence(async () => {
-  try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+  try { await FeedbackManager.sound.play('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
   try { await safeDynamic({ audio_content: ttsText, subtitle: ttsText, sticker: STICKER_LEVEL }); } catch (e) {}
 })
 ```
@@ -773,6 +770,6 @@ Cross-reference: `GEN-FEEDBACK-RUN-SEQUENCE`, `feedback/reference/feedbackmanage
 - [ ] If `<audio>` present: audio player in instruction/question area, NOT inside interactive play area
 - [ ] No `new Audio()` anywhere (RULE-006)
 - [ ] No `Promise.race` wrapping `FeedbackManager.sound.play` / `playDynamicFeedback` / `audioRace` helper (PART-017 Anti-Pattern 32, validator rule `5e0-FEEDBACK-RACE-FORBIDDEN`)
-- [ ] Answer-feedback `sound.play()` calls (`sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_*`, `partial_correct_*`) wrapped in `Promise.all` with 1500ms minimum delay (Anti-Pattern 34, validator rule `5e0-FEEDBACK-MIN-DURATION`)
+- [ ] Answer-feedback `sound.play()` calls awaited DIRECTLY inside try/catch. Package owns timeouts (2.5s JIT-load cap, no minimum floor). No `Promise.all` wrappers, no `safePlaySound` helper.
 - [ ] Sequential audio (2+ awaited audio calls in any body) wrapped in `FeedbackManager.runSequence(async () => {...})`; no `audioStopped` flag (Anti-Pattern 37, validator `GEN-FEEDBACK-RUN-SEQUENCE`)
 - [ ] No game-code reach-ins to PreviewScreenComponent private DOM (no `getElementById`/`querySelector` on `#previewInstruction`, `#previewProgressBar`, `#previewTimerText`, `#previewQuestionLabel`, `#previewScore`, `#previewStar`, `#previewSkipBtn`, `#previewBackBtn`, `#previewAvatarSpeaking`, `#previewAvatarSilent`, `#previewGameContainer`, `#popup-backdrop`; no `.mathai-preview-*` class selectors or `classList` toggles) — Anti-Pattern 35, validator rule `5e0-DOM-BOUNDARY`, PART-039

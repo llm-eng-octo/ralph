@@ -1,6 +1,6 @@
 # Composition Anti-Patterns
 
-Concrete Wrong / Right snippets for the most common feedback-composition mistakes. Each entry names the validator rule that catches it (some validator rules are being added in Track B and are noted "to be added").
+Concrete Wrong / Right snippets for the most common feedback-composition mistakes. Each entry names the validator rule that catches it.
 
 **See also:**
 - [feedback/SKILL.md § Composition with screen primitives](../SKILL.md#composition-with-screen-primitives) — the canonical moment → primitive mapping table
@@ -38,7 +38,7 @@ await transitionScreen.show({
 });
 ```
 
-**Caught by:** `GEN-FEEDBACK-CUSTOM-DIALOGUE` (to be added in Track B).
+**Caught by:** `GEN-FEEDBACK-CUSTOM-DIALOGUE` (LIVE).
 
 **Why:** TransitionScreen is the single screen primitive for any "stop the game and show a dialogue" moment. A hand-rolled `<div>` duplicates layout, sticker, and lifecycle logic, ignores the `persist` semantics, and bypasses the FloatingButton coordination so two CTAs can stack.
 
@@ -65,7 +65,7 @@ floatingBtn.on('next', () => { /* tear-down or nextRound() */ });
 // No inline button is rendered in #gameContent.
 ```
 
-**Caught by:** `GEN-INLINE-CTA-WITH-FLOATING-BUTTON` (to be added in Track B); `5e0-FLOATING-BUTTON-DUP` (existing).
+**Caught by:** `GEN-INLINE-CTA-WITH-FLOATING-BUTTON` (LIVE); `5e0-FLOATING-BUTTON-DUP` (LIVE).
 
 **Why:** The FloatingButton owns the advance affordance. An inline `Next` / `Continue` button gives the student two CTAs to choose from, drifts state (one path teardowns floating, the other doesn't), and is the failure mode `5e0-FLOATING-BUTTON-DUP` was meant to catch.
 
@@ -89,7 +89,7 @@ floatingBtn.setMode('next');
 floatingBtn.on('next', () => endGame());
 ```
 
-**Caught by:** `GEN-INLINE-CTA-WITH-FLOATING-BUTTON` (to be added in Track B). The validator must match by *role*, not by literal "Next" / "Continue" — renaming an inline advance CTA to "Move on" / "Onward" / "Got it" / "Proceed" is precisely the failure mode the rule exists to prevent. Solving the lint by renaming, instead of removing, defeats the lint.
+**Caught by:** `GEN-INLINE-CTA-WITH-FLOATING-BUTTON` (LIVE). The validator matches by *role*, not by literal "Next" / "Continue" — renaming an inline advance CTA to "Move on" / "Onward" / "Got it" / "Proceed" is precisely the failure mode the rule exists to prevent. Solving the lint by renaming, instead of removing, defeats the lint.
 
 **Why:** This is the cross-logic regression class. The validator must match by role, not by literal text. If an inline button advances the game while a FloatingButton is mounted, it is a duplicate CTA regardless of label.
 
@@ -120,9 +120,9 @@ await FeedbackManager.playDynamicFeedback({
 });
 ```
 
-**Caught by:** `GEN-CUSTOM-SUBTITLE-RENDER` (to be added in Track B).
+**Caught by:** `GEN-CUSTOM-SUBTITLE-RENDER` (LIVE).
 
-**Why:** FeedbackManager already paints the subtitle inside its overlay. A second `<div class="subtitle">` double-renders the same text (sometimes mis-aligned, sometimes lingering after `stopAll()`), and is one of the leftover-DOM sources that violate Cross-Cutting Rule 10.
+**Why:** FeedbackManager already paints the subtitle inside its overlay. A second `<div class="subtitle">` double-renders the same text (sometimes mis-aligned, sometimes lingering after `stopAll()`), and is one of the leftover-DOM sources that violate the SKILL.md student-visible cleanup invariant.
 
 ---
 
@@ -162,7 +162,7 @@ visibilityTracker = new VisibilityTracker({
 });
 ```
 
-**Caught by:** Cross-Cutting Rule 1 prose + CASE 14 anti-pattern note in feedback/SKILL.md (no dedicated validator yet — relies on review).
+**Caught by:** SKILL.md Constraints + CASE 14/15 (no dedicated validator yet — relies on review).
 
 **Why:** VisibilityTracker already renders, shows, and hides the popup. A custom overlay either stacks on top of the built-in (two visible popups) or only works because someone disabled `autoShowPopup` — at which point any future code path that re-enables visibility default ships a broken pause UI.
 
@@ -251,4 +251,4 @@ await FeedbackManager.playDynamicFeedback({
 
 **Why:** The `subtitle` parameter is the on-screen caption rendered while the TTS audio plays — for students who can't hear the audio (mute, slow TTS network, deaf/HoH), it is the ONLY surface that carries the lesson. When `audio_content` is creator-supplied per-round narration (long inference / violated-clue + ask-back), a generic literal subtitle disconnected from that content strands the silent-mode learner. A puzzle-specific `audio_content` paired with a generic `subtitle` like `'Nice deduction!'` means the L4 visible scaffold is unreachable without speakers.
 
-The build agent picked the disconnected literal because the dominant example shape in this skill (`audio_content: 'Round 3', subtitle: 'Round 3'`) trained the wrong instinct: subtitle as a SEPARATE short thing, not a derivation of audio_content. The fix lives at the spec layer — author both strings together, pair them by `<X>TTS` ↔ `<X>Subtitle` convention, build inlines both. See feedback-summary.md "Per-round long-audio + paired short-subtitle" worked example.
+The build agent picked the disconnected literal because the dominant example shape in this skill (`audio_content: 'Round 3', subtitle: 'Round 3'`) trained the wrong instinct: subtitle as a separate short thing, not a derivation of `audio_content`. The fix lives at the spec layer — author both strings together, pair them by `<X>TTS` ↔ `<X>Subtitle` convention, and inline both in the build. See `feedbackmanager-api.md` § Dynamic TTS for the subtitle parameter contract.

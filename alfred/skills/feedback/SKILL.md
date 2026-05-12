@@ -1,89 +1,73 @@
 # Skill: Feedback
 
-## Pre-flight: feedback primitive selection
-
-**Before writing any feedback DOM, fill in this table for the spec at hand:**
-
-| Spec moment | FeedbackManager call | TransitionScreen | FloatingButton mode | Custom DOM? |
-|-------------|----------------------|------------------|---------------------|-------------|
-| (one row per feedback moment in the spec) | | | | should be "no" |
-
-If any "Custom DOM?" cell is "yes", STOP. Re-read [§ Composition with screen primitives](#composition-with-screen-primitives). If the moment isn't on the composition table there, follow the AskUserQuestion + fallback policy in that section. The build sub-agent (Step 4) MUST paste a filled version of this table into its final report.
-
 ## Purpose
 
-Define exactly how games respond to student actions — what plays, when, in what sequence, when to wait, when to stop, and what to prioritise — so every game feels consistent, encouraging, and alive without the creator specifying feedback behavior.
+Define the default feedback behavior for every generated game: what plays, when it blocks, when it stops, and how audio, subtitle, and sticker stay synchronized.
 
 ## When to use
 
-Every game generation. This skill is not optional. All feedback behavior described here is the **default** — creators do not need to specify it.
-
-## Owner
-
-Maintainer: Gen Quality slot (reviews feedback rules) + Education slot (reviews pedagogical tone).
-Deletion trigger: retire when FeedbackManager is replaced by a new CDN feedback system.
+Every game generation. This skill is not optional unless PART-017 / FeedbackManager is unavailable.
 
 ## Reads
 
-- `skills/game-archetypes/SKILL.md` — archetype determines pacing defaults — **ALWAYS**
-- `skills/pedagogy/SKILL.md` — Bloom level determines subtitle depth — **ALWAYS**
-- `skills/data-contract/` — recordAttempt and game_complete schemas — **ON-DEMAND**
-- CDN FeedbackManager API (PART-017) — **ALWAYS**
-
-## Input
-
-- Bloom level (L1–L4)
-- Game archetype
-- PART-017 flag (YES = FeedbackManager available)
-
-## Output
-
-Feedback behavior baked into the generated game. The builder reads this skill and implements all cases by default.
+- `skills/game-archetypes/SKILL.md` — archetype determines single-step vs multi-step pacing — **ALWAYS**
+- `skills/pedagogy/SKILL.md` — Bloom level determines explanation depth — **ALWAYS**
+- `skills/data-contract/` — attempt / `game_complete` schemas — **ON-DEMAND**
+- PART-017 / FeedbackManager package contract — **ALWAYS**
 
 ## Reference Files
 
-**MANDATORY:** When generating game code, ALWAYS read `reference/feedbackmanager-api.md` — it contains the exact CDN script URL, SFX audio URLs, sticker GIF URLs, and API code examples. Without it, audio URLs will be hallucinated and 404 in production.
+**Always read during code generation:** [feedbackmanager-api.md](reference/feedbackmanager-api.md). It owns CDN URL, exact SFX IDs/URLs, sticker URLs, API examples, status objects, monitoring tags, and package failure behavior.
 
 | File | Contents | When to read |
-|------|----------|-------------|
-| [feedbackmanager-api.md](reference/feedbackmanager-api.md) | CDN script URL, FeedbackManager API (init, preload, sound.play, playDynamicFeedback), **exact SFX URLs**, **exact sticker GIF URLs**, preload categories, error handling, Bloom-level subtitles | **ALWAYS during code generation** |
-| [timing-and-blocking.md](reference/timing-and-blocking.md) | Await vs fire-and-forget rules, input blocking, stop/pause triggers, data contract integration | **ALWAYS during code generation** |
-| [what-plays-when.md](reference/what-plays-when.md) | Matrix of which feedback types (SFX, VO, TTS, sticker, subtitle) fire at each game moment | ON-DEMAND |
-| [emotional-arc.md](reference/emotional-arc.md) | Pacing rhythm, streak celebration, failure recovery, game-over/victory tone | ON-DEMAND |
-| [juice-animations.md](reference/juice-animations.md) | 7 CSS keyframe definitions, animation application, round presentation sequence | ON-DEMAND |
+|---|---|---|
+| [feedbackmanager-api.md](reference/feedbackmanager-api.md) | Exact FeedbackManager API, URLs, preload, play calls, status/fallback, monitoring | **ALWAYS during code generation** |
+| [timing-and-blocking.md](reference/timing-and-blocking.md) | Detailed await vs fire-and-forget rules, input blocking, cleanup, pause/resume | **ALWAYS when implementing submit/transition/round-boundary code** |
+| [composition-anti-patterns.md](reference/composition-anti-patterns.md) | Examples of forbidden custom feedback DOM / composition drift | ON-DEMAND when adding UI around feedback |
+| [what-plays-when.md](reference/what-plays-when.md) | Expanded moment matrix | ON-DEMAND for review/debug |
+| [emotional-arc.md](reference/emotional-arc.md) | Tone, streaks, recovery, victory/game-over feel | ON-DEMAND |
+| [juice-animations.md](reference/juice-animations.md) | CSS feedback animation snippets | ON-DEMAND |
+| [host-helpers.md](reference/host-helpers.md) | Glossary for non-FeedbackManager symbols | ON-DEMAND when a symbol is unfamiliar |
+| [validator-map.md](reference/validator-map.md) | Full validator/status map | ON-DEMAND for validator drift |
+
+---
+
+## Builder Report Requirement
+
+Before writing feedback DOM, map every feedback moment in the spec to a row in [Composition With Screen Primitives](#composition-with-screen-primitives) and paste the filled mapping into the Step 4 build report.
+
+| Spec moment | Composition row used | Custom DOM? |
+|---|---|---|
+| (one row per feedback moment) | | must be `no` |
+
+If a moment does not match a row, ask the human before inventing a new composition. Auto-approval counts as rejection; fall back to the closest existing row.
 
 ---
 
 ## Feedback Types
 
-Every feedback moment uses a combination of these 5 types:
+| Type | API | Plays alone? |
+|---|---|---|
+| Static SFX | `FeedbackManager.sound.play(id, {sticker, subtitle})` after `sound.preload([{id,url}])` | Yes |
+| Voiceover (VO) | Static creator audio via `sound.play`, or dynamic TTS via `playDynamicFeedback` | Yes |
+| Dynamic TTS | `FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` | Yes |
+| Sticker | `sticker` URL on either audio API | Never alone |
+| Subtitle | `subtitle` on either audio API | Never alone |
 
-| Type | What it is | API | Plays alone? |
-|------|-----------|-----|-------------|
-| **Static SFX** | Pre-recorded short sound effect (correct ding, life-lost buzz, bubble pop) — preloaded at init via `sound.preload([{id, url}])` | `FeedbackManager.sound.play(id, {sticker})` | Yes |
-| **Voiceover (VO)** | Narration ("Level 1", "Victory! 3 stars!", "Round N", game-over message). **VO can be either static or dynamic**, depending on what the creator supplies for the game: <br>• **Static VO** — pre-recorded audio file the creator provides; preloaded via `sound.preload([{id, url}])` and played with `FeedbackManager.sound.play(id, {sticker})`. Add the (id, URL) pair to the spec's `creatorSounds` block. <br>• **Dynamic VO** — text-to-speech generated on the fly via `FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})`. Use when the line is scripted but the creator hasn't provided an audio file, or when the line is parameterised (e.g. dynamic round/level number). | `sound.play` (static) or `playDynamicFeedback` (dynamic) | Yes |
-| **Dynamic TTS** | Context-specific explanation TTS ("Make 90", "Oops! 5 contributes only 50") — same API as dynamic VO; distinguished only by intent (TTS = puzzle-specific explanation, VO = scripted narration) | `FeedbackManager.playDynamicFeedback({...})` | Yes |
-| **Sticker** | Animated GIF overlay (celebration, sad, mascot) — passed as a string URL | `sticker` param on either API | Never alone — always paired with audio |
-| **Subtitle** | On-screen text shown during audio ("Round 1", "Path complete!") | `subtitle` param on either API | Never alone — always paired with audio |
+No custom subtitle/sticker DOM. FeedbackManager owns the overlay layer.
 
 ---
 
-## Default Feedback by Game Type
+## Default By Game Type
 
-**CRITICAL — This is the default. No spec override needed.**
+| Game type | How to identify | Default feedback |
+|---|---|---|
+| Single-step | One interaction completes the round: MCQ, tap one option, type answer, select one | Correct and wrong both use awaited SFX -> awaited dynamic TTS with subtitle + sticker. This applies to all rounds, including standalone games. |
+| Multi-step | Multiple interactions complete a round: matching, chains, sorting, dragging multiple items | Mid-round partial feedback is fire-and-forget SFX + sticker only. Round-complete awaits SFX; add awaited TTS only when the spec includes Bloom L2+ explanation text. |
 
-| Game type | How to identify | Correct answer feedback | Wrong answer feedback |
-|-----------|----------------|----------------------|---------------------|
-| **Single-step** | 1 interaction completes the round (MCQ, tap correct option, type answer, select one) | SFX awaited (~1.5s floor) → dynamic TTS **awaited** (with subtitle + sticker) — for ALL rounds in BOTH multi-round AND standalone games | SFX awaited (~1.5s floor) → dynamic TTS **awaited** (with subtitle + sticker) — for ALL rounds in BOTH multi-round AND standalone games |
-| **Multi-step** | Multiple interactions to complete the round (matching pairs, chains, sorting, drag multiple items) | Mid-round partial-match SFX + sticker only — **fire-and-forget, no dynamic TTS**. Round-complete (all sub-actions done): SFX awaited (with subtitle e.g. "All matched!"); TTS awaited **only if the spec includes a Bloom L2+ explanation** for the round (CASE 6) | Mid-round partial-wrong SFX — **fire-and-forget, no dynamic TTS**. Round-complete wrong: SFX awaited; TTS awaited **only if the spec includes a Bloom L2+ explanation** |
+Single-step submit handlers must not advance, show retry/next, or render end screen until the awaited TTS has resolved or returned a package failure status. `renderRound()` / `loadRound()` is the normal place to re-enable inputs.
 
-**Why:** Single-step games have one moment per round to give rich feedback — the student benefits from hearing the explanation play attached to the answer it explains. Without `await`, the TTS streams in 200–800 ms after `playDynamicFeedback` returns, by which time `showRoundIntro(N+1)` has already painted. Multi-step games keep mid-round partial matches fire-and-forget for pacing, but round-complete still awaits TTS for the same reason single-step does. The package already bounds TTS resolution (3 s API timeout, 60 s streaming) so awaiting can never freeze the game indefinitely; a `try/catch` around the `await` swallows rejection so a network failure still advances.
-
-**End-of-game (CRITICAL).** Awaited TTS in submit handlers also satisfies the standalone end-of-game requirement: in standalone (`totalRounds: 1`), `endGame()` is the SINGLE 5-step orchestrator (SFX awaited → feedback panel + game_complete SYNC → **TTS awaited** → show_star → setTimeout(setMode('next'))). Do NOT split `endGame` into a `runFeedbackSequence` / `finalizeAfterDwell` helper chain — those fire `game_complete` + Next BEFORE TTS plays, stacking the star animation on top of audio.
-
-**Multi-round (`totalRounds > 1`)**: round-N submit handler awaits SFX + TTS before advancing — same shape as every other round. End-of-game audio is owned by the Stars Collected `onMounted` callback, which awaits `sound_stars_collected`, fires `show_star`, and reveals Next via setTimeout. The round-N handler transitions into Stars Collected only AFTER its own awaited TTS completes.
-
-Validators: `GEN-ENDGAME-AFTER-TTS` rejects any HTML that defines `function runFeedbackSequence` or `function finalizeAfterDwell` (the standalone-only antipattern). `GEN-FEEDBACK-TTS-AWAIT` rejects any submit-handler `playDynamicFeedback(...).catch(...)` that is not preceded by `await`. See PART-050 "Next flow" steps 1–5 and `default-transition-screens.md` § 4 (Stars Collected) for the canonical multi-round end-of-game flow.
+Standalone end-game uses the PART-050 five-step orchestrator: SFX awaited -> feedback panel + `game_complete` -> TTS awaited -> `show_star` -> delayed Next mode.
 
 ---
 
@@ -91,208 +75,149 @@ Validators: `GEN-ENDGAME-AFTER-TTS` rejects any HTML that defines `function runF
 
 ### CASE 1: Level Transition Screen
 
-Transition screen shows level title, optional progress subtitle, and a CTA button. Audio readiness is awaited on the first level screen (poll `canPlayAudio()` every 200ms, give up after 15s). Audio plays **sequentially** inside `FeedbackManager.runSequence(async () => { ... })`: `await` level SFX (with sticker), then `await` level VO (dynamic TTS via `playDynamicFeedback`, with sticker). Both are awaited in order — the second never starts until the first finishes. **Student can tap the CTA at any time during this sequence — when tapped, call `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` (canonical stop pair; aborts the ambient `runSequence` automatically), then proceed.**
+TransitionScreen shows level title/progress and optional CTA. Audio runs inside `FeedbackManager.runSequence`: level SFX awaited -> level VO/TTS awaited. CTA calls `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` and proceeds.
 
 ### CASE 2: Round Transition Screen
 
-**Variant A — Auto-advancing (no CTA):** Screen shows "Round N". Round SFX plays (awaited), then round VO (dynamic TTS) plays (awaited) with sticker. After both finish, transition hides and gameplay begins. Student cannot skip. Wrap both awaits in `FeedbackManager.runSequence(...)`.
+Auto-advance: show "Round N", await round SFX -> await round VO/TTS, then start gameplay.
 
-**Variant B — With CTA:** Screen shows "Round N" with CTA. Audio plays **sequentially** inside `FeedbackManager.runSequence(async () => { ... })`: `await` round SFX (with sticker), then `await` round VO (dynamic TTS, with sticker). **Student can tap CTA at any time during this sequence — when tapped, call `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` (canonical stop pair), hide screen, load round.** If student waits for both audios to finish, screen persists until tapped.
+With CTA: same sequence in `runSequence`; CTA stops sound + stream and loads the round. If audio finishes first, the screen remains until tapped.
 
-### CASE 3: Round Start (Gameplay Begins)
+### CASE 3: Round Start
 
-Play area renders. Timer starts/resumes. In some games, dynamic TTS reads the question aloud with subtitle. **TTS does NOT block input** — student can interact immediately. If student taps while TTS is playing, TTS is stopped first.
+Gameplay renders and input is available. Optional question TTS is fire-and-forget and does not block input.
 
-**Defaults differ by shape:**
+- Multi-round default: allowed when the round has `questionTTS`.
+- Standalone default: off unless spec opts in with `roundMountNarration: true`.
+- Student interaction during round-start TTS stops the TTS first.
 
-- **Multi-round games (`totalRounds > 1`):** the per-round mount narration is allowed by default. The build wires `playDynamicFeedback({audio_content: round.questionTTS, subtitle: round.questionSubtitle, sticker})` (fire-and-forget, `.catch()` only) inside `renderRound()` after the question DOM mounts, whenever the round object carries a non-empty `questionTTS` field.
-- **Standalone games (`totalRounds: 1`):** the per-round mount narration is **OFF by default**. The single puzzle is the entire payoff — auto-narrating it on mount competes with the PreviewScreen instruction TTS that just finished and clutters the moment of first interaction. The build MUST NOT emit a mount-time `playDynamicFeedback` call inside `renderRound()` unless the spec explicitly opts in via `roundMountNarration: true` (see spec-creation/SKILL.md). End-of-game TTS in `endStandaloneGame()` Step 3 is unaffected — that is feedback narration, not mount narration.
+### CASE 4: Correct Answer (Single-Step)
 
-### CASE 4: Correct Answer (Single-step games)
+Set `gameState.isProcessing = true` and disable inputs before any await. Apply the green visual cue, record attempt, update UI state, then await correct SFX -> await dynamic TTS. Advance only after TTS resolves. Subtitle must be paired with the same round-authored content as `audio_content`, not a generic literal.
 
-Input blocked immediately (set `isProcessing = true`, disable voice input / buttons) BEFORE any await. Correct element turns green. **By default, two audios play sequentially, both awaited:** correct SFX with celebration sticker (awaited — ~1.5s floor), then dynamic TTS with subtitle and sticker (`try { await FeedbackManager.playDynamicFeedback({...}); } catch(e){}`). The TTS speaks a context-aware explanation using actual numbers/values from the round — e.g., "Great! Placing 5 in the thousands place gives 5000". Awaiting it ensures the explanation finishes attached to the answer it explains; without `await`, the subtitle/audio paints over the next round's transition. Sequence: SFX awaited → TTS awaited → game advances to next round. The package bounds TTS at 3 s (API) / 60 s (streaming) so a stalled stream resolves on its own; the `try/catch` swallows rejection so a network failure still advances. **Do NOT re-enable inputs in the submit handler.** `renderRound()` / `loadRound()` is the single source of truth for re-enabling inputs (sets `isProcessing=false`, calls `voiceInput.enable()`, resets button states).
+### CASE 5: Correct Match (Multi-Step Mid-Round)
 
-**Subtitle parameter — paired with audio_content, not generic.** The `subtitle` argument to `playDynamicFeedback` is the on-screen caption rendered while the TTS audio plays — it is NOT a generic acknowledgement. When `audio_content` reads a creator-supplied per-round narration (an inference explanation, a violated-clue ask-back), `subtitle` MUST come from a paired authored field on the same round object — `<X>TTS` ↔ `<X>Subtitle` convention (e.g. `audio_content: round.keyInferenceTTS, subtitle: round.keyInferenceSubtitle`). See spec-creation/SKILL.md § 5e-i for the spec-side authoring rule. Do NOT hard-code a generic literal like `'Great job!'` or `'Nice deduction!'` while `audio_content` carries puzzle-specific scaffolding — that strands students who can't hear the audio (mute, slow TTS, deaf/HoH). Validator: `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO` blocks this at the build wire.
+Green visual cue. Correct SFX + sticker fire-and-forget. No dynamic TTS, no subtitle, no input block.
 
-**Side-effect ordering — strict source order: SFX-await → TTS-await → advance.** Any side-effect that advances the game lifecycle — `setMode('next')` / `setMode('retry')`, `nextRound()`, `endGame()`, `showStarsCollected()`, `answerComponent.show()`, `transitionScreen.hide()`, `floatingBtn.destroy()`, `window.postMessage({type:'show_star',...})` — MUST appear in source AFTER the awaited `playDynamicFeedback` call. Placing any of these between the awaited SFX and the awaited TTS (or before the awaited SFX) means the side-effect executes while audio is still in flight, producing visual jank: AnswerComponent slides in mid-narration, Next button appears while voice still narrates, header star animates over the SFX sticker, etc. The only side-effect permitted between Step 1 SFX-await and Step 3 TTS-await is `postGameComplete()` itself (Step 2). Validator: `GEN-FEEDBACK-ORDER` enforces source-order at the wire; PART-050 § Standalone variant has the per-step PERMITTED-calls table.
+### CASE 6: All Sub-Actions Complete
 
-### CASE 5: Correct Match (Multi-step, within same round)
-
-Matched elements turn green. Correct SFX plays with sticker — **fire-and-forget, does NOT block input**. **No dynamic TTS, no subtitle.** Student can immediately work on next match/chain while SFX plays.
-
-### CASE 6: All Sub-Actions Complete (Round Finished)
-
-"Round complete" SFX plays with sticker and subtitle (e.g., "All cards matched!"). **The SFX IS awaited** — input paused until it finishes. If the spec includes a Bloom L2+ explanation for the round, an awaited `playDynamicFeedback` follows the SFX (same SFX-await → TTS-await shape as single-step CASE 4). For Bloom L1 rounds, the subtitle alone is sufficient and no TTS is played. Then the game advances to next round/level/end-game.
+Round-complete SFX + sticker/subtitle is awaited. Add awaited dynamic TTS only when the spec includes a Bloom L2+ explanation for the round. Then advance.
 
 ### CASE 7: Wrong Answer (Lives Remaining)
 
-**Single-step games:** Input blocked immediately (set `isProcessing = true`, disable voice input / buttons) BEFORE any await. Wrong element flashes red (~600ms). Life lost — progress bar updates immediately. **By default, two audios play sequentially, both awaited:** wrong SFX with sad sticker (awaited — ~1.5s floor), then dynamic TTS with subtitle and sticker (`try { await FeedbackManager.playDynamicFeedback({...}); } catch(e){}`). The TTS speaks a context-aware explanation using actual numbers/values from the round — e.g., "Not quite! 5 contributes only 50 from this position". Awaiting ensures the explanation finishes BEFORE retry/advance, so it doesn't bleed into the next round or the retry input. Sequence: SFX awaited → TTS awaited → red flash clears → student retries same round. Wrong option is either deselected or permanently disabled. **Do NOT re-enable inputs after the audio block** — the next `renderRound()` (or the retry-reset path) re-enables inputs. Exception: API-failure path (LLM timeout/error, cannot advance) DOES re-enable inputs in-handler so the user can retry.
+Single-step: set `isProcessing`, disable inputs, red flash, update lives/progress, record attempt, then await wrong SFX -> await dynamic TTS. Retry/advance only after TTS resolves. Subtitle uses the paired `*Subtitle` field for the TTS content.
 
-**Subtitle parameter — same rule as CASE 4.** The wrong-path subtitle MUST come from the round's paired `*Subtitle` field (e.g. `audio_content: round.violatedClueTTS, subtitle: round.violatedClueSubtitle`). For Bloom L4 wrong-answer scaffolding (which is often the ONLY reachable scaffold when no in-puzzle retry exists), the visible subtitle is the load-bearing surface for students who can't hear the audio — generic literals like `'Try again!'` or `'Check the clue again.'` strand them. See spec-creation/SKILL.md § 5e-i and validator `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO`.
+Multi-step: red flash + wrong SFX fire-and-forget; no dynamic TTS/subtitle; input continues unless the game-specific interaction says otherwise.
 
-**Side-effect ordering — same strict source order as CASE 4.** SFX-await → TTS-await → advance. The wrong-path advance is typically `floatingBtn.setMode('retry')` (lives remain) or `endGame(false)` (last life). Both MUST appear AFTER the awaited TTS line. The red-flash visual cue can fire BEFORE the SFX (it's a synchronous DOM class toggle, not an audio race), but every other side-effect waits for TTS completion. Validator: `GEN-FEEDBACK-ORDER`.
+### CASE 8: Wrong Answer (Last Life)
 
-**Multi-step games:** Wrong element flashes red (~600ms). Wrong SFX plays with sad sticker — **fire-and-forget, no dynamic TTS, no subtitle**. Life lost if applicable. Student continues interacting immediately.
+Wrong SFX + sad sticker plays before game-over screen. After the awaited wrong SFX resolves or returns a failure status, render Game Over.
 
-### CASE 8: Wrong Answer (Last Life → Game Over)
+### CASE 9: Tile Select / Deselect
 
-Life lost — progress bar shows 0 lives. Red flash same as Case 7. **Wrong-answer SFX MUST play before game over** — same SFX + sticker as Case 7, awaited with `Promise.all` 1500ms minimum duration (same as every other answer-feedback call). After the wrong SFX finishes, game proceeds to Game Over (Case 12). The student must hear/see the incorrect feedback before the game-over screen appears.
+Micro SFX only; fire-and-forget; no sticker, no subtitle, never blocks input. Stop any current dynamic TTS before handling the tap.
 
-### CASE 9: Tile Select / Deselect (Micro-interaction)
+### CASE 10: Partial Progress
 
-Soft bubble SFX on select, deselect SFX on deselect. **Fire-and-forget, no sticker, never blocks input.** If dynamic TTS is playing, stop it before processing the tap.
+Chain/progress SFX + sticker fire-and-forget. Update the visible progress label. No mid-chain TTS/VO/subtitle; any narration waits for round-complete.
 
-### CASE 10: Partial Progress (Chain/Multi-chain Games)
+### CASE 11: Victory
 
-"Chain complete" SFX (`soundChainComplete`) with sticker — **fire-and-forget, does NOT block input**. The on-screen text label updates with the remaining count. **No mid-chain dynamic TTS / VO / subtitle** — that would violate the multi-step mid-round no-TTS default and kill chain pacing. Any "N more chains to find" narration must wait for round-complete (CASE 6) where it can be awaited.
+Final answer/round feedback finishes first. Then results/victory screen renders and `game_complete` posts. End-game SFX -> VO/TTS plays after the screen is visible; CTA can interrupt.
 
-### CASE 11: Victory (All Rounds Finished)
+### CASE 12: Game Over
 
-Timer pauses. Results screen renders FIRST (stars, metrics, CTA). `game_complete` postMessage sent to parent BEFORE audio. Then: victory SFX (sticker, 3–5s) → victory VO, played sequentially. Different SFX + VO + sticker per star tier (3★/2★/1★). **CTA is already visible — if student taps while audio plays, stop all audio, restart game.**
+Final wrong SFX finishes first. Then Game Over screen renders and `game_complete` posts. Game-over SFX -> VO/TTS plays after the screen is visible; CTA can interrupt.
 
-### CASE 12: Game Over (0 Lives)
+### CASE 13: Restart / Replay
 
-Timer pauses. Game Over screen renders FIRST (sad emoji, rounds completed, "Try Again" CTA). `game_complete` sent to parent BEFORE audio. Then: game-over SFX (sad sticker, 3s) → game-over VO (contextual, e.g., "You completed 2 rounds"). **CTA already visible — if tapped, stop all audio, restart.**
+First stop sound + stream, reset state, then render the first screen. Optional restart VO is allowed after render.
 
-### CASE 13: Restart / Try Again
+### CASE 14: Pause
 
-All audio stopped (static + dynamic + streams). All state resets. Optional restart VO with sticker. Game returns to first level/round transition.
+On tab hide / screen lock: pause static sound and streams, pause timer, and rely on VisibilityTracker's built-in popup. Do not build a custom pause overlay.
 
-### CASE 14: Visibility Hidden (Tab Switch / Screen Lock)
+### CASE 15: Resume
 
-Timer pauses. All static audio pauses. All streams pause. The pause overlay is rendered by **`VisibilityTracker`'s built-in `PopupComponent`** (auto-shown via the `autoShowPopup: true` default — do **NOT** set it to `false`). Customize title / description / button text via `popupProps` if needed; do **NOT** roll a custom pause overlay in game DOM.
+On return: resume static sound and streams from their paused positions, resume timer, and let VisibilityTracker dismiss its popup. Subtitle/sticker remain visible during pause and finish after resumed audio completes.
 
-### CASE 15: Visibility Restored
+### CASE 16: Audio Blocked / Failed
 
-Timer resumes. All audio resumes. All streams resume. `VisibilityTracker` dismisses its own popup automatically. Gameplay continues exactly where it was.
-
-**Anti-pattern:** Do not build a bespoke `<div class="…pause-overlay">` with manual `.visible` class toggling in `onInactive` / `onResume`. `VisibilityTracker` already renders, shows, and hides the popup; a custom overlay duplicates that and produces two stacked overlays (or a broken one if `autoShowPopup: false` was set to suppress the built-in).
-
-### CASE 16: Audio Failure
-
-Every audio call is try/catch wrapped. If audio fails, gameplay continues normally. Visual feedback (CSS classes, stickers) still renders. **Audio failure never blocks input, never blocks round advancement, never crashes the game.**
-
-### CASE 17: New Content Appearing
-
-When new round loads (new grid, tiles, cards), a soft "new cards" SFX plays — fire-and-forget, no sticker, doesn't block.
+Game continues. The package resolves expected audio failures with status objects; game code calls FeedbackManager directly inside `try/catch` and does not add `Promise.race`, helper wrappers, or minimum-duration floors. Subtitle/sticker overlays do not render when paired audio never starts.
 
 ---
 
-## Cross-Cutting Rules
+## Composition With Screen Primitives
 
-1. **Screen before audio** — results/game-over screen always renders before end-game audio starts
-0. **ProgressBar bump before round-complete audio** — `progressBar.update(currentRound, Math.max(0, lives))` fires **first** in the round-complete handler (before the awaited round-complete SFX, subtitle, VO, and before `nextRound`/`endGame`). Required so the bar fills in sync with the last answer's visual lock and so the final round paints `N/N` *before* victory renders. See PART-023 `update() semantics`.
-2. **PostMessage before audio** — `game_complete` sent to parent before end-game audio plays
-3. **CTA always stops audio** — any transition/results CTA, when tapped, stops all playing audio
-4. **Wrong answer = stay on round** — never auto-advance after wrong
-5. **Fire-and-forget for mid-round feedback** — correct matches in multi-step rounds don't block input
-6. **Await for terminal feedback** — round-complete, level transitions, end-game audio are awaited
-6a. **ALL gameplay interactions disabled during the submit-handler / feedback window** — from the moment a submit/answer handler fires (single-step correct/wrong), every input channel in the game must reject input: tap, click, drag (P5 continuous path, P6 DnD, P13 directional), text/number input (P7) submit, and voice input (P17). The single gatekeeper is `gameState.isProcessing = true` set **BEFORE any await** (LLM eval, SFX play). Both SFX and dynamic TTS are awaited (`try { await FeedbackManager.sound.play(...); } catch(e){}` then `try { await FeedbackManager.playDynamicFeedback(...); } catch(e){}`). The package bounds TTS at 3 s (API) / 60 s (streaming), and the `try/catch` swallows rejection — together they guarantee the game can't freeze on a stalled TTS. `isProcessing = false` is cleared in the next `renderRound()` / `loadRound()` — NEVER in the submit handler. Every interaction handler checks `isProcessing` as its first guard. For P17, additionally call `voiceInput.disable()` BEFORE any await and `voiceInput.enable()` in `loadRound()`. For P6 submit-variants, additionally toggle `.dnd-disabled` (removed in `renderRound()`). Optional defense-in-depth: toggle `.is-processing` on `#gameContent` (cleared in `renderRound()`) styled as `pointer-events: none` on voice-input / action-row / submit-btn — works around the CDN VoiceInput bug where `.disable()` only blocks the textarea, not the mic toggle. **Why:** if the student can still interact while feedback is in flight, they mutate the answer that was just evaluated — `recordAttempt` captured one answer, `gameState` now reflects another, scoring drifts from telemetry. Exceptions to "don't re-enable in handler": API-failure path (LLM timeout / error, can't advance) re-enables in-handler so user can retry; terminal game-over path re-enables before `endGame()`. This extends rule #5 (mid-round partial-match SFX does NOT block) with its counterpart: submit-handler SFX AND TTS both block (await + try/catch).
-7. **Dynamic TTS is stoppable** — if student interacts while TTS plays, it's interrupted
-8. **Sequential audio MUST use `FeedbackManager.runSequence(async () => { ... })`** — any function body awaiting 2+ audio calls back-to-back wraps in `runSequence`. Legacy `audioStopped` flag forbidden. Validator: `GEN-FEEDBACK-RUN-SEQUENCE`. See `reference/feedbackmanager-api.md` § Sequential Audio.
-9. **CTA / screen-change handlers call `sound.stopAll()` + `stream.stopAll()`** — these now also abort the ambient `runSequence` automatically. No new method to learn; existing stop calls keep working.
-10. **Cleanup between rounds / end of game (CRITICAL)** — No leftover audio, subtitle, or sticker from the PREVIOUS round/phase may be visible or audible when the NEXT round or the end screen renders. FeedbackManager's overlay auto-clear fires ONLY when a new `playDynamicFeedback()` starts — it does NOT fire on silent `nextRound()` auto-advance, on `endGame()` entry (victory/game-over TransitionScreen), on `restartGame()`, on level-transition action callbacks, or on any skip/next button handler. Every such transition site MUST call `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` (or `.pauseAll()` for stream) BEFORE mutating `gameState` for the new phase. If the game also renders subtitle/sticker outside the FeedbackManager overlay (a custom `#feedback-area`, inline text panel, one-shot animation class), clear those manually in the same block (`textContent = ''`, remove `show`/`correct`/`incorrect`/`visible` classes). Do NOT `.remove()` cached DOM nodes — GEN-DOM-CACHE bans re-querying. Cleanup MUST happen BEFORE `gameState` mutation, never after — running it after mutation opens a 1–2 frame window where the new round paints while the previous round's sticker/subtitle is still visible. Rule 3 ("CTA always stops audio") covers the user-interrupt case; this rule extends the same guarantee to silent transitions where no CTA fires. Validator: `5e0-CLEANUP-BETWEEN-ROUNDS` (alfred/scripts/validate-static.js) flags `nextRound` / `scheduleNextRound` / `endGame` / `restartGame` bodies that mutate state without a preceding stop call or equivalent auto-clear trigger.
-
----
-
-## Composition with screen primitives
-
-> See also: [reference/composition-anti-patterns.md](reference/composition-anti-patterns.md) for the canonical Wrong / Right snippets and validator gates.
-
-Feedback moments are not standalone DOM — they compose three primitives: a FeedbackManager call (audio + sticker + subtitle), an optional TransitionScreen (the screen surface), and an optional FloatingButton mode (the advance CTA). The table below maps every feedback-moment shape to its canonical composition. If a spec describes a moment that does not map to a row here, follow the AskUserQuestion + fallback policy below — never roll custom DOM.
-
-| Moment | FeedbackManager call | TransitionScreen? | FloatingButton mode | Reference |
+| Moment | FeedbackManager call | TransitionScreen? | FloatingButton | Case |
 |---|---|---|---|---|
-| Cell-tap micro SFX | `safePlaySound('sound_bubble_select' / 'sound_bubble_deselect' / 'tap_sound')` — fire-and-forget. Use ONLY these three canonical ids (per `feedback/reference/feedbackmanager-api.md` § Standard Audio URLs); invented variants like `bubble_pop_sfx` / `tap_select_sfx` / `cell_select_sound` are forbidden by `GEN-SOUND-ID-CANONICAL`. | no | unchanged (typically `'submit'`, possibly disabled) | CASE 9 |
-| Single-step correct | `await safePlaySound('correct_sound_effect', {sticker})` → `try { await playDynamicFeedback({audio_content, subtitle, sticker}); } catch(e){}` | no | `'next'` (set after TTS resolves) | CASE 4 |
-| Single-step wrong (lives remain) | `await safePlaySound('incorrect_sound_effect', {sticker})` → `try { await playDynamicFeedback({audio_content, subtitle, sticker}); } catch(e){}` | no | `'retry'` (set after TTS resolves) | CASE 7 |
-| Multi-step partial-match SFX | `safePlaySound('correct_sound_effect' / 'incorrect_sound_effect' / 'soundPartialCorrect', {sticker})` — fire-and-forget, no TTS, no subtitle | no | unchanged | CASE 5 / CASE 10 |
-| Multi-step round-complete | `await safePlaySound('all_correct', {sticker, subtitle:'All matched!'})` (TTS only if Bloom L2+ explanation) | no | `'next'` | CASE 6 |
-| Round-intro (between rounds) | Wrap in `FeedbackManager.runSequence(async () => { ... })`: `await safePlaySound('rounds_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content:'Round N', subtitle:'Round N', sticker})`. CTA `action` calls `sound.stopAll()` + `stream.stopAll()` (also aborts the ambient `runSequence`). | yes (TransitionScreen.show with `title:'Round N'`) | typically hidden during intro; revealed on round body | CASE 2 / flow-implementation.md "Round N intro" |
-| Welcome screen (game start) | onMounted: `await safePlaySound('rounds_sound_effect' / 'sound_level_transition', {sticker})` → `await playDynamicFeedback({audio_content:welcomeText, subtitle, sticker})` | yes (TransitionScreen.show with welcome `title` + `buttons:[{text:"I'm ready"}]`) | hidden | CASE 1 / flow-implementation.md "Welcome" |
-| Victory (3-star end) | onMounted: `await safePlaySound('victory_sound_effect', {sticker:VICTORY_STICKER})` → `await playDynamicFeedback({audio_content:'Victory! 3 stars!', subtitle, sticker})` (multi-round: lives in Stars Collected onMounted; standalone: in `endGame()` Step 3) | yes (Victory TS with `stars`, or Stars Collected celebration `persist:true`) | `'next'` (revealed via setTimeout after `show_star`) | CASE 11 / flow-implementation.md End-of-game |
-| Stars Collected (multi-round end) | onMounted: `await safePlaySound('sound_stars_collected', {sticker})` → fire `show_star` → `setTimeout(setMode('next'), 1100)`. Stays mounted (`persist:true`, `buttons:[]`); never hidden by `onMounted`. | yes (`persist:true`) | `'next'` (revealed after star animation; tap tears down everything) | flow-implementation.md "Yay stars collected!" / default-transition-screens.md § 4 |
-| Answer-review carousel | none (rendering is silent); audio if any belongs to the prior Stars Collected step | no (AnswerComponent renders OVER still-mounted Stars Collected TS) | `'next'` (set inside `showAnswerCarousel()`) | PART-051 / flow-implementation.md "Correct Answers panel" |
-| Pause overlay (VisibilityTracker) | `FeedbackManager.sound.pause()` + `FeedbackManager.stream.pauseAll()`; popup auto-rendered by VisibilityTracker (`autoShowPopup:true`) | no — VisibilityTracker owns its own PopupComponent. Do NOT roll a custom pause overlay. | unchanged (paused with the rest of the game) | CASE 14 / CASE 15 |
-| Game-over (no lives) | onMounted: `await safePlaySound('game_over_sound_effect', {sticker:GAMEOVER_STICKER})` → `await playDynamicFeedback({audio_content:'You completed N rounds', subtitle, sticker})` | yes (Game Over TS with `buttons:[{text:'Try Again'}]`) | hidden (TS button drives restart) | CASE 12 / CASE 8 |
+| Cell-tap micro SFX | `FeedbackManager.sound.play('sound_bubble_select' / 'sound_bubble_deselect' / 'tap_sound')` fire-and-forget | no | unchanged | 9 |
+| Single-step correct | await correct SFX -> await `playDynamicFeedback({audio_content, subtitle, sticker})` | no | set after TTS | 4 |
+| Single-step wrong | await wrong SFX -> await `playDynamicFeedback({audio_content, subtitle, sticker})` | no | retry/end after TTS/SFX | 7/8 |
+| Multi-step partial | SFX + sticker fire-and-forget | no | unchanged | 5/10 |
+| Multi-step round-complete | await `all_correct`; optional awaited TTS if Bloom L2+ | no | next after feedback | 6 |
+| Welcome / level / round intro | `runSequence`: await SFX -> await VO/TTS; CTA stops sound + stream | yes | hidden or disabled | 1/2 |
+| Victory / game complete | screen first, `game_complete`, then await end SFX -> VO/TTS | yes | visible after required reveal timing | 11 |
+| Game over | screen first, `game_complete`, then await end SFX -> VO/TTS | yes | TS restart button | 12 |
+| Answer-review carousel | silent; audio belongs to prior end-game step | no | next | PART-051 |
+| Pause overlay | `sound.pause()` + `stream.pauseAll()`; VisibilityTracker popup | no custom overlay | unchanged | 14/15 |
 
-### When a feedback moment isn't on the table
-
-If a spec describes a feedback moment that doesn't match a row in the table, the build / planning step MUST pause and ask the human user — do NOT roll custom DOM autonomously.
-
-1. Use `AskUserQuestion` to propose a new row: moment shape, FeedbackManager call, TransitionScreen presence, FloatingButton mode, and a 1-sentence justification for why no existing row fits.
-2. **Auto-approve counts as REJECT.** If the orchestration is in Auto mode or the user blanket-approves ("continue", "approved", "auto") without engaging with the specific question, treat that as rejection of the new composition.
-3. **On rejection, fall back to the closest-matching existing row.** Pick the row whose moment shape is most semantically similar (e.g. "single-step wrong" for any wrong-feedback variant). Log the fallback decision in the build report so a human can revisit.
-4. **Never roll custom DOM as a fallback.** Custom DOM is only legal after explicit, deliberate user approval of a new table row — i.e. the user typed an approval of the specific proposed row, not a blanket auto-approve.
-
-Rationale: the cross-logic regression was created precisely because Auto mode silently accepted spec expansions. New compositions are design decisions and must not be slipped through under blanket auto-approval.
+If a new moment is not listed, ask the user for a new row. Never roll custom DOM as fallback.
 
 ---
 
-## Priority (What Wins When Two Feedback Moments Conflict)
+## Priority
 
-| Conflict | Winner | Loser |
-|----------|--------|-------|
-| Game over vs wrong-answer SFX | Wrong-answer SFX plays first | Game over waits until the wrong SFX (with 1500ms floor) finishes — see CASE 8 |
-| Student interaction vs dynamic TTS | Interaction | TTS stopped mid-sentence |
-| CTA tap vs any playing audio | CTA | All audio stopped |
-| New transition screen vs previous audio | New screen | Previous audio stopped first |
-| End-game audio vs results screen | Results screen | Screen renders first, audio after |
-| `game_complete` postMessage vs end-game audio | postMessage | Sent before audio starts |
-| Round-complete audio vs next round | Round-complete audio | Next round waits |
+| Conflict | Winner |
+|---|---|
+| Last-life wrong feedback vs game-over | Wrong SFX first, then game-over screen |
+| Student interaction vs round-start TTS | Interaction; stop TTS |
+| CTA tap vs any audio | CTA; stop sound + stream |
+| New screen vs old feedback | Stop old feedback before rendering new phase |
+| Final answer feedback vs results/end screen | Final feedback first, then results/end screen |
+| `game_complete` vs end-game audio | `game_complete` posts before end-game audio |
+| Round-complete audio vs next round | Round-complete audio first |
 
 ---
 
-## Await vs Fire-and-Forget
+## Student-Visible Invariants
 
-| Feedback moment | Await? | Why |
-|----------------|--------|-----|
-| Level transition SFX → VO | **Yes** (sequential, CTA interrupts) | Both awaited in order; CTA stops all |
-| Round transition (auto-advance) | **Yes** (sequential) | SFX → VO awaited in order; audio IS the pacing |
-| Round transition (with CTA) | **Yes** (sequential, CTA interrupts) | SFX → VO awaited in order; CTA stops all |
-| Round start TTS | No | Student should interact immediately |
-| Correct SFX (single-step) | **Yes** (awaited) | SFX awaited ~1s; blocks handler so visual flash lands |
-| Correct TTS (single-step) | **Yes** (awaited) | Explanation must finish BEFORE round advance, else subtitle/audio bleeds into next round. Package bounds at 3 s API / 60 s streaming + try/catch prevents freezes. |
-| Correct SFX (multi-step, mid-round) | No | SFX + sticker only, fire-and-forget; don't interrupt flow |
-| Round complete SFX | **Yes** | Gate before next round |
-| Round complete TTS | **Yes** (awaited) **if Bloom L2+ explanation in spec** | Same reasoning as single-step Correct TTS — finishes before round advance. For Bloom L1 multi-step rounds, the SFX + subtitle alone is enough; no TTS. |
-| Wrong SFX (single-step) | **Yes** (awaited) | SFX awaited ~1s; blocks handler so visual flash lands |
-| Wrong TTS (single-step) | **Yes** (awaited) | Explanation must finish BEFORE retry/advance, else bleeds into retry input or next round |
-| Explanatory TTS (Bloom L2+) | **Yes** (awaited) | Any `playDynamicFeedback` whose `audio_content` carries a *why* (not just an ack) — same reasoning |
-| Wrong SFX (multi-step) | No | SFX + sticker only, fire-and-forget |
-| Tile select/deselect | No | Pure ambient |
-| Partial progress SFX (chain) | No | SFX + sticker only, fire-and-forget; no mid-chain TTS/VO (CASE 10) |
-| End-game SFX → VO | **Yes** (sequential) | But CTA visible, student CAN interrupt |
-| New cards SFX | No | Ambient |
+1. Audio, subtitle, and sticker appear together, remain paired, pause/resume together, and disappear together.
+2. Subtitle and sticker never appear without paired audio; dynamic explanatory audio must have a paired subtitle.
+3. Only one feedback moment plays at a time; new feedback cuts old audio/subtitle/sticker cleanly.
+4. Rapid double input must not double-play feedback; `gameState.isProcessing` is the submit-handler gatekeeper.
+5. No previous audio/subtitle/sticker is visible or audible when a new round or end screen paints.
+6. Pause preserves audio position; on resume, audio continues from where it stopped.
+7. CTA always interrupts audio and prevents bleed onto the next screen.
+8. Audio failure never stalls flow; failure paths are package-bounded and playing audio is not truncated.
 
 ---
 
 ## Constraints
 
-1. **CRITICAL — Never build custom feedback overlays.** FeedbackManager owns the overlay layer.
-2. **CRITICAL — Input must be blocked during feedback** via `gameState.isProcessing` for single-step correct/wrong. Multi-step mid-round matches are the exception (fire-and-forget).
-3. **CRITICAL — Never skip feedback.** Even obvious answers need confirmation.
-4. **CRITICAL — Never show negative scores.** Score >= 0 always.
-5. **CRITICAL — recordAttempt before audio.** Attempt data is captured before FeedbackManager plays.
-6. **STANDARD — Subtitle under 60 characters.** FeedbackManager renders in a small area.
-7. **STANDARD — Never use "wrong" in student-facing text.** Use "Not quite," "Close," "Almost."
-8. **STANDARD — Audio failure is non-blocking.** Game continues if audio fails. For awaited SFX / TTS in submit handlers and transition screens: `try { await FeedbackManager.sound.play(...) } catch (e) {}` and `try { await FeedbackManager.playDynamicFeedback({...}); } catch(e){}`. For fire-and-forget round-start TTS (CASE 3 multi-round only): `FeedbackManager.playDynamicFeedback({...}).catch(function(e){})`. For fire-and-forget mid-round / chain-progress / ambient SFX: `FeedbackManager.sound.play(...).catch(function(e){})` — these moments have no TTS. NEVER `Promise.race`. FeedbackManager already bounds every call internally (`sound.play` → audio-duration + 1.5s guard; `playDynamicFeedback` → 60s streaming / 3s TTS API timeout). Wrapping calls in `Promise.race([...setTimeout...])` or defining an `audioRace` helper truncates normal TTS (1–3s) and advances phase/round transitions before audio ends — validator rule `5e0-FEEDBACK-RACE-FORBIDDEN` blocks this at build time. See PART-026 Anti-Pattern 32.
-9. **CRITICAL — Sequential audio must await in order, inside `FeedbackManager.runSequence(...)`.** When two audios play back-to-back (SFX → VO/TTS) — both on transition screens AND in submit handlers — wrap the body in `FeedbackManager.runSequence(async () => { ... })` and `await` the first call fully before starting the second. Never fire both simultaneously. CTA `action` handlers call the canonical stop pair (`sound.stopAll()` + `stream.stopAll()`), which aborts the ambient `runSequence` so the next awaited call short-circuits. The legacy `audioStopped` flag is **forbidden** (validator `GEN-FEEDBACK-RUN-SEQUENCE`).
+1. Never build custom feedback overlays.
+2. Single-step submit feedback blocks input; multi-step mid-round feedback does not.
+3. Never skip correct/wrong confirmation feedback.
+4. Never show negative scores.
+5. `recordAttempt` fires before audio.
+6. Subtitle renders the full string; <=60 chars is an authoring target, not a clamp.
+7. Avoid "wrong" in student-facing text; use "Not quite", "Close", or "Almost".
+8. Directly call `FeedbackManager.sound.play(...)` and `FeedbackManager.playDynamicFeedback(...)` inside `try/catch`; no `safePlaySound`, `safeTTS`, `audioRace`, `Promise.race`, or minimum-duration floor.
+9. Any body with 2+ awaited audio calls wraps in `FeedbackManager.runSequence(async () => { ... })`; no `audioStopped` flag.
 
-## Anti-patterns
+---
 
-1. Building `<div class="feedback-overlay">` that conflicts with FeedbackManager.
-2. Silent wrong answers — decrementing lives without playing SFX.
-3. Blocking input during mid-round multi-step matches (kills flow).
-4. Skipping the wrong-answer SFX when the last life is lost — the student must hear/see the incorrect feedback before the game-over screen appears (CASE 8).
-5. Rendering results screen AFTER end-game audio finishes (screen must appear FIRST).
-6. Sending `game_complete` postMessage AFTER audio (must be sent BEFORE).
-7. Using `new Audio()` instead of FeedbackManager (bypasses preloading and mute state).
-8. Not stopping audio when CTA is tapped on transition/results screens.
-9. Playing two audios simultaneously (e.g., SFX + VO at the same time) instead of sequentially awaiting each.
-10. Starting the second audio without `await`-ing the first — the second overrides/overlaps the first.
-11. Adding dynamic TTS to multi-step mid-round matches — kills pacing. Multi-step = SFX + sticker only.
-12. Skipping dynamic TTS on single-step correct/wrong — single-step games ALWAYS play SFX → TTS by default.
-13. Leftover audio/subtitle/sticker bleeding into the next round or the end screen — previous round's TTS still audible, subtitle still visible, sticker still animating when the new question paints. Assumption "FeedbackManager auto-clears" is wrong for silent `nextRound()`, `endGame()` (no CTA), `restartGame()`, and level-transition callbacks. Every transition site must explicitly `stopAll()` before advancing state. See Cross-Cutting Rule 10.
-14. Calling `stopAll()` AFTER mutating `gameState` for the new phase — creates a 1–2 frame window where the new round UI paints while the previous round's sticker/subtitle is still visible. Cleanup must be the FIRST statement in `nextRound()` / `endGame()` / `restartGame()`, before any `currentRound++` / `phase = ...` / `gameEnded = true` / `renderRound()` call.
-15. **Sequential awaited audio without `runSequence`** — 2+ audio awaits in one body must wrap in `FeedbackManager.runSequence(async () => { ... })`. No `audioStopped` flag. Validator: `GEN-FEEDBACK-RUN-SEQUENCE`. See PART-026 Anti-Pattern 37.
+## Anti-Patterns
+
+1. Custom feedback overlay/subtitle/sticker DOM.
+2. Silent wrong answers or skipped last-life wrong SFX.
+3. Mid-round multi-step TTS that kills pacing.
+4. Two audios played simultaneously instead of awaited sequentially.
+5. Submit-handler `playDynamicFeedback(...)` fire-and-forget.
+6. Re-enabling inputs in the submit handler instead of `renderRound()` / `loadRound()`.
+7. Advancing, showing retry/next, or rendering end screen before awaited TTS resolves.
+8. End-game audio before results/game-over screen.
+9. `game_complete` after end-game audio.
+10. Cleanup after state mutation; cleanup must happen before new phase render.
+11. `new Audio()` or invented sound IDs/URLs.
+12. Custom pause overlay instead of VisibilityTracker popup.
