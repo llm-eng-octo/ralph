@@ -4,35 +4,37 @@ For each game moment, exactly which feedback types fire. No ambiguity.
 
 ## Feedback Type Key
 
-- **SFX** = Static pre-recorded sound effect via `FeedbackManager.sound.play(id)`
-- **VO** = Static pre-recorded voiceover via `FeedbackManager.sound.play(id)`
-- **TTS** = Dynamic text-to-speech via `FeedbackManager.playDynamicFeedback({audio_content})`
+- **SFX** = Static pre-recorded sound effect via `FeedbackManager.sound.play(id)` — preloaded
+- **VO** = Voiceover (scripted narration like "Level N" / "Round N" / "Victory!"). **Can be static or dynamic** depending on what the creator supplies: static VO = pre-recorded file, preloaded, played via `sound.play(id)`; dynamic VO = TTS generated on the fly via `playDynamicFeedback({audio_content})`.
+- **TTS** = Dynamic text-to-speech via `FeedbackManager.playDynamicFeedback({audio_content})` — same API as dynamic VO; distinguished by intent (TTS = puzzle-specific explanation, VO = scripted narration)
 - **Sticker** = Animated GIF overlay (always paired with audio)
 - **Subtitle** = On-screen text (always paired with audio)
 
 ## The Matrix
 
+**Column convention.** "VO" = scripted narration (e.g. "Level N", "Victory!", "Game over"), whether the creator supplies a static recording or it's generated dynamically via `playDynamicFeedback`. "TTS" = puzzle-specific explanation generated dynamically per round (e.g. "Great! 5 in the thousands place gives 5000"). Both use `playDynamicFeedback` when dynamic; static VO uses `sound.play(id)`.
+
 | Moment | SFX | VO | TTS | Sticker | Subtitle | Await? |
 |--------|-----|-----|-----|---------|----------|--------|
-| Level transition | ✅ level SFX | — | ✅ dynamic VO | ✅ mascot (5s) | ✅ "Level N" | **Yes** (sequential, CTA interrupts) |
-| Round transition (auto-advance) | ✅ round SFX | — | ✅ dynamic VO | ✅ (per round) | ✅ "Round N" | **Yes** (sequential) |
-| Round transition (with CTA) | ✅ round SFX | — | ✅ dynamic VO | ✅ (per round) | ✅ "Round N" | **Yes** (sequential, CTA interrupts) |
+| Level transition | ✅ level SFX | ✅ "Level N" VO (static or dynamic) | — | ✅ mascot (5s) | ✅ "Level N" | **Yes** (sequential, CTA interrupts) |
+| Round transition (auto-advance) | ✅ round SFX | ✅ "Round N" VO (static or dynamic) | — | ✅ (per round) | ✅ "Round N" | **Yes** (sequential) |
+| Round transition (with CTA) | ✅ round SFX | ✅ "Round N" VO (static or dynamic) | — | ✅ (per round) | ✅ "Round N" | **Yes** (sequential, CTA interrupts) |
 | Round start | — | — | ✅ reads question | — | ✅ question text | No |
 | Correct (single-step) | ✅ correct SFX | — | ✅ explanation TTS (always) | ✅ celebration (2s) | ✅ explanation subtitle | **Yes** (sequential) |
 | Correct (multi-step mid-round) | ✅ correct SFX | — | — | ✅ celebration (2s) | — | No |
-| Round complete (all matched) | ✅ all-correct SFX | — | — | ✅ (2s) | ✅ "All matched!" | **Yes** |
+| Round complete (all matched) | ✅ all-correct SFX | — | ✅ explanation TTS **only if Bloom L2+** | ✅ (2s) | ✅ "All matched!" | **Yes** (SFX always awaited; TTS awaited only when present) |
 | Wrong — single-step (lives remaining) | ✅ wrong SFX | — | ✅ explanation TTS (always) | ✅ sad (2s) | ✅ explanation subtitle | **Yes** (sequential) |
 | Wrong — multi-step (lives remaining) | ✅ wrong SFX | — | — | ✅ sad (2s) | — | No |
-| Wrong (last life) | **skipped** | — | — | — | — | N/A |
+| Wrong (last life) | ✅ wrong SFX (awaited, 1500ms min) | — | — | ✅ sad (2s) | — | **Yes** — then game-over flow (CASE 8) |
 | Tile select | ✅ bubble SFX | — | — | — | — | No |
 | Tile deselect | ✅ bubble SFX | — | — | — | — | No |
-| Partial progress (chain) | ✅ chain SFX | ✅ progress VO | — | ✅ | — | No |
-| Victory (3★) | ✅ victory SFX | ✅ victory VO | — | ✅ big celebration (3-5s) | — | **Yes** (sequential) |
-| Victory (2★) | ✅ complete SFX | ✅ 2-star VO | — | ✅ moderate (3s) | — | **Yes** (sequential) |
-| Victory (1★) | ✅ complete SFX | ✅ 1-star VO | — | ✅ moderate (3s) | — | **Yes** (sequential) |
-| Game over | ✅ game-over SFX | ✅ game-over VO | — | ✅ sad (3s) | — | **Yes** (sequential) |
+| Partial progress (chain) | ✅ chain SFX | — | — | ✅ | — | No (fire-and-forget; no mid-chain TTS/VO — see CASE 10) |
+| Victory (3★) | ✅ victory SFX | ✅ victory VO (static or dynamic) | — | ✅ big celebration (3-5s) | — | **Yes** (sequential) |
+| Victory (2★) | ✅ complete SFX | ✅ 2-star VO (static or dynamic) | — | ✅ moderate (3s) | — | **Yes** (sequential) |
+| Victory (1★) | ✅ complete SFX | ✅ 1-star VO (static or dynamic) | — | ✅ moderate (3s) | — | **Yes** (sequential) |
+| Game over | ✅ game-over SFX | ✅ game-over VO (static or dynamic) | — | ✅ sad (3s) | — | **Yes** (sequential) |
 | New cards appearing | ✅ ambient SFX | — | — | — | — | No |
-| Restart | — | sometimes ✅ restart VO | — | sometimes ✅ | — | No |
+| Restart | — | sometimes ✅ restart VO (static or dynamic) | — | sometimes ✅ | — | No |
 
 ## Sequential Audio Pattern
 
@@ -51,7 +53,7 @@ This applies to:
 - Round transition (auto-advance): round SFX → `playDynamicFeedback({audio_content: 'Round N'})`
 - Round transition (with CTA): round SFX → `playDynamicFeedback({audio_content: 'Round N'})` (CTA interrupts)
 
-If a CTA is present, student can tap it at any point during the sequence. On CTA tap: `stopAll()` + `_stopCurrentDynamic()`, then proceed. Use an `audioStopped` flag to prevent the second audio from starting if CTA was tapped during the first.
+If a CTA is present, student can tap it at any point during the sequence. Wrap the sequential awaits in `FeedbackManager.runSequence(async () => { ... })`. On CTA tap: `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()`, then proceed — those calls abort the ambient `runSequence` automatically, so the second awaited audio short-circuits. The legacy `audioStopped` flag is **forbidden** (validator `GEN-FEEDBACK-RUN-SEQUENCE`).
 
 ### End-Game (Victory + Game Over)
 
@@ -118,7 +120,7 @@ Mid-round matches/actions only play SFX with a sticker. No dynamic TTS — it wo
 |--------|-----|------------|----------|-----|
 | Correct match/action | ✅ correct SFX + sticker | ❌ none | ❌ none | Don't slow the student |
 | Wrong match/action | ✅ wrong SFX + sticker | ❌ none | ❌ none | Don't slow the student |
-| Round complete (all matched) | ✅ all-correct SFX + sticker | ❌ none | ✅ "All matched!" | Terminal moment, SFX awaited |
+| Round complete (all matched) | ✅ all-correct SFX + sticker | ✅ explanation TTS **only if Bloom L2+** | ✅ "All matched!" | Terminal moment — SFX always awaited; awaited TTS added when spec has a Bloom L2+ explanation |
 | Tile select/deselect | ✅ bubble SFX | ❌ none | ❌ none | Pure ambient |
 
 ### How to identify the game type

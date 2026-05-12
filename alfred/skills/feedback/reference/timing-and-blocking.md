@@ -4,7 +4,7 @@ How feedback timing works in production: what to await, what to fire-and-forget,
 
 ## Await vs Fire-and-Forget
 
-Production games do NOT use fixed setTimeout delays. They `await` the `FeedbackManager.sound.play()` promise — the audio duration itself IS the timing. When fire-and-forget is used, the `.play()` call is not awaited and `.catch()` is chained for error handling.
+Production games do NOT use fixed setTimeout delays as the only pacing mechanism. They `await` the `FeedbackManager.sound.play()` promise so the audio duration drives the pacing. **However, `sound.play()` can resolve before its audio actually finishes** — so for answer-feedback SFX (correct/wrong/life-lost), the awaited call MUST be wrapped in a `Promise.all` with a **1500ms minimum floor**, typically via the `safePlaySound(id, opts)` helper. This guarantees the audio + sticker has at least 1.5s to land before the next side-effect runs (validator: `5e0-FEEDBACK-MIN-DURATION`; see PART-017 Minimum Feedback Duration + PART-026 Anti-Pattern 34). Transition-screen SFX, victory/game-over SFX, and round-complete SFX follow the same rule. Fire-and-forget calls are not awaited — `.catch()` is chained for error handling.
 
 | Feedback moment | Await? | Reasoning |
 |----------------|--------|-----------|
@@ -16,13 +16,13 @@ Production games do NOT use fixed setTimeout delays. They `await` the `FeedbackM
 | Correct TTS (single-step) | **Yes** | Awaited so the explanation finishes BEFORE the round advances. Without await, the TTS subtitle/audio paints over the next round's transition (equivalent-ratios regression). |
 | Correct SFX (multi-step, mid-round match) | No | SFX + sticker only, fire-and-forget; no dynamic TTS |
 | Round complete SFX | **Yes** | Gate before next round advances |
-| Round complete TTS | **Yes** | Awaited — finishes before round advance. Same reasoning as single-step correct TTS. |
+| Round complete TTS | **Yes** (awaited) **if the spec includes a Bloom L2+ explanation for the round** | Same reasoning as single-step correct TTS — finishes before round advance. For Bloom L1 multi-step rounds, the SFX + subtitle alone is enough; no TTS. |
 | Wrong SFX (single-step) | **Yes** | SFX awaited (~1s, predictable); block input; then awaited TTS |
 | Wrong TTS (single-step) | **Yes** | Awaited so the explanation finishes BEFORE retry/advance. Without await, the TTS bleeds into the retry input or the next round. |
 | Wrong SFX (multi-step) | No | SFX + sticker only, fire-and-forget; no dynamic TTS |
 | Explanatory TTS (Bloom L2+, any moment) | **Yes** | If `playDynamicFeedback`'s `audio_content` carries a Bloom L2+ explanation (a *why*, not just an ack), it MUST be awaited so the student actually hears it. Bloom L1 acks (e.g., "Yes!", "Correct!") MAY remain fire-and-forget. |
 | Tile select / deselect SFX | No | Pure ambient micro-interaction |
-| Partial progress SFX + VO (chains) | No | Don't interrupt — student starts next chain |
+| Partial progress SFX (chains) | No | SFX + sticker only, fire-and-forget; no mid-chain TTS/VO — student keeps interacting (CASE 10) |
 | End-game SFX → VO (victory/game-over) | **Yes** (sequential) | But screen + CTA already visible, so student CAN interrupt |
 | New cards / content appearing SFX | No | Ambient |
 
@@ -34,8 +34,10 @@ gameState.isProcessing = true;
 // ... disable buttons / voiceInput.disable() here ...
 // ... visual feedback (CSS classes) ...
 // ... recordAttempt ...
+// SFX awaited via safePlaySound — wraps sound.play() in Promise.all with 1500ms floor
+// (sound.play() can resolve before the audio finishes — bare await is GEN-AP-34 / 5e0-FEEDBACK-MIN-DURATION).
 try {
-  await FeedbackManager.sound.play('correct_sound_effect', { sticker: CORRECT_STICKER });
+  await safePlaySound('correct_sound_effect', { sticker: CORRECT_STICKER });
 } catch(e) {}
 // Dynamic TTS is AWAITED — the explanation must finish before round advance,
 // otherwise its subtitle/audio paints on top of the next round
@@ -59,7 +61,7 @@ try {
 | Moment | Why fire-and-forget |
 |---|---|
 | Round-start dynamic TTS (line 14) | Contextual welcome, not feedback — student should interact immediately |
-| Partial progress SFX + VO in chains (line 23) | Ambient progress acknowledgement — don't pause mid-chain |
+| Partial progress SFX in chains | Ambient progress acknowledgement — fire-and-forget SFX only, no mid-chain VO/TTS (CASE 10) |
 | Tile select / deselect SFX (line 22) | Pure micro-interaction |
 | New cards / content appearing SFX (line 25) | Ambient |
 | Multi-step mid-round match SFX (line 17) | SFX + sticker only — no TTS exists |
@@ -106,7 +108,7 @@ if (gameState.isProcessing) return;
 |---------|-------------|
 | CTA tapped on transition / results / game-over | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` |
 | New transition screen appearing | same (clear previous screen's audio) |
-| Student taps during dynamic TTS | `FeedbackManager.stream.stopAll()` |
+| Student taps during dynamic TTS | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` (canonical stop pair) |
 | Restart / Try Again | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` |
 | `nextRound()` / `scheduleNextRound()` / `showRoundIntro(n)` entry | same — FIRST line, before `currentRound++` / `transitionScreen.show()`. Validator: `GEN-ROUND-BOUNDARY-STOP`. |
 | `endGame()` / `restartGame()` entry | same — FIRST line after the `gameEnded` guard. |
@@ -149,7 +151,7 @@ async function endGame(reason) {
 
 **Why this ordering (matches GEN-PHASE-SEQUENCE):** cleanup runs BEFORE phase assignment so no audio is still resolving when `syncDOMState()` paints the new `data-phase`; phase assignment runs BEFORE `syncDOMState()` so the 500ms test harness poll never reads a stale value. Running cleanup AFTER state mutation opens a 1–2 frame window where the next round paints with the previous round's sticker still on screen — visually jarring and detectable in Playwright screenshots.
 
-**Caller does NOT need to also call `FeedbackManager._stopCurrentDynamic()`** — the pair `sound.stopAll()` + `stream.stopAll()` covers both static SFX and dynamic TTS. `_stopCurrentDynamic()` is only needed as an additional belt-and-suspenders call on CTA interrupts where the sequential `audioStopped` flag pattern is in play (see "Round/Level Transition Audio Sequence" below).
+**Caller does NOT need to also call `FeedbackManager._stopCurrentDynamic()`** — the canonical stop pair `sound.stopAll()` + `stream.stopAll()` covers both static SFX and dynamic TTS, and aborts the ambient `runSequence` automatically. `_stopCurrentDynamic()` is package-internal and only exists for legacy code paths; new game code should not call it.
 
 ## Pause / Resume Triggers
 
@@ -207,7 +209,8 @@ When an answer is submitted, execute in this exact order:
 4. progressBar.update(round, lives)       — update UI immediately
 5. recordAttempt({...})                   — log attempt BEFORE audio
 6. signalCollector.recordViewEvent(...)   — record feedback event
-7a. await FeedbackManager.sound.play(...)  — play SFX with sticker (awaited; ~1s predictable)
+7a. await safePlaySound(...)              — play SFX with sticker (awaited via Promise.all 1500ms floor;
+    sound.play() resolves before audio finishes, so bare await is GEN-AP-34)
 7b. [Single-step + round-complete] try { await FeedbackManager.playDynamicFeedback(...); } catch(e){}
     — dynamic TTS is AWAITED so the explanation finishes BEFORE round advance.
     Package already bounds resolution (3 s API / 60 s streaming) so it can't freeze the game.

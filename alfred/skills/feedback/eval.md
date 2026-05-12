@@ -20,11 +20,11 @@ Context files that must be loaded before running:
 
 A feedback implementation passes when ALL of the following are true:
 
-1. **Correct FeedbackManager API used.** `FeedbackManager.sound.play(id, {sticker})` for static audio, `FeedbackManager.playDynamicFeedback({audio_content, subtitle})` for TTS. Never a custom `playFeedback()` wrapper.
+1. **Correct FeedbackManager API used.** `FeedbackManager.sound.play(id, {sticker: <URL>})` for static audio (sticker is a string URL; package wraps internally), `FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` for TTS. Never a custom `playFeedback()` wrapper.
 2. **Every event has a response.** No student action is silent — correct, wrong, round complete, victory, game over all handled.
-3. **Await/fire-and-forget rules followed.** Single-step answers awaited, multi-step mid-round matches fire-and-forget.
-4. **Input blocking correct.** `isProcessing` set before awaited audio, cleared after it resolves. Never set for fire-and-forget.
-5. **Priority rules respected.** Game over skips wrong SFX. CTA stops audio. Screen renders before end-game audio.
+3. **Await/fire-and-forget rules followed.** Single-step submit-handler SFX **and** TTS are both awaited (validators `5e0-FEEDBACK-MIN-DURATION` + `GEN-FEEDBACK-TTS-AWAIT`); multi-step mid-round partial-match SFX is fire-and-forget.
+4. **Input blocking correct.** `isProcessing` set BEFORE any await; cleared by `renderRound()` / `loadRound()`, never in the submit handler. Never set for fire-and-forget micro-interactions.
+5. **Priority rules respected.** Last-life wrong SFX plays (with 1500ms floor) BEFORE the game-over screen renders. CTA stops audio via `sound.stopAll()` + `stream.stopAll()`. Game-over/results screen renders BEFORE end-game audio.
 6. **recordAttempt before audio.** Data captured before FeedbackManager plays.
 7. **Emotional safety maintained.** No punitive language, game-over is encouraging, failure recovery at 3+ consecutive wrong.
 
@@ -61,10 +61,10 @@ Student selects: Isosceles (correct)
 - [ ] Correct option gets green CSS class (`.correct` / `.selected-correct`)
 - [ ] `recordAttempt({...correct: true})` called BEFORE audio
 - [ ] `progressBar.update(round, lives)` called
-- [ ] `FeedbackManager.sound.play('correct_sound_effect', { sticker: {..., duration: 2, type: 'IMAGE_GIF'} })` awaited
-- [ ] `FeedbackManager.playDynamicFeedback({...})` is FIRE-AND-FORGET (`.catch()`, NEVER awaited) — next-round advance MUST NOT depend on TTS completion
+- [ ] Correct SFX played via `safePlaySound('correct_sound_effect', { sticker: <URL> })` — string URL only; FeedbackManager wraps internally. SFX is awaited with `Promise.all` 1500ms minimum floor (PART-017 Minimum Feedback Duration, validator `5e0-FEEDBACK-MIN-DURATION`)
+- [ ] `FeedbackManager.playDynamicFeedback({...})` is AWAITED inside `try { ... } catch(e){}` — explanation MUST finish before round advance; validator `GEN-FEEDBACK-TTS-AWAIT`. Package bounds at 3s API / 60s streaming so it cannot freeze the game
 - [ ] Advance to next round via `renderRound()` / `loadRound()` — which clears `gameState.isProcessing = false` and re-enables inputs (single source of truth). Submit handler does NOT clear `isProcessing` itself
-- [ ] [LLM] No setTimeout used for timing — SFX duration IS the timing
+- [ ] [LLM] No `setTimeout` used to pace audio — SFX duration + 1500ms floor IS the timing; no `Promise.race` wrapping FeedbackManager calls
 
 **Why:** Tests the core correct-answer flow with proper await pattern and production API.
 
@@ -93,8 +93,8 @@ Student answers incorrectly. Lives: 3 → 2.
 - [ ] Life decremented: `gameState.lives--`
 - [ ] `progressBar.update(round, lives)` called immediately (student sees lost heart)
 - [ ] `recordAttempt({...correct: false})` called BEFORE audio
-- [ ] `FeedbackManager.sound.play('incorrect_sound_effect', { sticker: {..., duration: 2} })` awaited
-- [ ] `FeedbackManager.playDynamicFeedback({...})` is FIRE-AND-FORGET (`.catch()`, NEVER awaited) — retry MUST NOT depend on TTS completion
+- [ ] Wrong SFX played via `safePlaySound('incorrect_sound_effect', { sticker: <URL> })` — string URL only; SFX awaited with `Promise.all` 1500ms minimum floor (validator `5e0-FEEDBACK-MIN-DURATION`)
+- [ ] `FeedbackManager.playDynamicFeedback({...})` is AWAITED inside `try { ... } catch(e){}` — explanation MUST finish before retry/advance; validator `GEN-FEEDBACK-TTS-AWAIT`
 - [ ] Red flash clears after ~600ms
 - [ ] Retry path: `renderRound()` / `loadRound()` clears `gameState.isProcessing = false` and re-enables inputs (single source of truth). Submit handler does NOT clear `isProcessing` itself
 - [ ] **Student stays on the same round** — not auto-advanced
@@ -120,15 +120,15 @@ Student answers incorrectly. Lives: 1 → 0.
 **Expect:**
 
 - [ ] Life decremented to 0
-- [ ] **Wrong-answer SFX plays** — same SFX + sticker as Case 2 (awaited with Promise.all 1500ms minimum)
-- [ ] After wrong SFX finishes, game proceeds to game-over flow
+- [ ] **Wrong-answer SFX plays FIRST** — same SFX + sticker as Case 2 (awaited via `safePlaySound` with `Promise.all` 1500ms minimum floor)
+- [ ] After wrong SFX finishes, game proceeds to the game-over flow
 - [ ] Game Over screen renders FIRST (title, sad emoji, rounds completed, "Try Again" CTA)
 - [ ] `game_complete` postMessage sent to parent BEFORE game-over audio
-- [ ] Game over SFX plays (with sad sticker, 3s) → game over VO plays (sequential await)
-- [ ] CTA is already visible during audio — if tapped, all audio stops, game restarts
-- [ ] [LLM] No "incorrect" audio plays before game-over audio (priority rule)
+- [ ] Game-over SFX plays (with sad sticker) → game-over dynamic VO plays (sequential, wrapped in `runSequence`, both awaited)
+- [ ] CTA is already visible during audio — if tapped: `sound.stopAll()` + `stream.stopAll()`, game restarts
+- [ ] [LLM] The wrong-answer SFX is heard BEFORE the game-over screen appears — game-over does NOT skip or pre-empt the wrong feedback
 
-**Why:** Tests the priority rule — game over trumps wrong-answer SFX.
+**Why:** Tests the priority rule — wrong-answer SFX plays before the game-over screen, never skipped.
 
 ---
 
@@ -200,11 +200,10 @@ Student taps "I'm ready!" CTA.
 
 **Expect:**
 
-- [ ] `FeedbackManager._stopCurrentDynamic()` called (if dynamic TTS)
-- [ ] `FeedbackManager.sound.stopAll()` called
+- [ ] CTA action calls the **canonical stop pair**: `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` (those also abort the ambient `runSequence` automatically)
 - [ ] Transition screen hides
 - [ ] Game proceeds to round transition or gameplay
-- [ ] [LLM] Audio does not continue playing after CTA tap
+- [ ] [LLM] Audio does not continue playing after CTA tap; no audio bleeds into the next screen
 
 **Why:** Tests the cross-cutting rule: CTA always stops audio.
 
