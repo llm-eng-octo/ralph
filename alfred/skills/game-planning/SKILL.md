@@ -95,7 +95,7 @@ If the spec mentions a Submit button, you MUST plan the game to use `FloatingBut
 - ❌ *"PART-050 is 'OMITTED as default' because no mode-swap CTA."* WRONG
 - ❌ *"Sticky-bottom Submit is only a variant for keyboard-coverage mitigation."* WRONG. The fixed-bottom placement IS the canonical Submit pattern; "inline under the input" is not a supported variant when a Submit CTA exists.
 
-**The only valid reason to omit PART-050 from the plan** is when the spec declares `floatingButton: false` (PART-039-style opt-out — the spec author deliberately chose the PART-022 inline-button pattern for this game). The plan author (step 3) MUST NOT add a `floatingButton: false` line to `spec.md` — the spec is owned by step 1 + human review. If the spec describes a Submit CTA and does NOT have `floatingButton: false`, the plan MUST include PART-050.
+**The only valid reason to omit PART-050 from the plan** is when the spec declares `floatingButton: false` (PART-039-style opt-out — the spec author deliberately chose the PART-022 inline-button pattern for this game). The plan author (step 3) MUST NOT add a `floatingButton: false`, `autoSubmit: true`, `answerComponent: false`, or `previewScreen: false` line to `spec.md` — these are all creator-only spec flags owned by step 1 + human review. If the spec describes a Submit CTA and does NOT have `floatingButton: false`, the plan MUST include PART-050. When the spec declares `autoSubmit: true` ([PART-050 § `autoSubmit` spec flag](../../parts/PART-050.md#top-level-spec-flag--autosubmit)), PART-050 is STILL included in the plan: `FloatingButtonComponent` stays instantiated to ship Next at end-of-game; only the Submit and Retry CTAs are omitted from the plan's interaction beats, and the plan describes the game's internal commit handler (timer `onEnd`, drag-drop drop callback, canvas commit) as the path that calls `endGame(correct)` directly.
 
 What to write in each plan doc:
 - **screens.md**: Every gameplay screen that accepts a Submit CTA shows a fixed-bottom floating Submit button (not inside `#gameContent`). Reference `.mathai-fb-btn-primary` as the test selector.
@@ -156,16 +156,22 @@ If the plan's pseudocode shows `on('submit')` after a `setMode('next')`, that is
 - ❌ *"Put a 'Next' / 'Continue' / 'Done' button inside the victory TransitionScreen's `buttons:` array."* WRONG. This produces a confusing double-Next UX: the player sees Next on the card, taps it, and sees ANOTHER Next appear at the bottom from the FloatingButton. Victory / game_over TransitionScreens MUST use `buttons: []` and rely on tap-to-dismiss. The Next CTA is the FloatingButton's role; the TransitionScreen is content-only. Validator `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN` catches this.
 - ❌ *"Standalone game should still show a victory TransitionScreen card before Next."* WRONG. Standalone games (`totalRounds: 1`) MUST NOT use TransitionScreen at all — the inline feedback panel in `#gameContent` is the end-of-game display. Feedback → game_complete → setMode('next') directly. No card, no onDismiss callback. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks any TransitionScreen usage in standalone.
 
-### Step 2d: CRITICAL — Try Again planning (standalone + `totalLives > 1` only)
+### Step 2d: CRITICAL — Try Again planning
 
-**Applies when `spec.Rounds === 1` AND `spec.Lives > 1`.** Multi-round games use TransitionScreen retry buttons (unchanged — not covered by this step).
+Three UX patterns for wrong-with-lives. Pick exactly one per game, based on `spec.Rounds`, `spec.Lives`, and `spec.roundRetryButton`:
 
-If applicable, the plan MUST describe:
+1. **Standalone explicit retry (REQUIRED when `Rounds: 1` AND `Lives > 1`).** Wrong-with-lives shows an explicit "Try Again" button via `floatingBtn.setMode('retry')`. The retry handler IS the source of truth for re-enable. Validator-enforced.
+2. **Multi-round predicate-driven (DEFAULT when `Rounds > 1` AND `roundRetryButton: false`/omitted).** Wrong-with-lives plays audio then `floatingBtn.setMode(null)`. No explicit retry button; the next interaction re-shows Submit via the predicate. Re-enable happens in the submit handler's wrong branch OR in `renderRound()` of the next round (depending on flow).
+3. **Multi-round explicit retry button (OPT-IN when `Rounds > 1` AND `roundRetryButton: true`).** Wrong-with-lives shows an explicit "Try Again" button via `floatingBtn.setMode('retry')`. The retry handler either delegates to `renderRound(currentRound)` for same-round re-render OR re-enables directly.
+
+Detailed per-shape × per-event timing in [interaction/reference/state-and-guards.md § Lifecycle matrix](../../skills/interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix). Canonical retry-handler templates in [code-patterns.md § Try Again flow](../../skills/game-building/reference/code-patterns.md) and [PART-050 § Try Again lifecycle](../../parts/PART-050.md#try-again-lifecycle).
+
+If pattern 1 or 3 applies, the plan MUST describe:
 
 1. **On wrong submit with lives remaining:** decrement `gameState.lives`, push attempt with `is_retry: (retryCount > 0)`, await feedback, then `floatingBtn.setMode('retry')` (label: "Try again"). If lives hit 0, `endGame(false)` → feeds into Next flow.
-2. **On Try Again tap:** clear input if `spec.retryPreservesInput !== true`; re-enable input (`gameState.isProcessing = false`); `floatingBtn.setMode(null)` so the predicate takes over.
+2. **On Try Again tap:** clear input if `spec.retryPreservesInput !== true`; clear inline wrong-answer feedback UI; flip `gameState.isProcessing = false`; remove `.dnd-disabled` (P6); `voiceInput.enable()` (P17); `timer.resume()` (PART-006); `floatingBtn.setMode(null)`. (Pattern 3 may instead delegate to `renderRound(currentRound)`, which performs the re-enables on the build's behalf.)
 3. **Preserved state:** `gameState.attempts`, `gameState.score`, `gameState.retryCount`, AND the already-decremented `gameState.lives`. The retry handler MUST NOT reset lives.
-4. **Reset state:** `gameState.isProcessing = false`; input value (unless `retryPreservesInput: true`); any inline wrong-answer feedback UI.
+4. **Reset state:** input value (unless `retryPreservesInput: true`); inline wrong-answer feedback UI.
 
 The round-flow.md must document the `retryCount` mechanic and the `is_retry` attempt flag. The scoring.md must confirm that retries do not multiply score (each attempt counts independently in the `attempts` array).
 
@@ -204,7 +210,7 @@ The plan MUST resolve four design decisions and document them in `pre-generation
 
 **FAILED REASONING PATTERNS — banned:**
 
-- ❌ *"No Try Again needed — Retry is only for multi-round."* WRONG. Multi-round uses TransitionScreen retry; standalone uses FloatingButton `setMode('retry')`. Different mechanisms, both valid.
+- ❌ *"No Try Again needed — Retry is only for multi-round."* WRONG. Standalone always uses FloatingButton `setMode('retry')` (validator-enforced when `Lives > 1`). Multi-round games may use predicate-driven (default), explicit retry button (`roundRetryButton: true`), or — historically — a TransitionScreen retry button. All three are valid; pick one and template consistently. See Step 2d above for the canonical patterns.
 - ❌ *"On retry, call `restartGame()` to reset state."* WRONG. `restartGame()` resets attempts / score / lives — defeats the whole point. Try Again is not a restart; it's "re-enable the single question with existing state preserved, one life already consumed."
 - ❌ *"Just call `setMode('retry')` in the submit handler — the component will handle the rest."* WRONG. FloatingButton provides the mode + handler; the game MUST decrement lives + record the attempt + manage input value before flipping mode, and the retry handler MUST re-enable input.
 

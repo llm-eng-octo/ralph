@@ -25,9 +25,10 @@ The doc walks through five questions, in the order a reader actually asks them. 
 >
 > [§ 7 Mandatory rules](#mandatory-rules) — six MECE buckets covering the six dimensions on which the component can go wrong: state integrity, predicate correctness, end-game side-effect ordering, component boundary, teardown contract, readiness. If every rule holds, no case-table row produces a wrong outcome.
 >
-> The rules above reference one spec input and one bypass:
-> - [§ 8 `partialSubmitAllowed` spec flag](#partialsubmitallowed-spec-flag) — the single spec key two Submit-visibility rows depend on.
-> - [§ 9 Opt-out (`floatingButton: false`)](#opt-out-floatingbutton-false) — when the whole component is absent and none of the above applies.
+> The rules above reference two spec inputs and one bypass, in increasing order of how much they switch off:
+> - [§ 8 `partialSubmitAllowed` spec flag](#partialsubmitallowed-spec-flag) — the single spec key two Submit-visibility rows depend on. Tunes when Submit appears; the button still ships.
+> - [§ 8a `autoSubmit` spec flag](#top-level-spec-flag--autosubmit) — creator-only opt-in to auto-evaluation. Hides Submit AND Retry wholesale; Next still ships so `next_ended` posts.
+> - [§ 9 Opt-out (`floatingButton: false`)](#opt-out-floatingbutton-false) — when the whole component is absent and none of the above applies (game hand-rolls `next_ended` via PART-022).
 >
 > **4. How do I actually wire it up — and which variant matches my game?** — Two parts: the boilerplate every game shares, then the variant for the specific game shape.
 >
@@ -74,7 +75,7 @@ FloatingButton has exactly four externally observable states. `setMode(...)` is 
 |---|---|---|---|
 | `null` (hidden) | No | `setMode(null)` / `hide()` / page load / new round | `setSubmittable(true)` (predicate true) → `submit` |
 | `submit` | Yes | `setSubmittable(true)` / `setMode('submit')` / `show()` | Submit tap (auto-hide before handler) → `null`; `setMode(null)` → `null` |
-| `retry` | Yes | `setMode('retry')` (Standalone wrong + lives>0) | Retry tap → `null` |
+| `retry` | Yes | `setMode('retry')` (wrong + lives>0, whenever the chosen UX shows an explicit retry button: Standalone (validator-enforced) OR Multi-round with `spec.roundRetryButton: true`) | Retry tap → `null` |
 | `next` | Yes | `setMode('next')` (end-of-game CTA reveal) | Next tap → component destroyed |
 
 `disabled` is NOT a separate state — it is a flag (`setDisabled(bool)`) that visually greys the current state without changing it. Use only for transient lockouts.
@@ -136,8 +137,9 @@ Each row is one mode × shape/phase → one ordered action sequence. The [lifecy
 | Submit | Standalone | Gameplay | (1) auto-hide button before handler runs (component-internal) · (2) evaluate `gameState.userInput` · (3) `recordAttempt({correct, ...})` · (4) `endGame(correct)` — runs the [Standalone end-game beats](#standalone-lifecycle) |
 | Submit | Multi-round | Non-last round | (1) auto-hide · (2) evaluate · (3) `recordAttempt` · (4) `await FeedbackManager.play(...)` · (5) advance to next round (auto-advance applies on both correct and wrong; wrong+lives=0 routes to Game Over) |
 | Submit | Multi-round | Last round | Same as non-last, except (5) routes to Win Confirmation (if used) → Victory Celebration on win, or Game Over on lives=0 |
-| Retry | Standalone | Post-eval, wrong, lives > 0 | (1) `gameState.isProcessing = false` · (2) clear input value UNLESS `spec.retryPreservesInput: true` · (3) clear inline feedback DOM · (4) `floatingBtn.setMode(null)` — predicate-driven re-show owned by the next interaction handler · (5) **(mandatory)** MUST NOT call `setSubmittable(...)` ([GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE](../skills/game-building/reference/static-validation-rules.md)) · (6) **(mandatory)** MUST NOT reset `gameState.lives` / `gameState.attempts` / `gameState.score` ([GEN-FLOATING-BUTTON-RETRY-LIVES-RESET](../skills/game-building/reference/static-validation-rules.md)) |
-| Retry | Multi-round | n/a | Not wired. Multi-round games have no per-round retry — wrong always auto-advances. The mode is never set in this shape. |
+| Retry | Standalone | Post-eval, wrong, lives > 0 | (1) clear input value UNLESS `spec.retryPreservesInput: true` · (2) clear inline feedback DOM · (3) `gameState.isProcessing = false` · (4) `boardEl.classList.remove('dnd-disabled')` (P6 — load-bearing on @dnd-kit/dom) · (5) `voiceInput.enable()` (P17) · (6) `timer.resume()` (PART-006, when timer was paused at submit) · (7) `floatingBtn.setMode(null)` — predicate-driven re-show owned by the next interaction handler · (8) **(mandatory)** MUST NOT call `setSubmittable(...)` ([GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE](../skills/game-building/reference/static-validation-rules.md)) · (9) **(mandatory)** MUST NOT reset `gameState.lives` / `gameState.attempts` / `gameState.score` ([GEN-FLOATING-BUTTON-RETRY-LIVES-RESET](../skills/game-building/reference/static-validation-rules.md)). Full timing per [state-and-guards.md § Lifecycle matrix](../skills/interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix). |
+| Retry | Multi-round (default, `roundRetryButton: false`) | n/a | Not wired. Wrong-with-lives auto-advances (or predicate re-shows Submit on the next interaction). The mode is never set in this variant. |
+| Retry | Multi-round (`spec.roundRetryButton: true`, opt-in) | Post-eval, wrong, lives > 0 | (1) clear inline feedback DOM · (2) `floatingBtn.setMode(null)` · (3) call `renderRound(currentRound)` for same-round re-render — `renderRound`'s first 3 lines flip `isProcessing = false` and remove `.dnd-disabled`. In-handler variant (when same-round re-render is too heavy): mirror the standalone retry handler body. Pick one per game. Validator rules `RETRY-NO-SUBMITTABLE` / `RETRY-LIVES-RESET` apply identically. |
 | Next | Standalone | Post-eval, correct OR (wrong + lives = 0) | (1) `window.parent.postMessage({type:'next_ended'}, '*')` · (2) `answerComponent.destroy()` if visible · (3) `previewScreen.destroy()` · (4) `floatingBtn.destroy()` — single-stage exit, no branching, no flag-checks ([GEN-ANSWER-COMPONENT-NEXT-SINGLE-STAGE](../skills/game-building/reference/static-validation-rules.md)) |
 | Next | Multi-round | Victory Celebration screen | Same single-stage exit. The Victory Celebration TS is destroyed alongside (it stayed mounted as backdrop). |
 
@@ -192,7 +194,8 @@ Constrains: how the session ends. Backstops the [Click action § Next](#click-ac
 
 Constrains: how the component enters scope. Backstops the assumption every other rule makes that `floatingBtn` exists.
 
-17. **(mandatory)** Standalone games with `totalLives > 1` must register an `on('retry', ...)` handler. (static: [GEN-FLOATING-BUTTON-RETRY-STANDALONE](../skills/game-building/reference/static-validation-rules.md))
+17. **(mandatory)** Standalone games with `totalLives > 1` must register an `on('retry', ...)` handler. Multi-round games with `spec.roundRetryButton: true` must also register `on('retry', ...)`. (static: [GEN-FLOATING-BUTTON-RETRY-STANDALONE](../skills/game-building/reference/static-validation-rules.md) — currently validates standalone only; if multi-round explicit-retry ships at scale the validator scope needs widening. TODO.)
+17a. **(mandatory)** Retry handler MUST remove the board-level interaction lock — `boardEl.classList.remove('dnd-disabled')` (P6 / `@dnd-kit/dom`), `voiceInput.enable()` (P17), `timer.resume()` (PART-006) — in source order, in the handler body. There is no `renderRound()` between submit and retry in standalone; the handler is the source of truth. Multi-round variants that delegate to `renderRound(currentRound)` inherit re-enable from the re-render. See [state-and-guards.md § Exception patterns](../skills/interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix). (review-side rule; no validator yet — TODO: a `GEN-RETRY-DND-UNLOCK` rule would catch the standalone-with-P6 failure mode where `.dnd-disabled` is added but never removed.)
 18. **(mandatory)** `waitForPackages` must include `typeof FloatingButtonComponent !== 'undefined'` as a hard `&&` term. (static: [GEN-WAITFORPACKAGES-NO-OR](../skills/game-building/reference/static-validation-rules.md), [GEN-WAITFORPACKAGES-MISSING](../skills/game-building/reference/static-validation-rules.md))
 19. **(mandatory)** The `new FloatingButtonComponent(...)` call uses an attributable catch (`console.error` + `Sentry.captureException`), never a silent `try { ... } catch (e) {}`. (review + static: [GEN-SLOT-INSTANTIATION-MATCH](../skills/game-building/reference/static-validation-rules.md))
 
@@ -205,6 +208,25 @@ Top-level spec key controlling whether Submit is shown for partial input. Two ro
 
 Authoring lives in [spec-creation § Game Parameters](../skills/spec-creation/SKILL.md). Review check lives in [spec-review § H6](../skills/spec-review/SKILL.md). Build consumes the flag when emitting `isSubmittable()` — see [game-building § Predicate emission](../skills/game-building/SKILL.md).
 
+## Top-level spec flag — `autoSubmit`
+
+Where § 8's `partialSubmitAllowed` tunes WHEN Submit appears, `autoSubmit` decides WHETHER the Submit and Retry buttons appear at all. It is the lighter half of § 9's `floatingButton: false`: it hides the same two CTAs but leaves the component instantiated so Next can still fire `next_ended`. Use it for games whose evaluation fires WITHOUT a Submit tap (timer expiry, drag-drop commit handler, canvas commit, etc.).
+
+- **Default:** `false` — manual Submit + Retry/Try-Again buttons per [§ 4](#submit-visibility-cases) and [§ 5](#retry-and-next-visibility-cases). Today's behavior; spec authors emit nothing.
+- **`true`:** No Submit button, no Retry button. The game's internal commit handler (timer `onEnd`, drag-drop drop handler, canvas commit) calls `endGame(correct)` directly. **`FloatingButtonComponent` stays instantiated** so it can reveal Next at end-of-game (rule 13 — every game that reaches an end state MUST reveal Next).
+
+**Case-table flips when `autoSubmit: true`:**
+
+- [§ 4 Submit visibility cases](#submit-visibility-cases) — every Gameplay row's verdict becomes **hide** (Submit is never shown). The Submittable predicate is not emitted.
+- [§ 5 Retry/Next visibility cases](#retry-and-next-visibility-cases) — every Post-eval Retry row becomes **hidden**. There is no `on('retry', ...)` handler. The wrong-with-lives branch either advances the round directly (multi-round) or routes to AnswerComponent + Next (standalone, lives=0) via `endGame(false)`. Standalone lives>0 with `autoSubmit: true` is an unusual combination — the spec must describe how the game re-arms after a wrong commit (typically: clear inputs in the commit handler and let the player commit again, with no explicit Retry tap).
+- [§ 6 Click action cases](#click-action-cases) — the Submit and Retry rows are unreachable. The Next rows are unchanged.
+
+**`autoSubmit: true` is a CREATOR-ONLY decision** (mirrors `answerComponent: false`). The spec author MUST NOT auto-fill it. Valid only when the creator's prompt EXPLICITLY says: "no submit button", "no buttons", "auto-submit", "auto-advance on timer", "drag-to-commit / drop-to-commit", "canvas commits the answer", or equivalent. Silence means default (`false`).
+
+Authoring lives in [spec-creation § Top-level spec field — `autoSubmit`](../skills/spec-creation/SKILL.md). Review check lives in [spec-review § H7](../skills/spec-review/SKILL.md). Build consumes the flag — see [game-building § Predicate emission](../skills/game-building/SKILL.md): when `true`, skip the `setSubmittable(...)` emission and the `on('retry', ...)` handler; keep the slot, the `on('next', ...)` handler, and the end-game routing.
+
+**Validator skip behavior.** When `autoSubmit: true`, the three Submit/Retry static rules — `GEN-FLOATING-BUTTON-PREDICATE`, `GEN-FLOATING-BUTTON-SUBMIT-DEFAULT`, `GEN-FLOATING-BUTTON-RETRY-STANDALONE` — auto-skip (mirroring how they auto-skip on `floatingButton: false`). Next-related rules (`GEN-FLOATING-BUTTON-NEXT-MISSING`, `-NEXT-POSTMESSAGE`, `-NEXT-TIMING`, `-CDN`, `-SLOT`) stay active because Next is still mandatory. For the deeper bypass that strips Next as well, see § 9 below.
+
 ## Opt-out (`floatingButton: false`)
 
 When the spec declares a top-level `floatingButton: false`:
@@ -215,6 +237,8 @@ When the spec declares a top-level `floatingButton: false`:
 - All `GEN-FLOATING-BUTTON-*` and `5e0-FLOATING-BUTTON-*` rules auto-skip.
 
 Two valid reasons to opt out: (1) the flow has no Submit CTA at all (timer-driven auto-advance, drag-to-commit, canvas-only flows) — emit NO Submit / Check / Done button anywhere; (2) the spec author deliberately opts into the inline PART-022 pattern.
+
+**`floatingButton: false` vs `autoSubmit: true` — pick the lighter one.** `autoSubmit: true` (see [§ above](#top-level-spec-flag--autosubmit)) is the lighter opt-out — it hides only Submit and Retry while keeping `FloatingButtonComponent` instantiated to ship Next at end-of-game. Prefer it for games that want auto-evaluation but still need a Next button to fire `next_ended`. `floatingButton: false` is the heavier opt-out — it removes the entire component including Next, which means the game MUST hand-roll its own `next_ended` CTA via [PART-022](PART-022.md). Use `floatingButton: false` only when the creator explicitly opts into the inline PART-022 pattern, OR when no `next_ended` CTA is desired at all.
 
 **(mandatory)** Step 4 (Build) MUST NOT write `floatingButton: false` into `spec.md` to silence validator rules. Same trust model as [PART-039](PART-039-preview-screen.md) — build-time spec mutations show up in `git diff` and are visible scope violations the user can revert.
 
@@ -409,9 +433,17 @@ floatingBtn.on('next', function () {
 
 ## Try Again lifecycle
 
-**Scope:** Standalone (`totalRounds: 1`) with `totalLives > 1`. Multi-round games have no per-round retry.
+**Scope:** Two UX variants. Pick one per game.
 
-Why not multi-round: in multi-round, wrong either advances to the next round or ends the game (lives exhausted). In Standalone, the single round IS the game, so "retry this question" is the only way to use a spare life.
+- **Standalone variant** — `totalRounds: 1` with `totalLives > 1`. Required (validator-enforced).
+- **Multi-round explicit-retry-button variant** — `totalRounds > 1` with `totalLives > 1` AND `spec.roundRetryButton: true`. Opt-in.
+- Default multi-round (without the flag) is **predicate-driven** — no retry button; wrong-with-lives plays audio then `setMode(null)`; the next interaction re-shows Submit. This variant has no Try Again lifecycle of its own — re-enable lives in `renderRound()` of the next round (multi-round predicate) or in the submit handler's wrong branch (multi-round auto-advance).
+
+Re-enable timing for all three variants resolves at [state-and-guards.md § Lifecycle matrix](../skills/interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix).
+
+### Standalone variant
+
+Why standalone needs an explicit retry button: in standalone the single round IS the game, so "retry this question" is the only way to use a spare life. There is no `renderRound()` to delegate re-enable to.
 
 Beats:
 
@@ -419,7 +451,7 @@ Beats:
 2. **(mandatory)** `gameState.lives -= 1`; `recordAttempt({correct: false, is_retry: (gameState.retryCount || 0) > 0, ...})`.
 3. `await FeedbackManager.play('incorrect')`.
 4. Branch on `gameState.lives`:
-   - `> 0` → `floatingBtn.setMode('retry')`.
+   - `> 0` → `floatingBtn.setMode('retry')`. Do NOT flip `isProcessing` / `.dnd-disabled` here — the retry handler is the source of truth.
    - `=== 0` → `endGame(false)` → routes to Next via [Standalone lifecycle](#standalone-lifecycle) beat 5 (gates AnswerComponent on `!correct`).
 5. Player taps Try Again → handler runs the [Click actions Retry row](#click-action-cases).
 
@@ -431,22 +463,63 @@ await FeedbackManager.play('incorrect');
 
 if (gameState.lives > 0) {
   gameState.retryCount = (gameState.retryCount || 0) + 1;
-  if (!RETRY_PRESERVES_INPUT) { inputEl.value = ''; gameState.userInput = ''; }
-  gameState.isProcessing = false;
   floatingBtn.setMode('retry');
 } else {
   endGame(false);
 }
 
 floatingBtn.on('retry', function () {
-  floatingBtn.setMode(null);   // predicate-driven re-show owned by next interaction handler
+  // Clear input / feedback UI per spec.retryPreservesInput
+  if (!RETRY_PRESERVES_INPUT) { inputEl.value = ''; gameState.userInput = ''; }
+  clearFeedbackUI();
+
+  // Re-enable in source order — the handler is the single source of truth
+  gameState.isProcessing = false;
+  if (boardEl) boardEl.classList.remove('dnd-disabled');     // P6 — load-bearing on @dnd-kit/dom
+  if (voiceInput) voiceInput.enable();                        // P17
+  if (timer) timer.resume();                                  // PART-006
+  floatingBtn.setMode(null);                                  // predicate takes over again
   if (inputEl && !RETRY_PRESERVES_INPUT) inputEl.focus();
 });
 ```
 
 `RETRY_PRESERVES_INPUT` is a game-scope const emitted from `spec.retryPreservesInput`.
 
-**Must reset / re-enable:** `gameState.isProcessing = false`; clear input value (unless `retryPreservesInput: true`); clear inline feedback DOM. **Must NOT reset:** `gameState.lives` (already decremented), `gameState.attempts`, `gameState.score`, `gameState.retryCount`. ([rule 6](#mandatory-rules), [GEN-FLOATING-BUTTON-RETRY-LIVES-RESET](../skills/game-building/reference/static-validation-rules.md))
+**Must reset / re-enable:** `gameState.isProcessing = false`; `boardEl.classList.remove('dnd-disabled')` (P6); `voiceInput.enable()` (P17); `timer.resume()` (PART-006); clear input value (unless `retryPreservesInput: true`); clear inline feedback DOM. **Must NOT reset:** `gameState.lives` (already decremented), `gameState.attempts`, `gameState.score`, `gameState.retryCount`. ([rule 6](#mandatory-rules), [GEN-FLOATING-BUTTON-RETRY-LIVES-RESET](../skills/game-building/reference/static-validation-rules.md))
+
+### Multi-round explicit-retry-button variant (`spec.roundRetryButton: true`)
+
+Why opt-in: the default multi-round wrong-with-lives UX is predicate-driven (no button — the player just keeps editing and Submit re-appears). Some game shapes want an explicit "Retry this round" affordance — same-round re-render after a wrong answer, gated on a button tap. The opt-in flag lets the spec author choose.
+
+Beats:
+
+1. Submit click → wrong, lives remaining.
+2. `gameState.lives -= 1`; `recordAttempt(...)`.
+3. `await FeedbackManager.play('incorrect')`.
+4. `floatingBtn.setMode('retry')`. Do NOT flip `isProcessing` / `.dnd-disabled` here — the retry handler delegates to `renderRound(currentRound)` which is the source of truth.
+5. Player taps Try Again → handler triggers same-round re-render.
+
+```js
+// Inside the wrong-answer branch of on('submit'):
+gameState.lives -= 1;
+await FeedbackManager.play('incorrect');
+
+if (gameState.lives > 0) {
+  floatingBtn.setMode('retry');
+} else {
+  endGame(false);
+}
+
+floatingBtn.on('retry', function () {
+  clearFeedbackUI();
+  floatingBtn.setMode(null);
+  renderRound(gameState.currentRound);   // same-round re-render; flips isProcessing + removes .dnd-disabled in its first 3 lines
+});
+```
+
+In-handler variant (when same-round re-render is too heavy): mirror the standalone handler body — flip `isProcessing`, remove `.dnd-disabled`, `voiceInput.enable()`, `timer.resume()` in source order. Pick one variant per game and template consistently.
+
+**Validator scope.** `GEN-FLOATING-BUTTON-RETRY-STANDALONE` / `-LIVES-RESET` / `-NO-SUBMITTABLE` were authored assuming standalone-only retry. They will not fire on multi-round-with-`roundRetryButton`. If this UX ships at scale, the validator regexes need widening. TODO.
 
 ## Dual-button variant
 

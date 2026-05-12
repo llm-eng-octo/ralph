@@ -217,41 +217,58 @@ sensors: (defaults) => [...defaults, PointerSensor.configure({...})]
 
 Drag-and-drop is a gameplay interaction. Like every other gameplay interaction, it MUST be disabled whenever awaited feedback audio is playing. Without this, a student can pick up a tag and drop it into a different zone while the round-complete / submit-evaluation awaited SFX (and any fire-and-forget TTS dwell before `loadRound()` re-enables) is still playing — mutating the answer that was just evaluated. TTS itself is fire-and-forget (L-VI-002); only SFX is awaited.
 
-**Invariant:** On `dragstart`, reject the drag if any of the three universal guards are true:
+**Detailed timing — including all retry / exception paths — lives in [`../../state-and-guards.md` § Lifecycle matrix](../../state-and-guards.md#interaction-lifecycle--canonical-matrix).** This section enumerates only the P6-specific mechanism.
+
+**Mechanism authority — read this carefully.** P6 (and every game built on `@dnd-kit/dom`) is the **one pattern in the catalog where the JS handler guard is NOT the load-bearing lock.** Every other pattern attaches direct DOM listeners — the JS `isProcessing` check runs first and is the actual block. `@dnd-kit/dom` works differently:
+
+- The PointerSensor consumes `pointerdown` events before any game code runs.
+- The `dragstart` event delivered to `manager.monitor` is a **synthetic post-activation notification**, fired AFTER the operation has already begun.
+- `event.preventDefault()` on this synthetic event is a **no-op** — the operation is already in progress; there is no native event to prevent.
+
+The only lock that actually prevents `@dnd-kit/dom` drags during feedback is **`.dnd-disabled` (`pointer-events: none` on the draggables)**. The browser stops delivering pointer events to the cells, the PointerSensor never activates, no drag is created.
+
+The JS guard is still required as **defensive hygiene**:
+- It documents the rule in code form for readers.
+- It catches the narrow case where a drag was already in flight when `isProcessing` flipped (the operation is recoverable on dragend by the same guard re-checked there).
+- The validator [`GEN-DND-DRAGSTART-GUARD`](../../../game-building/reference/static-validation-rules.md) enforces its presence.
+
+But the JS guard **alone** does not block new drags. Builds that skip the CSS class while keeping the JS guard ship the failure mode where drags succeed during feedback audio (validator passes, runtime broken — see § Failure Modes F6).
+
+**Invariant:** Every submit / retry / timer-expiry / API-failure handler that opens an awaited-feedback window MUST, BEFORE any `await`:
+
+1. Set `gameState.isProcessing = true`
+2. Add `.dnd-disabled` (or named equivalent) to the board wrapper. This is the load-bearing lock.
+3. Register the JS `dragstart` guard. (Documented intent + validator compliance.)
 
 ```javascript
 manager.monitor.addEventListener('dragstart', function(event) {
   if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) {
-    event.preventDefault(); // cancel the drag before it starts
+    event.preventDefault(); // no-op on @dnd-kit/dom monitor events; documents intent
     return;
   }
-  // ... proceed with drag setup (offset capture, isDragging flag, etc.)
+  // ... proceed with drag setup
 });
-```
 
-**Invariant:** Around every feedback sequence (submit evaluation, round-complete, puzzle-complete, end-game), set `gameState.isProcessing = true` BEFORE any `await` (SFX play or LLM evaluation) to lock input. Do NOT clear it at the end of the handler — the next `renderRound()` / `loadRound()` is the single source of truth for re-enabling (it sets `isProcessing = false`, removes `.dnd-disabled`, etc.). Re-enabling in the handler ties game flow to TTS completion, which is exactly the anti-pattern we're avoiding.
-
-**Invariant:** For submit-based variants (Math Crossword, Equation Grid, Kakuro), ALSO toggle the visual affordance so the student can see drag is disabled — add a class like `.dnd-disabled` to the board that sets `pointer-events: none` on draggable tags while `gameState.isProcessing === true`. Belt-and-suspenders: the guard blocks the logic, the CSS class blocks the native browser drag affordance (cursor change on hover).
-
-```javascript
 async function handleSubmit() {
   if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
   gameState.isProcessing = true;
-  boardEl.classList.add('dnd-disabled'); // visual affordance — cleared in renderRound()
+  boardEl.classList.add('dnd-disabled'); // ← the actual lock on @dnd-kit/dom
 
   // ... evaluate, update state, recordAttempt, progressBar.update ...
 
   try {
-    // SFX is awaited — short, predictable ~1s, visual flash needs time to land
     await FeedbackManager.sound.play(isCorrect ? 'correct_sound_effect' : 'incorrect_sound_effect', { sticker });
   } catch (e) {}
-  // Dynamic TTS is FIRE-AND-FORGET — game flow MUST NOT block on TTS completion.
-  // If the TTS network stalls, the next round still loads.
   FeedbackManager.playDynamicFeedback({ audio_content: msg, subtitle: msg, sticker })
     .catch(function(e) { console.error('TTS error:', e.message); });
 
-  // Do NOT re-enable here. renderRound() / loadRound() clears isProcessing and removes .dnd-disabled.
-  // ... advance round via renderRound() / loadRound()
+  // Re-enable per ../../state-and-guards.md § Lifecycle matrix:
+  //   - Single-step + advance: renderRound() / loadRound() removes .dnd-disabled
+  //   - Standalone Try Again: on('retry') handler removes it (no renderRound between submit and retry)
+  //   - Multi-round explicit retry button: on('retry') OR same-round re-render — pick one
+  //   - API-failure recovery: catch branch removes it before surfacing error
+  //   - Terminal game-over: removed before endGame() teardown so end-game UI stays tappable
+  // Detailed per-shape × per-event timing lives in the matrix.
 }
 ```
 
@@ -312,10 +329,11 @@ Every P6 game must pass all of these conditions. The builder should mentally tra
 
 | #   | Condition                                                              | Expected                                                                                                                                   |
 | --- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| V21 | `dragstart` fires while `gameState.isProcessing === true`              | Drag is cancelled (`event.preventDefault()` or equivalent); no tag is lifted; no `dragend` fires; no state mutation                        |
-| V22 | Submit / round-complete / puzzle-complete awaited feedback in flight   | `gameState.isProcessing === true` for the full awaited-SFX duration (TTS is fire-and-forget — L-VI-002); board has `.dnd-disabled` class (or equivalent) applying `pointer-events: none` on draggables |
-| V23 | Awaited feedback resolves                                              | `gameState.isProcessing` flips back to `false`; `.dnd-disabled` class removed; drag handlers re-accept input                               |
-| V24 | Rapid drop during feedback (edge case)                                 | Second drop does not trigger a second submit; `gameState.attempts.length` increments by 1, not 2                                           |
+| V21 | Pointer-down on a draggable cell while `gameState.isProcessing === true` | `@dnd-kit/dom`'s PointerSensor does **not** activate (`pointer-events: none` blocks at the browser layer); no `dragstart` fires; no tag is lifted; no state mutation. **Note:** Verifying this means checking that the CSS class is on the board wrapper — NOT that `preventDefault()` was called in the JS guard, which is a no-op on `@dnd-kit/dom`'s synthetic monitor event. |
+| V22 | Submit / retry / timer-expiry / api-failure awaited feedback in flight | `gameState.isProcessing === true` for the full awaited-SFX duration (TTS is fire-and-forget — L-VI-002); board wrapper has `.dnd-disabled` class (or equivalent) applying `pointer-events: none` on draggables. The CSS class is the load-bearing lock. |
+| V23 | Awaited feedback resolves AND game advances / retries                   | `gameState.isProcessing` flips back to `false`; `.dnd-disabled` removed; drag handlers re-accept input. **Re-enable site depends on path** — `renderRound()` for advance, `on('retry')` for standalone Try Again, same-round re-render for multi-round explicit retry, catch branch for api-failure. See [state-and-guards.md § Lifecycle matrix](../../state-and-guards.md#interaction-lifecycle--canonical-matrix). |
+| V24 | Rapid drop during feedback (edge case)                                  | Second drop does not trigger a second submit; `gameState.attempts.length` increments by 1, not 2. Enforced by the CSS class blocking pointer events; the JS dragend guard is a backstop. |
+| V25 | Terminal game-over (last life lost or global-countdown time-up)         | `.dnd-disabled` is **removed from the board wrapper** before `endGame()` teardown so end-game UI (Try Again button on Game Over TS) remains tappable. Per-cell prefilled `.locked` (puzzle state) STAYS. |
 
 ---
 
@@ -330,5 +348,5 @@ These are bugs that have occurred in generated P6 games. The LLM should understa
 | F3  | Tags don't work in standalone/Playwright      | DnD library loaded via ESM but the setup was nested inside `waitForPackages` which blocks for 180s without CDN | Wait for the ESM library independently from CDN packages                                          |
 | F4  | Evicted tag appears at wrong position in bank | Tags returned to a generic bank container instead of their dedicated placeholder slot                          | Each tag gets its own placeholder slot in the bank; return always targets the tag's specific slot |
 | F5  | Bank doesn't re-center after tag removal      | Bank slot stays visible (taking up space) after tag is placed in a zone                                        | Collapse empty bank slots (e.g. via a CSS class); restore on tag return                           |
-| F6  | Answer mutates during feedback audio          | `dragstart` handler has no `isProcessing` guard; student picks up and drops a tag while awaited SFX (+ fire-and-forget TTS) plays  | Add universal guards to `dragstart`; toggle `.dnd-disabled` on the board while `gameState.isProcessing === true` (see Behaviour 9) |
+| F6  | Answer mutates during feedback audio          | Build relied on the JS `dragstart` guard + `event.preventDefault()` alone, without adding `.dnd-disabled` to the board wrapper. On `@dnd-kit/dom`, `preventDefault()` on monitor `dragstart` events is a no-op — the operation has already started. The CSS class is the only mechanism that prevents new drags. Validator `GEN-DND-DRAGSTART-GUARD` passes (JS guard present); runtime is broken. | **MUST add `.dnd-disabled` (or named equivalent) to the board wrapper in every submit / retry / timer-expiry / api-failure handler BEFORE any `await`.** The JS `dragstart` guard remains required as defensive hygiene but is NOT sufficient on its own. See Behaviour 9 § Mechanism authority for the full explanation. |
 | F7  | Tag freezes mid-air after zone→bank return and can't be picked up again | `returnToBank()` / `returnChipToPoolSlot()` reparented the tag but forgot to clear inline drag styles (`position: fixed; left; top`) and drag classes (`chip-dragging`, `chip-lift`). Sibling functions (`placeInZone`, `cancelDrag`) did clear them — a silent asymmetry. If the drag class also sets `pointer-events: none`, the tag is un-pickable. Most common with hand-rolled pointer-events sensors (not @dnd-kit). | R4: factor drag-style cleanup into a single `resetDragStyling(el)` helper and call it from EVERY drop path — including the return-to-bank path. Add a Playwright step that drags seat→bank and then tries to re-pick-up the tag (real CDP mouse events, not `solveRound()` helpers that bypass the pointer flow). |

@@ -24,57 +24,188 @@ function handleInteraction() {
 
 ---
 
-## ALL Gameplay Interactions Disabled During Awaited Feedback
+## Interaction Lifecycle — Canonical Matrix
 
-**This rule applies to every input modality — no exceptions.** When feedback audio is being awaited, the student must not be able to change their answer via any interaction channel. This includes:
+**This section is the single source of truth** for when interaction is disabled and re-enabled across every game shape and every event. All other skill files defer to this matrix. If you find a per-handler timing rule elsewhere in the docs that conflicts with this section, this section wins.
 
-| Modality | Pattern(s) | How it's blocked |
-|---------|-----------|------------------|
-| **Tap / click / select** | P1, P2, P3, P8, P9, P10, P11, P12, P14, P15, P16 | Handler's first line: `if (gameState.isProcessing) return;` |
-| **Continuous drag (path)** | P5 | Same guard on `pointerdown`; re-check on `pointermove` / `pointerup` so an in-flight drag aborts cleanly |
-| **Drag-and-drop (pick & place)** | P6 | Guard on `dragstart` + toggle `.dnd-disabled` class that sets `pointer-events: none` on draggables |
-| **Directional drag (constrained)** | P13 | Guard on `pointerdown`; re-check on `pointermove` / `pointerup` |
-| **Text / number input** | P7 | Guard on `keydown` (Enter) + `click` (Submit); input element retains focus but submit is rejected |
-| **Voice input** | P17 | `voiceInput.disable()` BEFORE first `await`; `voiceInput.enable()` in `loadRound()` / `renderRound()` (single source of truth), NOT in the submit handler |
+### Mechanism authority — which lock is load-bearing per modality
 
-**The contract:**
+When a handler opens an awaited-feedback window, multiple disable mechanisms are set in concert. Only one is load-bearing per modality; the others document intent or guard fast-path edge cases.
 
-1. Before the first `await` in a submit/answer handler (LLM evaluation, SFX play) or in a transition sequence (round, level, end-game), set `gameState.isProcessing = true`. Also disable modality-specific input (`voiceInput.disable()`, `btn.disabled = true`, `.dnd-disabled` class) in the same pre-await block.
-2. For **transition sequences** (round / level / end-game with CTA), clear `gameState.isProcessing = false` after the last awaited audio resolves — the transition screen owns its own lifecycle.
-3. For **submit/answer handlers** (single-step correct/wrong), DO NOT clear `gameState.isProcessing` in the handler. The next `renderRound()` / `loadRound()` is the single source of truth — it clears `isProcessing`, re-enables voice/buttons, removes `.dnd-disabled`, etc. Dynamic TTS in submit handlers MUST be fire-and-forget (`.catch()`, no `await`) so the next-round transition never blocks on TTS completion. Exceptions: API-failure path (can't advance) and terminal game-over re-enable in-handler.
-4. Every interaction handler in the game checks `gameState.isProcessing` as a universal guard (tap, drag, voice, input) — the single flag blocks every input channel uniformly.
-5. For modalities that have their own disabled state (P17 `voiceInput.disable()` / `enable()`, P6 `.dnd-disabled` CSS class), wrap those toggles around the `isProcessing` window so the student also sees the disabled affordance. Optional defense-in-depth: add `.is-processing` to `#gameContent` in the submit handler (cleared in `renderRound()`) styled as `pointer-events: none` on voice-input, action-row, submit-btn — works around the CDN VoiceInput bug where `.disable()` only blocks the textarea, not the mic toggle.
+| Modality | Sole functional lock | Defensive hygiene (NOT load-bearing alone) |
+|---|---|---|
+| **Tap / click / select** (P1, P2, P3, P8, P9, P10, P11, P12, P14, P15, P16) | `if (gameState.isProcessing) return;` as the handler's first line — handlers are direct DOM listeners, the JS guard is the actual block | — |
+| **Continuous drag (path)** (P5) | `isProcessing` guard on `pointerdown` — same model as tap; the `pointermove`/`pointerup` re-checks abort an in-flight drag | — |
+| **Drag-and-drop (P6, `@dnd-kit/dom`)** | **`.dnd-disabled` CSS class** on the board wrapper, applying `pointer-events: none` to draggables. The browser stops delivering pointer events to the cells, so `@dnd-kit/dom`'s PointerSensor cannot activate. This is the only mechanism that prevents new drags. | `dragstart` monitor listener with `isProcessing` check + `event.preventDefault()`. The monitor `dragstart` event is a synthetic post-activation notification — `preventDefault()` on it is a no-op. The listener documents intent and catches the narrow case where a drag was already in flight when `isProcessing` flipped, but it does **not** prevent new drags. Skipping the CSS class while keeping the JS guard ships the failure mode where drags succeed during feedback audio. |
+| **Directional drag (constrained)** (P13) | `isProcessing` guard on `pointerdown` — direct listener, same model as tap | — |
+| **Text / number input** (P7) | `isProcessing` guard on `keydown` (Enter) + `click` (Submit) | Optional `input.disabled = true` for visual affordance |
+| **Voice input** (P17) | **`voiceInput.disable()`** — the CDN's documented disable method. The `isProcessing` guard alone doesn't block the microphone toggle. | `isProcessing` guard + optional `.is-processing` class on `#gameContent` (workaround for CDN VoiceInput bug where `.disable()` only blocks the textarea, not the mic toggle) |
+| **FloatingButton (Submit / Retry)** ([PART-050](../../../parts/PART-050.md)) | `floatingBtn.setSubmittable(false)` while processing; submit auto-hides on tap. | `isProcessing` guard inside the registered handler |
+| **TimerComponent expiry** ([PART-006](../../../parts/PART-006.md)) | `timer.pause()` at every site that flips `isProcessing = true` — stops the clock from ticking through awaited feedback. `timer.resume()` at the matching re-enable site. | — |
 
-**Why this matters:** If the student can still interact (tap another option, drag a tag, speak an answer, type into the input) while the awaited audio is playing, they change the answer that was just evaluated. `recordAttempt` captured one answer, but `gameState` now reflects another — scoring drifts from telemetry, double-submits fire, and feedback audio contradicts the current screen.
+**Why P6 is special.** Every other modality uses direct DOM listeners — the JS guard runs first and is the actual block. `@dnd-kit/dom` reverses this: the library's PointerSensor consumes the `pointerdown` event before any game code runs, and the `dragstart` monitor event is fired AFTER the operation has already started. The only way to prevent activation is to block at the browser layer, which is what `pointer-events: none` does. Treat the JS `dragstart` guard as defensive hygiene; treat the CSS class as the lock.
 
-**Fire-and-forget is different:** Multi-step mid-round SFX (correct match on pair-game, per-cell tap SFX on drag-path, per-drop SFX on DnD, per-move SFX on directional drag) is NOT awaited, so `isProcessing` is NOT set. The student can and should continue interacting through these micro-feedback moments. See §`isProcessing` — When to Block below for the full per-pattern table.
+### Lifecycle matrix — (game shape × event)
 
----
+Cells specify, in this order: **(1)** pre-await actions (BEFORE any `await`); **(2)** awaited audio shape; **(3)** post-audio handler actions; **(4)** where the re-enable actually fires; **(5)** load-bearing mechanism.
 
-## `isProcessing` — When to Block
+Game shapes:
+- **STD** = Standalone (`totalRounds: 1`, `totalLives > 1`).
+- **MR-P** = Multi-round, predicate-driven retry (default for `totalRounds > 1`). No explicit retry button; the next interaction re-shows Submit via the predicate.
+- **MR-B** = Multi-round, explicit retry-button (opt-in via spec flag `roundRetryButton: true`). Wrong-with-lives shows an explicit Retry button via `setMode('retry')`.
+- **GC** = Global-Countdown (single global timer; game ends when the timer expires regardless of round progress).
 
-`isProcessing` is the single gatekeeper for input blocking. Set it `true` before any operation that should be uninterruptible, set `false` after.
+| Event | STD | MR-P | MR-B | GC |
+|---|---|---|---|---|
+| **round-load** | (1) — (2) — (3) handler body initializes round (4) `isProcessing = false`, `.dnd-disabled` remove, `voiceInput.enable()` here (5) `renderRound()` / `loadRound()` is load-bearing | same as STD | same as STD | same as STD; `timer.start()` on first round only |
+| **submit-correct** | (1) `isProcessing = true`, `.dnd-disabled` add (P6), `voiceInput.disable()` (P17), `timer.pause()` (PART-006 present) (2) SFX awaited (1.5s floor) + TTS awaited (CASE 4) (3) Score++; `endGame(success)` (4) Not re-enabled — terminal (5) `endGame()` teardown destroys listeners | (1) same as STD (2) SFX awaited + TTS **fire-and-forget** (CASE 4 single-step) (3) Score++; advance to next round (4) `renderRound()` of next round — handler does NOT flip `isProcessing` (5) `renderRound()` | same as MR-P | same as MR-P; `timer.pause()` skipped if game continues without round transition |
+| **submit-wrong-lives-remain** | (1) `isProcessing = true`, `.dnd-disabled` add, `voiceInput.disable()`, `timer.pause()` (2) SFX awaited + TTS awaited (CASE 7) (3) Lives--; `setMode('retry')` (4) Re-enabled in the `on('retry')` handler — see § Exception patterns (5) Retry handler is load-bearing | (1) same as STD (2) SFX awaited + TTS fire-and-forget (3) Lives--; `setMode(null)` (4) `renderRound()` of same round — handler does NOT flip `isProcessing` (5) `renderRound()` | (1) same as STD (2) SFX awaited + TTS fire-and-forget (3) Lives--; `setMode('retry')` (4) Re-enabled in the `on('retry')` handler OR in the next-iteration `renderRoundAndWaitForSubmit(i)` — pick one per the template in flow-implementation.md (5) Retry handler / `renderRound()` | same as MR-P |
+| **submit-wrong-last-life** | (1) same as STD submit-wrong (2) SFX awaited + TTS awaited (3) Lives = 0; `endGame(failure)` (4) Not re-enabled — terminal (5) `endGame()` teardown | (1) same (2) same (3) Lives = 0; `endGame(failure)` (4) Not re-enabled (5) `endGame()` | same as MR-P | same as MR-P |
+| **retry-tap** | (1) — (2) — (3) Clear input/feedback UI per `retryPreservesInput` flag; `isProcessing = false`; `.dnd-disabled` remove; `voiceInput.enable()`; `timer.resume()`; `setMode(null)`; **NEVER** call `setSubmittable(...)` (validator `GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE`); **NEVER** reset `gameState.lives` (validator `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET`) (4) Re-enabled in this handler body (5) Retry handler body | n/a (predicate-driven, no retry tap) | (1) — (2) — (3) Trigger same-round re-render (call `renderRound(currentRound)` or equivalent); the re-render flips `isProcessing = false` and removes `.dnd-disabled` (4) `renderRound()` is load-bearing — the retry handler delegates (5) `renderRound()` | n/a |
+| **per-round-timer-expiry** | (1) `onEnd` callback: `isProcessing = true`, `.dnd-disabled` add (P6), `voiceInput.disable()` (P17). (No `timer.pause()` — the timer already fired.) (2) "Time's up" SFX awaited (1.5s floor) + TTS awaited (mirrors wrong-answer CASE 7) (3) Lives-- (if lives shape) or score-bookkeeping (if no-lives shape); decide continue vs game-over (4) If continue → re-enabled in `on('retry')` handler (if retry offered) or in `endGame()` teardown otherwise (5) Retry handler or `endGame()` | (1) same as STD (2) same (3) Lives-- (if lives shape); advance to next round if continuing (4) `renderRound()` of next round if game continues; `endGame()` teardown if terminal (5) `renderRound()` / `endGame()` | (1) same as MR-P (2) same (3) Lives--; show retry button if continuing (4) Retry handler / `renderRound()` (5) Retry handler / `renderRound()` | n/a (Global-Countdown uses a single session timer, not per-round) |
+| **global-timer-expiry** | n/a | n/a | n/a | (1) `onEnd` callback: `isProcessing = true`, `.dnd-disabled` add, `voiceInput.disable()` (2) "Time's up" SFX awaited + TTS awaited (3) `endGame('time_up')` (4) **Not re-enabled** — `.dnd-disabled` stays through end-game UI to prevent post-expiry input; `endGame()` teardown removes listeners (5) `endGame()` |
+| **api-failure** (LLM eval / network) | (1) Already in submit handler with `isProcessing = true` (2) Fetch / SFX may have partially run (3) `catch` branch: `isProcessing = false`, `.dnd-disabled` remove, `voiceInput.enable()`, `timer.resume()`, surface error UI (4) Re-enabled in the catch branch (5) Handler catch block — this is one of two documented "re-enable in handler" exceptions | same as STD | same as STD | same as STD; if expiry happens during error recovery, the `onEnd` path wins |
+| **terminal-game-over** | (1) `endGame(failure)` invoked — flow already inside the handler (2) Optional game-over SFX/TTS awaited (3) `endGame()` teardown: destroy DnD instances, hide FloatingButton, show Game Over TS (4) Before teardown: remove `.dnd-disabled` from `#gameContent` so the Game Over TS's Try Again button is reachable (CSS class on the wrapper would otherwise block it transitively if scoped too broadly) (5) `endGame()` is load-bearing | same as STD | same as STD | same as STD |
 
-### By Pattern
+**How to read a cell.** "Re-enabled in `renderRound()`" means the handler MUST NOT flip the flags itself — leave them, let the next `renderRound()` clear them. "Re-enabled in the handler" means the opposite — flip them in source order, in the handler body, after the last awaited audio resolves. The two "exceptions" (retry-tap, api-failure) re-enable in the handler because there is no `renderRound()` call between submit and the next playable state.
 
-| Pattern | When `isProcessing = true` | When `isProcessing = false` | Duration |
-|---------|--------------------------|----------------------------|----------|
-| **Tap-Select (Single)** | Before evaluation + SFX (BEFORE any await) | In `renderRound()` / `loadRound()` for the next round | SFX duration (~1.5s); TTS fires in the background (fire-and-forget) |
-| **Sequential Chain** | During chain-complete celebration; during incorrect flash | After celebration audio; after wrong flash clears | 600ms (wrong) or SFX duration (complete) |
-| **Two-Phase Match** | During right-click evaluation | After evaluation + wrong flash | Brief (~100ms correct, 600ms wrong) |
-| ~~**Tap + Swipe**~~ **DEPRECATED** | — | — | Use P1 tap-only |
-| **Continuous Drag** | During puzzle-complete; during reset | After audio; after reset animation | SFX + TTS (complete) or 300ms (reset) |
-| **Drag-and-Drop** | During drop evaluation | After evaluation + snap-back | Brief (~100ms correct, 600ms wrong) |
-| **Text/Number Input** | Before evaluation + SFX (BEFORE any await) | In `loadRound()` for the next round | SFX duration (~1.5s); TTS fires in the background (fire-and-forget) |
-| **Click-to-Toggle** | During puzzle-solved celebration | After audio completes | SFX + TTS duration |
+### Fire-and-forget vs awaited — what triggers `isProcessing`
 
-### Key Rule
+Multi-step mid-round SFX (correct match on pair game, per-drop SFX on DnD, per-move SFX on directional drag, per-cell tap on continuous drag) is **fire-and-forget**, so `isProcessing` is NOT set. The student continues interacting through these micro-feedback moments.
 
-**Single-step patterns (1, 7):** `isProcessing` is set BEFORE any await (LLM eval / SFX play). SFX is awaited (short, predictable ~1.5s). Dynamic TTS is fire-and-forget — the next-round transition MUST NOT block on TTS completion. `isProcessing = false` is cleared in `renderRound()` / `loadRound()`, NOT in the submit handler. Exceptions: API-failure / terminal game-over re-enable in-handler.
+`isProcessing = true` is reserved for **awaited-feedback windows**:
+- Submit-correct / Submit-wrong evaluation (single-step patterns 1, 7).
+- Round-complete celebration (every shape).
+- Puzzle-complete celebration (P5, P8).
+- Timer expiry (per-round or global).
+- API-failure (a defensive instance — the catch path needs to re-enable cleanly).
+- End-game transitions (Victory / Game Over TS).
 
-**Multi-step patterns (2, 3, 4, 5, 6, 8):** `isProcessing` blocks only briefly during animations/evaluations, NOT during fire-and-forget SFX. The student must be able to interact immediately after the brief block.
+If a handler does not `await` a feedback-shaped Promise, it does not flip `isProcessing`.
 
-**Exception in multi-step:** Round-complete and puzzle-complete moments DO block for the full awaited SFX duration — these are terminal moments, not mid-round.
+### Exception patterns — handler templates
+
+These are the documented sites where the handler itself re-enables (instead of deferring to `renderRound()`). Each is a single code block, source-ordered.
+
+**Standalone Try Again — `on('retry')` handler.** Standalone has no `renderRound()` between submit and retry; the handler is the source of truth.
+
+```javascript
+floatingBtn.on('retry', function () {
+  // Clear input / feedback UI per spec.retryPreservesInput (default: clear)
+  if (!RETRY_PRESERVES_INPUT) clearInputState();
+  clearFeedbackUI();
+
+  // Re-enable in source order. NEVER reset gameState.lives.
+  // NEVER call setSubmittable(...) — the submit predicate re-shows it on next interaction.
+  gameState.isProcessing = false;
+  if (boardEl) boardEl.classList.remove('dnd-disabled');   // P6
+  if (voiceInput) voiceInput.enable();                      // P17
+  if (timer) timer.resume();                                // PART-006
+  floatingBtn.setMode(null);
+});
+```
+
+**Multi-round explicit retry-button — `on('retry')` handler.** The retry handler may delegate to `renderRound(currentRound)`; either is canonical. Pick one and template it consistently for the game.
+
+```javascript
+// Delegating variant (recommended — renderRound is the existing source of truth):
+floatingBtn.on('retry', function () {
+  clearFeedbackUI();
+  floatingBtn.setMode(null);
+  renderRound(gameState.currentRound);  // re-renders SAME round; flips isProcessing, removes .dnd-disabled inside
+});
+
+// In-handler variant (when same-round re-render is too heavy):
+floatingBtn.on('retry', function () {
+  clearInputState();
+  clearFeedbackUI();
+  gameState.isProcessing = false;
+  if (boardEl) boardEl.classList.remove('dnd-disabled');
+  if (voiceInput) voiceInput.enable();
+  if (timer) timer.resume();
+  floatingBtn.setMode(null);
+});
+```
+
+**API-failure recovery.** Inside the submit handler's catch branch, after surfacing user-facing error UI.
+
+```javascript
+try {
+  await llmEvaluate(answer);   // or any awaited feedback
+} catch (e) {
+  // Surface error UI (toast, inline message, etc.)
+  showApiErrorBanner(e);
+
+  // Re-enable in source order — the player must be able to retry their submit
+  gameState.isProcessing = false;
+  if (boardEl) boardEl.classList.remove('dnd-disabled');
+  if (voiceInput) voiceInput.enable();
+  if (timer) timer.resume();
+  return;   // do NOT advance round; do NOT decrement lives for an infra failure
+}
+```
+
+**Terminal game-over.** Before `endGame()` runs its teardown (DnD destroy, FloatingButton hide, TS show), remove the board-level `.dnd-disabled` so end-game UI (Try Again on Game Over TS) remains tappable.
+
+```javascript
+function endGame(reason) {
+  if (gameState.gameEnded) return;
+  gameState.gameEnded = true;
+
+  // Remove the board-level interaction lock BEFORE teardown so end-game UI is reachable.
+  // (Per-cell .cell.locked or similar STAYS — those are puzzle state, not interaction state.)
+  if (boardEl) boardEl.classList.remove('dnd-disabled');
+
+  destroyDndForRound();
+  if (timer) timer.pause();        // stop the clock per PART-006 § Mandatory rules
+  if (voiceInput) voiceInput.disable();   // mic stays disabled through end-game
+
+  postGameComplete(reason === 'success');
+  if (reason === 'success') showVictory();
+  else showGameOver();
+}
+```
+
+**TimerComponent `onEnd` (per-round expiry).** The clock-driven equivalent of a submit handler. Same disable contract as submit.
+
+```javascript
+function onTimerEnd() {
+  if (gameState.isProcessing || gameState.gameEnded) return;
+
+  // First three lines: same as submit handler
+  gameState.isProcessing = true;
+  if (boardEl) boardEl.classList.add('dnd-disabled');     // P6
+  if (voiceInput) voiceInput.disable();                    // P17
+  // (timer already fired — no pause() needed)
+
+  await playTimeUpFeedback();   // SFX 1.5s floor + TTS per feedback CASE 7
+
+  gameState.lives--;
+  if (gameState.lives <= 0) {
+    endGame('time_up');
+    return;
+  }
+  // Continue to next round (MR-P / MR-B) — renderRound clears isProcessing + .dnd-disabled
+  gameState.currentRound++;
+  renderRound(gameState.currentRound);
+}
+```
+
+### Per-pattern when-to-block summary
+
+For quick reference. Detailed timing per cell lives in the matrix above; this table is a fast lookup of "is this a single-step (awaited) or multi-step (fire-and-forget) pattern?"
+
+| Pattern | `isProcessing` behavior | Re-enable source-of-truth |
+|---|---|---|
+| **Tap-Select Single** (P1) | Set true before evaluation + SFX. Single-step / awaited. | `renderRound()` next round, or retry/api-failure exception |
+| **Sequential Chain** (P2) | Set true during chain-complete celebration + during wrong flash. Multi-step otherwise. | After celebration audio; after wrong flash clears |
+| **Two-Phase Match** (P3) | Set true during right-click evaluation only. Brief. | After evaluation resolves |
+| **Continuous Drag** (P5) | Set true during puzzle-complete + during reset. | After complete audio; after reset animation |
+| **Drag-and-Drop** (P6) | Set true during drop evaluation (multi-step) and submit evaluation (single-step submit-variants). | `renderRound()` next round, or retry/api-failure exception |
+| **Text/Number Input** (P7) | Set true before evaluation + SFX. Single-step / awaited. | `renderRound()` next round, or retry/api-failure exception |
+| **Click-to-Toggle** (P8) | Set true during puzzle-solved celebration. | After audio resolves |
+| **Directional Drag** (P13) | Set true during puzzle-complete + during reset. Same as P5. | After complete audio; after reset animation |
+| **Voice Input** (P17) | Set true before evaluation; `voiceInput.disable()` in same pre-await block. | `renderRound()` next round + `voiceInput.enable()` there (or retry exception) |
 
 ---
 

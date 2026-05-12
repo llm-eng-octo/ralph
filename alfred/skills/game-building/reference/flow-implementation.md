@@ -82,6 +82,17 @@ The reset itself is universal; *where* you place the `update(0, totalLives)` cal
 
 ## Round loop pattern
 
+**Detailed interaction-lifecycle timing — when `isProcessing` flips, when `.dnd-disabled` is added/removed, when `voiceInput.disable()` fires, when `timer.pause()` fires — is sourced from [state-and-guards.md § Lifecycle matrix](../../interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix).** This section covers the structural shape of the round loop (what runs in what await order); the matrix covers the per-modality disable/enable timing.
+
+### Two multi-round retry UX variants
+
+Pick one per game based on `spec.roundRetryButton`:
+
+- **Predicate-driven (default, `roundRetryButton: false` or omitted).** Wrong-with-lives plays audio then calls `setMode(null)`. The next interaction (drag/edit/tap) re-shows Submit via the FloatingButton predicate. There is no explicit retry button; the inner-while loop OMITS `setMode('retry')` and `renderRetryAffordance` — instead, after `runFeedbackWindow(verdict)` the player just continues on the same round and a subsequent edit re-fires the predicate. Lifecycle matrix shape: **MR-P**.
+- **Explicit retry button (`roundRetryButton: true`).** Wrong-with-lives plays audio then calls `setMode('retry')`. Player taps Retry → handler delegates to `renderRound(currentRound)` for same-round re-render. The inner-while loop below is templated for this variant. Lifecycle matrix shape: **MR-B**.
+
+The example below is the **explicit-retry-button variant**. For the predicate-driven variant, omit lines 132-138 (the `retryAvailable` branch) and replace with a simpler structure that loops to the next `renderRoundAndWaitForSubmit(i)` whenever the player completes their next edit.
+
 **Default progression policy — "rounds passed", bump only when the student moves PAST the round, just before the next-round / Victory UI.** `state.progress` increments **only when the student passes the current round** (correct, OR retries-exhausted with `livesLeft > 0`), AFTER feedback completes, AND BEFORE the round-change UI fires. The bar advances *as the student moves to the next round / Victory*, not as they submit — and **never on Game Over** (last-life wrong; the game ended on the unfinished round) and **never on a wrong-with-retry** (still on the same round). `state.score` (correct count) is tracked separately and feeds `getStars()` at end-of-game — it does NOT update the ActionBar header mid-round (the header is end-of-game-only).
 
 **Visual sequence per round:**
@@ -166,6 +177,18 @@ async function startGame() {
 Do NOT collapse these. The progress bar is "where am I"; the ActionBar stars are "how did I do overall". A student on round 10 with 7 correct sees `Round 10/10` on the progress bar mid-game; the ActionBar stays at `0/3` until the final `show_star` celebration awards the earned stars.
 
 **Alternative policies (only when spec explicitly opts in):** "rounds correct", "points earned", "section progress", "tiles cleared". Document the chosen metric in the spec's `## Flow` section and adjust the increment site accordingly. **The default for any rounds-based game is "rounds attempted" — never invent a custom policy without spec authorization.**
+
+### Placeholder helpers — what their bodies must do
+
+The structural template above uses three placeholder helpers. The build agent populates them. Each MUST honor the lifecycle matrix.
+
+| Helper | Resolves when | Must do (lifecycle obligations) |
+|---|---|---|
+| `renderRoundAndWaitForSubmit(i)` | Player taps Submit on round `i` | **At entry** (top of body): clear feedback UI, ensure `isProcessing = false`, remove `.dnd-disabled` (P6), `voiceInput.enable()` (P17), `timer.start()` or `.resume()` for the round timer. **Resolves with** `{ correct, ... }` only after submit, NOT during retry. The retry path loops back into a fresh call of this function. |
+| `runFeedbackWindow(verdict)` | After awaited SFX + TTS resolves | **At entry**: `isProcessing = true`, `.dnd-disabled` add (P6), `voiceInput.disable()` (P17), `timer.pause()` (PART-006). Play SFX (1.5s floor) + TTS (awaited for correct/wrong-on-advance, fire-and-forget for wrong-with-retry per feedback CASE 4 / 7). **Does NOT re-enable** — that's the next caller's job (`renderRoundAndWaitForSubmit` for retry, `renderRound` for advance, `endGame` for terminal). |
+| `renderRetryAffordance(i)` | Player taps Retry button | **At entry**: clear feedback UI, `clearInputState()` per `spec.retryPreservesInput`. **Then delegate to `renderRoundAndWaitForSubmit(i)`** via the `continue` in the inner-while — the delegation path is what re-enables interaction. The retry handler itself MUST NOT call `setSubmittable(...)` (validator `GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE`) and MUST NOT reset `gameState.lives` (validator `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET`). |
+
+If you need a complete handler body example, see [code-patterns.md § Try Again flow](./code-patterns.md) — both the standalone and multi-round explicit-retry templates are spelled out there.
 
 ## ActionBar header state updates — STARS-IMMUTABLE CONTRACT
 

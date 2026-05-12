@@ -437,11 +437,14 @@ No exceptions. Missing guards cause double-fire, corruption, and test failures.
 
 **Universal rule:** When awaited feedback audio is playing, ALL gameplay interactions are disabled — tap, click, drag (continuous path P5, DnD P6, directional P13), text/number input (P7), AND voice input (P17). No exceptions. One flag (`gameState.isProcessing`) blocks every input channel uniformly.
 
-- **Single-step patterns (P1, P7, P17):** `isProcessing = true` before audio, `false` after all audio completes. For P17, also call `voiceInput.disable()` / `enable()` around the same window so the microphone cannot start recording. For P6 submit-variants, also toggle a `.dnd-disabled` CSS class (`pointer-events: none` on draggables) for visual affordance.
-- **Multi-step patterns (all others):** `isProcessing` used briefly during animations/evaluations, NOT during fire-and-forget SFX. Student continues interacting through per-match / per-drop / per-move micro-SFX.
-- **Exception (really, a rule):** Round-complete, puzzle-complete, submit-evaluation, level/round transition, and end-game moments DO block via `isProcessing` — these audio sequences are awaited and interaction must stop.
+**Detailed timing — per game shape × per event — lives in [`reference/state-and-guards.md` § Lifecycle matrix](reference/state-and-guards.md#interaction-lifecycle--canonical-matrix).** That section is the canonical source. The rules below are the high-level invariants every game obeys; the matrix resolves the specific (game-shape × event) cells.
 
-**Why it matters:** Without `isProcessing` on a drag or voice handler, the student can mutate the answer that was just evaluated while the feedback audio is still playing — `recordAttempt` captured one answer, `gameState` now holds another, scoring drifts from telemetry.
+- **`isProcessing = true` BEFORE any await.** Set in the same pre-await block as the modality-specific disables.
+- **Modality-specific disables (also pre-await):** `voiceInput.disable()` (P17), `.dnd-disabled` CSS class on the board wrapper (P6 — sole functional lock on `@dnd-kit/dom`; see [p06-drag-and-drop.md § Behaviour 9](reference/patterns/p06-drag-and-drop.md) for the mechanism explanation), `timer.pause()` (PART-006 present), `floatingBtn.setSubmittable(false)` (FloatingButton).
+- **Re-enable site varies by path** — `renderRound()` for advance, retry handler for standalone Try Again, same-round re-render or retry handler for multi-round explicit retry button, catch branch for API-failure, before `endGame()` teardown for terminal game-over. The matrix resolves each.
+- **Fire-and-forget multi-step SFX does NOT flip `isProcessing`.** Per-match / per-drop / per-move micro-SFX is short and non-blocking; the student keeps interacting.
+
+**Why it matters:** Without input lock during awaited feedback, the student can mutate the answer that was just evaluated while the feedback audio is still playing — `recordAttempt` captured one answer, `gameState` now holds another, scoring drifts from telemetry.
 
 ### 3. Event type follows the touch decision tree
 
@@ -508,7 +511,7 @@ Attach `pointermove`, `pointerup`, and `pointercancel` to `document`, not to the
 
 1. **CRITICAL — Use the correct event type.** Drag/swipe = pointer events. Everything else = click. Never mix. Never use raw touch events.
 2. **CRITICAL — Every handler has guards.** `isActive`, `isProcessing`, `gameEnded`. Missing guards = double-fire, state corruption, **answer mutates during awaited feedback audio**.
-2a. **CRITICAL — ALL gameplay interactions disabled during awaited feedback.** The `isProcessing` guard applies to every input modality: tap, click, drag (P5/P6/P13), text input (P7), voice (P17). For P17, also bracket the awaited audio with `voiceInput.disable()` / `enable()`. For P6 submit-variants, also toggle `.dnd-disabled` (`pointer-events: none`) on the board. One flag, every channel.
+2a. **CRITICAL — ALL gameplay interactions disabled during awaited feedback.** Every input modality is locked: tap / click (JS `isProcessing` guard), drag-and-drop (`.dnd-disabled` CSS class on board wrapper — this is the *only* working lock on `@dnd-kit/dom`; the JS `dragstart` guard is defensive hygiene), continuous/directional drag (JS guard), text input (JS guard), voice (`voiceInput.disable()`). Per-shape × per-event timing in [reference/state-and-guards.md § Lifecycle matrix](reference/state-and-guards.md#interaction-lifecycle--canonical-matrix).
 3. **CRITICAL — `preventDefault` on pointer events for drag/swipe.** Without it, the page scrolls during drag on mobile.
 4. **CRITICAL — `touch-action: none` on draggable elements.** Without it, the browser intercepts touch gestures.
 5. **CRITICAL — Document-level listeners for drag.** `pointermove`/`pointerup` on `document`, not on the grid.
@@ -557,8 +560,9 @@ Attach `pointermove`, `pointerup`, and `pointercancel` to `document`, not to the
 - [ ] Undo mechanism present for puzzle patterns
 - [ ] `isProcessing` blocks during awaited audio only, not during fire-and-forget
 - [ ] **ALL gameplay input channels** (tap, drag dragstart/pointerdown, text input submit, voice input) check `isProcessing` as the first guard — not just tap handlers
-- [ ] For P17 (Voice Input): `voiceInput.disable()` called before the first awaited `FeedbackManager.sound.play(...)`, `voiceInput.enable()` called after the last awaited audio resolves
-- [ ] For P6 (Drag-and-Drop): `.dnd-disabled` class (or equivalent `pointer-events: none`) applied to the board while `gameState.isProcessing === true`
+- [ ] For P17 (Voice Input): `voiceInput.disable()` called before the first awaited `FeedbackManager.sound.play(...)`, `voiceInput.enable()` called per [state-and-guards.md § Lifecycle matrix](reference/state-and-guards.md#interaction-lifecycle--canonical-matrix) — re-enable site depends on the path (standalone Try Again handler, multi-round `renderRound()`, API-failure catch branch, etc.)
+- [ ] For P6 (Drag-and-Drop): `.dnd-disabled` class (or equivalent `pointer-events: none`) applied to the board wrapper while `gameState.isProcessing === true`, AND removed at every re-enable site (`renderRound()` for advance, retry handler for Try Again, catch branch for API-failure, before `endGame()` teardown for terminal). The CSS lock is the sole functional enforcement on `@dnd-kit/dom`. See [state-and-guards.md § Lifecycle matrix](reference/state-and-guards.md#interaction-lifecycle--canonical-matrix).
+- [ ] When [PART-006 TimerComponent](../../parts/PART-006.md) is in scope: `timer.pause()` called at every site that sets `isProcessing = true` (submit, retry, API-failure handlers); `timer.resume()` at every matching re-enable site; `onEnd` callback follows the submit-handler contract (pre-await: `isProcessing = true`, `.dnd-disabled` add, `voiceInput.disable()`).
 - [ ] For P5 / P13 (drag patterns): `pointermove` and `pointerup` re-check `isProcessing` / `gameEnded` so an in-flight drag aborts cleanly if awaited feedback starts mid-drag
 - [ ] Feedback type matches single-step (awaited SFX + fire-and-forget TTS — L-VI-002) or multi-step (fire-and-forget SFX)
 - [ ] Observe phase blocks all interaction (P16, memorize games)

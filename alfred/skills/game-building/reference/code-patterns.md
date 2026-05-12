@@ -344,7 +344,7 @@ Per PART-050. Game-building rules:
   floatingBtn.setSubmittable(gameState.placedTiles.length === gameState.expectedTiles);
   floatingBtn.setSubmittable(gameState.userInput.trim().length > 0);
   ```
-- **Submit handler (auto-hide on click):** when the player taps Submit, the component **auto-hides the button immediately** (internal `setMode(null)` before the handler runs). No need to return a Promise or manually call `setDisabled` — the hide is automatic, regardless of whether the handler is sync or async. The handler's job is to evaluate, await feedback, and then re-show the button in the NEXT mode: `setMode('retry')` (standalone + lives remaining), `setMode(null)` (multi-round mid-game — predicate re-drives on the next interaction), or continue to end-game flow. Register as `floatingBtn.on('submit', async () => { /* evaluate, await feedback, setMode('retry' | null) */ });`. Sync fire-and-forget is also safe: `floatingBtn.on('submit', () => { handleSubmit(...); })` — the button hides immediately and the async `handleSubmit` flips mode when done. Do NOT directly flip `setMode('next')` from the submit handler — Next appears AFTER the end TransitionScreen dismisses (multi-round) or AFTER the inline-feedback renders (standalone), not as a reaction to submit.
+- **Submit handler (auto-hide on click):** when the player taps Submit, the component **auto-hides the button immediately** (internal `setMode(null)` before the handler runs). No need to return a Promise or manually call `setDisabled` — the hide is automatic, regardless of whether the handler is sync or async. The handler's job is to evaluate, await feedback, and then re-show the button in the NEXT mode: `setMode('retry')` (when an explicit retry button is the chosen UX — see [PART-050 § Try Again lifecycle](../../../parts/PART-050.md#try-again-lifecycle)), `setMode(null)` (predicate-driven re-show — the next interaction handler decides), or continue to end-game flow. `setMode('retry')` is the canonical mode whenever the wrong-with-lives UX shows an explicit retry button — this applies to standalone games (validator-enforced) AND to multi-round games with `spec.roundRetryButton: true`. Multi-round games without the flag use `setMode(null)` (predicate-driven). Register as `floatingBtn.on('submit', async () => { /* evaluate, await feedback, setMode('retry' | null) */ });`. Sync fire-and-forget is also safe: `floatingBtn.on('submit', () => { handleSubmit(...); })` — the button hides immediately and the async `handleSubmit` flips mode when done. Do NOT directly flip `setMode('next')` from the submit handler — Next appears AFTER the end TransitionScreen dismisses (multi-round) or AFTER the inline-feedback renders (standalone), not as a reaction to submit.
 - **Next flow — Next is the LAST thing the player sees.** Every FloatingButton-using game MUST wire the Next button, AND `setMode('next')` MUST happen only AFTER feedback audio has completed. The sequence differs by shape:
 
   **Standalone (`totalRounds: 1`) — NO TransitionScreen.** The inline feedback panel in `#gameContent` IS the end-of-game display. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks TransitionScreen usage in standalone.
@@ -388,7 +388,13 @@ Per PART-050. Game-building rules:
   - ❌ **`transitionScreen.show(...)` OR `new TransitionScreenComponent(...)` in a standalone (`totalRounds: 1`) game — WRONG.** Standalone games have a single question, single submit, single end state — nothing to transition between. The inline feedback panel in `#gameContent` IS the end-of-game display. TransitionScreen in standalone is architecturally redundant AND invites the double-Next regression. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks this. Omit the `transitionScreen: true` slot from `ScreenLayout.inject()` and do NOT instantiate the component.
 
   Validator rules: `GEN-FLOATING-BUTTON-NEXT-MISSING`, `GEN-FLOATING-BUTTON-NEXT-POSTMESSAGE`, `GEN-FLOATING-BUTTON-NEXT-TIMING`.
-- **Try Again flow — standalone + `totalLives > 1` ONLY.** When the spec declares `totalRounds: 1` AND `totalLives > 1`, the Try Again path MUST be wired. Multi-round games use TransitionScreen retry buttons (out of scope). Canonical sequence:
+- **Try Again flow — wiring depends on game shape.** Detailed re-enable timing per shape lives in [state-and-guards.md § Lifecycle matrix](../../interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix). Three canonical UX patterns; pick exactly one per game:
+
+  1. **Standalone + `totalLives > 1`** — explicit retry button (validator-enforced). Required when `spec.totalRounds: 1` AND `spec.totalLives > 1`. Wired below.
+  2. **Multi-round, `roundRetryButton: false` (default)** — predicate-driven. After wrong-with-lives audio, `setMode(null)`; next interaction's predicate re-shows Submit. No retry button. See flow-implementation.md § Round loop pattern (predicate-driven variant).
+  3. **Multi-round, `roundRetryButton: true` (opt-in)** — explicit retry button per round. After wrong-with-lives audio, `setMode('retry')`; the retry handler triggers same-round re-render. Wired below.
+
+  **Canonical sequence — Standalone explicit retry (path 1):**
   ```js
   // Inside the wrong-answer branch of on('submit'):
   gameState.lives -= 1;
@@ -401,22 +407,54 @@ Per PART-050. Game-building rules:
 
   if (gameState.lives > 0) {
     gameState.retryCount = (gameState.retryCount || 0) + 1;
-    if (!RETRY_PRESERVES_INPUT) {
-      inputEl.value = '';
-      gameState.userInput = '';
-    }
-    gameState.isProcessing = false;            // re-enable interaction
     floatingBtn.setMode('retry');              // label: "Try again"
+    // DO NOT flip isProcessing / .dnd-disabled / voiceInput here — the on('retry') handler is the source of truth (no renderRound between submit and retry).
   } else {
     endGame(false);                            // out of lives — feeds into Next flow
   }
 
   floatingBtn.on('retry', function () {
-    floatingBtn.setMode(null);                 // predicate takes over again
+    // Clear input / feedback UI per spec.retryPreservesInput (default: clear)
+    if (!RETRY_PRESERVES_INPUT) {
+      inputEl.value = '';
+      gameState.userInput = '';
+    }
+    clearFeedbackUI();
+
+    // Re-enable in source order. The handler is the single source of truth for re-enable
+    // (per state-and-guards.md § Exception patterns — Standalone Try Again).
+    gameState.isProcessing = false;
+    if (boardEl) boardEl.classList.remove('dnd-disabled');     // P6 — load-bearing on @dnd-kit/dom
+    if (voiceInput) voiceInput.enable();                        // P17
+    if (timer) timer.resume();                                  // PART-006 — paused at submit
+    floatingBtn.setMode(null);                                  // predicate takes over again
     if (inputEl && !RETRY_PRESERVES_INPUT) inputEl.focus();
   });
   ```
-  `RETRY_PRESERVES_INPUT` is a game-scope const set from `spec.retryPreservesInput` (default `false` = clear input). The retry handler MUST preserve `gameState.lives`, `gameState.attempts`, `gameState.score`, and `gameState.retryCount` — NEVER reset them. Validator rules: `GEN-FLOATING-BUTTON-RETRY-STANDALONE`, `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET`, `GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE`.
+
+  **Canonical sequence — Multi-round explicit retry (path 3, `roundRetryButton: true`):**
+  ```js
+  // Inside the wrong-answer branch of on('submit'):
+  gameState.lives -= 1;
+  await FeedbackManager.play('incorrect');
+
+  if (gameState.lives > 0) {
+    floatingBtn.setMode('retry');             // label: "Try again"
+    // DO NOT flip isProcessing / .dnd-disabled here — renderRound is the source of truth (path delegates to it).
+  } else {
+    endGame(false);
+  }
+
+  floatingBtn.on('retry', function () {
+    clearFeedbackUI();
+    floatingBtn.setMode(null);
+    renderRound(gameState.currentRound);      // re-render SAME round; renderRound's first 3 lines
+                                              // flip isProcessing = false and remove .dnd-disabled.
+  });
+  ```
+  Alternative in-handler variant (when same-round re-render is too heavy): mirror the standalone retry handler body. Pick one per game and template consistently.
+
+  `RETRY_PRESERVES_INPUT` is a game-scope const set from `spec.retryPreservesInput` (default `false` = clear input). The retry handler MUST preserve `gameState.lives`, `gameState.attempts`, `gameState.score`, and `gameState.retryCount` — NEVER reset them. Validator rules: `GEN-FLOATING-BUTTON-RETRY-STANDALONE`, `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET`, `GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE`. (Note: existing validators were written assuming standalone-only retry; if multi-round `roundRetryButton: true` ships, validator scope may need expansion. Tracked.)
 
   **Retry handler must NOT call `setSubmittable(...)` — predicate-driven re-show is owned by the next interaction handler.** When `retryPreservesInput: true`, the predicate is still satisfied by the preserved input; calling `setSubmittable(isSubmittable())` (or `setSubmittable(true)`) inside the retry handler immediately re-shows Submit and lets the player tap-tap through Try Again → Submit with the same wrong answer. The whole point of Try Again is to force at least one edit before re-evaluating. Validator: `GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE`.
 
@@ -433,6 +471,9 @@ Per PART-050. Game-building rules:
   floatingBtn.on('retry', function () {
     clearFeedbackUI();
     gameState.isProcessing = false;
+    if (boardEl) boardEl.classList.remove('dnd-disabled');
+    if (voiceInput) voiceInput.enable();
+    if (timer) timer.resume();
     floatingBtn.setMode(null);
   });
   ```
@@ -669,7 +710,52 @@ The core game loop MUST follow this order:
    - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → then **AWAIT** `try { await FeedbackManager.playDynamicFeedback({audio_content: round.<X>TTS, subtitle: round.<X>Subtitle, sticker}); } catch(e){}`. SFX awaited (~1.5s floor) for predictable visual flash; TTS awaited so the explanation finishes BEFORE round advance — without await, the subtitle/audio paints over the next round's transition. Package bounds TTS resolution at 3 s (API timeout) / 60 s (streaming) so it can never freeze the game indefinitely; `try/catch` swallows rejection so a network failure still advances. **Subtitle pairing rule:** `subtitle` MUST come from a paired authored field on the same round object (`<X>TTS` ↔ `<X>Subtitle` convention; see spec-creation/SKILL.md § 5e-i). NEVER hard-code a generic literal like `'Great job!'` or `'Try again!'` while `audio_content` reads `round.<X>TTS` — that strands students who can't hear the audio. **Side-effect ordering rule:** the chain is strictly `SFX-await → TTS-await → advance` in source order. Any side-effect that advances the game lifecycle — `setMode('next' / 'retry')`, `nextRound()`, `endGame()`, `showStarsCollected()`, `answerComponent.show()`, `transitionScreen.hide()`, `floatingBtn.destroy()`, `window.postMessage({type:'show_star',...})` — MUST appear AFTER the awaited `playDynamicFeedback` line. Placing any side-effect between the awaited SFX and the awaited TTS (or before the awaited SFX) means it executes while audio is still in flight. Validators: `GEN-FEEDBACK-TTS-AWAIT` (await), `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO` (subtitle pairing), `GEN-FEEDBACK-ORDER` (side-effect ordering).
    - **Multi-step mid-round match:** `FeedbackManager.sound.play(id, {sticker}).catch(...)` — fire-and-forget. NO dynamic TTS, NO subtitle. SFX + sticker only.
    - Last-life wrong: ALWAYS play wrong SFX (awaited, Promise.all 1500ms min) BEFORE endGame(false) — never skip
-8. **Advance to next round** via `renderRound()` / `loadRound()` / `endGame()`. DO NOT set `isProcessing = false` here and DO NOT re-enable inputs in the handler after audio. `renderRound()` / `loadRound()` is the single source of truth: it sets `isProcessing = false`, re-enables inputs (buttons, voice input), clears marks, and resets state for the new round. Exception: API-failure path and terminal game-over are the only places the handler itself unblocks (so the user can retry or see the end screen).
+8. **Advance to next round** via `renderRound()` / `loadRound()` / `endGame()`. For the default path (advance after correct, advance after wrong with predicate-driven retry), DO NOT set `isProcessing = false` here and DO NOT re-enable inputs in the handler after audio. `renderRound()` / `loadRound()` is the source of truth for this path: it sets `isProcessing = false`, removes `.dnd-disabled`, re-enables inputs (buttons, voice input), resumes the timer, clears marks, and resets state for the new round.
+
+   **Exception paths** — these re-enable in the handler itself (no `renderRound()` between submit and next playable state):
+   - **Standalone Try Again** (`spec.totalRounds: 1` + `totalLives > 1`) — `on('retry')` handler re-enables. See § Try Again flow above.
+   - **Multi-round explicit retry button** (`spec.roundRetryButton: true`) — `on('retry')` handler either re-enables directly OR delegates to `renderRound(currentRound)` for same-round re-render. See § Try Again flow above.
+   - **API-failure recovery** — catch branch re-enables; see § Re-enable exception patterns below.
+   - **Terminal game-over** — `endGame()` removes `.dnd-disabled` from the board wrapper BEFORE teardown so end-game UI (Try Again on Game Over TS) stays tappable; see § Re-enable exception patterns below.
+   - **Per-round / global timer expiry** — `onEnd` callback is a submit-equivalent; see [PART-006 § `onEnd` lifecycle contract](../../../parts/PART-006.md) and the matrix.
+
+   Full lifecycle timing per (game shape × event) lives in [state-and-guards.md § Lifecycle matrix](../../interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix).
+
+### Re-enable exception patterns
+
+For paths that bypass `renderRound()`, the handler is responsible for re-enabling. The contract is: flip every disable in source order — `isProcessing = false`, `.dnd-disabled` remove (P6), `voiceInput.enable()` (P17), `timer.resume()` (PART-006). Skipping any one ships the input-stuck-disabled bug.
+
+```js
+// API-failure recovery — inside submit handler's catch branch.
+// The player must be able to retry their submit; infra failure must NOT decrement lives.
+try {
+  await llmEvaluate(answer);
+} catch (e) {
+  showApiErrorBanner(e);
+
+  gameState.isProcessing = false;
+  if (boardEl) boardEl.classList.remove('dnd-disabled');
+  if (voiceInput) voiceInput.enable();
+  if (timer) timer.resume();
+  return;   // do NOT advance round; do NOT decrement lives
+}
+
+// Terminal game-over — remove the board-level lock BEFORE endGame() teardown,
+// so end-game UI (Try Again on Game Over TS, Claim Stars on Victory TS) remains tappable.
+function endGame(reason) {
+  if (gameState.gameEnded) return;
+  gameState.gameEnded = true;
+
+  if (boardEl) boardEl.classList.remove('dnd-disabled');   // unlock the board for end-game UI
+  destroyDndForRound();                                     // tear down the listeners
+  if (timer) timer.pause();                                 // PART-006 § Mandatory rules
+  if (voiceInput) voiceInput.disable();                     // mic stays disabled through end-game
+
+  postGameComplete(reason === 'success');
+  if (reason === 'success') showVictory();
+  else showGameOver();
+}
+```
 
 ### Round mount narration (renderRound) — shape-conditional
 
