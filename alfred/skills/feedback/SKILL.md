@@ -105,7 +105,7 @@ Round-complete SFX + sticker/subtitle is awaited. Add awaited dynamic TTS only w
 
 ### CASE 7: Wrong Answer (Lives Remaining)
 
-Single-step: set `isProcessing`, disable inputs, red flash, update lives/progress, record attempt, then await wrong SFX -> await dynamic TTS. Retry/advance only after TTS resolves. Subtitle uses the paired `*Subtitle` field for the TTS content.
+Single-step: set `isProcessing`, disable inputs, red flash, update lives/progress, record attempt, then await wrong SFX -> await dynamic TTS. Retry/advance only after TTS resolves. Subtitle uses the paired `*Subtitle` field for the TTS content. **Re-enable site depends on the retry path** — `renderRound()` for predicate-driven advance, `on('retry')` handler for explicit Try Again, catch branch for API-failure; see [state-and-guards § Lifecycle matrix](../interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix).
 
 Multi-step: red flash + wrong SFX fire-and-forget; no dynamic TTS/subtitle; input continues unless the game-specific interaction says otherwise.
 
@@ -148,6 +148,11 @@ Game continues. The package resolves expected audio failures with status objects
 ---
 
 ## Composition With Screen Primitives
+
+Two contracts the table does NOT cover — required for every game:
+
+- **Interactions disabled during submit-feedback window** — set `gameState.isProcessing = true`, add `.dnd-disabled` on board wrapper (P6), `voiceInput.disable()` (P17), `timer.pause()` (PART-006) BEFORE any await. Re-enable site varies by path; see [state-and-guards § Lifecycle matrix](../interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix).
+- **Cleanup between rounds / end of game** — silent transitions (`nextRound`, `endGame`, `restartGame`, level-transition action callbacks, skip handlers) MUST call `FeedbackManager.sound.stopAll()` + `stream.stopAll()` BEFORE mutating `gameState`. Validator: `5e0-CLEANUP-BETWEEN-ROUNDS`.
 
 | Moment | FeedbackManager call | TransitionScreen? | FloatingButton | Case |
 |---|---|---|---|---|

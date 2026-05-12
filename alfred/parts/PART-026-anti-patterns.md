@@ -499,7 +499,9 @@ try {
 try {
   await FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker });
 } catch (e) { /* AbortError only */ }
-// Do NOT re-enable inputs here. renderRound() / loadRound() is the single source of truth.
+// Do NOT re-enable inputs here for the default advance path — renderRound() / loadRound() re-enables.
+// Exception paths (Try Again, API-failure, terminal game-over) re-enable in the handler itself.
+// See interaction/reference/state-and-guards.md § Lifecycle matrix.
 ```
 
 On transition screens (level / round / game-over with CTA), the SFX → TTS sequence is awaited inside `FeedbackManager.runSequence(...)`; the CTA `action` calls `sound.stopAll()` + `stream.stopAll()` to interrupt.

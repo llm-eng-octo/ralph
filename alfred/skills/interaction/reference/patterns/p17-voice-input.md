@@ -140,8 +140,21 @@ async function handleSubmit() {
     }
   } catch (e) {}
 
-  // Inputs stay disabled until loadRound() re-enables them for the next round.
-  // loadRound() is the single source of truth: isProcessing=false, voiceInput.enable(), clearMark(), clear().
+  // Inputs stay disabled until the re-enable site fires.
+  // Default advance path (multi-round, predicate-driven, or standalone correct→endGame):
+  //   loadRound() / renderRound() of the next round flips isProcessing=false AND calls
+  //   voiceInput.enable() + clearMark() + clear().
+  // Standalone Try Again (Rounds: 1 + Lives > 1): the on('retry') handler is the re-enable
+  //   site — it MUST call voiceInput.enable() in source order alongside isProcessing=false,
+  //   since no renderRound runs between submit and retry. The standalone retry handler in
+  //   PART-050 § Try Again lifecycle (Standalone variant) templates this.
+  // Multi-round explicit retry button (roundRetryButton: true): the on('retry') handler
+  //   either delegates to renderRound(currentRound) for same-round re-render (which
+  //   re-enables) OR mirrors the standalone handler body (call voiceInput.enable()
+  //   directly).
+  // API-failure: catch branch re-enables (voiceInput.enable() in source order).
+  // See interaction/reference/state-and-guards.md § Lifecycle matrix for the
+  // per-shape × per-event re-enable site.
 
   // Progress bar bump — AFTER feedback resolves (above), ONLY on round resolution,
   // BEFORE the round-change UI. The voice-input pattern shown here is the default

@@ -114,7 +114,7 @@ RULES:
 PHASE 1: NAIL THE INTENT
 
 STEP 1 — Draft Spec [SUB-AGENT]
-Read alfred/skills/spec-creation/SKILL.md (note: § Faithful translation boundary — spec must include a `## Diff from creator description` section listing every spec line not directly traceable to the creator description, a `[MANDATORY]` rule, or a Creator Decision Default. Pedagogy `[SUGGESTED]` rules go in `## Suggestions (require explicit creator approval)`, NOT inline.)
+Read alfred/skills/spec-creation/SKILL.md (note: § Faithful translation boundary — spec must include a `## Diff from creator description` section listing every spec line not directly traceable to the creator description, a `[MANDATORY]` rule, or a Creator Decision Default. Pedagogy `[SUGGESTED]` rules go in `## Suggestions (require explicit creator approval)`, NOT inline. Four spec flags are CREATOR-ONLY — `previewScreen: false`, `answerComponent: false`, `autoSubmit: true`, and `floatingButton: false` — only emit them when the creator explicitly opts in/out; silence means default. If the creator's description is ambiguous on any of these, ASK before writing.)
 Read alfred/skills/game-archetypes/SKILL.md
 Read alfred/skills/pedagogy/SKILL.md
 Read alfred/skills/feedback/SKILL.md

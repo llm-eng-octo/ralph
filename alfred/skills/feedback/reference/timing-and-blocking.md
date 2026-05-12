@@ -79,16 +79,16 @@ FeedbackManager.sound.play('correct_sound_effect', {
 if (gameState.isProcessing) return;
 ```
 
-**When to set `isProcessing = true`:**
-- Immediately when a single-step correct/wrong answer is submitted — BEFORE any await (LLM eval, SFX play). Also disable modality-specific input (`voiceInput.disable()`, `btn.disabled = true`, `.dnd-disabled` class) at the same point.
-- Immediately when round-complete audio starts
-- During handleReset / path reset flows
+**When to set `isProcessing = true`:** at the top of every awaited-feedback handler (submit, retry, timer-expiry `onEnd`, API-failure handler entry, round-complete, end-game) — BEFORE any `await`. Set in the same pre-await block as the modality-specific disables: `.dnd-disabled` on the board wrapper (P6 — sole functional lock on `@dnd-kit/dom`), `voiceInput.disable()` (P17), `timer.pause()` (PART-006), `floatingBtn.setSubmittable(false)` (FloatingButton).
 
-**When to set `isProcessing = false`:**
-- Submit/answer handler: NEVER here. Let `renderRound()` / `loadRound()` be the single source of truth — it clears `isProcessing`, re-enables voice/buttons, removes `.dnd-disabled`. Re-enabling in the handler ties game flow to TTS completion (anti-pattern).
-- Transition sequences (level / round / end-game with CTA): after the last awaited audio resolves, or when the CTA is tapped.
-- Exception A: API-failure path (LLM timeout / error, can't advance) re-enables in-handler so the user can retry.
-- Exception B: Terminal game-over path re-enables in-handler before calling `endGame()`.
+**When to set `isProcessing = false`:** depends on the path. Detailed per-shape × per-event timing in [interaction/reference/state-and-guards.md § Lifecycle matrix](../../interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix). High-level:
+- Submit-correct / submit-wrong-with-lives (multi-round predicate-driven): `renderRound()` / `loadRound()` of the next round is the re-enable site. Handler does NOT flip the flag.
+- Standalone Try Again: `on('retry')` handler is the re-enable site.
+- Multi-round explicit retry button (`roundRetryButton: true`): `on('retry')` handler delegates to `renderRound(currentRound)` for same-round re-render OR re-enables directly — pick one.
+- API-failure: catch branch in the submit handler re-enables.
+- Terminal game-over: remove `.dnd-disabled` from board wrapper before `endGame()` teardown so end-game UI stays tappable.
+
+**Optional defense-in-depth: `.is-processing` on `#gameContent`.** Adds `pointer-events: none` to voice-input, action-row, submit-btn — a workaround for the CDN VoiceInput bug where `.disable()` only blocks the textarea, not the mic toggle. Add at the same site as `isProcessing = true`; remove at the same site as `isProcessing = false`. This is an extra layer for P17 games specifically; on `@dnd-kit/dom` games the equivalent is `.dnd-disabled` on the board wrapper (which IS load-bearing, not defense-in-depth).
 
 **When NOT to block input:**
 - Multi-step correct matches (fire-and-forget)

@@ -56,6 +56,7 @@ const specContext = (function readSpecContext() {
   const out = {
     floatingButton: null,          // false => spec opted out of FB
     answerComponent: null,         // false => spec opted out of AnswerComponent (PART-051)
+    autoSubmit: null,              // true => spec opted out of Submit + Retry CTAs (PART-050 § Top-level spec flag — autoSubmit). Next still ships.
     totalRounds: null,             // integer
     totalLives: null,              // integer
     retryPreservesInput: null      // boolean
@@ -86,6 +87,16 @@ const specContext = (function readSpecContext() {
     if (/\banswerComponent\s*:\s*\*{0,2}\s*false\b/i.test(spec) ||
         /answer\s+component[^a-zA-Z0-9]{0,10}false\b/i.test(spec)) {
       out.answerComponent = false;
+    }
+
+    // autoSubmit: true — PART-050 § Top-level spec flag. Creator-only opt-in
+    // to auto-evaluation (no Submit button, no Retry button). Next is unaffected
+    // (FloatingButton stays instantiated to ship Next at end-of-game). Matches
+    // varied markdown forms: `autoSubmit: true`, `- autoSubmit: true`,
+    // `**autoSubmit:** true`, `**Auto submit:** true`, `- Auto submit: true`.
+    if (/\bautoSubmit\s*:\s*\*{0,2}\s*true\b/i.test(spec) ||
+        /auto\s+submit[^a-zA-Z0-9]{0,10}true\b/i.test(spec)) {
+      out.autoSubmit = true;
     }
 
     // totalRounds: `**Rounds:** 1`, `Rounds: 1`, `totalRounds: 1`.
@@ -2923,10 +2934,13 @@ if (hasStartGame) {
   //     when the player clears their input. setSubmittable(bool) is the canonical
   //     predicate-driven API; setMode(null) inside a handler also counts as a
   //     valid hide path (for games that prefer manual control).
+  //
+  //     Auto-skipped when `spec.autoSubmit: true` — auto-evaluation games have no
+  //     Submittable predicate by design (PART-050 § Top-level spec flag — autoSubmit).
   const hasSubmittable = /\.setSubmittable\s*\(/.test(html);
   const hasManualHide = /\.setMode\s*\(\s*(?:null|['"]hidden['"])/.test(html) ||
     /\.hide\s*\(\s*\)/.test(html);
-  if (!hasSubmittable && !hasManualHide) {
+  if (specOptOuts.autoSubmit !== true && !hasSubmittable && !hasManualHide) {
     errors.push(
       'ERROR [GEN-FLOATING-BUTTON-PREDICATE]: FloatingButtonComponent is used but the code never calls ' +
         'setSubmittable() (or setMode(null) / hide()). The button must HIDE when the game state becomes ' +
@@ -2945,7 +2959,9 @@ if (hasStartGame) {
   //             Step 1 mis-defaulted "empty submit = wrong, -1 life" and Step 4
   //             implemented `setSubmittable(gameState.selectedIds.length >= 0)`.
   //       Allowed: any predicate that gates on `> 0` / `>= 1` / `=== N` / `trim().length`.
-  if (hasSubmittable) {
+  //
+  //       Auto-skipped when `spec.autoSubmit: true` (no predicate by design).
+  if (specOptOuts.autoSubmit !== true && hasSubmittable) {
     const submitDefaultErrors = [];
     // Literal `setSubmittable(true)` is only an anti-pattern when there's no paired
     // `setSubmittable(false)` — i.e. the button is shown unconditionally. If both
@@ -4361,9 +4377,13 @@ if (hasStartGame) {
   // wire on('retry', ...) for the Try Again flow. Multi-round games use
   // TransitionScreen retry buttons — they are NOT affected by this rule.
   // (isStandalone declared above)
+  //
+  // Auto-skipped when `spec.autoSubmit: true` — auto-evaluation games emit no
+  // Retry button by design (PART-050 § Top-level spec flag — autoSubmit). The
+  // game's internal commit handler decides how to re-arm on wrong-with-lives.
   const hasExtraLives = typeof specContext.totalLives === 'number' && specContext.totalLives > 1;
   const registersOnRetry = /\.on\s*\(\s*['"]retry['"]/.test(html);
-  if (isStandalone && hasExtraLives && !registersOnRetry) {
+  if (specContext.autoSubmit !== true && isStandalone && hasExtraLives && !registersOnRetry) {
     errors.push(
       'ERROR [GEN-FLOATING-BUTTON-RETRY-STANDALONE]: Spec declares totalRounds=1 AND totalLives=' +
         specContext.totalLives + ' (standalone game with spare lives) AND FloatingButton is used, but the Try Again ' +
