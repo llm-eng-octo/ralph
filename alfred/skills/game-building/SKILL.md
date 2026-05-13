@@ -252,6 +252,34 @@ Before outputting, verify against every check:
 
 Write the complete `index.html` file. No placeholder comments. No TODO markers. Every function fully implemented. Every fallback round fully populated with real math content matching the spec.
 
+### Step 10: State-machine integrity report (MANDATORY for flag-conditional games)
+
+For any spec flag that materially changes the FloatingButton / Preview / AnswerComponent / commit state machine, the build report MUST include a phase-by-phase enumeration table that the sub-agent fills in BEFORE handing back. The table forces the sub-agent to write down (and therefore notice) any contradiction between the spec flag and the code emitted.
+
+Trigger flags (run the report for every flag whose value is the non-default form):
+
+| Flag | Default | Triggers state-machine report when |
+|---|---|---|
+| `autoSubmit` | `false` | `true` |
+| `floatingButton` | `true` | `false` |
+| `previewScreen` | `true` | `false` |
+| `answerComponent` | `true` | `false` |
+| `roundMountNarration` | `false` | `true` |
+
+Required table shape for each triggered flag:
+
+```
+### State-machine compliance report — `<flag>: <non-default-value>`
+
+| Call site (file:line) | Phase | API call | Resulting mode | Compliant? |
+|---|---|---|---|---|
+| index.html:NNN | gameplay-input | floatingBtn.setSubmittable(...) | submit | ❌ violates GEN-AUTOSUBMIT-NO-SUBMITTABLE |
+| index.html:NNN | endGame beat 5 | floatingBtn.setMode('next') | next | ✓ |
+| ... | ... | ... | ... | ... |
+```
+
+The sub-agent enumerates EVERY `setMode` / `setSubmittable` / `show()` / `hide()` call site, names the phase it fires in, and confirms compliance with the flag's contract. If any row is non-compliant the sub-agent fixes the HTML and re-runs the table BEFORE submitting Step 4 output. The report sits in the Step 4 hand-off to Step 5.
+
 ---
 
 ## Constraints

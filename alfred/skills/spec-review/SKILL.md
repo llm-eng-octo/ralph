@@ -257,6 +257,22 @@ WARNINGS (review before build)
   5. [E1]  Star thresholds not stated. Defaulting to 90%/66%/33%.
   6. [H4]  2 decisions use pipeline defaults: star thresholds, feedback delay.
            Confirm these are acceptable.
+
+BUILD CONSTRAINTS (machine-readable; Step 4 MUST echo back each line)
+─────────────────────────────────────────────────────────────────────
+
+  Emit ONE line per non-default spec flag detected. Step 4 MUST acknowledge
+  each line as ✓ ACKNOWLEDGED in its build report; an unacknowledged
+  constraint blocks Step 5 advancement. Lines omitted when the flag is at
+  default (default behaviour is the implicit contract).
+
+  Examples (emit only the rows that apply to this spec):
+
+  - autoSubmit:true → forbid setSubmittable(<non-false>), forbid setMode('submit'), forbid floatingBtn.show() in gameplay
+  - floatingButton:false → forbid new FloatingButtonComponent, forbid slots.floatingButton:true, require hand-rolled next_ended CTA per PART-022
+  - previewScreen:false → forbid new PreviewScreenComponent, forbid slots.previewScreen:true
+  - answerComponent:false → forbid new AnswerComponentComponent, forbid slots.answerComponent:true, forbid answerComponent.show calls
+  - roundMountNarration:true (standalone only) → require canonical playDynamicFeedback inside renderRound for every round with questionTTS
 ```
 
 ---
