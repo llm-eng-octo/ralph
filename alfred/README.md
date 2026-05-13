@@ -79,8 +79,9 @@ alfred/
   │   │   └── reference/
   │   │       ├── plan-formats.md                   Plan document format specifications
   │   │       ├── cross-validation.md               Cross-plan consistency checks
-  │   │       ├── default-flow.md                   Canonical multi-round flow diagram (Shape 2)
-  │   │       ├── shapes.md                         Three base shapes (standalone, multi-round, sectioned)
+  │   │       ├── shapes.md                         Canonical source: shape definitions, decision matrix, creator-only flags
+  │   │       ├── standalone-flow.md                Canonical Shape 1 flow diagram (totalRounds: 1)
+  │   │       ├── multi-round-flow.md               Canonical Shape 2 flow diagram (totalRounds > 1)
   │   │       └── flow-gallery.md                   16 customization patterns — additive deltas on the canonical diagram
   │   │
   │   ├── game-building/
@@ -216,7 +217,7 @@ Framework and conventions: [skills/README.md](skills/README.md)
 | spec-creation | [SKILL.md](skills/spec-creation/SKILL.md) | [eval.md](skills/spec-creation/eval.md) | — |
 | spec-review | [SKILL.md](skills/spec-review/SKILL.md) | — | — |
 | game-archetypes | [SKILL.md](skills/game-archetypes/SKILL.md) | [eval.md](skills/game-archetypes/eval.md) | — |
-| game-planning | [SKILL.md](skills/game-planning/SKILL.md) | — | [plan-formats.md](skills/game-planning/reference/plan-formats.md), [cross-validation.md](skills/game-planning/reference/cross-validation.md), [default-flow.md](skills/game-planning/reference/default-flow.md), [shapes.md](skills/game-planning/reference/shapes.md), [flow-gallery.md](skills/game-planning/reference/flow-gallery.md) |
+| game-planning | [SKILL.md](skills/game-planning/SKILL.md) | — | [plan-formats.md](skills/game-planning/reference/plan-formats.md), [cross-validation.md](skills/game-planning/reference/cross-validation.md), [shapes.md](skills/game-planning/reference/shapes.md), [standalone-flow.md](skills/game-planning/reference/standalone-flow.md), [multi-round-flow.md](skills/game-planning/reference/multi-round-flow.md), [flow-gallery.md](skills/game-planning/reference/flow-gallery.md) |
 | game-building | [SKILL.md](skills/game-building/SKILL.md) | — | [html-template.md](skills/game-building/reference/html-template.md), [code-patterns.md](skills/game-building/reference/code-patterns.md), [flow-implementation.md](skills/game-building/reference/flow-implementation.md), [css-reference.md](skills/game-building/reference/css-reference.md), [static-validation-rules.md](skills/game-building/reference/static-validation-rules.md) |
 | game-testing | [SKILL.md](skills/game-testing/SKILL.md) | — | — |
 | visual-review | [SKILL.md](skills/visual-review/SKILL.md) | — | — |

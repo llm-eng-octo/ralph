@@ -3527,9 +3527,12 @@ if (hasStartGame) {
   // "double-Next" / "TS with Next button" regressions (GEN-FLOATING-BUTTON-
   // TS-CTA-FORBIDDEN).
   //
-  // Scope: fires only when FloatingButton is in use AND totalRounds === 1 AND
-  // source references TransitionScreen (`new TransitionScreenComponent(` OR
-  // `transitionScreen.show(`). Auto-skips for games in the allowlist.
+  // Scope: fires when totalRounds === 1 AND source references TransitionScreen
+  // (`new TransitionScreenComponent(` OR `transitionScreen.show(`). Predicate is
+  // shape-only — independent of FloatingButton flag. Standalone forbids TS
+  // categorically; `floatingButton: false` changes only the end-CTA shape
+  // (PART-022 inline button), not the screen vocabulary. Auto-skips for games
+  // in the allowlist.
   const isStandalone = specContext.totalRounds === 1;
   const usesTransitionScreen =
     /\bnew\s+TransitionScreenComponent\s*\(/.test(html) ||
@@ -3537,8 +3540,10 @@ if (hasStartGame) {
   if (isStandalone && usesTransitionScreen) {
     errors.push(
       'ERROR [GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN]: Spec declares totalRounds=1 (Shape 1 Standalone) ' +
-        'AND FloatingButton is used, but the source references TransitionScreen (either `new TransitionScreenComponent(` ' +
+        'but the source references TransitionScreen (either `new TransitionScreenComponent(` ' +
         'or `transitionScreen.show(`). Standalone games have a single round — there is nothing to transition between. ' +
+        'The TS prohibition applies REGARDLESS of `floatingButton` flag: even when `floatingButton: false`, the ' +
+        'end-CTA is a PART-022 inline button, not a TransitionScreen. ' +
         'The inline feedback panel rendered in #gameContent (worked-example, stars, message) is the canonical ' +
         'end-of-game display for Shape 1. ' +
         'CORRECT STANDALONE FLOW (PART-050 "Next flow — standalone variant"): ' +
@@ -4398,6 +4403,28 @@ if (hasStartGame) {
     );
   }
 
+  // ─── GEN-FLOATING-BUTTON-RETRY-FORBIDDEN-1-LIFE ───────────────────────────
+  // Inverse of GEN-FLOATING-BUTTON-RETRY-STANDALONE: when the spec declares
+  // `totalRounds: 1` AND `totalLives === 1`, registering an `on('retry', ...)`
+  // handler is a contradiction — the player has no spare lives to retry into.
+  // The end-state UI for wrong+lives=0 on a 1-life standalone is AnswerComponent
+  // (reveal the solution) followed by Next, NOT Try Again. Catches the
+  // "builder defensively wires retry on a 1-life game" regression.
+  // Auto-skipped when `spec.autoSubmit: true` (no Retry button by design).
+  const hasOneLife = typeof specContext.totalLives === 'number' && specContext.totalLives === 1;
+  if (specContext.autoSubmit !== true && isStandalone && hasOneLife && registersOnRetry) {
+    errors.push(
+      'ERROR [GEN-FLOATING-BUTTON-RETRY-FORBIDDEN-1-LIFE]: Spec declares totalRounds=1 AND totalLives=1 ' +
+        '(single-question, single-life standalone) but the source registers floatingBtn.on(\'retry\', ...). ' +
+        'A 1-life game has no spare lives to retry into — the wrong-answer end-state is AnswerComponent ' +
+        '(reveal the solution) → Next, never Try Again. ' +
+        'REMOVE the on(\'retry\', ...) handler and any `floatingBtn.setMode(\'retry\')` call in the wrong-answer ' +
+        'branch of the submit handler. The wrong-answer branch should route directly to endGame(false) which ' +
+        'plays feedback, posts game_complete, reveals AnswerComponent (gated on !correct), then setMode(\'next\'). ' +
+        '(PART-050 § Standalone lifecycle, GEN-FLOATING-BUTTON-RETRY-FORBIDDEN-1-LIFE)'
+    );
+  }
+
   // ─── GEN-FLOATING-BUTTON-RETRY-LIVES-RESET ────────────────────────────────
   // When on('retry', ...) IS registered, its handler body MUST NOT reset
   // gameState.lives. The whole point of Try Again is to USE the already-
@@ -4472,6 +4499,111 @@ if (hasStartGame) {
           '(PART-050 § Try Again lifecycle, GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE)'
       );
     }
+  }
+})();
+
+// ─── GEN-PREVIEW-DESTROY-VIA-NEXT-ONLY ──────────────────────────────────────
+// Per PART-039 § Destruction: `previewScreen.destroy()` MUST be called only
+// from inside a `floatingBtn.on('next', ...)` handler — both shapes (standalone
+// AND multi-round). Direct calls from `endGame()`, screen handlers, anywhere
+// else are forbidden. The preview wrapper is persistent through every game
+// phase; tearing it down before Next results in flicker / lost state / mid-
+// audio teardown.
+//
+// Predicate: each `previewScreen.destroy()` call site must be lexically within
+// a `floatingBtn.on('next', function(...) {...})` (or arrow-fn) body. Heuristic:
+// for each destroy call, walk back to find the nearest enclosing `function (`
+// boundary; require that the function declaration is the second arg of a
+// `floatingBtn.on('next',` call. Conservative: if the AST shape is too dynamic
+// to detect (destroy called via helper), the rule is silent (false negatives
+// OK — fail open).
+(function checkPreviewDestroyViaNextOnly() {
+  // Two valid patterns:
+  // (A) Inline: floatingBtn.on('next', function() { ... previewScreen.destroy() ... })
+  // (B) Named handler: function handleNext() { ... previewScreen.destroy() ... }
+  //     ... floatingBtn.on('next', handleNext)
+  //
+  // Collect named-handler identifiers first by scanning all `on('next', <ident>)` registrations.
+  const nextHandlerNames = new Set();
+  const nextHandlerRe = /\bfloatingBtn\s*\.\s*on\s*\(\s*['"]next['"]\s*,\s*([A-Za-z_$][\w$]*)\s*\)/g;
+  let hm;
+  while ((hm = nextHandlerRe.exec(html)) !== null) {
+    nextHandlerNames.add(hm[1]);
+  }
+
+  const destroyRe = /previewScreen\s*\.\s*destroy\s*\(/g;
+  let m;
+  while ((m = destroyRe.exec(html)) !== null) {
+    const callIdx = m.index;
+    // First, check if the destroy is lexically inside an inline on('next', function(){...}).
+    const windowStart = Math.max(0, callIdx - 6000);
+    const slice = html.slice(windowStart, callIdx);
+    const inlineRe = /\bfloatingBtn\s*\.\s*on\s*\(\s*['"]next['"]\s*,\s*(?:async\s+)?function\b/g;
+    let lastInline = -1, im;
+    while ((im = inlineRe.exec(slice)) !== null) {
+      lastInline = im.index + im[0].length;
+    }
+    if (lastInline >= 0) {
+      // Check balance from the first `{` after lastInline through callIdx.
+      const between = slice.slice(lastInline);
+      const firstBraceRel = between.indexOf('{');
+      if (firstBraceRel >= 0) {
+        let depth = 1;
+        let i = firstBraceRel + 1, stillInside = true;
+        while (i < between.length) {
+          const c = between[i];
+          if (c === '{') depth++;
+          else if (c === '}') { depth--; if (depth === 0) { stillInside = false; break; } }
+          i++;
+        }
+        if (stillInside) continue; // inside inline handler — OK
+      }
+    }
+    // Second, check if the destroy is inside a named function whose name is
+    // registered as the on('next') handler. Walk backward looking for the
+    // nearest enclosing `function NAME(` or `async function NAME(` or
+    // `var NAME = function` or `const NAME = (...)=>` declaration.
+    if (nextHandlerNames.size > 0) {
+      // Find the nearest `function NAME(` opening before callIdx and check the
+      // function body contains callIdx.
+      const fnRe = /(?:^|[^\w$])(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g;
+      let inHandler = false;
+      let lastFn;
+      while ((lastFn = fnRe.exec(slice)) !== null) {
+        const fnName = lastFn[1];
+        if (!nextHandlerNames.has(fnName)) continue;
+        // Find function body opening brace after this match.
+        const after = slice.slice(lastFn.index + lastFn[0].length);
+        const braceRel = after.indexOf('{');
+        if (braceRel < 0) continue;
+        const bodyStartAbs = windowStart + lastFn.index + lastFn[0].length + braceRel;
+        // Balance braces from bodyStartAbs to find body end.
+        let depth = 1, i = bodyStartAbs + 1;
+        let bodyEndAbs = -1;
+        while (i < html.length) {
+          const c = html[i];
+          if (c === '{') depth++;
+          else if (c === '}') { depth--; if (depth === 0) { bodyEndAbs = i; break; } }
+          i++;
+        }
+        if (bodyEndAbs > callIdx && bodyStartAbs < callIdx) {
+          inHandler = true;
+          break;
+        }
+      }
+      if (inHandler) continue;
+    }
+    // Neither inline-in-handler nor inside-named-handler — flag.
+    warnings.push(
+      'WARNING [GEN-PREVIEW-DESTROY-VIA-NEXT-ONLY]: previewScreen.destroy() may be called outside the ' +
+        'floatingBtn.on(\'next\', ...) handler — could not statically confirm. Common false-positive cause: ' +
+        'destroy lives in a named helper function (e.g. `handleNextFromFloatingButton`) which is CALLED from ' +
+        'the on(\'next\') handler but not registered directly. If your destroy is reachable only via Next, ' +
+        'this warning is benign. Per PART-039 § Destruction, the preview wrapper must be torn down only when ' +
+        'Next is tapped — never from endGame(), screen handlers, or anywhere else. Both shapes (standalone ' +
+        'and multi-round) follow this rule identically. Severity downgraded to warning until static call-graph ' +
+        'analysis is implemented. (PART-039 § Destruction, GEN-PREVIEW-DESTROY-VIA-NEXT-ONLY)'
+    );
   }
 })();
 
@@ -4574,6 +4706,88 @@ if (hasStartGame) {
         'callback was found. The timer expiry path must hide FloatingButton — define an `onEnd` callback ' +
         'on the TimerComponent constructor that hides Submit (see PART-050 § Mandatory rules § 4). ' +
         '(PART-050 § Mandatory rules § 4, GEN-FLOATING-BUTTON-TIMEOUT-HIDE)'
+    );
+  }
+})();
+
+// ─── GEN-STANDALONE-SINGLE-ROUND ────────────────────────────────────────────
+// Standalone games (`totalRounds: 1`) MUST ship exactly one round in
+// `fallbackContent.rounds`. Multi-round games use round-set cycling
+// (GEN-ROUNDSETS-MIN-3) which requires `rounds.length === totalRounds × sets`.
+// Standalone bypasses that rule (by convention — no `set` keys), so nothing
+// catches the silent-iterate-N bug where a builder declares `totalRounds: 1`
+// but seeds 2 round objects. The round loop iterates twice, the second round
+// is never displayed in the expected single-question flow, and lives accounting
+// breaks. This rule enforces the structural invariant.
+(function checkStandaloneSingleRound() {
+  if (specContext.totalRounds !== 1) return; // multi-round handled by GEN-ROUNDSETS-MIN-3
+  // Parse fallbackContent.rounds array length — reuse the same parsing approach
+  // as GEN-ROUNDSETS-MIN-3 (find `fallbackContent = {`, find `rounds:`, count
+  // top-level `{` blocks in the array literal).
+  const fbMatch = /(?:const|let|var)\s+fallbackContent\s*=\s*\{/.exec(html);
+  if (!fbMatch) return; // no fallback — different rule handles that
+  const objStart = fbMatch.index + fbMatch[0].length - 1;
+  let depth = 0, objEnd = -1, i = objStart;
+  while (i < html.length) {
+    const c = html[i];
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) { objEnd = i; break; } }
+    i++;
+  }
+  if (objEnd < 0) return;
+  const fbBody = html.slice(objStart, objEnd + 1);
+  const roundsMatch = /\brounds\s*:\s*\[/.exec(fbBody);
+  if (!roundsMatch) return;
+  const arrStart = roundsMatch.index + roundsMatch[0].length - 1;
+  let bdepth = 0, arrEnd = -1, j = arrStart;
+  while (j < fbBody.length) {
+    const c = fbBody[j];
+    if (c === '[') bdepth++;
+    else if (c === ']') { bdepth--; if (bdepth === 0) { arrEnd = j; break; } }
+    j++;
+  }
+  if (arrEnd < 0) return;
+  const arrBody = fbBody.slice(arrStart + 1, arrEnd);
+  // Count top-level `{` (each round object). Use balanced brace scanning.
+  let roundCount = 0, kdepth = 0;
+  for (let k = 0; k < arrBody.length; k++) {
+    const c = arrBody[k];
+    if (c === '{') { if (kdepth === 0) roundCount++; kdepth++; }
+    else if (c === '}') kdepth--;
+  }
+  if (roundCount > 1) {
+    errors.push(
+      'ERROR [GEN-STANDALONE-SINGLE-ROUND]: Spec declares totalRounds=1 (Shape 1 Standalone) but ' +
+        'fallbackContent.rounds contains ' + roundCount + ' round objects — exactly 1 is required. ' +
+        'Standalone games have a single evaluated question; a multi-element rounds array causes the round loop ' +
+        'to iterate more than once and breaks lives accounting / game_complete payload semantics. ' +
+        'Fix: collapse the array to a single round object, OR change the spec to multi-round (totalRounds > 1) ' +
+        'and add round-set cycling per GEN-ROUNDSETS-MIN-3. ' +
+        '(shapes.md § Decision Matrix, GEN-STANDALONE-SINGLE-ROUND)'
+    );
+  }
+})();
+
+// ─── GEN-STANDALONE-NO-PROGRESS-BAR ─────────────────────────────────────────
+// Standalone games (`totalRounds: 1`) MUST NOT instantiate ProgressBarComponent
+// at all. Per shapes.md § Decision Matrix, the progress bar is forbidden on
+// Shape 1 — it conveys round-by-round progression which has no meaning when
+// there is only one round. Even subsequent `progressBar.hide()` doesn't help:
+// the component costs DOM and confuses the layout (preview header is the only
+// chrome). Catches builders who instantiate-then-hide out of habit.
+(function checkStandaloneNoProgressBar() {
+  if (specContext.totalRounds !== 1) return;
+  const usesProgressBar = /\bnew\s+ProgressBarComponent\s*\(/.test(html);
+  if (usesProgressBar) {
+    errors.push(
+      'ERROR [GEN-STANDALONE-NO-PROGRESS-BAR]: Spec declares totalRounds=1 (Shape 1 Standalone) but ' +
+        '`new ProgressBarComponent(...)` is in source. Standalone games have no round-by-round progression — ' +
+        'the progress bar conveys no information and must not be instantiated. Even if subsequently hidden ' +
+        'via progressBar.hide(), the component costs DOM and conflicts with the absent-progress-bar invariant ' +
+        '(shapes.md § Decision Matrix). Fix: remove the ProgressBarComponent instantiation, remove the ' +
+        'progressBar: true entry from ScreenLayout.inject() slots, and remove the typeof ProgressBarComponent ' +
+        'check from waitForPackages(). ' +
+        '(shapes.md § Decision Matrix, GEN-STANDALONE-NO-PROGRESS-BAR)'
     );
   }
 })();

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This file tells you how to implement the flow from `pre-generation/game-flow.md` inline in the HTML using the three CDN components. Read this alongside `pre-generation/game-flow.md` and `alfred/skills/game-planning/reference/default-flow.md`.
+This file tells you how to implement the flow from `pre-generation/game-flow.md` inline in the HTML using the three CDN components. Read this alongside `pre-generation/game-flow.md` and `alfred/skills/game-planning/reference/multi-round-flow.md`.
 
 ## Plan → build contract (CRITICAL)
 
@@ -102,7 +102,7 @@ The example below is the **explicit-retry-button variant**. For the predicate-dr
    - **Last-life wrong (`livesLeft === 0`)** → no bump → `progressBar.update(prior progress, 0)` (hearts empty) → Game Over UI. Bar reads "completed N-1, lost on N."
    - **Wrong with retry available** → `floatingBtn.setMode('retry')` → same-round re-render → loop back to step 1 on next submit. **No progress bump, no `update()` change.**
 
-In the default no-retry flow (most existing games), there are only two outcomes per submit: pass-through-correct (bump → next round / Victory) or last-life-wrong (no bump → Game Over) or wrong-with-lives-remaining (advance to next round per default-flow.md, bump → next round). Game Over is the only "no-bump on advance" case. The retry-aware framing is forward-compatible.
+In the default no-retry flow (most existing games), there are only two outcomes per submit: pass-through-correct (bump → next round / Victory) or last-life-wrong (no bump → Game Over) or wrong-with-lives-remaining (advance to next round per multi-round-flow.md, bump → next round). Game Over is the only "no-bump on advance" case. The retry-aware framing is forward-compatible.
 
 The bump still respects the "before the awaited round-change UI" ordering rule — what changes is *when within the round* it fires. Bump after feedback await, only on the moved-past branch, before next-round / Victory UI.
 

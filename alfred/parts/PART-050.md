@@ -63,8 +63,8 @@ Defined once; the rest of the doc uses these terms exactly. Drop-in replacements
 - **Interaction signal** — a boolean on `gameState` (e.g. `hasInteracted`, `userInteracted`, `touched`, `dirty`) that flips `false → true` on the player's first input. The Submittable predicate ANDs this with the value-valid check so pre-filled inputs do not show Submit on first paint.
 - **Win Confirmation screen** / `showWinConfirmation()` — optional button-gated transition with a "Claim Stars" CTA. No sound, no animation, no `show_star`. Player taps Claim Stars to advance.
 - **Victory Celebration screen** / `showVictoryCelebration()` — celebration TransitionScreen. Plays `victory_sound_effect`, posts `show_star`, stays mounted as backdrop while AnswerComponent appears below it via the `onMounted` `setTimeout` hand-off.
-- **Standalone shape** — `totalRounds: 1`. No TransitionScreen at all. End-of-game UI is FloatingButton + [AnswerComponent](PART-051.md) + the persistent preview header.
-- **Multi-round shape** — `totalRounds > 1`. Round-end uses a TransitionScreen with `buttons: []` (tap-dismissible).
+- **Standalone shape** — `totalRounds: 1`. No TransitionScreen at all. End-of-game UI is FloatingButton + [AnswerComponent](PART-051.md) + the persistent preview header. See [shapes.md § Standalone](../skills/game-planning/reference/shapes.md#definitions) and [standalone-flow.md](../skills/game-planning/reference/standalone-flow.md) for the canonical definition and flow diagram.
+- **Multi-round shape** — `totalRounds > 1`. Round-end uses a TransitionScreen with `buttons: []` (tap-dismissible). See [shapes.md § Multi-round](../skills/game-planning/reference/shapes.md#definitions) and [multi-round-flow.md](../skills/game-planning/reference/multi-round-flow.md).
 - **Single-stage Next handler** — the `floatingBtn.on('next', ...)` handler that tears down everything (AnswerComponent, Win/Victory Celebration TS, preview, FloatingButton) and posts `next_ended` in one tap.
 
 ## States
@@ -484,6 +484,8 @@ floatingBtn.on('retry', function () {
 ```
 
 `RETRY_PRESERVES_INPUT` is a game-scope const emitted from `spec.retryPreservesInput`.
+
+**Button label persistence (both shapes):** the retry button label is **stable `"Try Again"` across all retries**. Do NOT call `floatingBtn.setLabels({retry: ...})` mid-game to vary it (e.g. `"Last try!"` on the final retry, `"Retry 2 of 3"`). Per-retry label variation is out of scope — pick one label at game start (default `"Try Again"`, or a creator-quoted override emitted once via the initial `setLabels(...)` call) and keep it for the lifetime of the game. Varying the label per retry has no design intent in the canonical lifecycle and breaks the "stable button label" invariant the player relies on.
 
 **Must reset / re-enable:** `gameState.isProcessing = false`; `boardEl.classList.remove('dnd-disabled')` (P6); `voiceInput.enable()` (P17); `timer.resume()` (PART-006); clear input value (unless `retryPreservesInput: true`); clear inline feedback DOM. **Must NOT reset:** `gameState.lives` (already decremented), `gameState.attempts`, `gameState.score`, `gameState.retryCount`. ([rule 6](#mandatory-rules), [GEN-FLOATING-BUTTON-RETRY-LIVES-RESET](../skills/game-building/reference/static-validation-rules.md))
 
