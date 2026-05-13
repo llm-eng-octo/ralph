@@ -2,7 +2,19 @@
 
 ## Purpose
 
-Define the 17 canonical interaction patterns so every game uses the correct event listeners, state management, touch handling, hit detection, undo behavior, and visual feedback for its interaction type. Without this, each game invents its own interaction code — leading to inconsistent touch handling, broken drag on mobile, missing guards, and unreliable input blocking.
+Define the 17 canonical interaction patterns (16 active + 1 deprecated — P4 Tap+Swipe) so every game uses the correct event listeners, state management, touch handling, hit detection, undo behavior, and visual feedback for its interaction type. Without this, each game invents its own interaction code — leading to inconsistent touch handling, broken drag on mobile, missing guards, and unreliable input blocking.
+
+## Ownership boundaries (read first)
+
+This skill owns events, guards, selection state, undo/reset, and per-pattern drag/hit-detection. It does NOT own the rules below — for those, link to the canonical owner instead of restating:
+
+| Concern | Owner | What this skill does |
+|---|---|---|
+| Events, guards, state machines, undo/reset | **Interaction (this skill)** | Owns directly |
+| SFX / TTS sequencing + await rules + cleanup-between-rounds | **Feedback skill** (`skills/feedback/SKILL.md`) | Link; never restate timing |
+| Touch targets (44×44), `touch-action`, `inputmode`, `visualViewport` | **Mobile skill** (`skills/mobile/SKILL.md`) | Link; never restate CSS |
+| `recordAttempt` field shape + telemetry | **Data-contract skill** | Link; never inline `{ /* 12 fields */ }` placeholders |
+| Round lifecycle helpers (`loadRound`, `renderRound`, `syncDOM`, `floatingBtn`, `endGame`, `restartGame`) | **Game-building / PART docs** | Reference by name; do not define |
 
 ## When to use
 
@@ -37,6 +49,8 @@ Interaction code baked into the generated game. The builder reads this skill and
 | [patterns-summary.md](reference/patterns-summary.md) | Quick-reference table of all 17 patterns + 2 modifiers | **ALWAYS** (to identify which pattern files to load) |
 | [touch-events.md](reference/touch-events.md) | Event type decision tree, pointer events guide, hit detection, gesture suppression, preventDefault rules | **ALWAYS during code generation** |
 | [state-and-guards.md](reference/state-and-guards.md) | Selection state machines, isProcessing guards, undo/reset patterns, common guard code | **ALWAYS during code generation** |
+| [host-helpers.md](reference/host-helpers.md) | Glossary of symbols used in interaction examples that are not defined here (game-local helpers, telemetry, test-harness `solveRound`, sticker constants). Cross-links to feedback skill's `host-helpers.md` for shared scaffolding helpers. | **ON-DEMAND** when a code example references an unfamiliar symbol |
+| [validator-map.md](reference/validator-map.md) | Status table for every validator cited by this skill (`GEN-DND-*`, `GEN-FEEDBACK-TTS-AWAIT`, etc.) plus the retired/phantom `L-VI-002` entry. | **ON-DEMAND** when a build/review cites a rule id |
 
 ### Pattern Files (load only the ones needed for the game)
 
@@ -44,8 +58,8 @@ Interaction code baked into the generated game. The builder reads this skill and
 |------|---------|
 | [tap-interaction.md](reference/patterns/tap-interaction.md) | **All tap/click patterns** — P1, P2, P3, P8, P9, P10, P11, P12, P14, P15, P16 |
 | [p05-continuous-drag-path.md](reference/patterns/p05-continuous-drag-path.md) | Continuous Drag (Path) — draw path across grid |
-| [p06-drag-and-drop.md](reference/patterns/p06-drag-and-drop.md) | Drag-and-Drop — clone-based, eviction, edge-scroll, zone-to-zone |
-| [p07-text-input.md](reference/patterns/p07-text-input.md) | Text/Number Input — keyboard, Enter submit, visualViewport |
+| [p06-drag-and-drop.md](reference/patterns/p06-drag-and-drop.md) | Drag-and-Drop via `@dnd-kit/dom` — eviction/swap, edge-scroll, zone-to-zone, bank re-centering |
+| [p07-text-input.md](reference/patterns/p07-text-input.md) | Text/Number Input — Enter/Submit handler, guards, telemetry, awaited feedback |
 | [p07-input-behaviors.md](reference/patterns/p07-input-behaviors.md) | **P7 required behaviors** — auto-focus + scroll-into-view, auto-growing width (MANDATORY for every P7 game) |
 | [p13-directional-drag.md](reference/patterns/p13-directional-drag.md) | Directional Drag (Constrained Axis) — Rush Hour style |
 | [p17-voice-input.md](reference/patterns/p17-voice-input.md) | Voice Input — speak or type answer via VoiceInput CDN package |
@@ -54,7 +68,7 @@ Interaction code baked into the generated game. The builder reads this skill and
 
 ---
 
-## Full Pattern Inventory (17 patterns)
+## Full Pattern Inventory (17 patterns — 16 active + P4 deprecated)
 
 | # | Pattern | Events | Step type | Game count |
 |---|---------|--------|-----------|------------|
@@ -120,25 +134,7 @@ Interaction code baked into the generated game. The builder reads this skill and
 
 ### Step 3: Determine single-step vs multi-step
 
-| Pattern | Step type | Why |
-|---------|----------|-----|
-| P1 Tap-Select (Single) | **Single-step** | 1 tap = 1 evaluation = round complete |
-| P2 Sequential Chain | **Multi-step** | Multiple taps to build chain |
-| P3 Two-Phase Match | **Multi-step** | Multiple pairs to match per round |
-| P4 ~~Tap + Swipe~~ | **DEPRECATED** | Use P1 tap-only with directional buttons instead |
-| P5 Continuous Drag (Path) | **Multi-step** | Full path needed |
-| P6 Drag-and-Drop (`@dnd-kit/dom`) | **Multi-step** | Multiple items to place |
-| P7 Text/Number Input | **Single-step** | 1 input + submit = 1 evaluation |
-| P8 Click-to-Toggle | **Multi-step** | Multiple toggles to solve |
-| P9 Stepper | **Multi-step** | Adjust values + then submit/check |
-| P10 Multi-Select + Submit | **Multi-step** | Toggle multiple items then submit |
-| P11 Same-Grid Pair Selection | **Multi-step** | Multiple pairs from same grid |
-| P12 Tap-to-Assign (Palette) | **Multi-step** | Assign colours/labels to multiple items |
-| P13 Directional Drag (Constrained) | **Multi-step** | Multiple block moves to solve |
-| P14 Edge/Segment Toggle | **Multi-step** | Multiple edges to form loop |
-| P15 Cell Select → Number Picker | **Multi-step** | Fill multiple cells |
-| P16 Sequence Replay | **Multi-step** | Reproduce sequence tap by tap |
-| P17 Voice Input | **Single-step** | 1 spoken/typed answer + submit = 1 evaluation (uses VoiceInput CDN package) |
+The "Step type" column in the Full Pattern Inventory above is the source of truth. Not restated here.
 
 ---
 
@@ -169,67 +165,15 @@ Some games use Tap-Select (Single) — P1 — multiple times within a single rou
 
 ---
 
-## Complete Game → Pattern Mapping (47 games)
+## Game → Pattern Mapping
 
-| # | Game | Pattern(s) | Phase modifier |
-|---|------|-----------|---------------|
-| 1 | Adjustment Strategy | P9 (Stepper) + P7 (Input) | — |
-| 2 | Aided Game | P1 (Tap-Select) ×2 steps | Multi-Step MCQ |
-| 3 | Associations | P1 (Tap-Select) | Observe (learn pairs) |
-| 4 | Bubbles Pairs | P11 (Same-Grid Pair) | — |
-| 5 | Colour Coding Tool | P12 (Palette Assign) + P7 (Input) | — |
-| 6 | Connect | P5 (Continuous Drag Path) | — |
-| 7 | Crazy Maze | P5 (Continuous Drag Path) — tap variant | — |
-| 8 | Disappearing Numbers | P7 (Input) | Observe (visual memorize) |
-| 9 | Doubles | P2 (Sequential Chain) | — |
-| 10 | Equation Grid | P6 (Drag-and-Drop) + Submit | — |
-| 11 | Explain the Pattern | P7 (Input) ×2 phases | — |
-| 12 | Expression Completer | P1 (Tap-Select) ×2 steps | Multi-Step MCQ |
-| 13 | Face Memory | P1 (Tap-Select) | Observe (visual memorize) |
-| 14 | Free the Key | P13 (Directional Drag Constrained) | — |
-| 15 | Futoshiki | P15 (Cell + Number Picker) | — |
-| 16 | Hidden Sums | P10 (Multi-Select + Submit) | — |
-| 17 | Hide Unhide | P8 (Click-to-Toggle) + Submit | — |
-| 18 | Identify Pairs List | P11 (Same-Grid Pair) | — |
-| 19 | Interactive Chat | P7 (Input) + P1 (Tap-Select) alternating | — |
-| 20 | Jelly Doods | P1 (Tap-Select with directional buttons) — ~~P4 deprecated~~ | — |
-| 21 | Kakuro | P6 (Drag-and-Drop into grid) or P15 (Cell + Picker) | — |
-| 22 | Keep Track | P1 (Tap-Select) | Observe (track movement) |
-| 23 | Killer Sudoku | P15 (Cell + Number Picker) | — |
-| 24 | Light Up | P8 (Click-to-Toggle) | — |
-| 25 | Listen and Add | P7 (Input) | Observe (audio sequential) |
-| 26 | Loop the Loop | P14 (Edge/Segment Toggle) | — |
-| 27 | Make X | P10 (Multi-Select + auto-check) | — |
-| 28 | Match the Cards | P3 (Two-Phase Match) | — |
-| 29 | Matching Doubles | P3 (Two-Phase Match) | — |
-| 30 | Math Crossword | P6 (Drag-and-Drop) + Submit | — |
-| 31 | Matrix Memory | P7 (Input) or P1 (Tap-Select) | Observe (visual memorize) |
-| 32 | MCQ Multi-Select | P10 (Multi-Select + Submit) | — |
-| 33 | Memory Flip | P3 (Two-Phase Match — card flip) | — |
-| 34 | Number Pattern | P1 (Tap-Select) | — |
-| 35 | One Digit Doubles | P1 (Tap-Select) | — |
-| 36 | Position Maximizer | P1 (Tap-Select) | — |
-| 37 | Queens | P8 (Click-to-Toggle) | — |
-| 38 | Rapid Challenge | P1 (Tap-Select) | — |
-| 39 | Sequence Builder | P1 (Tap-Select) ×N steps | Multi-Step MCQ |
-| 40 | Simon Says | P16 (Sequence Replay) | Observe (sequential flash) |
-| 41 | Speed Input | P7 (Input) | — |
-| 42 | Speedy Taps | P11 (Same-Grid Pair) | — |
-| 43 | Subjective | P7 (Input — textarea) | — |
-| 44 | Totals in a Flash | P7 (Input) | Observe (visual+audio sequential) |
-| 45 | True or False | P1 (Tap-Select — binary) | — |
-| 46 | Truth Tellers & Liars | P10 (Multi-Select + Submit) or P12 (Palette Assign) | — |
-| 47 | Two Digit Doubles Aided | P1 (Tap-Select) ×3 steps | Multi-Step MCQ |
-| 48 | Two Player Race | P1 (Tap-Select) ×2 players | Split-screen layout |
-| 49 | Visual Memory | P8 (Toggle) + Submit | Observe (visual memorize) |
-| 50 | Word Pairs | P7 (Input) | Observe (learn pairs) |
-| 51 | Zip | P5 (Continuous Drag Path) | — |
+The pattern decision for a new game is made from the spec's interaction keywords against the **Step 2: Check spec overrides** table above (combined with the archetype default in Step 1). Per-game pattern assignments belong in spec-creation / game-planning, not here — a static roster in this skill drifts as games are added or retired.
 
-**Coverage: 47/47 games mapped. 0 unmapped.**
+A historical roster of the 50+ shipped games and their pattern assignments was removed during the 2026-05-12 interaction audit. If you need to look up "which pattern does game X use", the authoritative source is `games/<gameId>/spec.md` for that game.
 
 ---
 
-## The 16 Patterns (Summary)
+## The 17 Patterns (Summary — P4 deprecated)
 
 ### Pattern 1: Tap-Select (Single)
 
@@ -238,7 +182,7 @@ Some games use Tap-Select (Single) — P1 — multiple times within a single rou
 **Game type:** Single-step.
 **Selection:** No persistent selection. Tap = immediate evaluation.
 **Guards:** `isProcessing`, `isActive`, `gameEnded`.
-**Feedback:** SFX (awaited, ~1.5s) → dynamic TTS (fire-and-forget). Input blocked for SFX dwell only; re-enabled in `loadRound()`, NOT after TTS (L-VI-002).
+**Feedback:** Awaited SFX → awaited dynamic TTS (see feedback skill `SKILL.md` Single-step row + validator `GEN-FEEDBACK-TTS-AWAIT`). Input stays blocked for the full awaited-feedback window; `isProcessing` is re-enabled in `loadRound()` / `renderRound()`, never in the submit handler.
 **Used by:** MCQ Quiz, Rapid Challenge, True/False, One Digit Doubles, Position Maximizer, Number Pattern, Face Memory (response phase), Associations (response phase), Keep Track, Two-Player Race.
 
 ### Pattern 2: Tap-Select (Sequential Chain)
@@ -273,16 +217,16 @@ Some games use Tap-Select (Single) — P1 — multiple times within a single rou
 **Game type:** Multi-step.
 **Hit detection:** `document.elementFromPoint(clientX, clientY)`.
 **Feedback:** Fire-and-forget tap SFX per cell. Awaited SFX + TTS on puzzle-complete.
-**Variant — Tap Path (Crazy Maze):** Student taps adjacent cells one by one instead of continuous drag. Same state (path array), but uses `click` events instead of pointer events. Running total tracked and displayed.
+**Variant — Tap Path (Crazy Maze):** Student taps adjacent cells one by one instead of continuous drag. Same state (path array), but uses `click` events instead of pointer events. Running total tracked and displayed. *(Structurally this variant is closer to P1/P2 than to P5; it lives under P5 only because it shares the path-array state model. Treat the event-type rules as P1/P2.)*
 **Used by:** Connect, Zip, Crazy Maze.
 
 ### Pattern 6: Drag-and-Drop (Pick & Place)
 
 **What:** Student picks up an item and drops it into a target zone or grid cell.
-**Library:** **`@dnd-kit/dom`** loaded via ESM CDN (`https://esm.sh/@dnd-kit/dom@beta`). Use `DragDropManager`, `Draggable`, `Droppable` — never native HTML5 drag (`draggable="true"` / `dataTransfer`) and never hand-rolled pointer events. See `reference/patterns/p06-drag-and-drop.md` for the full 8 required behaviours and V1–V20 verification matrix, which is MANDATORY for every P6 game.
+**Library:** **`@dnd-kit/dom`** loaded via ESM CDN (`https://esm.sh/@dnd-kit/dom@beta`). Use `DragDropManager`, `Draggable`, `Droppable` — never native HTML5 drag (`draggable="true"` / `dataTransfer`) and never hand-rolled pointer events. See `reference/patterns/p06-drag-and-drop.md` for the full required behaviours and verification matrix, which is MANDATORY for every P6 game.
 **Events:** handled by the library's pointer sensor — cross-device (mouse + touch) out of the box. Listen to `manager.monitor` (`dragstart`, `dragend`).
 **Game type:** Multi-step.
-**CSS:** `touch-action: none` ONLY on the draggable items themselves — never on `body`, `html`, containers, or drop zones (that blocks page scroll). Add a `touchmove` preventDefault gated on an `isDragging` flag (set on dragstart, cleared on dragend).
+**Gesture CSS:** Owned by the mobile skill. P6's interaction requirement is that any gesture suppression is scoped to draggable items and never applied to `body`, containers, the bank, or drop zones.
 **Tracking:** game-controlled `locations` map (tagId → 'bank' | 'zone-N'). Never infer origin from `parentElement` — the library reparents during drag. Required to distinguish evict (bank→zone) from swap (zone→zone).
 **Lifecycle:** destroy manager + draggables + droppables + clear tracking at the start of every round and in `endGame()`.
 **Feedback:** Fire-and-forget SFX + sticker per drop. Awaited SFX on round-complete.
@@ -294,8 +238,7 @@ Some games use Tap-Select (Single) — P1 — multiple times within a single rou
 **What:** Student types answer and submits via Enter key or Submit button.
 **Events:** `keydown` (Enter) on input, `click` on submit button.
 **Game type:** Single-step.
-**Input HTML:** `type="text" inputmode="numeric" pattern="[0-9]*"` with `font-size: 16px`.
-**Keyboard:** Blur after answer. `visualViewport` resize listener.
+**Input surface:** Mobile skill owns input HTML attributes, keyboard behavior, font sizing, viewport handling, and blur-on-submit. Per-pattern interaction requirements live in [`p07-input-behaviors.md`](reference/patterns/p07-input-behaviors.md).
 **Variant — Textarea (Subjective):** `<textarea>` for free-text responses. LLM evaluates.
 **Variant — Mixed (Interactive Chat):** Alternates between text input and MCQ buttons per message.
 **Used by:** Speed Input, Listen and Add, Totals in a Flash, Disappearing Numbers, Word Pairs, Matrix Memory, Adjustment Strategy (sum step), Colour Coding Tool (sum step), Explain the Pattern, Subjective, Interactive Chat.
@@ -419,46 +362,50 @@ Some games use Tap-Select (Single) — P1 — multiple times within a single rou
 **Feedback:** Fire-and-forget SFX per correct tap. Wrong SFX + life lost on wrong tap. Awaited SFX on sequence complete.
 **Used by:** Simon Says.
 
+### Pattern 17: Voice Input (Speak or Type)
+
+**What:** Student speaks an answer via microphone or types in a textarea. The VoiceInput CDN package owns recording, transcription, permission handling, and the input surface; the game only reads `voiceInput.value`.
+**Events:** `getUserMedia` (managed by the CDN package) + `click` on submit. The game does NOT touch audio streams directly.
+**Game type:** Single-step.
+**Selection:** No persistent selection — the answer is `voiceInput.value` at submit time.
+**Guards:** `isProcessing`, `isActive`, `gameEnded`. Defensive bundle around the awaited window: `voiceInput.disable()` + explicit `textarea.disabled = true; textarea.readOnly = true; textarea.blur()`; matching re-enable in `renderRound()`. See [`state-and-guards.md` §"The guard contract"](reference/state-and-guards.md).
+**Feedback:** Awaited SFX → awaited dynamic TTS (canonical single-step shape, same as P7 — see [`p07-text-input.md`](reference/patterns/p07-text-input.md)).
+**CDN package:** Loads via the Components bundle — no extra script tag. See `p17-voice-input.md` for full integration.
+**Used by:** Speak-the-answer, Word Problem Workshop, Tap-or-Tell, Say-the-Answer (any game that accepts free-form spoken or typed answers).
+
 ---
 
 ## Cross-Cutting Rules
 
-### 1. Every handler starts with guards
+### 1–2. The guard contract
 
-```javascript
-if (!gameState.isActive) return;
-if (gameState.isProcessing) return;
-if (gameState.gameEnded) return;
-```
+The full contract — three universal guards (`isActive`, `isProcessing`, `gameEnded`), per-modality entry points, when to set `isProcessing` true/false, why submit handlers must NOT clear it in-handler — lives in [`state-and-guards.md` §"The guard contract"](reference/state-and-guards.md). It is the single source of truth.
 
-No exceptions. Missing guards cause double-fire, corruption, and test failures.
+Quick reminders only (not a full restatement):
 
-### 2. `isProcessing` blocks input during feedback — applies to EVERY input modality
-
-**Universal rule:** When awaited feedback audio is playing, ALL gameplay interactions are disabled — tap, click, drag (continuous path P5, DnD P6, directional P13), text/number input (P7), AND voice input (P17). No exceptions. One flag (`gameState.isProcessing`) blocks every input channel uniformly.
-
-- **Single-step patterns (P1, P7, P17):** `isProcessing = true` before audio, `false` after all audio completes. For P17, also call `voiceInput.disable()` / `enable()` around the same window so the microphone cannot start recording. For P6 submit-variants, also toggle a `.dnd-disabled` CSS class (`pointer-events: none` on draggables) for visual affordance.
-- **Multi-step patterns (all others):** `isProcessing` used briefly during animations/evaluations, NOT during fire-and-forget SFX. Student continues interacting through per-match / per-drop / per-move micro-SFX.
-- **Exception (really, a rule):** Round-complete, puzzle-complete, submit-evaluation, level/round transition, and end-game moments DO block via `isProcessing` — these audio sequences are awaited and interaction must stop.
-
-**Why it matters:** Without `isProcessing` on a drag or voice handler, the student can mutate the answer that was just evaluated while the feedback audio is still playing — `recordAttempt` captured one answer, `gameState` now holds another, scoring drifts from telemetry.
+- Every handler's first three lines are the three guards.
+- `isProcessing` blocks every input modality uniformly (tap, raw-pointer drag P5/P13, `@dnd-kit/dom` drag P6, text input P7, voice input P17).
+- Single-step submit handlers (P1, P7, P17) set `isProcessing = true` BEFORE any await and clear it in `renderRound()` — never in the handler.
+- Multi-step mid-round SFX is fire-and-forget; do NOT set `isProcessing` there.
+- Audio shape (awaited vs fire-and-forget per case) is canonicalised by the feedback skill, not here.
 
 ### 3. Event type follows the touch decision tree
 
 ```
-Drag/swipe involved? → pointer events (pointerdown, pointermove, pointerup, pointercancel)
-Text input? → keydown (Enter) + click (Submit)
-Everything else? → click
+Drag-and-drop (P6, pick + place into zones / grid cells)? → @dnd-kit/dom (manager.monitor) — NEVER raw pointer events
+Continuous drag (P5) or directional drag (P13)?           → raw pointer events (pointerdown, pointermove, pointerup, pointercancel)
+Text input?                                              → keydown (Enter) + click (Submit)
+Everything else?                                          → click
 ```
 
-Never use `touchstart`/`touchmove`/`touchend` directly. Pointer events unify mouse + touch.
+Never use `touchstart`/`touchmove`/`touchend` directly. Pointer events unify mouse + touch where they're used.
 
 ### 4. `preventDefault` rules
 
 | Event | When to call `preventDefault` |
 |-------|------------------------------|
-| `pointerdown` | Always, when drag/swipe is involved (prevents scroll) |
-| `pointermove` | Always, when continuous drag (prevents scroll during drag) |
+| `pointerdown` (P5, P13) | Always (prevents scroll). P6 inherits this from `@dnd-kit/dom`; do not add manual `preventDefault`. |
+| `pointermove` (P5, P13) | Always, when continuous drag (prevents scroll during drag) |
 | `keydown` (Enter) | Always on inputs (prevents form submission / page reload) |
 | `click` | Never (click is the final event, nothing to prevent) |
 
@@ -470,16 +417,9 @@ Use `document.elementFromPoint(e.clientX, e.clientY)` for continuous drag (P5) a
 
 Attach `pointermove`, `pointerup`, and `pointercancel` to `document`, not to the grid. This ensures the drag continues even if the finger drifts outside the grid.
 
-### 7. `touch-action` CSS
+### 7. Gesture CSS
 
-| Pattern | CSS on interactive elements |
-|---------|---------------------------|
-| Tap-based (P1, P2, P3, P8, P9, P10, P11, P12, P14, P15, P16) | `touch-action: manipulation` |
-| ~~Swipe (P4)~~ | **DEPRECATED** |
-| Continuous drag (P5) | `touch-action: none` on grid |
-| Drag-and-drop (P6) | `touch-action: none` on draggable items |
-| Constrained drag (P13) | `touch-action: none` on draggable blocks |
-| Input (P7) | Default |
+Owned by mobile skill — see `skills/mobile/SKILL.md` for `touch-action`, touch targets, input modes, and viewport rules. Interaction files may state the required event behavior, but mobile owns exact CSS values and severity.
 
 ### 8. Undo varies by pattern
 
@@ -490,7 +430,7 @@ Attach `pointermove`, `pointerup`, and `pointercancel` to `document`, not to the
 | P3 Two-Phase Match | Re-select first item |
 | ~~P4 Tap + Swipe~~ | **DEPRECATED** — use P1 tap-only |
 | P5 Continuous Drag | Backtrack drag + Reset button |
-| P6 Drag-and-Drop | Snap-back on miss; tap placed item to return |
+| P6 Drag-and-Drop | Return to origin on miss; tap placed item to return |
 | P7 Text Input | Clear input / retype |
 | P8 Click-to-Toggle | Click again to toggle back |
 | P9 Stepper | Tap opposite +/− button |
@@ -506,63 +446,57 @@ Attach `pointermove`, `pointerup`, and `pointercancel` to `document`, not to the
 
 ## Constraints
 
-1. **CRITICAL — Use the correct event type.** Drag/swipe = pointer events. Everything else = click. Never mix. Never use raw touch events.
+1. **CRITICAL — Use the correct event type.** Drag (P5 / P13) = pointer events. Drag-and-drop (P6) = `@dnd-kit/dom` `manager.monitor` events (never raw pointer events). Everything else = click. Never mix. Never use raw touch events.
 2. **CRITICAL — Every handler has guards.** `isActive`, `isProcessing`, `gameEnded`. Missing guards = double-fire, state corruption, **answer mutates during awaited feedback audio**.
-2a. **CRITICAL — ALL gameplay interactions disabled during awaited feedback.** The `isProcessing` guard applies to every input modality: tap, click, drag (P5/P6/P13), text input (P7), voice (P17). For P17, also bracket the awaited audio with `voiceInput.disable()` / `enable()`. For P6 submit-variants, also toggle `.dnd-disabled` (`pointer-events: none`) on the board. One flag, every channel.
-3. **CRITICAL — `preventDefault` on pointer events for drag/swipe.** Without it, the page scrolls during drag on mobile.
-4. **CRITICAL — `touch-action: none` on draggable elements.** Without it, the browser intercepts touch gestures.
-5. **CRITICAL — Document-level listeners for drag.** `pointermove`/`pointerup` on `document`, not on the grid.
-6. **CRITICAL — `elementFromPoint` for continuous drag hit detection.** Direct `e.target` during `pointermove` gives the wrong element.
+2a. **CRITICAL — ALL gameplay interactions disabled during awaited feedback.** The `isProcessing` guard applies to every input modality: tap, click, drag (P5/P6/P13), text input (P7), voice (P17). For P17, also bracket the awaited audio window with `voiceInput.disable()` + explicit textarea disable/readOnly/blur in the same pre-await block; re-enable in `renderRound()`. For P6 submit-variants, also toggle `.dnd-disabled` (`pointer-events: none`) on the board. One flag, every channel.
+3. **CRITICAL — `preventDefault` on pointer events for raw-pointer drag (P5, P13).** Without it, the page scrolls during drag on mobile. P6 inherits this from `@dnd-kit/dom`'s pointer sensor — do not add manual `preventDefault`.
+4. **CRITICAL — Gesture CSS follows the mobile skill.** Especially: drag gesture suppression is scoped to the draggable/drag surface, never to `body`, containers, bank, or drop zones.
+5. **CRITICAL — Document-level listeners for raw-pointer drag (P5, P13).** `pointermove`/`pointerup` on `document`, not on the grid. P6 uses `manager.monitor` instead.
+6. **CRITICAL — `elementFromPoint` for continuous drag (P5) hit detection.** Direct `e.target` during `pointermove` gives the wrong element. P6 uses `@dnd-kit/dom` collision detection.
 7. **CRITICAL — Observe phase blocks interaction.** During observe phases (P16, memorize games), `gameState.phase = 'observing'` and all handlers return early.
-8. **STANDARD — Min 44x44px touch targets.** Per mobile skill.
-9. **STANDARD — 8px spacing between targets.** Per mobile skill.
-10. **STANDARD — `inputmode="numeric"` for number inputs.** Never `type="number"`. Per mobile skill.
-11. **STANDARD — Blur input after answer.** Dismiss keyboard before showing feedback.
-12. **STANDARD — `SWIPE_THRESHOLD = 30px`.** Below this, the gesture is a tap, not a swipe.
-13. **STANDARD — `pointercancel` handler on drag patterns.** Handles OS-level interruptions.
-14. **STANDARD — Edge targets (P14) need extra hit area.** Edges between dots are thin — add padding or invisible hit areas to reach 44px minimum.
-15. **STANDARD — Number picker (P15) dismisses on outside tap.** Tapping outside the picker closes it without placing a number.
+8. **STANDARD — Touch targets + spacing + `inputmode` + keyboard dismissal.** Per mobile skill — see there. Do not restate.
+9. **STANDARD — `pointercancel` handler on raw-pointer drag patterns (P5, P13).** Handles OS-level interruptions. P6 inherits this from `@dnd-kit/dom` — do not bolt on a manual handler.
+10. **STANDARD — Edge targets (P14) follow mobile touch-target rules.** Edges between dots are thin; use the mobile skill's target-sizing guidance.
+11. **STANDARD — Number picker (P15) dismisses on outside tap.** Tapping outside the picker closes it without placing a number.
 
 ## Anti-patterns
 
 1. **Using `touchstart`/`touchmove`/`touchend` instead of pointer events.**
-2. **Attaching `pointermove` to the grid instead of `document`.**
+2. **Attaching `pointermove` to the grid instead of `document`** (P5, P13).
 3. **Using `e.target` during `pointermove` for hit detection.**
-4. **Missing `isProcessing` guard.** (Especially on drag `pointerdown`/`dragstart`, voice input, and P7 submit — not just on tap handlers. Any input channel without this guard lets the student mutate the answer while awaited feedback audio plays.)
-5. **Missing `preventDefault` on `pointerdown` for drag games.**
-6. **Missing `touch-action: none` on draggable elements.**
-7. **Auto-focusing input on round transition.**
-8. **Using `type="number"` input.**
-9. **Not handling `pointercancel`.**
+4. **Missing `isProcessing` guard.** (Especially on drag `pointerdown`/`@dnd-kit dragstart`, voice input, and P7 submit — not just on tap handlers. Any input channel without this guard lets the student mutate the answer while awaited feedback audio plays.)
+5. **Clearing `isProcessing` in a single-step submit handler instead of `renderRound()` / `loadRound()`.** The next-round render is the single source of truth.
+6. **Missing `preventDefault` on `pointerdown` for raw-pointer drag (P5, P13).**
+7. **Hand-rolling pointer-event drag for P6.** Use `@dnd-kit/dom` — caught by validator `GEN-DND-KIT`. Clone-based / `draggable="true"` / `dataTransfer` approaches are forbidden.
+8. **Auto-focusing input on round transition.**
+9. **Not handling `pointercancel` on P5 / P13.** P6 inherits this from `@dnd-kit/dom` — do not bolt on a manual handler.
 10. **Evaluating per-cell in continuous drag/puzzle games.**
 11. **Blocking input with `isProcessing` during fire-and-forget multi-step SFX.**
 12. **No undo in puzzle games.**
 13. **Allowing interaction during observe phase.** Must check `gameState.phase !== 'observing'`.
 14. **Not constraining drag axis in P13.** Free the Key blocks must only move along their orientation axis.
-15. **Edge/segment targets too thin to tap.** Must have invisible padding to 44px minimum.
-16. **Number picker not dismissing on outside tap.** Leaves picker open, blocks other interactions.
+15. **Number picker not dismissing on outside tap.** Leaves picker open, blocks other interactions.
+
+> Mobile concerns (raw touch events, `type="number"`, missing `touch-action: none` on draggables, sub-44px touch targets, thin edge hit areas) are anti-patterns owned by the mobile skill. Do not restate severity or rule here.
 
 ## Verification Checklist
 
-- [ ] Correct event type used for the interaction pattern
+- [ ] Correct event type used for the interaction pattern (click / raw pointer for P5,P13 / `@dnd-kit/dom` for P6 / `keydown`+`click` for P7)
 - [ ] All three guards present in every handler (`isActive`, `isProcessing`, `gameEnded`)
-- [ ] `preventDefault` called on `pointerdown`/`pointermove` for drag/swipe patterns
-- [ ] `touch-action` CSS set correctly per pattern
-- [ ] `pointermove`/`pointerup`/`pointercancel` attached to `document` for drag patterns
-- [ ] `elementFromPoint` used for continuous drag hit detection
-- [ ] Touch targets >= 44x44px with >= 8px spacing
-- [ ] `inputmode="numeric"` for number inputs (not `type="number"`)
-- [ ] Input blurred after answer processed
-- [ ] `visualViewport` resize listener for keyboard (input patterns)
+- [ ] `preventDefault` called on `pointerdown`/`pointermove` for P5 / P13 (P6 inherits from `@dnd-kit/dom`)
+- [ ] `pointermove`/`pointerup`/`pointercancel` attached to `document` for P5 / P13 (P6 uses `manager.monitor` and inherits `pointercancel` handling)
+- [ ] `elementFromPoint` used for continuous drag (P5) hit detection
 - [ ] Undo mechanism present for puzzle patterns
-- [ ] `isProcessing` blocks during awaited audio only, not during fire-and-forget
-- [ ] **ALL gameplay input channels** (tap, drag dragstart/pointerdown, text input submit, voice input) check `isProcessing` as the first guard — not just tap handlers
-- [ ] For P17 (Voice Input): `voiceInput.disable()` called before the first awaited `FeedbackManager.sound.play(...)`, `voiceInput.enable()` called after the last awaited audio resolves
+- [ ] `isProcessing` blocks during awaited audio only, not during fire-and-forget multi-step SFX
+- [ ] `isProcessing` cleared in `renderRound()` / `loadRound()` — NOT in submit handler (single source of truth)
+- [ ] **ALL gameplay input channels** (tap, raw-pointer drag `pointerdown`, `@dnd-kit` `dragstart`, text input submit, voice input) check `isProcessing` as the first guard — not just tap handlers
+- [ ] For P17 (Voice Input): `voiceInput.disable()` + `textarea.disabled = true; readOnly = true; blur()` called before the first awaited `FeedbackManager.sound.play(...)`; matching re-enable in `renderRound()` (not in submit handler)
 - [ ] For P6 (Drag-and-Drop): `.dnd-disabled` class (or equivalent `pointer-events: none`) applied to the board while `gameState.isProcessing === true`
-- [ ] For P5 / P13 (drag patterns): `pointermove` and `pointerup` re-check `isProcessing` / `gameEnded` so an in-flight drag aborts cleanly if awaited feedback starts mid-drag
-- [ ] Feedback type matches single-step (awaited SFX + fire-and-forget TTS — L-VI-002) or multi-step (fire-and-forget SFX)
+- [ ] For P5 / P13 (raw-pointer drag): `pointermove` and `pointerup` re-check `isProcessing` / `gameEnded` so an in-flight drag aborts cleanly if awaited feedback starts mid-drag
+- [ ] Feedback audio shape matches feedback skill canonical rules (single-step = awaited SFX + awaited TTS; multi-step mid-round = fire-and-forget SFX). Do not invent a local rule.
 - [ ] Observe phase blocks all interaction (P16, memorize games)
 - [ ] Drag axis constrained for P13 (Directional Drag)
-- [ ] Edge/segment hit areas padded to 44px minimum (P14)
 - [ ] Number picker dismisses on outside tap (P15)
 - [ ] Multi-Step MCQ tracks `currentStep` within round
+
+> Mobile-owned items (touch-target sizing, `inputmode`, `touch-action`, `visualViewport` resize, blur-on-submit) live in the mobile skill verification checklist.

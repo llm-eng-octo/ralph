@@ -81,85 +81,16 @@ Both return the current text — whether typed by keyboard or filled by voice tr
 
 ### 4. Answer Checking Integration
 
-```javascript
-async function handleSubmit() {
-  var answer = voiceInput.value.trim();
-  if (!answer) return;
-  if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
+P17 uses the **canonical single-step submit-handler shape** documented in [`p07-text-input.md`](./p07-text-input.md). The body is structurally identical (guards → `isProcessing = true` + disable affordances → eval → state + telemetry → awaited SFX → awaited TTS → progress bump → advance / endGame). Apply these P17-specific deltas to the canonical template:
 
-  gameState.isProcessing = true;
-  voiceInput.disable(); // Block interaction during evaluation
-  // Defense-in-depth: CDN disable() sets internal _disabled=true but does
-  // NOT reliably set textarea.disabled=true on the rendered textarea, so
-  // keyboard input still works. Always set it explicitly.
-  var viTa = document.querySelector('.voice-input-wrapper textarea, #voice-input-area textarea');
-  if (viTa) { viTa.disabled = true; viTa.readOnly = true; viTa.blur(); }
+| Step in canonical handler | P7 (text input) | P17 (voice input) — deltas |
+|---|---|---|
+| Read answer | `input.value.trim()` | `voiceInput.value.trim()` |
+| Disable affordance pre-await | `input.blur()` | `voiceInput.disable()` + explicit `textarea.disabled = true; textarea.readOnly = true; textarea.blur()` on `.voice-input-wrapper textarea` / `#voice-input-area textarea` (CDN `disable()` alone does NOT reliably block typing — see Constraint 3 below) |
+| Visual feedback class | `input.classList.add('input-correct' \| 'input-wrong')` | `voiceInput.markCorrect()` / `voiceInput.markWrong()` |
+| Cleared in `renderRound()` | `input.classList.remove(...)`, `input.value = ''` | `voiceInput.clearMark()`, `voiceInput.clear()`, `voiceInput.enable()`, plus matching explicit textarea re-enable |
 
-  var round = getRounds()[gameState.currentRound];
-  var isCorrect = checkAnswer(answer, round.answer);
-
-  // Visual feedback on the input
-  if (isCorrect) {
-    voiceInput.markCorrect();   // Green background
-  } else {
-    voiceInput.markWrong();     // Red background
-  }
-
-  // State + data
-  if (isCorrect) gameState.score++;
-  else if (gameState.totalLives > 0) gameState.lives--;
-  syncDOM();
-  if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
-
-  recordAttempt({ /* 12 fields */ });
-  trackEvent('answer_submitted', { round: gameState.currentRound, isCorrect: isCorrect });
-
-  // Audio feedback: SFX awaited (short, predictable), TTS fire-and-forget.
-  // Game flow MUST NOT depend on TTS completion — if network stalls, the next round still loads.
-  try {
-    if (isCorrect) {
-      await FeedbackManager.sound.play('correct_sound_effect', { sticker: CORRECT_STICKER });
-      FeedbackManager.playDynamicFeedback({
-        audio_content: round.feedbackCorrect,
-        subtitle: round.feedbackCorrect,
-        sticker: CORRECT_STICKER
-      }).catch(function(e) { console.error('TTS error:', e.message); });
-    } else {
-      if (gameState.totalLives > 0 && gameState.lives <= 0) {
-        // Game-over is a terminal state, not a round transition — handles its own re-enable.
-        gameState.isProcessing = false;
-        endGame('game_over');
-        return;
-      }
-      await FeedbackManager.sound.play('incorrect_sound_effect', { sticker: INCORRECT_STICKER });
-      FeedbackManager.playDynamicFeedback({
-        audio_content: round.feedbackWrong || 'The correct answer is ' + round.answer,
-        subtitle: round.feedbackWrong || 'The correct answer is ' + round.answer,
-        sticker: INCORRECT_STICKER
-      }).catch(function(e) { console.error('TTS error:', e.message); });
-    }
-  } catch (e) {}
-
-  // Inputs stay disabled until loadRound() re-enables them for the next round.
-  // loadRound() is the single source of truth: isProcessing=false, voiceInput.enable(), clearMark(), clear().
-
-  // Progress bar bump — AFTER feedback resolves (above), ONLY on round resolution,
-  // BEFORE the round-change UI. The voice-input pattern shown here is the default
-  // no-retry flow — wrong always advances (or hits Game Over via lives upstream).
-  // For retry-flow variants, gate the bump on resolution: skip the bump when
-  // wrong + lives > 0 + retries available, and trigger floatingBtn.setMode('retry')
-  // instead. See PART-023 § Bump timing + flow-implementation.md § Round loop.
-  gameState.progress++;
-  if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
-
-  gameState.currentRound++;
-  if (gameState.currentRound >= gameState.totalRounds) {
-    endGame('victory');
-  } else {
-    loadRound();
-  }
-}
-```
+Everything else (the awaited SFX → awaited TTS block, the game-over branch, the progress bump, the round advance) is identical to the canonical shape — do not restate it here.
 
 ### 5. Submit Trigger
 
@@ -199,7 +130,9 @@ document.getElementById('submit-btn').addEventListener('click', function() {
 
 ---
 
-## Full Public API
+## Game-Used Public API
+
+This is the subset game code normally uses. The package may emit additional events or expose maintenance helpers; verify those directly in `packages/components/voice-input/index.js` when working on the package itself.
 
 ### Methods
 
@@ -211,6 +144,7 @@ document.getElementById('submit-btn').addEventListener('click', function() {
 | `markCorrect()` | `void` | Green background — call after correct answer |
 | `markWrong()` | `void` | Red background — call after wrong answer |
 | `clearMark()` | `void` | Reset to neutral background |
+| `cancelRecording()` | `void` | Cancel an in-flight recording; useful on visibility/phase changes |
 | `disable()` | `void` | Disable all interaction (cancels recording if active) |
 | `enable()` | `void` | Re-enable interaction |
 | `highlight()` | `void` | Add blue glow around wrapper (for attention/hint) |
@@ -227,7 +161,7 @@ document.getElementById('submit-btn').addEventListener('click', function() {
 | `isRecording` | `boolean` | Whether mic is actively recording |
 | `isLoading` | `boolean` | Whether transcription is in progress |
 
-### Events
+### Events Used by Games
 
 | Event | Payload | When |
 |-------|---------|------|
@@ -238,46 +172,21 @@ document.getElementById('submit-btn').addEventListener('click', function() {
 
 ---
 
-## UI Behavior (managed internally — do NOT reimplement)
+## Package-Owned UI Behavior
 
-VoiceInput handles all of this. The game does NOT need to build any of these elements.
+VoiceInput owns its textarea, toolbar, drawer, recording/transcription states, internal sound effects, geometry, animation, colors, and `.vi-*` classes. Game code should not build, restyle, or proxy those internals through `FeedbackManager`.
 
-### Visual States
+Interaction-owned requirements are limited to:
 
-| State | Textarea | Toolbar | Drawer |
-|-------|----------|---------|--------|
-| **Unfocused** | Gray border, no pointer events | Icons gray | Hidden |
-| **Focused (mic)** | Yellow border (#FFDE49), no pointer events | Mic icon blue (#000FFF) | Visible with blue mic button + "Tap to speak" |
-| **Focused (keyboard)** | Yellow border, pointer events ON | Keyboard icon blue | Hidden |
-| **Recording** | Yellow border | Mic icon blue | Visible, mic button pulsing, stop icon, "Tap to stop recording" |
-| **Loading (transcribing)** | Placeholder: "Converting to text" | — | Hidden, mic button disabled |
-| **Correct** | Green background (#D9F8D9) | — | — |
-| **Wrong** | Red background (#FFD9D9) | — | — |
-| **Disabled** | 50% opacity, no pointer events | — | — |
+- create the container and instantiate `VoiceInput`
+- read `voiceInput.value` / `voiceInput.getValue()` at submit
+- call `markCorrect()` / `markWrong()` / `clearMark()` for answer state
+- call `disable()` before awaited feedback and `enable()` in `renderRound()`
+- explicitly disable/readOnly/blur the underlying textarea during awaited feedback as described below
+- call `cancelRecording()` / `disable()` on visibility or phase changes that interrupt gameplay
+- call `destroy()` when removing the component
 
-### Sound Effects (played automatically)
-
-| Sound | When |
-|-------|------|
-| mic-on | Recording starts |
-| mic-off | Recording stops |
-| speech_to_text (loading loop) | Transcription in progress |
-| speech_to_text_failed | Transcription returned empty or API error |
-| speech_to_text_timeout | Transcription request timed out (60s) |
-
-### Drawer
-
-- Fixed to bottom of viewport, centered, max-width 500px
-- Contains large blue circle button (#000FFF) with pulsing animation when recording
-- Opens when mic tool is active, closes when switching to keyboard or clicking outside
-- No shadow, no rounded corners
-
-### Textarea
-
-- Paste disabled (prevents copy-paste answers)
-- Context menu disabled
-- 300px wide, min-height 100px
-- `font-size: 14px` (no iOS zoom)
+If a bug depends on exact drawer, sound, subtitle, permission, or pause behavior, verify the current package source at `packages/components/voice-input/index.js` or the future VoiceInput PART doc. Do not encode package-internal UI tables in the interaction skill.
 
 ---
 

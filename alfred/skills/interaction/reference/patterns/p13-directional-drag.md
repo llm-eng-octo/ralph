@@ -98,22 +98,9 @@ document.addEventListener('pointerup', function(e) {
 
 ### Input Blocking During Awaited Feedback
 
-The awaited feedback sequence in P13 is puzzle-complete (awaited SFX + fire-and-forget dynamic TTS — L-VI-002). Before the first `await FeedbackManager.sound.play(...)`, set `gameState.isProcessing = true`. After the SFX resolves, clear it; TTS is launched without `await` and runs in the background (puzzle advance must not block on TTS completion). The three guards above (on `dragstart`, `pointermove`, `pointerup`) are what turn that flag into real input blocking — without them, the student can still slide a block while the puzzle-complete audio is playing, which invalidates the "solved" state the audio is celebrating.
+The awaited feedback sequence in P13 is puzzle-complete: **awaited SFX → awaited dynamic TTS** (feedback-skill canonical rule + validator `GEN-FEEDBACK-TTS-AWAIT`). Before the first `await FeedbackManager.sound.play(...)`, set `gameState.isProcessing = true` and keep it set across both awaits; clear `isProcessing` in `renderRound()` / `loadRound()` (single source of truth), not in the handler. The three guards above (on `dragstart`, `pointermove`, `pointerup`) are what turn that flag into real input blocking — without them, the student can still slide a block while the puzzle-complete audio is playing, which invalidates the "solved" state the audio is celebrating.
 
-### CSS
+### Styling
 
-```css
-.block {
-  position: absolute;
-  border-radius: 8px;
-  cursor: grab;
-  touch-action: none;
-  transition: left 0.15s, top 0.15s;
-}
-.block.dragging { cursor: grabbing; z-index: 10; transition: none; }
-.block.horizontal { /* visual: wider than tall */ }
-.block.vertical { /* visual: taller than wide */ }
-.block.key-block { background: var(--mathai-red); /* the block to free */ }
-.block.regular { background: var(--mathai-blue); }
-.exit-marker { border: 2px dashed var(--mathai-green); }
+Base block layout, touch-target sizing, and gesture CSS are owned by the mobile skill. P13 only requires semantic classes for interaction state and orientation: `.block`, `.dragging`, `.horizontal`, `.vertical`, `.key-block`, `.regular`, and `.exit-marker`.
 ```

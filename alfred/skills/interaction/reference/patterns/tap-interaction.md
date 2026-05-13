@@ -9,28 +9,15 @@
 
 ### 1.1  Event Type
 
-- Always use `click` events. Never raw touch events (`touchstart`/`touchend`). Never pointer events (those are for drag patterns P5, P6, P13). P4 (Tap + Swipe) is **deprecated** — use tap-only.
+- Always use `click` events. Never raw touch events (`touchstart`/`touchend`). Never pointer events (those are for drag patterns P5, P13). P6 uses `@dnd-kit/dom` `manager.monitor` events. P4 (Tap + Swipe) is **deprecated** — use tap-only.
 
 ### 1.2  Universal Guards
 
-Every tap handler **must** reject the tap if any of these are true:
-
-| Guard | Meaning |
-|-------|---------|
-| Game not active | Game hasn't started or has ended |
-| Processing | A previous tap is still being evaluated (audio playing, animation running) |
-| Game ended | Victory or game-over has been triggered |
-
-Additional per-model guards are listed in each section below.
+Every tap handler must run the three universal guards (`isActive`, `isProcessing`, `gameEnded`) on its first three lines. Canonical contract lives in [`state-and-guards.md` §"The guard contract"](../state-and-guards.md) — including per-modality entry points, when to set `isProcessing` true/false, and the defensive-bundle rule for P17. Additional per-model guards (e.g. `selectedLeftIndex` for P3, `completedTiles` for P2) are listed in each section below.
 
 ### 1.3  Touch Targets
 
-| Rule | Value |
-|------|-------|
-| Minimum size | 44 × 44 px |
-| Minimum spacing | 8 px between adjacent targets |
-| CSS | `touch-action: manipulation` on every tappable element |
-| Cursor | `cursor: pointer` on tappable elements |
+Touch-target sizing, spacing, `touch-action`, and `cursor: pointer` rules are owned by the **mobile skill** — see [`skills/mobile/SKILL.md`](../../../mobile/SKILL.md) rules 9, 10, 19. This file does not restate them.
 
 ### 1.4  Visual State Classes
 
@@ -55,9 +42,9 @@ Every tap interaction uses a common vocabulary of visual states. The LLM chooses
 
 | Step type | SFX | TTS | Input blocking |
 |-----------|-----|-----|----------------|
-| **Single-step** (1 tap = round over) | Awaited (~1.5s) | Fire-and-forget (L-VI-002) | Block input during SFX dwell; `isProcessing = false` in `loadRound()`, NOT after TTS |
+| **Single-step** (1 tap = round over) | Awaited | Awaited (feedback-skill canonical rule + validator `GEN-FEEDBACK-TTS-AWAIT`) | Block input through the full awaited window; `isProcessing = false` in `loadRound()` / `renderRound()`, NOT in the submit handler |
 | **Multi-step** per-tap | Fire-and-forget | None | Do not block input (or block only briefly during animation) |
-| **Multi-step** round-complete / puzzle-solved | Awaited (~1.5s) | Fire-and-forget (L-VI-002) | Block input during SFX dwell; `isProcessing = false` in `loadRound()` / `renderRound()`, NOT after TTS |
+| **Multi-step** round-complete / puzzle-solved | Awaited | Awaited (only when spec includes Bloom L2+ explanation text — see feedback skill) | Block input through the full awaited window; `isProcessing = false` in `loadRound()` / `renderRound()`, NOT in the submit handler |
 
 ### 1.6  Post-Evaluation Actions
 
@@ -86,7 +73,7 @@ After every evaluation, the game must:
 2. On tap: disable all options immediately (prevent double-tap).
 3. Highlight the chosen option as correct or wrong.
 4. If wrong: also reveal the correct answer visually.
-5. Awaited SFX (~1.5s) → fire-and-forget TTS. Advance to next round after SFX dwell; do NOT block round advance on TTS completion (L-VI-002).
+5. Awaited SFX → awaited dynamic TTS. Do not advance to the next round until the awaited TTS resolves (or returns a package failure status). See feedback skill `SKILL.md` Single-step row + validator `GEN-FEEDBACK-TTS-AWAIT`.
 6. If correct (or no-lives mode): advance to next round after feedback.
 7. If wrong + lives mode: lose a life. If lives = 0 → game over. Otherwise stay on same round or advance (game-dependent).
 
@@ -116,7 +103,7 @@ READY → tap → EVALUATING (blocked) → feedback done → READY (next round)
 
 1. Each tap toggles a cell between filled and empty (or cycles through N states).
 2. After every toggle: run constraint validation and highlight any violations visually.
-3. If zero violations AND win condition is met → puzzle solved (awaited SFX + fire-and-forget TTS — L-VI-002).
+3. If zero violations AND win condition is met → puzzle solved (awaited SFX → awaited dynamic TTS — feedback-skill canonical rule).
 4. Locked/pre-filled cells must not be interactive.
 5. No per-toggle audio. Audio only on puzzle-solve.
 
@@ -134,9 +121,9 @@ PLAYING
 
 1. Edges are clickable elements between dots/nodes on a grid. Tapping an edge toggles a line segment on/off.
 2. After every toggle: run constraint checks (each clue-number must match its adjacent active segments). Highlight violations.
-3. If all constraints satisfied AND a valid closed loop is formed → puzzle solved (awaited SFX + fire-and-forget TTS — L-VI-002).
+3. If all constraints satisfied AND a valid closed loop is formed → puzzle solved (awaited SFX → awaited dynamic TTS — feedback-skill canonical rule).
 4. Fire-and-forget tap SFX per toggle.
-5. Edge hit area must be 44px minimum even if the visual line is thin.
+5. Edge hit areas must follow the mobile skill's touch-target rule even if the visual line is thin.
 
 **State:**
 
@@ -146,14 +133,7 @@ PLAYING
   ↓ valid loop + no violations → SOLVED (blocked, awaited feedback)
 ```
 
-**CSS essentials:**
-
-```css
-.edge { cursor: pointer; touch-action: manipulation; }
-/* Hit area 44px, visual line 4px centered inside */
-.edge.edge-on::after { background: var(--mathai-blue); }
-.edge.constraint-violation::after { background: var(--mathai-red); }
-```
+**Styling essentials:** Use semantic classes such as `.edge-on` and `.constraint-violation`; target sizing and gesture CSS are owned by the mobile skill.
 
 **Used by:** Loop the Loop.
 
@@ -211,7 +191,7 @@ SELECTING
 4. Correct: mark both items as matched (non-interactive). Fire-and-forget SFX.
 5. Wrong: flash group B item as wrong (300–600 ms). Fire-and-forget wrong SFX. Life lost.
 6. After evaluation: clear selection, disable group B until next group A selection.
-7. All pairs matched → round complete (awaited SFX + fire-and-forget TTS — L-VI-002).
+7. All pairs matched → round complete (awaited SFX → awaited dynamic TTS — feedback-skill canonical rule).
 
 **Variant — Memory Match (Card Flip):**
 - Items are face-down cards in a single grid (no separate groups).
@@ -240,7 +220,7 @@ NO_SELECTION
 4. Valid pair (e.g., sum = target): mark both as matched/removed. Fire-and-forget SFX.
 5. Invalid pair: flash second item as wrong (300–600 ms). Fire-and-forget wrong SFX. Life lost.
 6. Clear selection after every evaluation.
-7. All pairs found → round complete (awaited SFX + fire-and-forget TTS — L-VI-002).
+7. All pairs found → round complete (awaited SFX → awaited dynamic TTS — feedback-skill canonical rule).
 
 **State:**
 
@@ -282,7 +262,7 @@ NO_SELECTION
 5. Wrong tap: **entire chain resets**. Flash all chain tiles + wrong tile as wrong (~600 ms). Life lost. Fire-and-forget wrong SFX.
 6. Chain complete: mark all chain tiles as completed (non-interactive).
 7. Multiple chains may exist per round. After one completes, next begins.
-8. All chains found → round complete (awaited SFX + fire-and-forget TTS — L-VI-002).
+8. All chains found → round complete (awaited SFX → awaited dynamic TTS — feedback-skill canonical rule).
 
 **State:**
 
@@ -307,7 +287,7 @@ CHAIN_DONE
 3. Each tap is validated immediately against the expected position.
 4. Correct tap: brief highlight, fire-and-forget SFX, advance step.
 5. Wrong tap: flash wrong, wrong SFX, life lost. If lives remain: replay the sequence. If no lives: game over.
-6. All taps correct → sequence complete (awaited SFX + fire-and-forget TTS — L-VI-002). Next round adds one more element to the sequence.
+6. All taps correct → sequence complete (awaited SFX → awaited dynamic TTS — feedback-skill canonical rule). Next round adds one more element to the sequence.
 
 **Additional guard:** Reject all taps when phase is "observing".
 
@@ -373,7 +353,7 @@ TOOL_ACTIVE
 4. Tapping outside both the grid and picker → dismiss picker, deselect cell.
 5. Locked/pre-filled cells are non-interactive.
 6. After each placement: check constraints (row/column uniqueness, sum constraints, inequality constraints). Highlight violations.
-7. If grid is fully filled with zero violations → puzzle solved (awaited SFX + fire-and-forget TTS — L-VI-002). Or: a Check button triggers validation.
+7. If grid is fully filled with zero violations → puzzle solved (awaited SFX → awaited dynamic TTS — feedback-skill canonical rule). Or: a Check button triggers validation.
 
 **State:**
 
@@ -408,8 +388,8 @@ CELL_SELECTED
 2. If values are linked (e.g., A + B = constant), adjusting A inversely adjusts B.
 3. +/− buttons respect min/max bounds. Disable at limits.
 4. A text input + Submit/Check button triggers evaluation (or Enter key).
-5. On submit: awaited SFX + fire-and-forget TTS (L-VI-002). Correct → next round advances on SFX dwell (do NOT await TTS). Wrong → life lost, retry.
-6. CSS: `min-height: 44px; min-width: 44px; touch-action: manipulation; border-radius: 50%` for +/− buttons.
+5. On submit: awaited SFX → awaited dynamic TTS (feedback-skill canonical rule). Correct → next round advances after awaited TTS resolves. Wrong → life lost, retry after awaited TTS resolves.
+6. The +/− buttons must follow the mobile skill's touch-target and gesture rules.
 
 **State:**
 

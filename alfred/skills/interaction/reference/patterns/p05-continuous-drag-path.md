@@ -31,8 +31,9 @@ function attachDragListeners() {
   document.addEventListener('pointermove', function(e) {
     if (!gameState.isDragging) return;
     // Re-check isProcessing/gameEnded — awaited feedback may have started mid-drag
-    // (e.g. handlePuzzleComplete sets isProcessing=true before the awaited SFX; TTS is fire-and-forget — L-VI-002).
-    // Cancel the drag in-flight so the student can't keep drawing while the win audio plays.
+    // (handlePuzzleComplete sets isProcessing=true before the awaited SFX, and the dynamic TTS is also awaited per
+    // feedback-skill canonical rule + validator GEN-FEEDBACK-TTS-AWAIT). Cancel the drag in-flight so the student
+    // can't keep drawing while the win audio plays.
     if (gameState.isProcessing || gameState.gameEnded) {
       gameState.isDragging = false;
       return;
@@ -146,7 +147,7 @@ function removeFromPath() {
 
 ### Input Blocking During Awaited Feedback
 
-The awaited feedback sequence in P5 fires on puzzle-complete (awaited SFX + fire-and-forget dynamic TTS — L-VI-002). `handlePuzzleComplete` must set `gameState.isProcessing = true` before the first `await FeedbackManager.sound.play(...)` and clear it after the SFX resolves; TTS is launched without `await` and runs in the background (puzzle/round advance must not block on TTS completion). The three guards above (on `pointerdown`, `pointermove`, and inside `handleDragMove`) are what turn that flag into real input blocking — without them, the student can keep dragging across cells while the puzzle-complete audio is playing, which invalidates the "solved" state the audio is celebrating. Per-tile tap SFX inside `handleDragMove` is also fire-and-forget, so it intentionally does not block further drag input while it plays.
+The awaited feedback sequence in P5 fires on puzzle-complete: **awaited SFX → awaited dynamic TTS** (feedback-skill canonical rule + validator `GEN-FEEDBACK-TTS-AWAIT`). `handlePuzzleComplete` must set `gameState.isProcessing = true` before the first `await FeedbackManager.sound.play(...)` and keep it set across both awaits; clear `isProcessing` in `renderRound()` / `loadRound()` (single source of truth), not in the handler. The three guards above (on `pointerdown`, `pointermove`, and inside `handleDragMove`) are what turn that flag into real input blocking — without them, the student can keep dragging across cells while the puzzle-complete audio is playing, which invalidates the "solved" state the audio is celebrating. Per-tile tap SFX inside `handleDragMove` is fire-and-forget, so it intentionally does not block further drag input while it plays.
 
 ### Reset (Costs Life)
 
@@ -183,20 +184,6 @@ function handleReset() {
 }
 ```
 
-### CSS
+### Styling
 
-```css
-.grid-cell {
-  display: flex; align-items: center; justify-content: center;
-  border: 1px solid var(--mathai-border-gray);
-  min-height: 44px; min-width: 44px;
-  transition: background 0.15s;
-}
-.grid-cell.path { background: var(--mathai-light-blue); }
-.grid-cell.path-head { background: var(--mathai-blue); color: white; border-radius: 50%; }
-.grid-cell.start-cell { font-weight: bold; }
-.grid-cell.end-cell { font-weight: bold; }
-.grid-cell.dead-end { background: var(--mathai-light-red); }
-.grid-cell.resetting { animation: fadeOut 300ms; }
-.grid-cell.complete { background: var(--mathai-green); color: white; }
-```
+Touch target size, drag-surface gesture CSS, and base grid layout are owned by the mobile skill. P5 only requires semantic classes for path state: `.path`, `.path-head`, `.start-cell`, `.end-cell`, `.dead-end`, `.resetting`, and `.complete`.

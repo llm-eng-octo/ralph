@@ -1,4 +1,4 @@
-# 17 Interaction Patterns — Quick Reference
+# 17 Interaction Patterns — Quick Reference (16 active + P4 deprecated)
 
 | # | Pattern | What happens | Events | Step type |
 |---|---------|-------------|--------|-----------|
@@ -7,7 +7,7 @@
 | **P3** | **Tap-Select (Two-Phase Match)** | Tap item A (left), then tap matching item B (right); two taps = one eval | `click` | Multi |
 | **P4** | ~~**Tap + Swipe**~~ **DEPRECATED** | Use P1 tap-only with directional buttons instead | — | — |
 | **P5** | **Continuous Drag (Path)** | Press and drag across grid cells to draw a path; backtrack by dragging backwards | `pointerdown` + `pointermove` + `pointerup` | Multi |
-| **P6** | **Drag-and-Drop (Pick & Place)** | Pick up item, drag it, drop into a target zone; snap-back on miss | `pointerdown` + `pointermove` + `pointerup` | Multi |
+| **P6** | **Drag-and-Drop (Pick & Place)** | Pick up item, drag it, drop into a target zone; return to origin on miss | `@dnd-kit/dom` `manager.monitor` (`dragstart` / `dragend`) — NEVER raw pointer events | Multi |
 | **P7** | **Text/Number Input** | Type answer + Enter/Submit → immediate eval → round done | `keydown` + `click` | Single |
 | **P8** | **Click-to-Toggle** | Click cells to flip on/off; board auto-validates against constraints | `click` | Multi |
 | **P9** | **Stepper (+/-)** | Tap +/- buttons to adjust values, then submit a typed answer | `click` | Multi |

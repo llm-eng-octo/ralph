@@ -1,40 +1,42 @@
 # Touch Events & Hit Detection
 
-How to choose event types, handle pointer events, detect hits during drag, and suppress unwanted browser gestures.
+How to choose event types, handle pointer events, detect hits during raw-pointer drag, and suppress unwanted browser gestures. **P6 drag-and-drop is NOT covered here** — it uses `@dnd-kit/dom` (`manager.monitor` events + the library's pointer sensor) instead of raw pointer events. See `patterns/p06-drag-and-drop.md`.
 
 ---
 
 ## Event Type Decision Tree
 
 ```
-Does the interaction involve the finger MOVING while pressed (drag, swipe, path)?
+Is it P6 (drag-and-drop into zones / grid cells)?
 │
-├─ YES → Use POINTER EVENTS
-│   │
-│   ├─ Is it a continuous drag (path drawing, item follows finger)?
-│   │   YES → pointerdown + pointermove + pointerup + pointercancel
-│   │          pointermove/pointerup/pointercancel on DOCUMENT
-│   │          Use elementFromPoint() for hit detection
-│   │          preventDefault on pointerdown AND pointermove
-│   │          touch-action: none on drag surface / draggable items
-│   │
-│   └─ Is it a swipe gesture (tap then flick)?
-│       YES → pointerdown + pointerup (NO pointermove needed)
-│              Compute direction from delta on pointerup
-│              SWIPE_THRESHOLD = 30px
-│              preventDefault on pointerdown only
+├─ YES → Use @dnd-kit/dom — DragDropManager + Draggable + Droppable + manager.monitor
+│         NEVER raw pointer events. The library owns pointerdown/move/up/cancel internally.
+│         See patterns/p06-drag-and-drop.md.
 │
-└─ NO → Use CLICK events
+└─ NO → Does the interaction involve the finger MOVING while pressed (continuous drag P5, directional drag P13)?
     │
-    ├─ Is it a text/number input?
-    │   YES → keydown (Enter key) + click (Submit button)
-    │          preventDefault on Enter key (prevents form submit)
-    │          inputmode="numeric" for numbers
+    ├─ YES → Use RAW POINTER EVENTS
+    │   │
+    │   └─ Continuous drag (path drawing) / directional drag (constrained axis)
+    │       → pointerdown + pointermove + pointerup + pointercancel
+    │          pointermove/pointerup/pointercancel on DOCUMENT
+    │          Use elementFromPoint() for hit detection (P5)
+    │          preventDefault on pointerdown AND pointermove
+    │          gesture CSS is owned by the mobile skill
     │
-    └─ NO → click on buttons/cells
-             touch-action: manipulation on targets
-             NO preventDefault needed
+    └─ NO → Use CLICK events
+        │
+        ├─ Is it a text/number input?
+        │   YES → keydown (Enter key) + click (Submit button)
+        │          preventDefault on Enter key (prevents form submit)
+        │          input mode / keyboard rules are owned by the mobile skill
+        │
+        └─ NO → click on buttons/cells
+                 target sizing / gesture CSS is owned by the mobile skill
+                 NO preventDefault needed
 ```
+
+> P4 (Tap + Swipe) is **deprecated** — convert to P1 tap-only with directional buttons. Historical swipe-detection material lives in [`deprecated-p04-swipe.md`](./deprecated-p04-swipe.md); do not load it during normal game generation.
 
 ---
 
@@ -48,13 +50,13 @@ Does the interaction involve the finger MOVING while pressed (drag, swipe, path)
 | `pointercancel` | Handles OS interruptions | `touchcancel` exists but less consistent |
 | Standard | W3C Pointer Events spec | Legacy (predates pointer events) |
 
-**Rule:** Always use pointer events for drag/swipe. Never use `touchstart`/`touchmove`/`touchend`.
+**Rule:** Use pointer events for raw-pointer drag (P5, P13). Use `@dnd-kit/dom` for drag-and-drop (P6) — it owns the pointer lifecycle internally. Never use `touchstart`/`touchmove`/`touchend` directly.
 
 ---
 
 ## Pointer Event Lifecycle
 
-### For Continuous Drag (Patterns 5, 6)
+### For Continuous Drag (Pattern 5) and Directional Drag (Pattern 13)
 
 ```
 User presses finger
@@ -65,7 +67,7 @@ User presses finger
 User moves finger
   → pointermove fires on DOCUMENT (not original target!)
   → e.preventDefault() — suppress scroll
-  → Use elementFromPoint(clientX, clientY) to find element under finger
+  → Use elementFromPoint(clientX, clientY) to find element under finger (P5 only — P13 uses pointer delta along the constrained axis)
   → Update drag state
 
 User lifts finger
@@ -77,23 +79,11 @@ OS interrupts (call, gesture)
   → Clean up drag state (same as pointerup)
 ```
 
-### For Swipe (Pattern 4)
+> Drag-and-drop (P6) does NOT run this lifecycle. `@dnd-kit/dom` owns pointerdown/move/up/cancel internally; subscribe to `manager.monitor` events (`dragstart`, `dragend`) instead.
 
-```
-User presses finger
-  → pointerdown fires on grid
-  → e.preventDefault()
-  → Record startX, startY
-  → Handle selection (tap part)
+### ~~For Swipe (Pattern 4)~~ — DEPRECATED
 
-User lifts finger
-  → pointerup fires on DOCUMENT
-  → Compute dx = clientX - startX, dy = clientY - startY
-  → If |dx| < 30 AND |dy| < 30 → just a tap, no swipe
-  → If |dx| > |dy| → horizontal (right if dx > 0, left otherwise)
-  → Else → vertical (down if dy > 0, up otherwise)
-  → Execute swipe action
-```
+Pattern 4 was retired because swipe is unreliable on mobile. New games must use P1 tap-only with directional buttons. Historical implementation details live in [`deprecated-p04-swipe.md`](./deprecated-p04-swipe.md) for legacy maintenance only.
 
 ---
 
@@ -153,10 +143,11 @@ if (zone) zone.classList.add('drop-hover');
 
 | Event | Attach to | Why |
 |-------|-----------|-----|
-| `pointerdown` | The grid/container element | Scoped to the interaction area |
-| `pointermove` | `document` | Finger may drift outside the grid during drag |
-| `pointerup` | `document` | Finger may lift outside the grid |
-| `pointercancel` | `document` | OS events fire on document |
+| `pointerdown` (P5, P13) | The grid/container element | Scoped to the interaction area |
+| `pointermove` (P5, P13) | `document` | Finger may drift outside the grid during drag |
+| `pointerup` (P5, P13) | `document` | Finger may lift outside the grid |
+| `pointercancel` (P5, P13) | `document` | OS events fire on document |
+| `manager.monitor` `dragstart`/`dragend` (P6) | `@dnd-kit/dom` `DragDropManager` instance | Library-owned event bus; do not attach raw pointer listeners alongside |
 | `click` | Individual buttons/cells | Direct target, no drift concern |
 | `keydown` | The input element | Scoped to the input |
 
@@ -186,108 +177,19 @@ function attachGridListeners() {
 
 | Event | Call `preventDefault`? | Why |
 |-------|----------------------|-----|
-| `pointerdown` (drag/swipe) | **Yes** | Without it, the browser scrolls the page instead of dragging |
-| `pointermove` (drag) | **Yes** | Without it, the browser scrolls during continuous drag |
-| `pointerup` | No | Nothing to prevent — the gesture is already over |
-| `pointercancel` | No | Browser has already cancelled the gesture |
+| `pointerdown` (P5, P13) | **Yes** | Without it, the browser scrolls the page instead of dragging |
+| `pointermove` (P5, P13) | **Yes** | Without it, the browser scrolls during continuous drag |
+| `pointerup` (P5, P13) | No | Nothing to prevent — the gesture is already over |
+| `pointercancel` (P5, P13) | No | Browser has already cancelled the gesture |
 | `click` | No | Click is the final event, no default to prevent |
 | `keydown` (Enter) | **Yes** | Without it, Enter may submit a `<form>` and reload the page |
+| `@dnd-kit/dom` events (P6) | n/a | Library handles its own default-suppression via pointer sensor |
 
 ---
 
-## `touch-action` CSS Property
+## Gesture CSS
 
-Controls which touch gestures the browser handles natively vs which are passed to JavaScript.
-
-| Value | What it does | When to use |
-|-------|-------------|-------------|
-| `manipulation` | Allows pan + pinch-zoom, disables double-tap-zoom | Tap-based patterns (buttons, cells) |
-| `none` | Disables ALL browser touch handling — gives full control to JS | Drag-and-drop items, continuous drag surfaces |
-| (default) | Browser handles everything (scroll, zoom, etc.) | Non-interactive areas, text input |
-
-### Application by pattern
-
-```css
-/* Tap patterns (1, 2, 3, 8) — suppress double-tap zoom */
-.option-btn, .grid-tile, .left-cell, .right-cell, .grid-cell {
-  touch-action: manipulation;
-}
-
-/* Drag patterns (5, 6) — full JS control */
-.draggable {
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-/* Continuous drag grid (pattern 5) — prevent scroll during path draw */
-#game-grid.drag-grid {
-  touch-action: none;
-}
-
-/* Input (pattern 7) — default (let browser handle keyboard) */
-#answer-input {
-  /* No touch-action override */
-}
-```
-
----
-
-## Gesture Suppression (Applied Globally)
-
-These prevent common mobile browser behaviors that break gameplay:
-
-```css
-/* Prevent pull-to-refresh */
-html, body {
-  overscroll-behavior: none;
-}
-
-/* Prevent text selection in game area */
-.game-wrapper {
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-/* Re-enable selection in inputs */
-input, textarea {
-  -webkit-user-select: text;
-  user-select: text;
-}
-
-/* Prevent long-press context menu on game elements */
-.option-btn, .grid-cell, .draggable {
-  -webkit-touch-callout: none;
-}
-```
-
----
-
-## Swipe Detection Reference
-
-```javascript
-var SWIPE_THRESHOLD = 30; // pixels — below this, it's a tap
-
-function detectSwipe(startX, startY, endX, endY) {
-  var dx = endX - startX;
-  var dy = endY - startY;
-
-  // Too small — not a swipe
-  if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) {
-    return null;
-  }
-
-  // Determine primary axis
-  if (Math.abs(dx) > Math.abs(dy)) {
-    return dx > 0 ? 'right' : 'left';
-  } else {
-    return dy > 0 ? 'down' : 'up';
-  }
-}
-```
-
-**Why 30px:** Smaller thresholds cause accidental swipes on tap. Larger thresholds make intentional swipes feel unresponsive. 30px is the established standard from shipped games.
+The mobile skill owns `touch-action`, text selection, pull-to-refresh suppression, hit target sizes, and Safari input zoom prevention. This file only decides which event family to use and where raw-pointer listeners attach.
 
 ---
 
@@ -299,20 +201,28 @@ function detectSwipe(startX, startY, endX, endY) {
 - Palm rejection on tablets
 - Browser decides to handle the gesture (scroll/zoom)
 
-**Always** attach a `pointercancel` handler on drag patterns. It should clean up the same state as `pointerup`:
+**Always** attach a `pointercancel` handler on raw-pointer drag patterns (**P5, P13**). It should clean up the same state as `pointerup`:
 
 ```javascript
+// P5 example — clean up the in-flight path
 document.addEventListener('pointercancel', function(e) {
-  // Same cleanup as pointerup
   if (gameState.isDragging) {
     gameState.isDragging = false;
-    // Reset drag visual state
+    // Reset drag visual state (clear .path-head, etc.)
   }
-  if (gameState.dragItem) {
-    snapBack(gameState.dragItem);
-    gameState.dragItem = null;
+});
+
+// P13 example — drop the block ref, clear the transform
+document.addEventListener('pointercancel', function(e) {
+  if (gameState.dragBlock) {
+    gameState.dragBlock.element.classList.remove('dragging');
+    gameState.dragBlock.element.style.transform = '';
+    gameState.dragBlock = null;
+    gameState.dragDelta = 0;
   }
 });
 ```
 
 Without this, the drag gets stuck in an active state after an OS interruption.
+
+> P6 (Drag-and-Drop) does NOT need a manual `pointercancel` handler — `@dnd-kit/dom` handles cancellation inside `manager.monitor`'s `dragend` event. Do not bolt one on; it can race with the library.

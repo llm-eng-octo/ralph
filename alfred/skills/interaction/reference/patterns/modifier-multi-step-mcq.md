@@ -16,6 +16,7 @@ function loadStep() {
   renderStepQuestion(step.question);
   renderStepOptions(step.options);
   gameState.roundStartTime = Date.now();
+  gameState.isProcessing = false;
 }
 
 async function handleStepAnswer(selected) {
@@ -26,11 +27,10 @@ async function handleStepAnswer(selected) {
   var step = round.steps[gameState.currentStep];
   var isCorrect = selected === step.answer;
 
-  // Visual feedback, recordAttempt, awaited SFX + fire-and-forget TTS (L-VI-002).
-  // Never await playDynamicFeedback — the step advance must not block on TTS.
+  // Visual feedback, recordAttempt, awaited SFX → awaited dynamic TTS
+  // (feedback-skill canonical rule + validator GEN-FEEDBACK-TTS-AWAIT — single-step semantics
+  // apply at each sub-step). The step advance only happens after the awaited TTS resolves.
   // ...
-
-  gameState.isProcessing = false;
 
   if (isCorrect) {
     gameState.currentStep++;
@@ -56,6 +56,8 @@ async function handleStepAnswer(selected) {
     // - Retry same step (Sequence Builder)
     // - Move to next step (Expression Completer)
     // - Life lost
+    // Whichever path is chosen, re-enable only from loadStep() / loadRound()
+    // after the retry/next-step UI has rendered.
   }
 }
 ```

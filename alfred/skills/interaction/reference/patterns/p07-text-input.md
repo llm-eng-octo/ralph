@@ -11,7 +11,7 @@ Student types an answer and submits via Enter key or Submit button.
 1. **Auto-focus + scroll-into-view** on click and on round transitions (with virtual-keyboard avoidance)
 2. **Auto-growing input width** — starts at `MIN_W` (72px), grows with content, caps at `MAX_W` (300px), shrinks on delete
 
-These are required, not optional. The base pattern below covers Enter/Submit and audio wiring; `p07-input-behaviors.md` covers the interactive UX.
+These are required, not optional. The base pattern below covers Enter/Submit and audio wiring; `p07-input-behaviors.md` points to the mobile-owned input UX contract.
 
 ### Identification
 
@@ -19,37 +19,22 @@ These are required, not optional. The base pattern below covers Enter/Submit and
 
 ### Event Handling
 
-```javascript
-function renderInput() {
-  var html = '<input type="text" inputmode="numeric" pattern="[0-9]*" '
-    + 'id="answer-input" placeholder="Type your answer" '
-    + 'autocomplete="off" style="font-size: 16px;">'
-    + '<button class="game-btn btn-primary" id="submit-btn">Submit</button>';
-  document.getElementById('input-area').innerHTML = html;
+> The `handleSubmit` body below is the **canonical single-step submit-handler shape**. P17 (Voice Input) and P6 submit-variants (Math Crossword, Equation Grid, Kakuro) reference this same body and only apply the per-pattern deltas described in their files.
+>
+> Input element creation, mobile attributes, auto-focus, auto-growing width, and virtual-keyboard scroll behavior are mobile-owned. This example assumes the game already rendered `#answer-input` and `#submit-btn`.
 
-  document.getElementById('answer-input').addEventListener('keydown', function(e) {
+```javascript
+function attachP7SubmitHandlers(input, submitBtn) {
+  input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleSubmit();
     }
   });
 
-  document.getElementById('submit-btn').addEventListener('click', function() {
+  submitBtn.addEventListener('click', function() {
     handleSubmit();
   });
-
-  // Keyboard visibility — keep question visible
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', function() {
-      var input = document.activeElement;
-      if (input && input.tagName === 'INPUT') {
-        var question = document.querySelector('.question-text');
-        if (question) {
-          question.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }
-    });
-  }
 }
 
 async function handleSubmit() {
@@ -73,19 +58,26 @@ async function handleSubmit() {
   syncDOM();
   if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
 
-  recordAttempt({ /* 12 fields */ });
+  // Data-contract owns the attempt fields built inside recordAttempt().
+  recordAttempt(gameState.currentRound, value, isCorrect, {
+    question_id: round.id,
+    correct_answer: round.answer
+  });
   trackEvent('answer_submitted', { round: gameState.currentRound, isCorrect: isCorrect });
 
-  // Audio — SINGLE-STEP: SFX awaited (short, predictable), TTS fire-and-forget.
-  // Game flow MUST NOT depend on TTS completion — if the network stalls, the next round still loads.
+  // Audio — SINGLE-STEP: awaited SFX → awaited dynamic TTS.
+  // Canonical rule lives in feedback skill SKILL.md + validator GEN-FEEDBACK-TTS-AWAIT.
+  // The next round only advances after the awaited TTS resolves (or returns a package failure status).
   try {
     if (isCorrect) {
       await FeedbackManager.sound.play('correct_sound_effect', { sticker: CORRECT_STICKER });
-      FeedbackManager.playDynamicFeedback({
-        audio_content: round.feedbackCorrect,
-        subtitle: round.feedbackCorrect,
-        sticker: CORRECT_STICKER
-      }).catch(function(e) { console.error('TTS error:', e.message); });
+      try {
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: round.feedbackCorrect,
+          subtitle: round.feedbackCorrect,
+          sticker: CORRECT_STICKER
+        });
+      } catch (e) { console.error('TTS error:', e.message); }
     } else {
       if (gameState.totalLives > 0 && gameState.lives <= 0) {
         // Game-over path is a terminal state, not a round transition — it handles its own re-enable.
@@ -94,11 +86,13 @@ async function handleSubmit() {
         return;
       }
       await FeedbackManager.sound.play('incorrect_sound_effect', { sticker: INCORRECT_STICKER });
-      FeedbackManager.playDynamicFeedback({
-        audio_content: round.feedbackWrong || 'The answer is ' + round.answer,
-        subtitle: round.feedbackWrong || 'The answer is ' + round.answer,
-        sticker: INCORRECT_STICKER
-      }).catch(function(e) { console.error('TTS error:', e.message); });
+      try {
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: round.feedbackWrong || 'The answer is ' + round.answer,
+          subtitle: round.feedbackWrong || 'The answer is ' + round.answer,
+          sticker: INCORRECT_STICKER
+        });
+      } catch (e) { console.error('TTS error:', e.message); }
     }
   } catch (e) {}
 
@@ -126,19 +120,6 @@ async function handleSubmit() {
 }
 ```
 
-### CSS
+### Styling
 
-```css
-#answer-input {
-  font-size: 16px; /* Prevents iOS zoom */
-  padding: 12px 16px;
-  border: 2px solid var(--mathai-border-gray);
-  border-radius: 8px;
-  width: 100%;
-  -webkit-appearance: none;
-  appearance: none;
-}
-#answer-input:focus { border-color: var(--mathai-blue); outline: none; }
-.input-correct { border-color: var(--mathai-green); background: var(--mathai-light-green); }
-.input-wrong { border-color: var(--mathai-red); background: var(--mathai-light-red); }
-```
+Input sizing, Safari zoom prevention, appearance reset, spacing, and keyboard/viewport rules are owned by the mobile skill. This pattern only requires semantic state classes such as `.input-correct` and `.input-wrong`; use the mobile skill for the actual CSS values.
