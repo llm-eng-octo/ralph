@@ -98,6 +98,15 @@ ORDER BY a.round_number;
 
 **Set-aware analytics:** When a game uses round-set cycling (see code-patterns.md `getRounds` + `restartGame`), round `id` values are prefixed by set letter (`A_r1_…`, `B_r1_…`, `C_r1_…`). To segment per-round accuracy by set, group attempts on the prefix of `question_id`. No query changes are required for existing analytics — segmentation is an optional refinement. A student who played Set A on their first attempt and Set B on retry will have attempts for both sets in the same session; `setIndex` is not in the attempt payload, so the prefix is the only signal.
 
+**Standalone games (`totalRounds: 1`) — gauge interpretation:** Standalone games have no round-set cycling; round `id` values do NOT carry the `A_r1_…`/`B_r1_…`/`C_r1_…` prefix. Per-round accuracy queries degenerate to a single bucket — there is only one question. For standalone, the primary metrics are:
+
+- **Retry rate:** mean `attempts.length` per session. A retry rate ≈ 1.0 means most students got it right or out of lives on first try; > 1.5 means most players used at least one retry; ≥ 2.5 indicates a difficulty spike where most students used most of their lives.
+- **First-attempt accuracy:** percentage of sessions where the FIRST attempt is `correct: true`. This is the most comparable metric to multi-round per-round accuracy.
+- **Final-attempt accuracy:** percentage of sessions where the LAST attempt is `correct: true`. Difference from first-attempt accuracy measures how much the retry mechanic recovers.
+- **Abandonment:** percentage of sessions with no `game_complete` postMessage — same query as multi-round.
+
+When a standalone game has `answers: [...]` with N evaluated slides, each slide produces its own attempt record (see [PART-051](../../parts/PART-051.md)); group by `answer_index` (or the slide-specific id suffix) to gauge per-slide accuracy.
+
 ---
 
 ### Question 2: Which misconception is most common?

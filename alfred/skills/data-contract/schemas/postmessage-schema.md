@@ -93,6 +93,39 @@ For a **standalone game with N evaluated answers** (`totalRounds: 1`, multiple a
 
 When the spec declares `answerComponent: false`, the field is unused (and may be omitted) — validator rules in the `GEN-ANSWER-COMPONENT-*` group auto-skip. **`answerComponent: false` is a CREATOR-ONLY opt-out per PART-051; no LLM step may auto-default it.** Spec-creation MUST default `answerComponent` to `true` silently; spec-review FAILs any spec setting `false` without quoted creator opt-out (check H5); build MUST NOT mutate spec.md to silence the validator.
 
+#### Standalone `game_complete` — `attempts` cardinality
+
+For a standalone game (`totalRounds: 1`), `gameState.attempts` accumulates across Try Again retries. Cardinality:
+
+- **No retries (correct on first submit, OR wrong on first submit with `totalLives: 1`):** `attempts.length === 1`. Single record with `correct: true|false`.
+- **N − 1 retries used (multi-life standalone, finally correct or out of lives):** `attempts.length === N`. Each record has `is_retry: true` after the first; the last record has `correct: true` (won on a later try) or `correct: false` (out of lives, end-of-game).
+- **`attempts.length` never exceeds `totalLives`** — once lives reach 0, the game ends and no more retries are possible.
+
+Example `game_complete` payload for a 3-life standalone where the player got it wrong twice then correct on the third try:
+
+```javascript
+window.parent.postMessage({
+  type: 'game_complete',
+  data: {
+    metrics: {
+      accuracy: 100,              // got it right eventually
+      time: 38,                   // total time in seconds across all 3 attempts
+      stars: 1,                   // typical: fewer stars when retries used
+      attempts: [
+        { id: 'A_r1_p1', correct: false, is_retry: false, response: '...', time: 12 },
+        { id: 'A_r1_p1', correct: false, is_retry: true,  response: '...', time: 11 },
+        { id: 'A_r1_p1', correct: true,  is_retry: true,  response: '...', time: 15 }
+      ],
+      duration_data: gameState.duration_data,
+      totalLives: 1,              // 1 life remaining at end (started with 3, used 2)
+      tries: [/* one entry per attempt */]
+    }
+  }
+}, '*');
+```
+
+For a 1-life standalone, `attempts.length === 1` always.
+
 ### game_init.data.score and game_init.data.questionLabel
 
 The ActionBar header is **state-driven by `game_init` only**. The denominator (`y` in `x/y`) and the question label are locked at boot and cannot be mutated at runtime by game code.

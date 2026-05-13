@@ -32,8 +32,9 @@ The validator accepts either function name. Existing deployed games keep their c
 - `skills/pedagogy.md` -- Bloom level determines feedback depth and scaffolding -- **ALWAYS**
 - `skills/mobile.md` -- viewport constraints for screen layouts -- **ON-DEMAND** (only for screens.md wireframes)
 - `skills/data-contract/` -- recordAttempt and game_complete schemas -- **ON-DEMAND** (only for scoring.md data contract fields)
-- `reference/default-flow.md` -- canonical multi-round flow diagram (Shape 2) -- **ALWAYS**
-- `reference/shapes.md` -- Shape 1 Standalone, Shape 2 Multi-round, Shape 3 Sectioned -- **ALWAYS**
+- [reference/shapes.md](reference/shapes.md) -- canonical source: shape definitions, decision matrix, creator-only flags -- **ALWAYS**
+- [reference/standalone-flow.md](reference/standalone-flow.md) -- Shape 1 (Standalone, `totalRounds: 1`) flow diagram -- **ALWAYS**
+- [reference/multi-round-flow.md](reference/multi-round-flow.md) -- Shape 2 (Multi-round, `totalRounds > 1`) flow diagram -- **ALWAYS**
 - `reference/flow-gallery.md` -- 16 customization patterns to apply as ADDITIVE deltas on top of the canonical diagram -- **ON-DEMAND** (only when the spec's `## Flow` lists a customization trigger)
 - `reference/default-transition-screens.md` -- canonical Elements tables for the 4 standard transition screens (game_over, motivation, victory, stars_collected); copy verbatim into screens.md unless the spec explicitly overrides a field -- **ALWAYS**
 
@@ -73,7 +74,7 @@ Read the spec. Run game-archetypes.md decision tree (Steps 1-4) to identify the 
 ### Step 2: Derive game-flow.md
 
 1. Read the spec's `## Flow` section for shape hints (or infer: no rounds → Shape 1; sections/levels → Shape 3; else Shape 2 default).
-2. Copy the canonical diagram VERBATIM: from `reference/default-flow.md` for Shape 2; from `reference/shapes.md` for Shape 1 or Shape 3.
+2. Copy the canonical diagram VERBATIM: from [reference/multi-round-flow.md](reference/multi-round-flow.md) for Shape 2; from [reference/standalone-flow.md](reference/standalone-flow.md) for Shape 1; from [reference/shapes.md § Sectioned](reference/shapes.md#sectioned) for Shape 3.
 3. Apply customization deltas only if the spec's `## Flow` listed changes. Match each trigger against `reference/flow-gallery.md` rows 4–16. Apply as ADDITIVE edits (insert step, add conditional branch, rewrite one label) — never rewrite the whole diagram.
 4. Write `pre-generation/game-flow.md` with: the one-liner, the final ASCII diagram (canonical + deltas), `**Shape:** [...]`, `**Changes from default:** [...]`, and the stage table.
 

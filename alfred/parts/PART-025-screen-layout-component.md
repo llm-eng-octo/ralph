@@ -6,18 +6,49 @@
 
 ScreenLayout uses the `slots` API. `previewScreen: true` is the default configuration (required by PART-039); opt out with spec-level `previewScreen: false`, in which case `slots.previewScreen` MUST be omitted.
 
+## Slots API — Per-shape configuration {#per-shape-slots}
+
+Slot configuration depends on game shape. See [shapes.md § Decision Matrix](../skills/game-planning/reference/shapes.md#decision-matrix) for the full per-shape feature scope.
+
+| Slot key | Multi-round (`totalRounds > 1`) | Standalone (`totalRounds: 1`) | Notes |
+|---|---|---|---|
+| `previewScreen: true` | included by default | included by default | OMIT when `spec.previewScreen: false` (creator-only opt-out) |
+| `transitionScreen: true` | **REQUIRED** — multi-round flow uses TS for Welcome / Round-N / Victory / Game Over / Motivation / Stars Collected | **OMIT** — standalone has no transition screens ([GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN](../skills/game-building/reference/static-validation-rules.md#shape-enforcement)) | — |
+| `progressBar: true` | included when `totalRounds > 1` | **OMIT** — standalone has no progress bar ([GEN-STANDALONE-NO-PROGRESS-BAR](../skills/game-building/reference/static-validation-rules.md#shape-enforcement)) | Creates `#mathai-progress-slot` at the top of `.game-stack` |
+| `floatingButton: true` | included by default | included by default | OMIT when `spec.floatingButton: false` (creator-only opt-out); standalone TS prohibition still applies regardless |
+| `answerComponent: true` | included by default | included by default | OMIT when `spec.answerComponent: false` (creator-only opt-out) |
+
 ## Slots API — Preview Wrapper (PART-039 games, default)
+
+Multi-round example (all default slots):
 
 ```javascript
 ScreenLayout.inject('app', {
   slots: {
-    previewScreen: true,                    // default; OMIT this key when spec previewScreen=false
-    transitionScreen: true                  // For multi-round games
+    previewScreen: true,
+    transitionScreen: true,                 // For multi-round games
+    progressBar: true,
+    floatingButton: true,
+    answerComponent: true
   }
 });
 
 // Returns:
 // { previewSlot, transitionSlot, gameContent }
+```
+
+Standalone example (omit `transitionScreen` and `progressBar`):
+
+```javascript
+ScreenLayout.inject('app', {
+  slots: {
+    previewScreen: true,
+    floatingButton: true,
+    answerComponent: true
+    // NO transitionScreen — standalone uses AnswerComponent + FloatingButton for end-state
+    // NO progressBar — standalone has no round-by-round progression
+  }
+});
 ```
 
 ### DOM Structure (slots + previewScreen:true)
