@@ -45,6 +45,25 @@ Decide once per spec whether the timer is **per-round** (resets every round) or 
 - **Per-round reset:** Call `timer.reset()` (and `timer.start()` if needed) **before** `transitionScreen.show(...)` for the round-complete transition. The transition screen must already display the fresh `00:00` so the player never sees the previous round's final value flash through the transition. Resetting after the transition closes causes a visible jump.
 - **Cumulative across rounds/levels:** Do **NOT** reset between rounds. The timer keeps ticking through the round-complete transition (or is paused via `timer.pause()` if you want the transition to freeze it, then resumed on the next round). It only resets on Play Again / Try Again, per the end-of-game rules below.
 
+**Pause across every awaited-feedback window (MANDATORY):**
+
+Whenever a handler opens an awaited-feedback window — submit handler, retry handler, API-failure recovery, terminal game-over — the timer MUST be paused at the same site where `gameState.isProcessing = true` is set, BEFORE any `await`. Resume in the corresponding re-enable site (`renderRound()` for advance paths; the retry / API-failure handler itself for exception paths).
+
+Rationale: the clock represents *gameplay time*, not *audio playback time*. Letting it tick through 1.5 s SFX + multi-second TTS penalises the player for the system's feedback duration. The pipeline used to describe this as suggestive ("paused via `timer.pause()` if you want the transition to freeze it"); it is now mandatory — every awaited-feedback site pauses, every re-enable site resumes. See [state-and-guards.md § Lifecycle matrix](../skills/interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix) for the per-event sites.
+
+```js
+async function handleSubmit() {
+  if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
+  gameState.isProcessing = true;
+  if (boardEl) boardEl.classList.add('dnd-disabled');   // P6
+  if (voiceInput) voiceInput.disable();                  // P17
+  if (timer) timer.pause();                              // ← mandatory pause before any await
+
+  // ... evaluate, await feedback ...
+  // renderRound() / retry handler resumes
+}
+```
+
 Picking the wrong mode is a spec bug, not a timing bug — confirm the intent in `spec.md` before wiring round-complete handlers.
 
 **End-of-game cleanup (MANDATORY):**
@@ -70,3 +89,46 @@ Rules:
 - [ ] Timer value visibly stops on the Game Over screen (same check).
 - [ ] After Play Again / Try Again, timer resets to `00:00` and resumes ticking on the first round.
 - [ ] Every code path that posts `game_complete` (or sets `gameState.phase` to `'results'` / `'game_over'`) invokes `timer.pause()` first — confirmed by reading the source, not just by checking that a function named `endGame()` contains the call.
+- [ ] Every awaited-feedback handler (submit, retry, API-failure, terminal game-over) invokes `timer.pause()` at the same source line as `gameState.isProcessing = true`. Resume sites: `renderRound()` for advance, retry / api-failure handler for in-handler re-enable. Confirmed by grep, not just by spot-check.
+
+## `onEnd` lifecycle contract (MANDATORY)
+
+`onEnd` is the timer's player-facing terminal handler. When per-round time expires or a global countdown runs out, the callback fires — and from the player's perspective, it is **a submit-equivalent**: it triggers a forced answer evaluation with awaited feedback (the "time's up" SFX + TTS), exactly like a normal submit. It MUST follow the same interaction lifecycle contract as a submit handler.
+
+**Before any `await` inside `onEnd`:**
+
+```js
+function onTimerEnd() {
+  if (gameState.isProcessing || gameState.gameEnded) return;
+
+  // Same first three lines as a submit handler
+  gameState.isProcessing = true;
+  if (boardEl) boardEl.classList.add('dnd-disabled');     // P6 — load-bearing on @dnd-kit/dom
+  if (voiceInput) voiceInput.disable();                    // P17
+  // (no timer.pause() — the timer just fired; it's already stopped)
+
+  // Hide / disable FloatingButton (existing rule, validator GEN-FLOATING-BUTTON-TIMEOUT-HIDE):
+  floatingBtn.setMode(null);   // or set a timeExpired flag consumed by isSubmittable()
+
+  // Awaited "time's up" feedback — same shape as submit-wrong-with-lives (CASE 7 in feedback/SKILL.md)
+  await playTimeUpFeedback();   // SFX 1.5s floor + TTS awaited
+
+  // Decide next state
+  if (livesShape) {
+    gameState.lives--;
+    if (gameState.lives <= 0) {
+      endGame('time_up');        // terminal; endGame() removes .dnd-disabled before teardown
+      return;
+    }
+  }
+  // Continue to next round — renderRound clears isProcessing + .dnd-disabled
+  gameState.currentRound++;
+  renderRound(gameState.currentRound);
+}
+```
+
+**Global-countdown exception.** When the spec declares a global-countdown timer shape (`spec.timerShape: 'global'`, or equivalent — a single timer governs the whole session and expiry is terminal), `onEnd` MUST route to `endGame('time_up')` — there is no next round. `.dnd-disabled` stays on the board through end-game UI to prevent post-expiry input; `endGame()` teardown destroys the listeners.
+
+**Why the validator doesn't catch this today.** `GEN-FLOATING-BUTTON-TIMEOUT-HIDE` verifies that `onEnd` hides the FloatingButton — it does NOT verify that drag, voice, or other input modalities are also locked. A multi-round timed P6 game can therefore drag-mutate the placement during "time's up" feedback. A future validator rule (`GEN-TIMER-ONEND-DND-LOCK` or similar) would catch this; for now the rule lives in skill docs only.
+
+See [state-and-guards.md § Lifecycle matrix](../skills/interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix) rows `per-round-timer-expiry` and `global-timer-expiry` for the per-shape × per-event timing.

@@ -45,26 +45,30 @@ Do NOT put any child elements inside this div. VoiceInput clears it on construct
 
 ```javascript
 // After DOMContentLoaded + waitForPackages()
-var voiceInput = new VoiceInput('voice-input-area');
+var voiceInput = new VoiceInput("voice-input-area");
 ```
 
 Constructor signature:
 
 ```javascript
-new VoiceInput(containerId, options)
+new VoiceInput(containerId, options);
 ```
 
-| Param | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `containerId` | `string` | Yes | — | ID of the container element |
-| `options.tools` | `string[]` | No | `["mic", "keyboard", "reset"]` | Which toolbar buttons to show |
-| `options.defaultTool` | `string` | No | First item in `tools` | Which tool is active on focus |
-| `options.placeholder` | `string` | No | `"type here.."` | Textarea placeholder text |
+| Param                 | Type       | Required | Default                        | Description                   |
+| --------------------- | ---------- | -------- | ------------------------------ | ----------------------------- |
+| `containerId`         | `string`   | Yes      | —                              | ID of the container element   |
+| `options.tools`       | `string[]` | No       | `["mic", "keyboard", "reset"]` | Which toolbar buttons to show |
+| `options.defaultTool` | `string`   | No       | First item in `tools`          | Which tool is active on focus |
+| `options.placeholder` | `string`   | No       | `"type here.."`                | Textarea placeholder text     |
 
 Alternative constructor form:
 
 ```javascript
-new VoiceInput({ containerId: 'voice-input-area', tools: ['mic', 'keyboard'], placeholder: 'Speak or type...' })
+new VoiceInput({
+  containerId: "voice-input-area",
+  tools: ["mic", "keyboard"],
+  placeholder: "Speak or type...",
+});
 ```
 
 ### 3. Reading the Answer
@@ -83,12 +87,12 @@ Both return the current text — whether typed by keyboard or filled by voice tr
 
 P17 uses the **canonical single-step submit-handler shape** documented in [`p07-text-input.md`](./p07-text-input.md). The body is structurally identical (guards → `isProcessing = true` + disable affordances → eval → state + telemetry → awaited SFX → awaited TTS → progress bump → advance / endGame). Apply these P17-specific deltas to the canonical template:
 
-| Step in canonical handler | P7 (text input) | P17 (voice input) — deltas |
-|---|---|---|
-| Read answer | `input.value.trim()` | `voiceInput.value.trim()` |
-| Disable affordance pre-await | `input.blur()` | `voiceInput.disable()` + explicit `textarea.disabled = true; textarea.readOnly = true; textarea.blur()` on `.voice-input-wrapper textarea` / `#voice-input-area textarea` (CDN `disable()` alone does NOT reliably block typing — see Constraint 3 below) |
-| Visual feedback class | `input.classList.add('input-correct' \| 'input-wrong')` | `voiceInput.markCorrect()` / `voiceInput.markWrong()` |
-| Cleared in `renderRound()` | `input.classList.remove(...)`, `input.value = ''` | `voiceInput.clearMark()`, `voiceInput.clear()`, `voiceInput.enable()`, plus matching explicit textarea re-enable |
+| Step in canonical handler    | P7 (text input)                                         | P17 (voice input) — deltas                                                                                                                                                                                                                                |
+| ---------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read answer                  | `input.value.trim()`                                    | `voiceInput.value.trim()`                                                                                                                                                                                                                                 |
+| Disable affordance pre-await | `input.blur()`                                          | `voiceInput.disable()` + explicit `textarea.disabled = true; textarea.readOnly = true; textarea.blur()` on `.voice-input-wrapper textarea` / `#voice-input-area textarea` (CDN `disable()` alone does NOT reliably block typing — see Constraint 3 below) |
+| Visual feedback class        | `input.classList.add('input-correct' \| 'input-wrong')` | `voiceInput.markCorrect()` / `voiceInput.markWrong()`                                                                                                                                                                                                     |
+| Cleared in `renderRound()`   | `input.classList.remove(...)`, `input.value = ''`       | `voiceInput.clearMark()`, `voiceInput.clear()`, `voiceInput.enable()`, plus matching explicit textarea re-enable                                                                                                                                          |
 
 Everything else (the awaited SFX → awaited TTS block, the game-over branch, the progress bump, the round advance) is identical to the canonical shape — do not restate it here.
 
@@ -99,7 +103,7 @@ VoiceInput does NOT auto-submit. The game decides when to check the answer. Comm
 **A. Separate Submit button (recommended):**
 
 ```javascript
-document.getElementById('submit-btn').addEventListener('click', function() {
+document.getElementById("submit-btn").addEventListener("click", function () {
   handleSubmit();
 });
 ```
@@ -107,7 +111,7 @@ document.getElementById('submit-btn').addEventListener('click', function() {
 **B. Listen for transcript event (auto-submit after voice):**
 
 ```javascript
-voiceInput.on('input_change', function(data) {
+voiceInput.on("input_change", function (data) {
   // Auto-submit after voice transcription completes (optional)
   if (data.value && !voiceInput.isRecording && !voiceInput.isLoading) {
     handleSubmit();
@@ -118,12 +122,14 @@ voiceInput.on('input_change', function(data) {
 **C. Hybrid — submit button for keyboard, auto-submit for voice:**
 
 ```javascript
-voiceInput.on('transcript', function(data) {
+voiceInput.on("transcript", function (data) {
   // Voice completed — auto-submit
-  setTimeout(function() { handleSubmit(); }, 500); // Brief delay so user sees the text
+  setTimeout(function () {
+    handleSubmit();
+  }, 500); // Brief delay so user sees the text
 });
 
-document.getElementById('submit-btn').addEventListener('click', function() {
+document.getElementById("submit-btn").addEventListener("click", function () {
   handleSubmit();
 });
 ```
@@ -136,39 +142,39 @@ This is the subset game code normally uses. The package may emit additional even
 
 ### Methods
 
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `getValue()` | `string` | Current input text |
-| `setValue(text)` | `void` | Set input text programmatically |
-| `clear()` | `void` | Clear input (equivalent to `setValue('')`) |
-| `markCorrect()` | `void` | Green background — call after correct answer |
-| `markWrong()` | `void` | Red background — call after wrong answer |
-| `clearMark()` | `void` | Reset to neutral background |
-| `cancelRecording()` | `void` | Cancel an in-flight recording; useful on visibility/phase changes |
-| `disable()` | `void` | Disable all interaction (cancels recording if active) |
-| `enable()` | `void` | Re-enable interaction |
-| `highlight()` | `void` | Add blue glow around wrapper (for attention/hint) |
-| `unhighlight()` | `void` | Remove blue glow |
-| `destroy()` | `void` | Full cleanup — removes DOM, event listeners, drawer |
-| `on(event, fn)` | `void` | Subscribe to an event |
-| `off(event, fn)` | `void` | Unsubscribe from an event |
+| Method              | Returns  | Description                                                       |
+| ------------------- | -------- | ----------------------------------------------------------------- |
+| `getValue()`        | `string` | Current input text                                                |
+| `setValue(text)`    | `void`   | Set input text programmatically                                   |
+| `clear()`           | `void`   | Clear input (equivalent to `setValue('')`)                        |
+| `markCorrect()`     | `void`   | Green background — call after correct answer                      |
+| `markWrong()`       | `void`   | Red background — call after wrong answer                          |
+| `clearMark()`       | `void`   | Reset to neutral background                                       |
+| `cancelRecording()` | `void`   | Cancel an in-flight recording; useful on visibility/phase changes |
+| `disable()`         | `void`   | Disable all interaction (cancels recording if active)             |
+| `enable()`          | `void`   | Re-enable interaction                                             |
+| `highlight()`       | `void`   | Add blue glow around wrapper (for attention/hint)                 |
+| `unhighlight()`     | `void`   | Remove blue glow                                                  |
+| `destroy()`         | `void`   | Full cleanup — removes DOM, event listeners, drawer               |
+| `on(event, fn)`     | `void`   | Subscribe to an event                                             |
+| `off(event, fn)`    | `void`   | Unsubscribe from an event                                         |
 
 ### Read-only Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `value` | `string` | Current input text (same as `getValue()`) |
-| `isRecording` | `boolean` | Whether mic is actively recording |
-| `isLoading` | `boolean` | Whether transcription is in progress |
+| Property      | Type      | Description                               |
+| ------------- | --------- | ----------------------------------------- |
+| `value`       | `string`  | Current input text (same as `getValue()`) |
+| `isRecording` | `boolean` | Whether mic is actively recording         |
+| `isLoading`   | `boolean` | Whether transcription is in progress      |
 
 ### Events Used by Games
 
-| Event | Payload | When |
-|-------|---------|------|
-| `input_change` | `{ value: string }` | Every keystroke or transcription result |
-| `transcript` | `{ text: string, fullText: string }` | After successful voice transcription. `text` = this transcription only. `fullText` = full textarea value including previous text |
-| `error` | `{ type: string, message: string }` | On any error. Types: `permission_denied`, `mic_error`, `no_audio`, `transcription_empty`, `transcription_failed`, `timeout` |
-| `permission_change` | `{ permitted: boolean }` | When microphone permission state changes |
+| Event               | Payload                              | When                                                                                                                             |
+| ------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `input_change`      | `{ value: string }`                  | Every keystroke or transcription result                                                                                          |
+| `transcript`        | `{ text: string, fullText: string }` | After successful voice transcription. `text` = this transcription only. `fullText` = full textarea value including previous text |
+| `error`             | `{ type: string, message: string }`  | On any error. Types: `permission_denied`, `mic_error`, `no_audio`, `transcription_empty`, `transcription_failed`, `timeout`      |
+| `permission_change` | `{ permitted: boolean }`             | When microphone permission state changes                                                                                         |
 
 ---
 
@@ -196,7 +202,7 @@ If a bug depends on exact drawer, sound, subtitle, permission, or pause behavior
 // In loadRound():
 function loadRound() {
   var round = getRounds()[gameState.currentRound];
-  document.getElementById('question-text').textContent = round.question;
+  document.getElementById("question-text").textContent = round.question;
 
   // Single source of truth for re-enabling inputs after a correct/wrong answer.
   // Never re-enable inputs in the submit handler after TTS — only here.
@@ -206,8 +212,13 @@ function loadRound() {
   voiceInput.enable();
   // Defense-in-depth: CDN enable() doesn't always clear disabled/readOnly
   // on the textarea. Do it explicitly to match the disable() path.
-  var ta = document.querySelector('.voice-input-wrapper textarea, #voice-input-area textarea');
-  if (ta) { ta.disabled = false; ta.readOnly = false; }
+  var ta = document.querySelector(
+    ".voice-input-wrapper textarea, #voice-input-area textarea",
+  );
+  if (ta) {
+    ta.disabled = false;
+    ta.readOnly = false;
+  }
 }
 
 // In endGame():
@@ -217,7 +228,7 @@ function endGame(reason) {
 }
 
 // On page unload (optional but clean):
-window.addEventListener('beforeunload', function() {
+window.addEventListener("beforeunload", function () {
   voiceInput.destroy();
 });
 ```
@@ -260,13 +271,13 @@ Multiple VoiceInput instances on the same page share a single global permission 
 
 ## Anti-patterns
 
-| Do NOT | Why | Do instead |
-|--------|-----|-----------|
-| Read `document.querySelector('.vi-textarea').value` | Internal DOM — may differ from VoiceInput state during transcription | Use `voiceInput.value` or `voiceInput.getValue()` |
-| Add your own `<textarea>` or `<input>` for voice answers | Duplicates UI, confuses the student | Use VoiceInput — it includes the textarea |
-| Call `navigator.mediaDevices.getUserMedia()` | Conflicts with VoiceInput's permission management | VoiceInput handles this internally |
-| Style `.vi-*` classes directly | Package CSS may change; your overrides will break | Use `markCorrect()` / `markWrong()` / `highlight()` API |
-| Put HTML inside the container div | VoiceInput clears `innerHTML` on construction | Put sibling elements outside the container |
-| Forget to call `destroy()` when removing the component | Leaks drawer DOM + global click listener | Always call `destroy()` in cleanup |
-| Skip `disable()` during feedback playback | Student can record during TTS → audio collision | Always `disable()` before feedback, `enable()` after |
-| Rely on `voiceInput.disable()` alone to block typing | CDN disable() sets `_disabled` flag but leaves textarea typeable — student can keep typing during processing | Pair every `disable()` with `textarea.disabled = true; textarea.readOnly = true; textarea.blur()`. Pair every `enable()` with the matching clears |
+| Do NOT                                                   | Why                                                                                                          | Do instead                                                                                                                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read `document.querySelector('.vi-textarea').value`      | Internal DOM — may differ from VoiceInput state during transcription                                         | Use `voiceInput.value` or `voiceInput.getValue()`                                                                                                 |
+| Add your own `<textarea>` or `<input>` for voice answers | Duplicates UI, confuses the student                                                                          | Use VoiceInput — it includes the textarea                                                                                                         |
+| Call `navigator.mediaDevices.getUserMedia()`             | Conflicts with VoiceInput's permission management                                                            | VoiceInput handles this internally                                                                                                                |
+| Style `.vi-*` classes directly                           | Package CSS may change; your overrides will break                                                            | Use `markCorrect()` / `markWrong()` / `highlight()` API                                                                                           |
+| Put HTML inside the container div                        | VoiceInput clears `innerHTML` on construction                                                                | Put sibling elements outside the container                                                                                                        |
+| Forget to call `destroy()` when removing the component   | Leaks drawer DOM + global click listener                                                                     | Always call `destroy()` in cleanup                                                                                                                |
+| Skip `disable()` during feedback playback                | Student can record during TTS → audio collision                                                              | Always `disable()` before feedback, `enable()` after                                                                                              |
+| Rely on `voiceInput.disable()` alone to block typing     | CDN disable() sets `_disabled` flag but leaves textarea typeable — student can keep typing during processing | Pair every `disable()` with `textarea.disabled = true; textarea.readOnly = true; textarea.blur()`. Pair every `enable()` with the matching clears |

@@ -14,14 +14,15 @@ Every interaction handler MUST start with these three checks, in this order:
 
 ```javascript
 function handleInteraction() {
-  if (!gameState.isActive) return;      // Game not started or already ended
-  if (gameState.isProcessing) return;   // Input blocked during feedback/animation
-  if (gameState.gameEnded) return;      // endGame already called
+  if (!gameState.isActive) return; // Game not started or already ended
+  if (gameState.isProcessing) return; // Input blocked during feedback/animation
+  if (gameState.gameEnded) return; // endGame already called
   // ... proceed
 }
 ```
 
 **Missing any guard causes:**
+
 - `isActive` missing → interactions before game starts or after game ends.
 - `isProcessing` missing → double-tap, double-submit, double `recordAttempt`, **answer mutates during awaited feedback audio**.
 - `gameEnded` missing → interactions after `endGame` triggers `game_complete` postMessage.
@@ -32,26 +33,26 @@ The three guards apply to **every input modality** — tap, raw-pointer drag (P5
 
 The guards run from the handler's first line, but each modality has its own entry point:
 
-| Modality | Pattern(s) | Where the guards run |
-|---|---|---|
-| Tap / click / select | P1, P2, P3, P8, P9, P10, P11, P12, P14, P15, P16 | The handler's first line on the option/cell/button `click` |
-| Continuous drag (path) | P5 | First line on `pointerdown`; re-check inside `pointermove` / `pointerup` so an in-flight drag aborts cleanly |
-| Drag-and-drop (pick & place) | P6 | `@dnd-kit/dom` `manager.monitor` `dragstart` handler — call `event.preventDefault()` when any guard fails. Pair with `.dnd-disabled` class on the board (sets `pointer-events: none` on draggables) for visual affordance. |
-| Directional drag (constrained) | P13 | First line on `pointerdown`; re-check inside `pointermove` / `pointerup` |
-| Text / number input | P7 | First line on `keydown` (Enter) + `click` (Submit); input element retains focus but submit is rejected |
-| Voice input | P17 | First line on the Submit click. Around the awaited window: `voiceInput.disable()` + explicit `textarea.disabled = true; textarea.readOnly = true; textarea.blur()` (defensive bundle — `disable()` alone does NOT reliably block typing). Matching re-enable in `renderRound()`, NOT in the submit handler. |
+| Modality                       | Pattern(s)                                       | Where the guards run                                                                                                                                                                                                                                                                                        |
+| ------------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tap / click / select           | P1, P2, P3, P8, P9, P10, P11, P12, P14, P15, P16 | The handler's first line on the option/cell/button `click`                                                                                                                                                                                                                                                  |
+| Continuous drag (path)         | P5                                               | First line on `pointerdown`; re-check inside `pointermove` / `pointerup` so an in-flight drag aborts cleanly                                                                                                                                                                                                |
+| Drag-and-drop (pick & place)   | P6                                               | `@dnd-kit/dom` `manager.monitor` `dragstart` handler — call `event.preventDefault()` when any guard fails. Pair with `.dnd-disabled` class on the board (sets `pointer-events: none` on draggables) for visual affordance.                                                                                  |
+| Directional drag (constrained) | P13                                              | First line on `pointerdown`; re-check inside `pointermove` / `pointerup`                                                                                                                                                                                                                                    |
+| Text / number input            | P7                                               | First line on `keydown` (Enter) + `click` (Submit); input element retains focus but submit is rejected                                                                                                                                                                                                      |
+| Voice input                    | P17                                              | First line on the Submit click. Around the awaited window: `voiceInput.disable()` + explicit `textarea.disabled = true; textarea.readOnly = true; textarea.blur()` (defensive bundle — `disable()` alone does NOT reliably block typing). Matching re-enable in `renderRound()`, NOT in the submit handler. |
 
 ### When to set `isProcessing` true / false
 
-| Context | Set true | Set false | Notes |
-|---|---|---|---|
-| **Single-step submit handler** (P1, P7, P17, P9 submit, P10 submit) | BEFORE any await (LLM eval / awaited SFX / awaited dynamic TTS) | In `renderRound()` / `loadRound()` for the next round — NEVER in the submit handler | Both SFX and dynamic TTS are awaited (feedback-skill canonical rule + validator `GEN-FEEDBACK-TTS-AWAIT`). The full awaited-feedback window is blocked. Exceptions: API-failure path (can't advance) and terminal game-over re-enable in-handler. |
-| **Multi-step round-complete / puzzle-complete** (P2, P3, P5, P6, P8, P10, P11, P12, P13, P14, P15, P16) | BEFORE the awaited SFX / TTS in the completion handler | In the next `renderRound()` / `loadRound()` | Same rule as single-step submit — round-complete is a terminal moment, not mid-round. |
-| **Multi-step mid-round** (per-tap, per-drop, per-move, per-match SFX) | Do NOT set | n/a | Mid-round SFX is fire-and-forget; the student must continue interacting through it. Setting `isProcessing` here is anti-pattern #11 in `SKILL.md`. |
-| **Transition sequence** (round-intro, level-intro, end-game with CTA) | Inside the transition handler, before its awaited audio | After the last awaited audio resolves — the `transitionScreen` owns its own lifecycle | Different from submit handlers because `transitionScreen` owns the re-enable surface, not `renderRound()`. |
-| **Brief animation / evaluation block** (P3 wrong flash, P6 invalid-drop return) | When the animation starts | When the animation clears (~100 ms correct, 600 ms wrong) | Short-lived; not coupled to audio. |
+| Context                                                                                                 | Set true                                                        | Set false                                                                             | Notes                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Single-step submit handler** (P1, P7, P17, P9 submit, P10 submit)                                     | BEFORE any await (LLM eval / awaited SFX / awaited dynamic TTS) | In `renderRound()` / `loadRound()` for the next round — NEVER in the submit handler   | Both SFX and dynamic TTS are awaited (feedback-skill canonical rule + validator `GEN-FEEDBACK-TTS-AWAIT`). The full awaited-feedback window is blocked. Exceptions: API-failure path (can't advance) and terminal game-over re-enable in-handler. |
+| **Multi-step round-complete / puzzle-complete** (P2, P3, P5, P6, P8, P10, P11, P12, P13, P14, P15, P16) | BEFORE the awaited SFX / TTS in the completion handler          | In the next `renderRound()` / `loadRound()`                                           | Same rule as single-step submit — round-complete is a terminal moment, not mid-round.                                                                                                                                                             |
+| **Multi-step mid-round** (per-tap, per-drop, per-move, per-match SFX)                                   | Do NOT set                                                      | n/a                                                                                   | Mid-round SFX is fire-and-forget; the student must continue interacting through it. Setting `isProcessing` here is anti-pattern #11 in `SKILL.md`.                                                                                                |
+| **Transition sequence** (round-intro, level-intro, end-game with CTA)                                   | Inside the transition handler, before its awaited audio         | After the last awaited audio resolves — the `transitionScreen` owns its own lifecycle | Different from submit handlers because `transitionScreen` owns the re-enable surface, not `renderRound()`.                                                                                                                                        |
+| **Brief animation / evaluation block** (P3 wrong flash, P6 invalid-drop return)                         | When the animation starts                                       | When the animation clears (~100 ms correct, 600 ms wrong)                             | Short-lived; not coupled to audio.                                                                                                                                                                                                                |
 
-**Why the in-handler clear is forbidden for submit:** if `isProcessing` re-enables before `renderRound()` paints the next round, the student can submit again on the *current* round's still-rendered buttons during the brief window before the next round paints. The next round's render is the only moment where re-enabling is safe.
+**Why the in-handler clear is forbidden for submit:** if `isProcessing` re-enables before `renderRound()` paints the next round, the student can submit again on the _current_ round's still-rendered buttons during the brief window before the next round paints. The next round's render is the only moment where re-enabling is safe.
 
 **Why the answer mustn't mutate during awaited audio:** `recordAttempt` captured one answer, but if the student can still interact, `gameState` may end up reflecting another. Scoring drifts from telemetry, double-submits fire, and feedback audio contradicts the current screen.
 
@@ -84,9 +85,10 @@ State: CHAIN_DONE
 ```
 
 **State fields:**
+
 ```javascript
-gameState.currentChainIndex = -1;   // Which chain is being built (-1 = none)
-gameState.selectedTiles = [];       // Tile indices in current chain
+gameState.currentChainIndex = -1; // Which chain is being built (-1 = none)
+gameState.selectedTiles = []; // Tile indices in current chain
 gameState.completedTiles = new Set(); // All tiles in completed chains
 gameState.completedChainIndices = new Set();
 gameState.chainsFound = 0;
@@ -117,15 +119,17 @@ State: EVALUATING
 ```
 
 **State fields:**
+
 ```javascript
-gameState.selectedLeftIndex = null;       // Currently selected left item (null = none)
-gameState.matchedPairs = new Set();       // Left indices already matched
+gameState.selectedLeftIndex = null; // Currently selected left item (null = none)
+gameState.matchedPairs = new Set(); // Left indices already matched
 ```
 
 **Memory Match variant:**
+
 ```javascript
-gameState.flippedCards = [];              // Currently flipped (max 2)
-gameState.matchedCards = new Set();       // Card indices already matched
+gameState.flippedCards = []; // Currently flipped (max 2)
+gameState.matchedCards = new Set(); // Card indices already matched
 ```
 
 ### Pattern 4: ~~Tap + Swipe~~ — DEPRECATED
@@ -161,11 +165,12 @@ State: COMPLETE
 ```
 
 **State fields:**
+
 ```javascript
-gameState.path = [];                    // Array of {row, col}
-gameState.isDragging = false;           // True while finger is down
-gameState.startCell = {row: 0, col: 0};
-gameState.endCell = {row: N, col: M};
+gameState.path = []; // Array of {row, col}
+gameState.isDragging = false; // True while finger is down
+gameState.startCell = { row: 0, col: 0 };
+gameState.endCell = { row: N, col: M };
 gameState.totalCells = N * M;
 ```
 
@@ -183,7 +188,7 @@ Chain games don't have user-initiated undo. When a wrong tile is tapped, the ent
 
 ```javascript
 // On wrong tap:
-gameState.selectedTiles.forEach(function(idx) {
+gameState.selectedTiles.forEach(function (idx) {
   clearHighlight(idx);
 });
 gameState.selectedTiles = [];
@@ -198,11 +203,11 @@ Two-Phase Match allows changing the first selection before the second tap:
 ```javascript
 // In handleLeftClick:
 // Remove .selected from previous
-document.querySelectorAll('.left-cell.selected').forEach(function(el) {
-  el.classList.remove('selected');
+document.querySelectorAll(".left-cell.selected").forEach(function (el) {
+  el.classList.remove("selected");
 });
 // Apply .selected to new
-cell.classList.add('selected');
+cell.classList.add("selected");
 gameState.selectedLeftIndex = newIndex;
 ```
 
@@ -247,9 +252,9 @@ Click-to-Toggle has built-in undo — click the same cell again:
 
 ```javascript
 if (gameState.grid[row][col] === null) {
-  gameState.grid[row][col] = value;  // Fill
+  gameState.grid[row][col] = value; // Fill
 } else {
-  gameState.grid[row][col] = null;   // Unfill (undo)
+  gameState.grid[row][col] = null; // Unfill (undo)
 }
 ```
 
@@ -261,15 +266,15 @@ Optional reset button restores the board to its initial state (free, no life cos
 
 Beyond the universal three, each pattern has additional guards:
 
-| Pattern | Additional guards |
-|---------|------------------|
-| Sequential Chain | `completedTiles.has(tileIndex)`, `phase !== 'playing'` |
-| Two-Phase Match | `selectedLeftIndex === null` (for right click), `matchedPairs.has(index)`, `.disabled` class |
-| ~~Tap + Swipe~~ | **DEPRECATED** |
-| Continuous Drag | `isDragging` (for pointermove), `isInPath(row, col)` (prevent revisit) |
-| Drag-and-Drop | `@dnd-kit/dom` `manager.monitor` `dragstart` runs the universal guards and calls `event.preventDefault()` to cancel the drag; subsequent guards: location-tracking entry exists, droppable not already occupied (per spec), tag not already `.matched`. `pointercancel` is handled inside `@dnd-kit/dom` — do not bolt on a manual handler. |
-| Text Input | `value.trim() === ''` (empty input) |
-| Click-to-Toggle | `solved`, `lockedCells[r][c]` (pre-filled clue cells) |
+| Pattern          | Additional guards                                                                                                                                                                                                                                                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sequential Chain | `completedTiles.has(tileIndex)`, `phase !== 'playing'`                                                                                                                                                                                                                                                                                      |
+| Two-Phase Match  | `selectedLeftIndex === null` (for right click), `matchedPairs.has(index)`, `.disabled` class                                                                                                                                                                                                                                                |
+| ~~Tap + Swipe~~  | **DEPRECATED**                                                                                                                                                                                                                                                                                                                              |
+| Continuous Drag  | `isDragging` (for pointermove), `isInPath(row, col)` (prevent revisit)                                                                                                                                                                                                                                                                      |
+| Drag-and-Drop    | `@dnd-kit/dom` `manager.monitor` `dragstart` runs the universal guards and calls `event.preventDefault()` to cancel the drag; subsequent guards: location-tracking entry exists, droppable not already occupied (per spec), tag not already `.matched`. `pointercancel` is handled inside `@dnd-kit/dom` — do not bolt on a manual handler. |
+| Text Input       | `value.trim() === ''` (empty input)                                                                                                                                                                                                                                                                                                         |
+| Click-to-Toggle  | `solved`, `lockedCells[r][c]` (pre-filled clue cells)                                                                                                                                                                                                                                                                                       |
 
 ---
 
@@ -285,19 +290,19 @@ function loadRound() {
   gameState.roundStartTime = Date.now();
 
   // Pattern-specific reset (examples — keep only the lines a pattern in this game uses)
-  gameState.currentChainIndex = -1;       // P2 Chain
-  gameState.selectedTiles = [];            // P2 Chain
-  gameState.completedTiles = new Set();    // P2 Chain
-  gameState.selectedLeftIndex = null;      // P3 Match
-  gameState.matchedPairs = new Set();      // P3 Match
-  gameState.moveHistory = [];              // P13 directional drag (undo stack)
-  gameState.moveCount = 0;                 // P13 directional drag
-  gameState.solved = false;               // Puzzle
-  gameState.path = [];                    // P5 drag path
-  gameState.isDragging = false;           // P5 drag path
-  gameState.flippedCards = [];            // P3 memory variant
-  gameState.placedItems = 0;              // P6 DnD
-  gameState.locations = {};               // P6 DnD — game-controlled tag-id → 'bank'|'zone-N' map (replaces the old dragItem field)
+  gameState.currentChainIndex = -1; // P2 Chain
+  gameState.selectedTiles = []; // P2 Chain
+  gameState.completedTiles = new Set(); // P2 Chain
+  gameState.selectedLeftIndex = null; // P3 Match
+  gameState.matchedPairs = new Set(); // P3 Match
+  gameState.moveHistory = []; // P13 directional drag (undo stack)
+  gameState.moveCount = 0; // P13 directional drag
+  gameState.solved = false; // Puzzle
+  gameState.path = []; // P5 drag path
+  gameState.isDragging = false; // P5 drag path
+  gameState.flippedCards = []; // P3 memory variant
+  gameState.placedItems = 0; // P6 DnD
+  gameState.locations = {}; // P6 DnD — game-controlled tag-id → 'bank'|'zone-N' map (replaces the old dragItem field)
   // P6 DnD lifecycle: destroy previous manager + draggables + droppables here, then create new ones for this round.
 
   syncDOM();
@@ -320,23 +325,23 @@ function resetGame() {
   // ... universal reset block (PART-005 / game-building) ...
 
   // Pattern-specific state — keep only the lines relevant to your game's patterns
-  gameState.currentChainIndex = -1;            // P2
-  gameState.selectedTiles = [];                 // P2
-  gameState.completedTiles = new Set();         // P2
-  gameState.completedChainIndices = new Set();  // P2
-  gameState.chainsFound = 0;                    // P2
-  gameState.selectedLeftIndex = null;           // P3
-  gameState.matchedPairs = new Set();           // P3
-  gameState.flippedCards = [];                  // P3 memory variant
-  gameState.matchedCards = new Set();           // P3 memory variant
-  gameState.path = [];                          // P5
-  gameState.isDragging = false;                 // P5
-  gameState.placedItems = 0;                    // P6
-  gameState.locations = {};                     // P6 — tag-id → 'bank'|'zone-N'
+  gameState.currentChainIndex = -1; // P2
+  gameState.selectedTiles = []; // P2
+  gameState.completedTiles = new Set(); // P2
+  gameState.completedChainIndices = new Set(); // P2
+  gameState.chainsFound = 0; // P2
+  gameState.selectedLeftIndex = null; // P3
+  gameState.matchedPairs = new Set(); // P3
+  gameState.flippedCards = []; // P3 memory variant
+  gameState.matchedCards = new Set(); // P3 memory variant
+  gameState.path = []; // P5
+  gameState.isDragging = false; // P5
+  gameState.placedItems = 0; // P6
+  gameState.locations = {}; // P6 — tag-id → 'bank'|'zone-N'
   // P6 also: destroy + recreate @dnd-kit/dom manager + draggables + droppables on restart.
-  gameState.moveHistory = [];                   // P13
-  gameState.moveCount = 0;                      // P13
-  gameState.solved = false;                     // puzzle patterns (P5, P8, P13, P14, P15)
+  gameState.moveHistory = []; // P13
+  gameState.moveCount = 0; // P13
+  gameState.solved = false; // puzzle patterns (P5, P8, P13, P14, P15)
 }
 ```
 
@@ -348,13 +353,13 @@ Wire-up (`window.restartGame = resetGame`, `syncDOM()`, `render()` ordering) is 
 
 `phase` is a shared field with multiple owners. The values below are the only ones any handler in this skill checks against:
 
-| Value | Set by | What it gates |
-|---|---|---|
-| `'start_screen'` | game-building lifecycle (initial state, restart) | All gameplay handlers return early |
-| `'observing'` | observe-modifier `startObservePhase()` | Every interaction handler returns early (P1, P3, P7, P8, P16 inside an observe wrapper) |
-| `'responding'` | observe-modifier when observe completes | Normal handlers run |
-| `'gameplay'` | game-building when the first round renders | Normal handlers run |
-| `'results'` / `'gameover'` | feedback skill `endGame(reason)` | All gameplay handlers return early; `transitionScreen` owns the surface |
+| Value                      | Set by                                           | What it gates                                                                           |
+| -------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `'start_screen'`           | game-building lifecycle (initial state, restart) | All gameplay handlers return early                                                      |
+| `'observing'`              | observe-modifier `startObservePhase()`           | Every interaction handler returns early (P1, P3, P7, P8, P16 inside an observe wrapper) |
+| `'responding'`             | observe-modifier when observe completes          | Normal handlers run                                                                     |
+| `'gameplay'`               | game-building when the first round renders       | Normal handlers run                                                                     |
+| `'results'` / `'gameover'` | feedback skill `endGame(reason)`                 | All gameplay handlers return early; `transitionScreen` owns the surface                 |
 
 If a game introduces a new phase, document it in its spec and add an explicit guard. Do NOT reuse `gameState.phase` as a generic state machine for pattern-internal sub-modes — use a pattern-specific field (`gameState.currentStep`, `gameState.selectedLeftIndex`, etc.) instead, so phase remains a stable, cross-skill enum.
 
@@ -404,14 +409,14 @@ Modifier docs treat phase and `currentStep` independently because they DO compos
 
 When something out of the interaction layer's control fails, what does the student see? The interaction skill enforces graceful degradation, not error recovery — recovery lives in the feedback / data-contract / mobile skills. The table below lists the interaction-layer behaviour for each known failure:
 
-| Failure | Interaction-layer behaviour |
-|---|---|
-| `voiceInput.value` is `undefined` (CDN package failed to load) | `handleSubmit` early-returns on empty/missing value (existing guard `if (!value) return;`). No telemetry mutation, no audio, no advance — the student can re-tap submit when the package recovers. Surface a load-failure banner via game scaffolding, not here. |
-| `FeedbackManager.sound.play()` rejects synchronously during a mid-drag tap SFX | `.catch(function(){})` suppresses it (fire-and-forget). The drag continues uninterrupted. No `isProcessing` flip. |
+| Failure                                                                           | Interaction-layer behaviour                                                                                                                                                                                                                                      |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `voiceInput.value` is `undefined` (CDN package failed to load)                    | `handleSubmit` early-returns on empty/missing value (existing guard `if (!value) return;`). No telemetry mutation, no audio, no advance — the student can re-tap submit when the package recovers. Surface a load-failure banner via game scaffolding, not here. |
+| `FeedbackManager.sound.play()` rejects synchronously during a mid-drag tap SFX    | `.catch(function(){})` suppresses it (fire-and-forget). The drag continues uninterrupted. No `isProcessing` flip.                                                                                                                                                |
 | `manager.monitor.addEventListener` throws because `@dnd-kit/dom` partially loaded | The game's `waitForPackages()` should not have completed — round render is gated on a successful library load. If the throw happens after a successful initial load (rare), wrap the per-round setup in `try/catch` and surface a banner; do not silently no-op. |
-| `pointercancel` fires during a P5/P13 drag (OS interruption) | Same cleanup as `pointerup`; no telemetry mutation, no audio. Student can re-press to resume (P5) or re-grab the block (P13). |
-| Awaited dynamic TTS rejects mid-handler | The submit handler's `try { await ... } catch (e) { console.error(...) }` block catches it; round advance proceeds via `renderRound()` (TTS failure does NOT block flow per feedback-skill canonical rule, but does NOT mutate scoring either). |
-| Round transition fires while a drag is in flight | See § "In-flight drag colliding with `loadRound()` / `endGame()`" above. |
+| `pointercancel` fires during a P5/P13 drag (OS interruption)                      | Same cleanup as `pointerup`; no telemetry mutation, no audio. Student can re-press to resume (P5) or re-grab the block (P13).                                                                                                                                    |
+| Awaited dynamic TTS rejects mid-handler                                           | The submit handler's `try { await ... } catch (e) { console.error(...) }` block catches it; round advance proceeds via `renderRound()` (TTS failure does NOT block flow per feedback-skill canonical rule, but does NOT mutate scoring either).                  |
+| Round transition fires while a drag is in flight                                  | See § "In-flight drag colliding with `loadRound()` / `endGame()`" above.                                                                                                                                                                                         |
 
 The above is intentionally short — feedback skill's audit added a comprehensive fallback table for the audio system. Interaction-layer failures are dominated by "guard rejected the action; nothing happened", which is the desired behaviour.
 
@@ -423,7 +428,7 @@ Every visual state class listed in `tap-interaction.md` §1.4 (`.selected`, `.ma
 
 - A class added during round N must be cleared before round N+1 renders.
 - `renderRound()` / `loadRound()` removes every transient class added during the previous round (typically via `document.querySelectorAll(...).forEach(el => el.classList.remove(...))` or by re-rendering the grid's `innerHTML`).
-- A class added as part of a *terminal* state (`.matched`, `.completed`, `.cell-locked`) is cleared only on `restartGame()` and on the start of the next round (since the next round's items are fresh).
+- A class added as part of a _terminal_ state (`.matched`, `.completed`, `.cell-locked`) is cleared only on `restartGame()` and on the start of the next round (since the next round's items are fresh).
 - `.constraint-violation` MUST clear when the violating cell is corrected — do NOT leave it stuck until next round. (Anti-pattern: stale `.constraint-violation` painting a now-valid cell red.)
 
 This pairs with the feedback skill's "cleanup between rounds" rule for audio/subtitle/sticker. Together they form the user-POV invariant: **the previous round's visual + audio state is gone before the next round paints.**
@@ -434,11 +439,11 @@ This pairs with the feedback skill's "cleanup between rounds" rule for audio/sub
 
 Most telemetry lives in the data-contract skill (`recordAttempt`, `signalCollector`, `postGameComplete`). The interaction layer adds a few signals worth logging when builders need to debug interaction-specific bugs:
 
-| Event | When to log | Tag |
-|---|---|---|
-| Drag cancelled by OS / palm rejection | `pointercancel` fires while `isDragging === true` | `console.warn('interaction: pointercancel during drag', { pattern, path })` |
-| Drag started during awaited feedback (guard caught it) | `pointerdown` / `dragstart` returned because `isProcessing === true` | `console.warn('interaction: drag blocked by isProcessing', { pattern })` |
-| Double-tap rejected | A tap handler returned because `isProcessing === true` within < 100 ms of the previous tap | `console.warn('interaction: double-tap rejected', { pattern, ms })` |
-| Voice input value submitted while CDN package unavailable | `voiceInput.value === undefined` at submit | `console.error('interaction: voiceInput not loaded', { round })` |
+| Event                                                     | When to log                                                                                | Tag                                                                         |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Drag cancelled by OS / palm rejection                     | `pointercancel` fires while `isDragging === true`                                          | `console.warn('interaction: pointercancel during drag', { pattern, path })` |
+| Drag started during awaited feedback (guard caught it)    | `pointerdown` / `dragstart` returned because `isProcessing === true`                       | `console.warn('interaction: drag blocked by isProcessing', { pattern })`    |
+| Double-tap rejected                                       | A tap handler returned because `isProcessing === true` within < 100 ms of the previous tap | `console.warn('interaction: double-tap rejected', { pattern, ms })`         |
+| Voice input value submitted while CDN package unavailable | `voiceInput.value === undefined` at submit                                                 | `console.error('interaction: voiceInput not loaded', { round })`            |
 
 These are advisory — they help post-mortem a bug, not gate a build. No validator enforces them. Game scaffolding can route them to a real telemetry pipe if desired.

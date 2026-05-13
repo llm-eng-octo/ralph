@@ -146,6 +146,27 @@ If you (the spec author) genuinely think `false` is right for a game and the cre
 
 **`Defaults Applied` rule:** the `Defaults Applied` section MUST NOT contain an `answerComponent` entry unless the creator EXPLICITLY requested the opt-out. The default-fill for `answerComponent` is always `true` and silent; only `false` is ever surfaced — and only when creator-requested, in which case it belongs in the spec body, not in Defaults Applied.
 
+**Top-level spec field — `autoSubmit` (default `false` — NEVER auto-default to `true`):**
+When absent or `false`, the generated game ships manual Submit + Retry/Try-Again buttons per [PART-050](../../parts/PART-050.md) visibility rules (this is the default). When explicitly `true`, the build emits NO Submit button and NO Retry button — the game evaluates internally (timer expiry, drag-to-commit drop handler, canvas commit, etc.) and calls `endGame(correct)` directly.
+
+**`autoSubmit` governs only the Submit and Retry/Try-Again buttons.** The Next button is unaffected — `FloatingButtonComponent` stays instantiated and reveals Next at end-of-game so `next_ended` still posts to the iframe host. (For the deeper opt-out that removes the entire component including Next, see [PART-050 § Opt-out (`floatingButton: false`)](../../parts/PART-050.md#opt-out-floatingbutton-false) — reserved for games that hand-roll a [PART-022](../../parts/PART-022.md) `next_ended` CTA.)
+
+**`autoSubmit: true` is a CREATOR-ONLY decision — the spec author MUST NOT auto-fill it.** Setting `true` is reserved exclusively for cases where the creator's prompt EXPLICITLY says one of:
+- "no submit button", "no buttons", "auto-submit", or equivalent direct opt-in language;
+- "auto-advance on timer", "timer-driven evaluation" (and the spec actually has a timer that fires the evaluation);
+- "drag-to-commit", "drop-to-commit", "dropping the tile submits the answer" — and ONLY if the creator volunteered this themselves;
+- "canvas commits the answer", "sandbox-only", or equivalent no-CTA framing.
+
+If the creator's prompt does NOT mention CTA presence at all, `autoSubmit` defaults to `false` and the buttons ship. **Do not infer `true` from any of these (all WRONG):**
+- ❌ "It's a drag game, dragging IS the commit, no Submit needed" — drag and Submit coexist by default; the drop is interaction, the Submit tap is commit. Default to `false` unless the creator explicitly opts out.
+- ❌ "There's a timer, so let auto-advance happen" — timers and Submit coexist; the Submittable predicate consults the timeout flag per [PART-050 § Mandatory rules](../../parts/PART-050.md#mandatory-rules) (rule 6). Default to `false`.
+- ❌ "Creator was silent on CTAs, so I'll opt out" — silence means default. Default to `false`.
+- ❌ "Fast-paced game, a button would slow it down" — pedagogy/feel inference, NOT a creator decision. Default to `false`.
+
+If you (the spec author) genuinely think `true` is right for a game and the creator was silent, **ASK the creator before writing it** — don't auto-fill. Auto-filled `true` strips the canonical Submit/Retry surface every game ships by default.
+
+**`Defaults Applied` rule:** the `Defaults Applied` section MUST NOT contain an `autoSubmit` entry unless the creator EXPLICITLY requested the opt-in. The default-fill for `autoSubmit` is always `false` and silent; only `true` is ever surfaced — and only when creator-requested, in which case it belongs in the spec body, not in Defaults Applied.
+
 **Per-round `answer` field (required when `answerComponent !== false`):**
 Each round in `rounds[]` MUST carry an `answer` payload that the AnswerComponent will render in its slide. The shape is **game-specific** — define it once in this spec section and use it consistently across every round. The component is dumb about types; the game's `renderAnswerForRound(round, container)` function maps the payload to the evaluated DOM (drop-zones in solved state, solved grid, correct chip highlighted, etc. — NOT the input affordances). Document the exact JSON shape under the round example, e.g. `answer: { queens: [{r,c}, ...] }` for a grid game, `answer: { 'zone-A': 'tile-3', ... }` for drag-drop, `answer: { correct: 2, explanation: '...' }` for MCQ-with-worked-example.
 

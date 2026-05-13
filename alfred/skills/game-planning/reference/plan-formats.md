@@ -161,7 +161,7 @@ List every distinct round type.
    c. `await FeedbackManager.sound.play('correct_sound_effect', {sticker})` — awaited (short ~1s)
    d. `await FeedbackManager.playDynamicFeedback({audio_content: '[context-aware explanation]', subtitle: '[same text]', sticker})` — awaited; next-round transition waits until TTS resolves or returns a package failure status
    e. Score increments, score display bounces (scoreBounce 400ms)
-   f. Auto-advance to next round via `renderRound()` / `loadRound()` — which is the single source of truth for re-enabling inputs (`isProcessing = false`, `voiceInput.enable()`, etc.). DO NOT re-enable in the handler.
+   f. Auto-advance to next round via `renderRound()` / `loadRound()` — for the default advance path, `renderRound()` is the re-enable site (`isProcessing = false`, `.dnd-disabled` remove (P6), `voiceInput.enable()` (P17), `timer.resume()` (PART-006)). DO NOT re-enable in the handler for this path. Other retry paths (Try Again, multi-round explicit retry, API-failure) re-enable elsewhere — see [interaction/reference/state-and-guards.md § Lifecycle matrix](../../interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix).
 4alt. **Correct path (multi-step — SFX + sticker only):**
    a. Matched elements get `.selected-correct` styling
    b. `FeedbackManager.sound.play('correct_sound_effect', {sticker}).catch(...)` — fire-and-forget, NO dynamic TTS
@@ -175,7 +175,7 @@ List every distinct round type.
    f. `await FeedbackManager.playDynamicFeedback({audio_content: '[context-aware explanation]', subtitle: '[same text]', sticker})` — awaited; retry/advance waits until TTS resolves or returns a package failure status
    g. [If lives game: life decremented, progress bar updated, heart-break animation 600ms]
    h. [If lives = 0: ALWAYS play wrong SFX (awaited, Promise.all 1500ms min) BEFORE proceeding to game_over (feedback/SKILL.md Case 8) — never skip]
-   i. Student stays on same round — retries via `renderRound()` / `loadRound()` which re-enables inputs (single source of truth). DO NOT re-enable in the handler. Exception: API-failure path re-enables in-handler so user can retry.
+   i. Student stays on same round. Re-enable site depends on the retry UX pattern: `renderRound()` for multi-round predicate-driven (the default `roundRetryButton: false`), `on('retry')` handler for standalone Try Again (`Rounds: 1` + `Lives > 1`) or multi-round explicit retry button (`roundRetryButton: true`), catch branch for API-failure. Detailed per-shape × per-event timing in [interaction/reference/state-and-guards.md § Lifecycle matrix](../../interaction/reference/state-and-guards.md#interaction-lifecycle--canonical-matrix).
 5alt. **Wrong path (multi-step — SFX + sticker only):**
    a. Wrong element flashes `.selected-wrong`
    b. `FeedbackManager.sound.play('incorrect_sound_effect', {sticker}).catch(...)` — fire-and-forget, NO dynamic TTS

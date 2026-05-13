@@ -119,19 +119,21 @@ Use `display: none` (NOT `visibility: hidden` — `visibility` keeps the slot's 
 
 ```css
 /* CSS — required shape (any of pool/bank/tray + any of empty/collapsed/hidden + display:none) */
-.pool-slot.empty { display: none; }   /* or .bank-slot, .tray-slot */
+.pool-slot.empty {
+  display: none;
+} /* or .bank-slot, .tray-slot */
 ```
 
 ```javascript
 // JS — three call sites, no exceptions
 function placeOnSlot(tagId, zoneId) {
   // ... existing zone placement logic ...
-  bankSlots[tagId].classList.add('empty');     // collapse the source bank slot
+  bankSlots[tagId].classList.add("empty"); // collapse the source bank slot
 }
 
 function returnToBank(tagId) {
   // ... existing return-to-bank logic ...
-  bankSlots[tagId].classList.remove('empty');  // restore the bank slot
+  bankSlots[tagId].classList.remove("empty"); // restore the bank slot
 }
 
 // Initial render: slots start WITHOUT the .empty class (every tag visible in the bank).
@@ -166,11 +168,18 @@ Works flawlessly across desktop (mouse) and mobile (touch/swipe) without the scr
 <!-- ESM CDN: import PointerSensor and the constraints class from the SAME root package -->
 <script type="module">
   import {
-    DragDropManager, Draggable, Droppable,
-    PointerSensor, PointerActivationConstraints
-  } from 'https://esm.sh/@dnd-kit/dom@beta';
+    DragDropManager,
+    Draggable,
+    Droppable,
+    PointerSensor,
+    PointerActivationConstraints,
+  } from "https://esm.sh/@dnd-kit/dom@beta";
   window.__dndKitClasses = {
-    DragDropManager, Draggable, Droppable, PointerSensor, PointerActivationConstraints
+    DragDropManager,
+    Draggable,
+    Droppable,
+    PointerSensor,
+    PointerActivationConstraints,
   };
 </script>
 ```
@@ -181,11 +190,11 @@ var manager = new DragDropManager({
   sensors: [
     PointerSensor.configure({
       activationConstraints: [
-        new PointerActivationConstraints.Distance({ value: 3 })
+        new PointerActivationConstraints.Distance({ value: 3 }),
         // No `Delay` constraint — pickup activates after 3px of movement on both mouse and touch.
-      ]
-    })
-  ]
+      ],
+    }),
+  ],
 });
 ```
 
@@ -226,7 +235,6 @@ manager.monitor.addEventListener('dragstart', function(event) {
   }
   // ... proceed with drag setup
 });
-```
 
 - **Submit-based variants** (Math Crossword, Equation Grid, Kakuro): also toggle `.dnd-disabled` on the board (`pointer-events: none` on draggables) for visual affordance — cleared in `renderRound()`. The logical guard blocks the drag; the CSS class blocks the cursor-change affordance.
 - **Canonical submit-handler audio shape** is awaited SFX → awaited dynamic TTS (feedback-skill canonical rule + `GEN-FEEDBACK-TTS-AWAIT`). See the canonical single-step submit-handler template in [`p07-text-input.md`](./p07-text-input.md) — P6 submit handlers follow the same shape, with `boardEl.classList.add('dnd-disabled')` added in the pre-await block.
@@ -308,3 +316,4 @@ These are bugs that have occurred in generated P6 games. The LLM should understa
 | F5  | Bank doesn't re-center after tag removal      | Bank slot stays visible (taking up space) after tag is placed in a zone                                        | Collapse empty bank slots (e.g. via a CSS class); restore on tag return                           |
 | F6  | Answer mutates during feedback audio          | `dragstart` handler has no `isProcessing` guard; student picks up and drops a tag while awaited SFX + awaited dynamic TTS is playing  | Add universal guards to `dragstart`; toggle `.dnd-disabled` on the board while `gameState.isProcessing === true` (see Behaviour 9) |
 | F7  | Tag freezes mid-air after zone→bank return and can't be picked up again | `returnToBank()` / `returnChipToPoolSlot()` reparented the tag but forgot to clear inline drag styles (`position: fixed; left; top`) and drag classes (`chip-dragging`, `chip-lift`). Sibling functions (`placeInZone`, `cancelDrag`) did clear them — a silent asymmetry. If the drag class also sets `pointer-events: none`, the tag is un-pickable. | R4: factor drag-style cleanup into a single `resetDragStyling(el)` helper and call it from EVERY drop path — including the return-to-bank path. Add a Playwright step that drags seat→bank and then tries to re-pick-up the tag (real CDP mouse events, not `solveRound()` helpers that bypass the pointer flow). |
+```
