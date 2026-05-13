@@ -19,6 +19,8 @@ These are required, not optional. The base pattern below covers Enter/Submit and
 
 ### Event Handling
 
+> **`autoSubmit: true` fork.** If the spec declares `autoSubmit: true` ([PART-050 § `autoSubmit` spec flag](../../../../parts/PART-050.md#top-level-spec-flag--autosubmit)), the Enter/Submit handler shown below is REPLACED by an internal commit path (timer `onEnd`, drag-drop drop, canvas commit). Input handlers mutate `gameState` only — no `setSubmittable`, no `setMode('submit')`, no Submit button. See [code-patterns.md § `autoSubmit: true` input listener](../../../game-building/reference/code-patterns.md) for the canonical template. Validator: `GEN-AUTOSUBMIT-NO-SUBMITTABLE`.
+
 > The `handleSubmit` body below is the **canonical single-step submit-handler shape**. P17 (Voice Input) and P6 submit-variants (Math Crossword, Equation Grid, Kakuro) reference this same body and only apply the per-pattern deltas described in their files.
 >
 > Input element creation, mobile attributes, auto-focus, auto-growing width, and virtual-keyboard scroll behavior are mobile-owned. This example assumes the game already rendered `#answer-input` and `#submit-btn`.

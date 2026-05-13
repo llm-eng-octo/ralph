@@ -3028,7 +3028,100 @@ if (hasStartGame) {
     }
   }
 
-  // (4) 5e0-FLOATING-BUTTON-DUP — no custom Submit/Retry/Next/Check/Done/Commit
+  // (4) GEN-AUTOSUBMIT-NO-SUBMITTABLE — when spec.autoSubmit: true, the gameplay
+  //     code MUST NOT call setSubmittable(<anything except false>), setMode('submit'),
+  //     or floatingBtn.show(). Those would re-show the Submit button despite the
+  //     creator's opt-in to auto-evaluation. This is the INVERSE of the skip blocks
+  //     above (skip ≠ forbid). The allowed hide calls — setSubmittable(false),
+  //     setMode(null), hide() — remain available for the commit path to dismiss
+  //     transient state.
+  if (specOptOuts.autoSubmit === true) {
+    const autoSubmitViolations = [];
+    // Flag setSubmittable(<anything except literal false>).
+    const ssCallRe = /\.setSubmittable\s*\(/g;
+    let ssm;
+    while ((ssm = ssCallRe.exec(html)) !== null) {
+      const start = ssm.index + ssm[0].length;
+      let depth = 1;
+      let i = start;
+      while (i < html.length && depth > 0) {
+        const ch = html[i];
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+        if (depth === 0) break;
+        i++;
+      }
+      const arg = html.slice(start, i).trim();
+      if (arg === 'false') continue; // explicit hide is fine
+      autoSubmitViolations.push('setSubmittable(' + arg.slice(0, 60) + ')');
+      if (autoSubmitViolations.length >= 5) break;
+    }
+    // Flag setMode('submit') literal.
+    const smSubmitRe = /\.setMode\s*\(\s*['"]submit['"]\s*\)/g;
+    let smm;
+    while ((smm = smSubmitRe.exec(html)) !== null) {
+      autoSubmitViolations.push("setMode('submit')");
+      if (autoSubmitViolations.length >= 5) break;
+    }
+    // Flag floatingBtn.show() (equivalent to setMode('submit')).
+    const showRe = /\b(?:floatingBtn|floatingButton)\s*\.\s*show\s*\(\s*\)/g;
+    let shm;
+    while ((shm = showRe.exec(html)) !== null) {
+      autoSubmitViolations.push('floatingBtn.show()');
+      if (autoSubmitViolations.length >= 5) break;
+    }
+    if (autoSubmitViolations.length > 0) {
+      errors.push(
+        'ERROR [GEN-AUTOSUBMIT-NO-SUBMITTABLE]: spec declares `autoSubmit: true` but the build emitted ' +
+          autoSubmitViolations.length + ' call(s) that would re-show the Submit button: ' +
+          autoSubmitViolations.join('; ') + '. ' +
+          'Under autoSubmit:true the input handler MUST mutate gameState only — the commit handler ' +
+          '(timer onEnd, drop callback, canvas commit) calls endGame(correct) directly. ' +
+          'Allowed hide calls remain available: setSubmittable(false), setMode(null), hide(). ' +
+          'See PART-050 § Top-level spec flag — autoSubmit, code-patterns.md § autoSubmit input-listener template. ' +
+          '(GEN-AUTOSUBMIT-NO-SUBMITTABLE)'
+      );
+    }
+  }
+
+  // (4.5) GEN-FLOATING-BUTTON-MODE-STRING — setMode(...) accepts exactly four args:
+  //       'submit' | 'retry' | 'next' | null. Anything else (setMode('hidden'),
+  //       setMode(''), setMode(undefined), setMode('done')) is a silent no-op —
+  //       the component's switch falls through and the visible state never changes.
+  //       Catches regressions where the build emits string args that LOOK reasonable
+  //       but don't trigger a mode transition.
+  {
+    const allowedModeArgs = new Set([
+      "'submit'", '"submit"',
+      "'retry'", '"retry"',
+      "'next'", '"next"',
+      'null'
+    ]);
+    const modeRe = /\.setMode\s*\(\s*([^)]+?)\s*\)/g;
+    const modeViolations = [];
+    let mm;
+    while ((mm = modeRe.exec(html)) !== null) {
+      const rawArg = mm[1].trim();
+      // Only check literal args. Non-literal (variable / property access / function call)
+      // can't be statically resolved — skip to avoid false positives.
+      if (!/^(?:['"].*['"]|null|undefined)$/.test(rawArg)) continue;
+      if (allowedModeArgs.has(rawArg)) continue;
+      modeViolations.push('setMode(' + rawArg.slice(0, 40) + ')');
+      if (modeViolations.length >= 5) break;
+    }
+    if (modeViolations.length > 0) {
+      errors.push(
+        'ERROR [GEN-FLOATING-BUTTON-MODE-STRING]: floatingBtn.setMode(...) accepts only ' +
+          "'submit' / 'retry' / 'next' / null. Found " + modeViolations.length + ' invalid literal(s): ' +
+          modeViolations.join(', ') + '. ' +
+          "Common mistake: setMode('hidden') / setMode('') / setMode(undefined) are silent no-ops — the " +
+          "component's switch falls through and the visible state never changes. Use setMode(null) to hide. " +
+          '(PART-050 § States, GEN-FLOATING-BUTTON-MODE-STRING)'
+      );
+    }
+  }
+
+  // (5) 5e0-FLOATING-BUTTON-DUP — no custom Submit/Retry/Next/Check/Done/Commit
   //     button anywhere in the source when FloatingButton is also in use. We
   //     scan the same attributes as GEN-FLOATING-BUTTON-MISSING (id / class /
   //     data-testid / aria-label / innerText) with the same reserved-word list.

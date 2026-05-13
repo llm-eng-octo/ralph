@@ -344,6 +344,36 @@ Per PART-050. Game-building rules:
   floatingBtn.setSubmittable(gameState.placedTiles.length === gameState.expectedTiles);
   floatingBtn.setSubmittable(gameState.userInput.trim().length > 0);
   ```
+- **`autoSubmit: true` input listener — no `setSubmittable`, no `setMode('submit')`.** When the spec declares `autoSubmit: true` ([PART-050 § `autoSubmit` spec flag](../../../parts/PART-050.md#top-level-spec-flag--autosubmit)), the entire predicate path above is FORBIDDEN. Input handlers mutate `gameState` only; the game's internal commit handler (timer `onEnd`, drag-drop drop callback, canvas commit) calls `endGame(correct)` directly when the commit condition is met. Validator `GEN-AUTOSUBMIT-NO-SUBMITTABLE` fails any `setSubmittable(<non-false>)`, `setMode('submit')`, or `floatingBtn.show()` call.
+
+  ```js
+  // WRONG when autoSubmit:true — re-shows Submit on every keystroke
+  inputEl.addEventListener('input', function (e) {
+    gameState.userInput = e.target.value;
+    floatingBtn.setSubmittable(isSubmittable());   // ❌ GEN-AUTOSUBMIT-NO-SUBMITTABLE
+  });
+  floatingBtn.setMode('submit');                    // ❌ same rule
+  floatingBtn.show();                               // ❌ same rule
+
+  // RIGHT when autoSubmit:true — input mutates state only; commit fires externally
+  inputEl.addEventListener('input', function (e) {
+    gameState.userInput = e.target.value;
+    gameState.hasInteracted = true;
+  });
+
+  // Commit handler (timer onEnd / drop / canvas):
+  function onCommit() {
+    if (gameState.isProcessing) return;
+    gameState.isProcessing = true;
+    const correct = evaluate(gameState.userInput);
+    recordAttempt({ correct, /* ... */ });
+    endGame(correct);                               // direct path, no Submit tap
+  }
+  ```
+
+  `FloatingButtonComponent` stays instantiated under `autoSubmit:true` so it can ship Next at end-of-game — only Submit / Retry are absent. Allowed hide calls (`setSubmittable(false)`, `setMode(null)`, `hide()`) remain usable if the commit path needs to dismiss transient state.
+
+- **`setMode(...)` argument enum.** `setMode` accepts exactly four values: `'submit'`, `'retry'`, `'next'`, `null`. Anything else (`'hidden'`, `''`, `undefined`, `'done'`) is a silent no-op — the component's internal switch falls through and the visible state never changes. Use `setMode(null)` to hide; never `setMode('hidden')`. Validator: `GEN-FLOATING-BUTTON-MODE-STRING`.
 - **Submit handler (auto-hide on click):** when the player taps Submit, the component **auto-hides the button immediately** (internal `setMode(null)` before the handler runs). No need to return a Promise or manually call `setDisabled` — the hide is automatic, regardless of whether the handler is sync or async. The handler's job is to evaluate, await feedback, and then re-show the button in the NEXT mode: `setMode('retry')` (when an explicit retry button is the chosen UX — see [PART-050 § Try Again lifecycle](../../../parts/PART-050.md#try-again-lifecycle)), `setMode(null)` (predicate-driven re-show — the next interaction handler decides), or continue to end-game flow. `setMode('retry')` is the canonical mode whenever the wrong-with-lives UX shows an explicit retry button — this applies to standalone games (validator-enforced) AND to multi-round games with `spec.roundRetryButton: true`. Multi-round games without the flag use `setMode(null)` (predicate-driven). Register as `floatingBtn.on('submit', async () => { /* evaluate, await feedback, setMode('retry' | null) */ });`. Sync fire-and-forget is also safe: `floatingBtn.on('submit', () => { handleSubmit(...); })` — the button hides immediately and the async `handleSubmit` flips mode when done. Do NOT directly flip `setMode('next')` from the submit handler — Next appears AFTER the end TransitionScreen dismisses (multi-round) or AFTER the inline-feedback renders (standalone), not as a reaction to submit.
 - **Next flow — Next is the LAST thing the player sees.** Every FloatingButton-using game MUST wire the Next button, AND `setMode('next')` MUST happen only AFTER feedback audio has completed. The sequence differs by shape:
 

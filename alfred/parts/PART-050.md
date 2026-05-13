@@ -227,6 +227,17 @@ Authoring lives in [spec-creation § Top-level spec field — `autoSubmit`](../s
 
 **Validator skip behavior.** When `autoSubmit: true`, the three Submit/Retry static rules — `GEN-FLOATING-BUTTON-PREDICATE`, `GEN-FLOATING-BUTTON-SUBMIT-DEFAULT`, `GEN-FLOATING-BUTTON-RETRY-STANDALONE` — auto-skip (mirroring how they auto-skip on `floatingButton: false`). Next-related rules (`GEN-FLOATING-BUTTON-NEXT-MISSING`, `-NEXT-POSTMESSAGE`, `-NEXT-TIMING`, `-CDN`, `-SLOT`) stay active because Next is still mandatory. For the deeper bypass that strips Next as well, see § 9 below.
 
+**Forbidden code patterns when `autoSubmit: true`.** Skip ≠ forbid. The skipped rules above no longer require Submit-predicate wiring, but `GEN-AUTOSUBMIT-NO-SUBMITTABLE` actively forbids the *inverse* — any call site that would re-show the Submit button. The following MUST NOT appear anywhere in the generated HTML:
+
+| Forbidden call | Why | Caught by |
+|---|---|---|
+| `floatingBtn.setSubmittable(true)` (literal or any non-`false` predicate) | Re-shows Submit on every input event | `GEN-AUTOSUBMIT-NO-SUBMITTABLE` |
+| `floatingBtn.setMode('submit')` | Force-shows Submit, bypassing the predicate | `GEN-AUTOSUBMIT-NO-SUBMITTABLE` |
+| `floatingBtn.show()` | Equivalent to `setMode('submit')` | `GEN-AUTOSUBMIT-NO-SUBMITTABLE` |
+| `floatingBtn.setMode('hidden')` / `setMode('')` / `setMode(undefined)` | Silent no-op — only `'submit'` / `'retry'` / `'next'` / `null` change state | `GEN-FLOATING-BUTTON-MODE-STRING` (autoSubmit-agnostic) |
+
+Allowed hide calls remain available for the commit path to dismiss transient state: `setSubmittable(false)`, `setMode(null)`, `hide()`. The game's internal commit handler (timer `onEnd`, drag-drop drop callback, canvas commit) calls `endGame(correct)` directly — that is the only sanctioned entry into end-game UI. Canonical input-listener template lives in [code-patterns.md § `autoSubmit: true` input listener](../skills/game-building/reference/code-patterns.md).
+
 ## Opt-out (`floatingButton: false`)
 
 When the spec declares a top-level `floatingButton: false`:
