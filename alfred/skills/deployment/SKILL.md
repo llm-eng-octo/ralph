@@ -83,7 +83,8 @@ const res = await fetch(CORE_API_URL + '/api/games/register', {
       estimatedTime: 300,
       minGrade: '<from spec>',
       maxGrade: '<from spec>',
-      type: 'practice'
+      type: 'practice',
+      maxStars: '<from spec — the Star denominator (y); default 3>'
     },
     capabilities: {
       tracks: ['accuracy', 'time', 'stars'],
@@ -101,6 +102,8 @@ const body = await res.json();
 ```
 
 Extract `publishedGameId` and `artifactUrl` from the response.
+
+`maxStars` is REQUIRED by `register_game` (the Core API rejects with `400 MISSING_MAXSTARS` when it's missing or not a non-negative number). Source it from the spec's "Star denominator (`y`)" line — default 3 when the spec doesn't declare a non-default value (per spec-creation rule for `y`). It is read back by `create_worksheet`/`edit_worksheet` to default any block referencing this gameId, so a wrong value here silently caps every future worksheet that uses this game.
 
 **On failure:** If registration returns non-2xx, stop deployment. Log the full error response. Do not proceed to content set creation -- without a registered game, content sets have nowhere to attach. Report the failure to the creator with the exact API error.
 
