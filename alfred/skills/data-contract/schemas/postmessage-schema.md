@@ -2,6 +2,8 @@
 
 Per **PART-008** (PostMessage Protocol). See `parts/PART-008.md` for the full protocol — game_ready, game_init, game_complete message formats.
 
+> **Single source of truth:** [`game-complete.schema.json`](./game-complete.schema.json) (with prose companion [`game-complete.schema.md`](./game-complete.schema.md)) is the canonical machine-readable definition of the `game_complete` payload. This file mirrors it in prose — when in doubt, the JSON Schema wins.
+
 ## Alfred-specific rules (cross-PART, not in PART-008 alone)
 
 ### game_complete MUST be nested (CRITICAL)
@@ -18,7 +20,17 @@ window.parent.postMessage({
 window.parent.postMessage({
   type: 'game_complete',
   data: {
-    metrics: { accuracy: 70, time: 45, stars: 2, attempts: gameState.attempts, duration_data: gameState.duration_data, totalLives: gameState.lives, tries: triesArray },
+    metrics: {
+      accuracy: 70,
+      time: 45,                                                                            // SECONDS — Math.round((Date.now() - gameState.startTime) / 1000)
+      stars: 2,
+      attempts: gameState.attempts,                                                        // session-scoped; survives Try Again
+      duration_data: gameState.duration_data,
+      totalLives: gameState.totalLives,                                                    // INITIAL life budget (count at first render); NOT remaining. Remaining = totalLives - (tries - 1).
+      tries: gameState.tries,                                                              // INTEGER counter = 1 + lives_lost; NOT an array
+      correct: correct,                                                                    // PASSTHROUGH of endGame(correct) arg
+      roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds)
+    },
     completedAt: Date.now()
   }
 }, '*');
@@ -34,7 +46,114 @@ game_complete MUST fire on BOTH paths: `endGame(false)` (all rounds done → res
 
 ### Required metrics fields
 
-Per PART-008 + Alfred data requirements: `accuracy` (integer 0-100), `time` (seconds), `stars` (0-3), `attempts` (full array), `duration_data`, `totalLives`, `tries`. See PART-008 for recommended fields.
+Per PART-008 + Alfred data requirements:
+
+| Field | Type | Notes |
+|---|---|---|
+| `accuracy` | integer 0–100 | Never `0.0–1.0` float. Computed over the full `attempts` array (including pre-Try-Again history). |
+| `time` | integer **SECONDS** | `Math.round((Date.now() - gameState.startTime) / 1000)`. See § Time unit asymmetry below. |
+| `stars` | integer 0–3 | Stars awarded at end-of-game. |
+| `attempts` | array | Session-scoped attempt history. See § `metrics.attempts` — session-scoped below. |
+| `duration_data` | object | Per-round timing telemetry. Game-specific shape. |
+| `totalLives` | integer ≥ 0 | **Initial life budget** — count of lives at first render (`gameState.totalLives`, set at game start, never decremented). NOT remaining. Remaining is derivable: `remaining = totalLives - (tries - 1)`. |
+| `tries` | integer ≥ 1 | **Counter** = `1 + total_lives_lost_across_session`. See § `tries` — counter semantics below. |
+| `correct` | boolean | Overall correctness. PASSTHROUGH of `endGame(correct)`'s argument — never derived. See § Correctness fields below. |
+| `roundCorrectness` | boolean[] | Per-round correctness, length `totalRounds`. See § Correctness fields below. |
+
+See PART-008 for recommended fields.
+
+### Correctness fields (`correct`, `roundCorrectness`)
+
+**`correct: boolean`** — overall game correctness. Source: the `correct` argument passed into `endGame(correct)`. Direct passthrough — `metrics.correct = correct`. Never derive from `accuracy === 100`, never read `attempts[attempts.length - 1].correct`. The caller (Submit handler for standalone, end-of-game router for multi-round) decides the value at the call site.
+
+| Game shape | What the caller passes |
+|---|---|
+| **Standalone (`totalRounds: 1`), evaluating** | The Submit handler's evaluation: `endGame(true)` on correct, `endGame(false)` when lives reach 0. Already canonical per PART-050 § Standalone lifecycle. |
+| **Multi-round (`totalRounds > 1`), evaluating** | `endGame(gameState.lives > 0 && gameState.stars > 0)` at the final-round path; `endGame(false)` at the lives-zero branch. (Multi-round `endGame()` signature changes to `endGame(correct)`.) |
+| **Feedback-only (any shape, no correctness eval)** | `endGame(true)` hardcoded. Every `recordAttempt(...)` call uses `correct: true`. `metrics.correct === true` always. Applies to BOTH standalone and multi-round feedback-only games. |
+
+**`roundCorrectness: boolean[]`** — per-round correctness, length `totalRounds`. Derived from `gameState.attempts` via the canonical `deriveRoundCorrectness(attempts, totalRounds)` helper:
+
+```javascript
+function deriveRoundCorrectness(attempts, totalRounds) {
+  var byRound = {};
+  for (var i = 0; i < attempts.length; i++) {
+    byRound[attempts[i].round_number] = attempts[i].correct;
+  }
+  var out = [];
+  for (var r = 1; r <= totalRounds; r++) {
+    out.push(byRound[r] === true);   // missing rounds default to false
+  }
+  return out;
+}
+```
+
+The helper takes the LAST attempt per `round_number`. For multi-round games that went through Try Again (repeating `round_number`s in `attempts`), the player's most-recent correctness for each round wins.
+
+### Time unit asymmetry
+
+The `game_complete` payload mixes units across fields. Be explicit:
+
+| Field | Unit |
+|---|---|
+| `data.metrics.time` | INTEGER SECONDS |
+| `data.completedAt` | EPOCH MILLISECONDS (`Date.now()`) |
+| `data.metrics.attempts[i].attempt_timestamp` | EPOCH MILLISECONDS |
+| `data.metrics.attempts[i].time_since_start_of_game` | MILLISECONDS |
+| `data.metrics.attempts[i].response_time_ms` | MILLISECONDS |
+
+Only `metrics.time` is in seconds. Canonical conversion at the call site:
+
+```javascript
+var totalTime = gameState.startTime ? Math.round((Date.now() - gameState.startTime) / 1000) : 0;
+// ... emit { ..., time: totalTime, ... } inside metrics
+```
+
+Emitting raw `Date.now() - gameState.startTime` (milliseconds) into `metrics.time` is a bug. Validator `GEN-METRICS-TIME-UNIT` catches the missing `/1000` conversion at build time. The JSON Schema's `time` upper bound (`86400`) catches the same bug at runtime (a 24-hour cap; ms values blow past it).
+
+### `tries` — counter semantics
+
+`tries: number` is an INTEGER counter representing total attempt count at the game.
+
+- **Initialized to `1`** in the `gameState` initializer (`gameState.tries = 1`).
+- **Incremented by `1`** every time the player loses a life — in the wrong-answer / life-decrement branch, adjacent to `gameState.lives -= 1`.
+- **Persists across Try Again** — `restartGame()` MUST NOT reset `gameState.tries`. Same session-scoped contract as `setIndex` (see SKILL.md § Session-scoped fields).
+- Formula: `tries = 1 + total_lives_lost_in_session`.
+
+Worked examples (3-life games; standalone and multi-round behave identically):
+
+| Scenario | `tries` |
+|---|---|
+| Complete without losing any life | `1` |
+| Lose 1 life, complete | `2` |
+| Lose all 3 → Try Again → fresh 3 lives → complete without losing | `4` |
+| Lose all 3 → Try Again → lose 1 → complete | `5` |
+
+Validator rules: `GEN-METRICS-TRIES-SCALAR` (no array shape), `GEN-METRICS-TRIES-INIT` (initialized to 1), `GEN-METRICS-TRIES-INCREMENT` (paired with `lives -= 1`), `GEN-RESTART-TRIES-PRESERVED` (not reset by `restartGame()`).
+
+### `metrics.attempts` — session-scoped
+
+The `attempts` array contains EVERY attempt across the entire iframe session, including pre-Try-Again history. `restartGame()` does NOT reset `gameState.attempts` (only `startGame()` does — that's the fresh-session boot, fired once per page load).
+
+For multi-round games that went through a game-over → Try Again loop, `round_number` values may repeat:
+
+```
+attempts: [
+  { round_number: 1, correct: true,  is_retry: false, ... },
+  { round_number: 2, correct: false, is_retry: false, ... },
+  { round_number: 3, correct: false, is_retry: false, ... },   // lives exhausted here → game over
+  // — Try Again pressed; restartGame() runs; gameState.attempts SURVIVES —
+  { round_number: 1, correct: true,  is_retry: true,  ... },
+  { round_number: 2, correct: true,  is_retry: true,  ... },
+  { round_number: 3, correct: true,  is_retry: true,  ... }
+]
+```
+
+Consumers MUST treat the array as ordered attempt history, NOT as a map keyed by round. `roundCorrectness` (above) takes the LAST attempt per round, which is the natural "most-recent correctness" signal. `accuracy` continues to compute over the full array.
+
+`is_retry: true` flags any attempt that is not the first attempt of its `round_number` across the session — both within-round retries and post-restart replays.
+
+Validator rule `GEN-RESTART-ATTEMPTS-PRESERVED` blocks any `gameState.attempts =` assignment in `restartGame()` / `resetGameState()`.
 
 ### next_ended (PART-050) — end-of-game navigation signal
 
@@ -109,22 +228,26 @@ window.parent.postMessage({
   data: {
     metrics: {
       accuracy: 100,              // got it right eventually
-      time: 38,                   // total time in seconds across all 3 attempts
+      time: 38,                   // SECONDS — Math.round((Date.now() - gameState.startTime) / 1000)
       stars: 1,                   // typical: fewer stars when retries used
+      correct: true,              // PASSTHROUGH of endGame(correct) — player got it right on the 3rd try
+      roundCorrectness: [true],   // length-1 array for totalRounds: 1; equals [correct]
       attempts: [
-        { id: 'A_r1_p1', correct: false, is_retry: false, response: '...', time: 12 },
-        { id: 'A_r1_p1', correct: false, is_retry: true,  response: '...', time: 11 },
-        { id: 'A_r1_p1', correct: true,  is_retry: true,  response: '...', time: 15 }
+        { round_number: 1, correct: false, is_retry: false, /* … */ },
+        { round_number: 1, correct: false, is_retry: true,  /* … */ },
+        { round_number: 1, correct: true,  is_retry: true,  /* … */ }
       ],
       duration_data: gameState.duration_data,
-      totalLives: 1,              // 1 life remaining at end (started with 3, used 2)
-      tries: [/* one entry per attempt */]
-    }
+      totalLives: 3,              // INITIAL budget — player started with 3 lives. Remaining = 3 - (3 - 1) = 1.
+      tries: 3                    // INTEGER counter = 1 + 2 lives lost
+    },
+    completedAt: Date.now(),
+    previewResult: null
   }
 }, '*');
 ```
 
-For a 1-life standalone, `attempts.length === 1` always.
+For a 1-life standalone, `attempts.length === 1` always. `tries` is `1` if the player got it right on the first try (no life lost), or `2` if the player got it wrong and the single life was consumed (1 + 1 life lost).
 
 ### game_init.data.score and game_init.data.questionLabel
 

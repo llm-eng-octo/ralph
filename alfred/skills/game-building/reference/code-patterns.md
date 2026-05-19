@@ -85,7 +85,13 @@ Per PART-007. Game-building rules:
 - Every field in data-contract.md Section 1 marked Required MUST be present.
 - `window.gameState = gameState;` -- test harness reads this global.
 - Lives games add `lives` and `totalLives` fields.
-- Multi-set games add a `setIndex: 0` field to gameState, which rotates on restart (not reset by `resetGameState()`).
+- Every game initializes `tries: 1` (integer counter; see § Session-scoped fields below).
+- Multi-set games add a `setIndex: 0` field.
+- **Session-scoped fields** (initialized at fresh page load; NOT reset by `resetGameState()` / `restartGame()` — persist across Try Again):
+  - `setIndex` — rotates `(setIndex + 1) % sets.length` inside `restartGame()` BEFORE `resetGameState()`.
+  - `tries` — incremented by 1 in the wrong-answer / life-decrement branch alongside `gameState.lives -= 1`.
+  - `attempts` — populated by `recordAttempt()`; full session history accumulates across replays.
+  - See [`alfred/skills/data-contract/SKILL.md` § Session-scoped fields](../../data-contract/SKILL.md). Validator rules: `GEN-RESTART-TRIES-PRESERVED`, `GEN-RESTART-ATTEMPTS-PRESERVED`.
 - See `parts/PART-007.md` for full field list and code.
 
 ### waitForPackages
@@ -121,7 +127,73 @@ Per PART-011. Game-building rules:
 - `accuracy` is integer 0-100, not float 0.0-1.0.
 - `completedAt` is sibling of `metrics`, not nested inside.
 - `gameState.gameEnded` guard prevents double-fire.
-- See `parts/PART-011.md` for full code and metrics fields.
+- **Takes a `correct: boolean` argument** — `endGame(correct)`. The caller computes the value at the call site:
+  - **Standalone evaluating** — Submit handler passes its evaluation: `endGame(true)` on correct, `endGame(false)` on lives-zero.
+  - **Multi-round evaluating** — `endGame(gameState.lives > 0 && gameState.stars > 0)` at the final-round path; `endGame(false)` at the lives-zero branch.
+  - **Feedback-only (any shape)** — `endGame(true)` hardcoded; every `recordAttempt(...)` uses `correct: true`.
+- The `correct` argument is a PASSTHROUGH to `metrics.correct` — never derived from `accuracy` or `attempts[last]`. Validator `GEN-METRICS-CORRECT-PASSTHROUGH` enforces this.
+- See `parts/PART-011.md` and `parts/PART-050.md` for full code and metrics fields.
+
+### postGameComplete (canonical snippet + time unit + correctness fields)
+
+Canonical builder for the `game_complete` postMessage. **Source of truth for shape:** [`alfred/skills/data-contract/schemas/game-complete.schema.json`](../../data-contract/schemas/game-complete.schema.json).
+
+```javascript
+function postGameComplete(correct) {
+  // metrics.time is in SECONDS. The other time fields in the payload are MILLISECONDS — see
+  // the unit asymmetry note in postmessage-schema.md and attempt-schema.md.
+  var totalTime = gameState.startTime
+    ? Math.round((Date.now() - gameState.startTime) / 1000)
+    : 0;
+
+  window.parent.postMessage({
+    type: 'game_complete',
+    data: {
+      metrics: {
+        accuracy: getAccuracy(),                                            // integer 0-100
+        time: totalTime,                                                    // INTEGER SECONDS
+        stars: getStars(),                                                  // 0-3
+        attempts: gameState.attempts,                                       // session-scoped; survives Try Again
+        duration_data: gameState.duration_data,
+        totalLives: gameState.totalLives,                                   // INITIAL life budget (count at first render); NOT remaining. Remaining = totalLives - (tries - 1).
+        tries: gameState.tries,                                             // INTEGER counter ≥ 1; NOT an array
+        correct: correct,                                                   // PASSTHROUGH of endGame(correct) arg
+        roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds)
+      },
+      completedAt: Date.now(),                                              // EPOCH MILLISECONDS
+      previewResult: gameState.previewResult || null
+    }
+  }, '*');
+}
+
+// Canonical per-round correctness helper. Walks the attempts array and takes the LAST attempt
+// per round_number — so Try Again replays naturally collapse to the player's most-recent
+// correctness for each round. Length of the returned array is totalRounds; missing rounds
+// default to false.
+function deriveRoundCorrectness(attempts, totalRounds) {
+  var byRound = {};
+  for (var i = 0; i < attempts.length; i++) {
+    byRound[attempts[i].round_number] = attempts[i].correct;
+  }
+  var out = [];
+  for (var r = 1; r <= totalRounds; r++) {
+    out.push(byRound[r] === true);
+  }
+  return out;
+}
+```
+
+**Time unit asymmetry — explicit table.** The `game_complete` payload mixes units across fields. The validator rule `GEN-METRICS-TIME-UNIT` catches the most common bug (emitting raw `Date.now() - startTime` milliseconds into `metrics.time`).
+
+| Field | Unit |
+|---|---|
+| `data.metrics.time` | INTEGER SECONDS — `Math.round((Date.now() - gameState.startTime) / 1000)` |
+| `data.completedAt` | EPOCH MILLISECONDS — `Date.now()` |
+| `data.metrics.attempts[i].attempt_timestamp` | EPOCH MILLISECONDS |
+| `data.metrics.attempts[i].time_since_start_of_game` | MILLISECONDS |
+| `data.metrics.attempts[i].response_time_ms` | MILLISECONDS |
+
+The JSON Schema's `metrics.time` upper bound (`86400` = 24 hours) is a sanity cap — values above this almost certainly indicate a missing `/1000` conversion.
 
 ### ActionBar header (stars-immutable contract)
 
@@ -428,6 +500,7 @@ Per PART-050. Game-building rules:
   ```js
   // Inside the wrong-answer branch of on('submit'):
   gameState.lives -= 1;
+  gameState.tries += 1;                          // session-scoped counter; paired with every lives decrement
   gameState.attempts.push({
     correct: false,
     is_retry: (gameState.retryCount || 0) > 0,
@@ -466,6 +539,7 @@ Per PART-050. Game-building rules:
   ```js
   // Inside the wrong-answer branch of on('submit'):
   gameState.lives -= 1;
+  gameState.tries += 1;                          // session-scoped counter; paired with every lives decrement
   await FeedbackManager.play('incorrect');
 
   if (gameState.lives > 0) {
@@ -714,8 +788,9 @@ function startGame() {
   gameState.duration_data.startTime = Date.now();
   gameState.currentRound = 0;
   gameState.score = 0;
-  gameState.attempts = [];
+  gameState.attempts = [];           // fresh-session boot ONLY — `restartGame()` does NOT touch this
   gameState.events = [];
+  gameState.tries = 1;               // counter = 1 + lives_lost_across_session; survives `restartGame()`
   gameState.isProcessing = false;
   gameState.gameEnded = false;
   gameState.phase = 'gameplay';
@@ -772,7 +847,10 @@ try {
 
 // Terminal game-over — remove the board-level lock BEFORE endGame() teardown,
 // so end-game UI (Try Again on Game Over TS, Claim Stars on Victory TS) remains tappable.
-function endGame(reason) {
+// Signature: endGame(correct). Multi-round caller computes
+// `correct = (gameState.lives > 0 && gameState.stars > 0)`. Standalone caller passes
+// the Submit handler's evaluation. Feedback-only games hardcode `endGame(true)`.
+function endGame(correct) {
   if (gameState.gameEnded) return;
   gameState.gameEnded = true;
 
@@ -781,8 +859,8 @@ function endGame(reason) {
   if (timer) timer.pause();                                 // PART-006 § Mandatory rules
   if (voiceInput) voiceInput.disable();                     // mic stays disabled through end-game
 
-  postGameComplete(reason === 'success');
-  if (reason === 'success') showVictory();
+  postGameComplete(correct);                                // PASSTHROUGH to metrics.correct
+  if (correct) showVictory();
   else showGameOver();
 }
 ```
@@ -811,7 +889,15 @@ The `.catch()` shape (NEVER `await`, NEVER `Promise.race`) is enforced by `5e0-F
 
 ### resetGame (restartGame)
 
-Must reset ALL mutable state: `phase`, `currentRound`, `score`, `attempts`, `events`, `duration_data`, `isActive`, `isProcessing`, `gameEnded`, plus game-specific fields (GEN-RESTART-RESET). Lives games reset `lives`. Then `syncDOM()` + `render()`.
+Must reset mutable round-cycle state: `phase`, `currentRound`, `score`, `events`, `duration_data`, `isActive`, `isProcessing`, `gameEnded`, plus game-specific fields (GEN-RESTART-RESET). Lives games reset `lives`. Then `syncDOM()` + `render()`.
+
+**Must NOT reset (session-scoped fields):** `attempts`, `tries`, `setIndex`. These survive `restartGame()` and accumulate across the entire iframe session. They are initialized at fresh page load (`startGame()` for `attempts`; gameState initializer for `tries` and `setIndex`) and rotated/incremented only inside specific lifecycle hooks:
+
+- `setIndex` — rotated inside `restartGame()` BEFORE `resetGameState()` (`gameState.setIndex = (gameState.setIndex + 1) % sets.length`).
+- `tries` — incremented in the wrong-answer / life-decrement branch alongside `gameState.lives -= 1`.
+- `attempts` — pushed inside `recordAttempt()`; the array is the full session history.
+
+Validator rules: `GEN-RESTART-RESET` (existing, with `attempts` removed from required-reset list), `GEN-RESTART-TRIES-PRESERVED`, `GEN-RESTART-ATTEMPTS-PRESERVED`. See [data-contract/SKILL.md § Session-scoped fields](../../data-contract/SKILL.md).
 
 ```javascript
 window.restartGame = resetGame;  // REQUIRED -- replay tests call this
@@ -923,7 +1009,7 @@ async function showVictory() {
     buttons,
     persist: true,
     onMounted: () => FeedbackManager.runSequence(async () => {
-      postGameComplete();                                               // BEFORE audio (data-contract)
+      postGameComplete(true);                                           // BEFORE audio (data-contract). Victory path → correct=true.
       try { await safePlaySound('sound_game_victory', { sticker: STICKER_CELEBRATE }); } catch (e) {}
       if (ttsText) {                                                    // null when Screen Audio marks silent
         try { await FeedbackManager.playDynamicFeedback({
@@ -1044,7 +1130,8 @@ async function endStandaloneGame(result) {
   } catch (e) {}
 
   // Step 2 — game_complete SYNC. NO body-card render.
-  postGameComplete();
+  // PASSTHROUGH of the Submit handler's evaluation — never derive from accuracy / last attempt.
+  postGameComplete(result.correct);
 
   // Step 3 — TTS awaited (if game uses dynamic TTS).
   try {
@@ -1155,11 +1242,11 @@ floatingBtn.on('next', function() {
 // FloatingButton on('next', ...) handler (above) so the ActionBar header and
 // #previewStar stay mounted long enough for the async show_star animation to
 // land. Calling destroy() inside endGame() synchronously kills the animation.
-function endGame(won) {
+function endGame(correct) {
   if (gameState.gameEnded) return;
   gameState.gameEnded = true;
-  trackEvent('game_end', { won: won, score: gameState.score, stars: getStars() });
-  postGameComplete(won);          // includes previewResult: gameState.previewResult || null
+  trackEvent('game_end', { correct: correct, score: gameState.score, stars: getStars() });
+  postGameComplete(correct);      // PASSTHROUGH to metrics.correct; previewResult included automatically
   // NO previewScreen.destroy() here — see floatingBtn.on('next', ...).
 }
 ```
@@ -1197,6 +1284,7 @@ async function onRoundComplete(verdict) {
     gameState.score++;          // feeds getStars() at end-of-game
   } else {
     gameState.lives--;          // life lost (last-life wrong = Game Over)
+    gameState.tries++;          // session-scoped counter; paired with every lives decrement
   }
   // 2. Feedback FIRST — bar still at previous progress while feedback plays
   await FeedbackManager.sound.play(verdict.correct ? 'correct' : 'incorrect', {...});
@@ -1229,7 +1317,7 @@ When the spec defines a per-round retry mechanic, the handler adds a retry branc
 async function onRoundComplete(verdict) {
   // 1. State mutations
   if (verdict.correct) gameState.score++;
-  else gameState.lives--;
+  else { gameState.lives--; gameState.tries++; }   // session-scoped counter paired with lives decrement
 
   // 2. Feedback FIRST
   await FeedbackManager.sound.play(verdict.correct ? 'correct' : 'incorrect', {...});

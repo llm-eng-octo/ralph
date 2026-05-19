@@ -38,6 +38,8 @@ When gameState.lives > 0, the game MUST implement a `game_over` or `gameover` ph
 
 | File | Contents |
 |------|----------|
+| [game-complete.schema.json](schemas/game-complete.schema.json) | **SOURCE OF TRUTH** — canonical JSON Schema for the `game_complete` payload. Markdown docs mirror it; when they disagree the schema wins. |
+| [game-complete.schema.md](schemas/game-complete.schema.md) | Companion prose doc with embedded schema + per-field reference. |
 | [gamestate-schema.md](schemas/gamestate-schema.md) | Full gameState schema with all required + conditional fields |
 | [attempt-schema.md](schemas/attempt-schema.md) | recordAttempt with all 12 fields + implementation pattern |
 | [postmessage-schema.md](schemas/postmessage-schema.md) | game_complete nested structure, game_ready, game_init, dual-path |
@@ -48,13 +50,26 @@ When gameState.lives > 0, the game MUST implement a `game_over` or `gameover` ph
 
 **gameState required:** `gameId`, `phase`, `currentRound`, `totalRounds`, `score`, `attempts`, `events`, `startTime`, `isActive`, `content`, `duration_data`, `isProcessing`, `gameEnded`
 
-**gameState conditional:** `lives`, `totalLives`, `correctAnswer`, `setIndex`
+**gameState conditional:** `lives`, `totalLives`, `correctAnswer`, `setIndex`, `tries`
 
-`setIndex` — multi-set games only. Integer ≥ 0. Rotates on each `restartGame()` call (modulo the number of available sets in `fallbackContent.rounds`). Session-scoped: initialized to 0 on every page load; NOT reset by `resetGameState()` (rotates independently).
+### Session-scoped fields (survive `restartGame()`)
+
+Three gameState fields are **session-scoped** — they are initialized at fresh page load (in `startGame()` or the gameState initializer) and PERSIST across every `restartGame()` / Try Again within the same iframe load. `resetGameState()` MUST NOT touch them.
+
+| Field | Init | Purpose |
+|---|---|---|
+| `setIndex` | `0` in gameState initializer | Multi-set games only. Integer ≥ 0. Rotates on each `restartGame()` call (modulo the number of available sets in `fallbackContent.rounds`). Used so a Try Again gets a fresh content set rather than replaying the same questions. |
+| `tries` | `1` in gameState initializer | Counter = `1 + total_lives_lost_across_session`. Incremented in the wrong-answer / life-decrement branch alongside `gameState.lives -= 1`. See [`postmessage-schema.md` § `tries` — counter semantics](schemas/postmessage-schema.md). |
+| `attempts` | `[]` in `startGame()` | Full attempt history. New attempts are pushed inside `recordAttempt()`; the array accumulates across Try Again replays. See [`attempt-schema.md` § Session-scoped](schemas/attempt-schema.md). |
+
+Validator rules that enforce this:
+- `GEN-RESTART-RESET` (existing) — required-reset fields list excludes `setIndex`, `tries`, `attempts`.
+- `GEN-RESTART-TRIES-PRESERVED` (new) — `restartGame()` body MUST NOT assign `gameState.tries =`.
+- `GEN-RESTART-ATTEMPTS-PRESERVED` (new) — `restartGame()` body MUST NOT assign `gameState.attempts =`.
 
 **recordAttempt (12 fields):** `attempt_timestamp`, `time_since_start_of_game`, `input_of_user`, `correct`, `round_number`, `question_id`, `correct_answer`, `response_time_ms`, `misconception_tag`, `difficulty_level`, `is_retry`, `metadata`
 
-**game_complete metrics:** `accuracy`, `time`, `stars`, `attempts`, `duration_data`, `totalLives`, `tries`
+**game_complete metrics:** `accuracy` (integer 0–100), `time` (integer SECONDS), `stars` (0–3), `attempts` (array), `duration_data` (object), `totalLives` (integer ≥ 0), `tries` (integer ≥ 1 — counter, NOT array), `correct` (boolean), `roundCorrectness` (boolean[])
 
 **Per-round optional `answer` field (PART-051):** every round in `content.rounds[i]` MAY carry a game-specific `answer` payload that the AnswerComponent renders into its slide. Standalone games with N evaluated answers use an `answers: [...]` array on the single round. Shape is per-spec — document it in `spec.md`'s content-schema section. Skipped when the spec declares `answerComponent: false` (creator-only opt-out — no LLM step may auto-default this flag; see PART-051 § Opt-out). See [postmessage-schema.md](schemas/postmessage-schema.md) § "Per-round answer field".
 

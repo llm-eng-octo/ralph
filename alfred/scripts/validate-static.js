@@ -2166,6 +2166,353 @@ if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
   }
 }
 
+// ─── game_complete METRICS rules (Fix 1, 2, 3) ─────────────────────────────
+// Source of truth: alfred/skills/data-contract/schemas/game-complete.schema.json
+//
+// These rules inspect the `metrics: { … }` block inside the game_complete postMessage.
+// They share a helper to locate the block and another to extract a named field's
+// right-hand-side expression.
+
+function _extractGameCompleteMetricsBlock(src) {
+  // Find the game_complete postMessage and pull out its `metrics: { ... }` value.
+  // Returns null if not found or unparseable.
+  const gcStart = src.search(/postMessage\s*\(\s*\{[^}]*['"]game_complete['"]/);
+  if (gcStart === -1) return null;
+  // From gcStart forward, scan for `metrics:` then balance braces.
+  const metricsKey = src.indexOf('metrics:', gcStart);
+  if (metricsKey === -1) return null;
+  // Find the opening `{` after `metrics:`.
+  let i = metricsKey + 'metrics:'.length;
+  while (i < src.length && src[i] !== '{') i++;
+  if (i >= src.length) return null;
+  // Balance braces (naively — string-aware would be nicer but regex-based callers compensate).
+  let depth = 0;
+  const startBlock = i;
+  for (; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        return src.slice(startBlock + 1, i); // body without surrounding braces
+      }
+    }
+  }
+  return null;
+}
+
+function _extractMetricsField(block, fieldName) {
+  // Locate `fieldName:` at top level of the metrics block and return the value expression
+  // up to the next sibling key or the end of the block. Trims trailing comma.
+  if (!block) return null;
+  const re = new RegExp('(?:^|[,{\\s])' + fieldName + '\\s*:\\s*');
+  const m = block.match(re);
+  if (!m) return null;
+  let i = m.index + m[0].length;
+  // Read the expression: balance nesting until we hit a top-level `,` or end of block.
+  let depth = 0;
+  let inString = false;
+  let stringChar = '';
+  let start = i;
+  for (; i < block.length; i++) {
+    const c = block[i];
+    if (inString) {
+      if (c === '\\') { i++; continue; }
+      if (c === stringChar) inString = false;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') { inString = true; stringChar = c; continue; }
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth--;
+    else if (c === ',' && depth === 0) break;
+    if (depth < 0) break;
+  }
+  return block.slice(start, i).trim();
+}
+
+// GEN-METRICS-CORRECT-PRESENT — metrics block must contain `correct:` and `roundCorrectness:` keys.
+{
+  if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
+    const block = _extractGameCompleteMetricsBlock(html);
+    if (block !== null) {
+      const hasCorrect = /(?:^|[,{\s])correct\s*:/.test(block);
+      const hasRoundCorrectness = /(?:^|[,{\s])roundCorrectness\s*:/.test(block);
+      if (!hasCorrect) {
+        errors.push(
+          "GEN-METRICS-CORRECT-PRESENT: game_complete metrics block is missing the `correct:` field. " +
+          "Required per Fix 1. `correct: boolean` is the overall game correctness (PASSTHROUGH of endGame(correct) arg). " +
+          "Add `correct: correct` (or `correct: true` for feedback-only games) to the metrics object."
+        );
+      }
+      if (!hasRoundCorrectness) {
+        errors.push(
+          "GEN-METRICS-CORRECT-PRESENT: game_complete metrics block is missing the `roundCorrectness:` field. " +
+          "Required per Fix 1. `roundCorrectness: boolean[]` length `totalRounds`, derived from gameState.attempts. " +
+          "Add `roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds)` to the metrics object."
+        );
+      }
+    }
+  }
+}
+
+// GEN-METRICS-CORRECT-PASSTHROUGH — metrics.correct must be a passthrough (identifier, literal true, or gameState.<x>).
+// Forbidden: derived expressions like `accuracy === 100`, `finalAttempt.correct`, `attempts[…].correct`.
+{
+  if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
+    const block = _extractGameCompleteMetricsBlock(html);
+    const correctExpr = _extractMetricsField(block, 'correct');
+    if (correctExpr !== null) {
+      const trimmed = correctExpr.replace(/\s+/g, ' ').trim();
+      const allowedShapes = [
+        /^[A-Za-z_$][\w$]*$/,                          // bare identifier (e.g., `correct`, `won`)
+        /^true$/,                                       // literal true (feedback-only)
+        /^false$/,                                      // literal false (rare but allowed)
+        /^gameState\s*\.\s*[A-Za-z_$][\w$]*$/,         // gameState.<name>
+        /^!!\s*[A-Za-z_$][\w$]*$/                      // !!coerced identifier
+      ];
+      const isAllowed = allowedShapes.some(re => re.test(trimmed));
+      const isForbidden =
+        /\baccuracy\s*===?\s*100\b/.test(trimmed) ||
+        /\bfinalAttempt\s*\.\s*correct\b/.test(trimmed) ||
+        /\battempts\s*\[/.test(trimmed) ||
+        /\bgameState\s*\.\s*attempts\s*\[/.test(trimmed);
+      if (isForbidden || !isAllowed) {
+        errors.push(
+          "GEN-METRICS-CORRECT-PASSTHROUGH: metrics.correct expression `" + trimmed + "` is not a passthrough. " +
+          "Per Fix 1, `correct` MUST be the argument passed into endGame(correct) — not derived. " +
+          "Allowed: bare identifier (`correct`, `won`), literal `true`/`false`, `gameState.<name>`, `!!<name>`. " +
+          "Forbidden: `accuracy === 100`, `finalAttempt.correct`, `attempts[attempts.length - 1].correct`, or any expression that recomputes correctness. " +
+          "Update endGame to accept a `correct` arg and pass it through to metrics.correct."
+        );
+      }
+    }
+  }
+}
+
+// GEN-ENDGAME-CORRECT-ARG — endGame() declaration must accept a single parameter; calls must pass an argument.
+{
+  // Find the endGame declaration. Accept `function endGame(<param>)`, `async function endGame(<param>)`,
+  // or `var endGame = async (<param>) =>`. Param name doesn't have to be "correct" but a param must exist.
+  const declMatch = html.match(/(?:async\s+)?function\s+endGame\s*\(\s*([A-Za-z_$][\w$]*)?\s*[,)]/);
+  const arrowMatch = html.match(/(?:const|let|var)\s+endGame\s*=\s*(?:async\s+)?\(\s*([A-Za-z_$][\w$]*)?\s*[,)]/);
+  const hasParam = (declMatch && declMatch[1]) || (arrowMatch && arrowMatch[1]);
+  const hasEndGameDecl = !!(declMatch || arrowMatch);
+  if (hasEndGameDecl && !hasParam) {
+    errors.push(
+      "GEN-ENDGAME-CORRECT-ARG: endGame() declaration takes no parameters. " +
+      "Per Fix 1, endGame must accept a `correct` argument (the overall correctness boolean) that flows through to metrics.correct. " +
+      "Standalone: Submit handler passes its evaluation. " +
+      "Multi-round evaluating: caller passes `gameState.lives > 0 && gameState.stars > 0` (or `false` on lives-zero). " +
+      "Feedback-only: caller hardcodes `endGame(true)`. " +
+      "Update declaration to `function endGame(correct) { … }` and every call site to pass a value."
+    );
+  }
+  // Also flag no-arg `endGame()` invocations outside the declaration (excluding `endGame(false)` etc.).
+  // Match `endGame()` with empty parens, NOT inside a comment or string.
+  const noArgCalls = html.match(/\bendGame\s*\(\s*\)/g);
+  if (noArgCalls) {
+    errors.push(
+      "GEN-ENDGAME-CORRECT-ARG: " + noArgCalls.length + " call(s) to `endGame()` with no argument. " +
+      "Per Fix 1, every call site must pass the correctness boolean. " +
+      "Replace `endGame()` with `endGame(true)` / `endGame(false)` / `endGame(correctExpr)` depending on the path."
+    );
+  }
+}
+
+// GEN-METRICS-ROUND-CORRECTNESS-DERIVED — roundCorrectness should be built by the canonical helper.
+{
+  if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
+    const block = _extractGameCompleteMetricsBlock(html);
+    const rcExpr = _extractMetricsField(block, 'roundCorrectness');
+    if (rcExpr !== null) {
+      const trimmed = rcExpr.replace(/\s+/g, ' ').trim();
+      // Permit canonical helper call OR an inline equivalent that walks attempts.
+      const usesHelper = /\bderiveRoundCorrectness\s*\(/.test(trimmed);
+      // Also permit `gameState.attempts.map(…)` patterns (inline derivation) — soft check.
+      const looksInline = /attempts\s*\.\s*(?:map|reduce|filter)\b/.test(trimmed);
+      if (!usesHelper && !looksInline) {
+        warnings.push(
+          "WARNING [GEN-METRICS-ROUND-CORRECTNESS-DERIVED]: roundCorrectness expression `" + trimmed + "` does not call `deriveRoundCorrectness(...)`. " +
+          "Use the canonical helper from code-patterns.md to avoid drift: " +
+          "`roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds)`."
+        );
+      }
+    }
+  }
+}
+
+// GEN-METRICS-TIME-UNIT (Fix 2) — metrics.time must be in SECONDS, not milliseconds.
+// PASS if the expression includes `/ 1000` or `Math.round(`, OR references an upstream variable assigned with `/ 1000`.
+// ERROR if the expression is raw `Date.now() - <var>` with no /1000.
+{
+  if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
+    const block = _extractGameCompleteMetricsBlock(html);
+    const timeExpr = _extractMetricsField(block, 'time');
+    if (timeExpr !== null) {
+      const trimmed = timeExpr.replace(/\s+/g, ' ').trim();
+      // Skip degenerate cases
+      if (trimmed === '0' || trimmed === '0.0') {
+        // intentionally pass — no time tracking
+      } else {
+        const hasDivision = /\/\s*1000\b/.test(trimmed) || /Math\.round\s*\(/.test(trimmed) || /Math\.floor\s*\(/.test(trimmed);
+        const isRawDateNowMinus = /\bDate\.now\s*\(\s*\)\s*-/.test(trimmed) && !hasDivision;
+        if (isRawDateNowMinus) {
+          errors.push(
+            "GEN-METRICS-TIME-UNIT: metrics.time expression `" + trimmed + "` emits MILLISECONDS but the contract requires SECONDS. " +
+            "Per Fix 2, use `Math.round((Date.now() - gameState.startTime) / 1000)`. " +
+            "Note the unit asymmetry in the same payload: attempts[].time_since_start_of_game and response_time_ms are ms; metrics.time is seconds. " +
+            "The JSON Schema's `time` upper bound (86400 = 24 hours) catches the same bug at runtime. " +
+            "See alfred/skills/data-contract/schemas/postmessage-schema.md § Time unit asymmetry."
+          );
+        } else if (!hasDivision) {
+          // Identifier — try to trace upstream within ~600 chars before the metrics block.
+          const idMatch = trimmed.match(/^([A-Za-z_$][\w$]*)$/);
+          if (idMatch) {
+            const varName = idMatch[1];
+            // Look in the 1500 chars BEFORE the game_complete postMessage for an assignment `var <varName> = ...`.
+            const gcIdx = html.search(/postMessage\s*\(\s*\{[^}]*['"]game_complete['"]/);
+            if (gcIdx > 0) {
+              const window = html.slice(Math.max(0, gcIdx - 1500), gcIdx);
+              const assignRe = new RegExp('(?:var|let|const)\\s+' + varName + '\\s*=\\s*([^;\\n]+)');
+              const m = window.match(assignRe);
+              if (m) {
+                const rhs = m[1];
+                const rhsHasDivision = /\/\s*1000\b/.test(rhs) || /Math\.round\s*\(/.test(rhs) || /Math\.floor\s*\(/.test(rhs);
+                const rhsIsRawDateNow = /\bDate\.now\s*\(\s*\)\s*-/.test(rhs);
+                if (rhsIsRawDateNow && !rhsHasDivision) {
+                  errors.push(
+                    "GEN-METRICS-TIME-UNIT: metrics.time reads `" + varName + "` which is assigned `" + rhs.trim() + "` (raw milliseconds). " +
+                    "Per Fix 2, divide by 1000 in the assignment: `var " + varName + " = Math.round((Date.now() - gameState.startTime) / 1000);`"
+                  );
+                }
+                // else: passes (rhs has /1000) or unrelated — silent OK
+              } else {
+                warnings.push(
+                  "WARNING [GEN-METRICS-TIME-UNIT]: metrics.time reads identifier `" + varName + "` whose assignment is not traceable in the 1500 chars before the postMessage. " +
+                  "Confirm the value is in SECONDS (Math.round((Date.now() - startTime) / 1000))."
+                );
+              }
+            }
+          }
+          // Non-identifier non-division — opaque expression; emit a warning rather than failing.
+          else {
+            warnings.push(
+              "WARNING [GEN-METRICS-TIME-UNIT]: metrics.time expression `" + trimmed + "` does not visibly divide by 1000. " +
+              "Per Fix 2, confirm the value is in SECONDS. Canonical form: `Math.round((Date.now() - gameState.startTime) / 1000)`."
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
+// GEN-METRICS-TRIES-SCALAR (Fix 3) — metrics.tries must be a scalar integer, not an array.
+{
+  if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
+    const block = _extractGameCompleteMetricsBlock(html);
+    const triesExpr = _extractMetricsField(block, 'tries');
+    if (triesExpr !== null) {
+      const trimmed = triesExpr.replace(/\s+/g, ' ').trim();
+      // Forbidden shapes: array literal `[...]`, name traceable to `var x = []`.
+      const isArrayLiteral = /^\[/.test(trimmed);
+      const isMapCall = /\.\s*map\s*\(|\.\s*filter\s*\(|\.\s*reduce\s*\(/.test(trimmed);
+      if (isArrayLiteral || isMapCall) {
+        errors.push(
+          "GEN-METRICS-TRIES-SCALAR: metrics.tries expression `" + trimmed + "` is an array shape. " +
+          "Per Fix 3, `tries` is an INTEGER counter (>= 1), NOT an array. Formula: tries = 1 + total_lives_lost_in_session. " +
+          "Use `tries: gameState.tries` (read from the session-scoped counter). " +
+          "Worked examples: 3 lives no losses → 1; lose 1 → 2; lose all 3 → Try Again → complete → 4. " +
+          "See alfred/skills/data-contract/schemas/postmessage-schema.md § tries — counter semantics."
+        );
+      } else {
+        // Check if the identifier traces back to an array literal upstream.
+        const idMatch = trimmed.match(/^([A-Za-z_$][\w$]*)$/);
+        if (idMatch) {
+          const varName = idMatch[1];
+          const assignRe = new RegExp('(?:var|let|const)\\s+' + varName + '\\s*=\\s*([^;\\n]+)');
+          const gcIdx = html.search(/postMessage\s*\(\s*\{[^}]*['"]game_complete['"]/);
+          if (gcIdx > 0) {
+            const window = html.slice(Math.max(0, gcIdx - 1500), gcIdx);
+            const m = window.match(assignRe);
+            if (m && /^\s*\[/.test(m[1])) {
+              errors.push(
+                "GEN-METRICS-TRIES-SCALAR: metrics.tries reads `" + varName + "` which is assigned `" + m[1].trim() + "` (array). " +
+                "Per Fix 3, `tries` is an integer counter. Replace with `tries: gameState.tries`."
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// GEN-METRICS-TRIES-INIT (Fix 3) — gameState initializer / startGame() must set tries: 1.
+{
+  // Either: `gameState = { ..., tries: 1, ... }` literal init, OR `gameState.tries = 1` set inside startGame body.
+  // Use a brace-balanced scan so nested `{}` inside the literal (e.g. `duration_data: {}`) doesn't truncate the match.
+  const hasLiteralInit = (() => {
+    const start = html.search(/gameState\s*=\s*\{/);
+    if (start === -1) return false;
+    const openIdx = html.indexOf('{', start);
+    let depth = 0;
+    for (let i = openIdx; i < html.length; i++) {
+      const ch = html[i];
+      if (ch === '{') depth++;
+      else if (ch === '}') { depth--; if (depth === 0) {
+        const body = html.slice(openIdx + 1, i);
+        return /(?:^|[,{\s])tries\s*:\s*1\b/.test(body);
+      } }
+    }
+    return false;
+  })();
+  const hasStartGameSet = /function\s+startGame\s*\(/.test(html) &&
+    (() => {
+      const m = html.match(/function\s+startGame\s*\([^)]*\)\s*\{([\s\S]*?)\n\}/);
+      return m && /gameState\s*\.\s*tries\s*=\s*1\b/.test(m[1]);
+    })();
+  // Only fire when game_complete with `tries:` field is present (so we know this is a game emitting metrics)
+  const emitsTries = /postMessage/.test(html) && /['"]game_complete['"]/.test(html) &&
+    (() => {
+      const block = _extractGameCompleteMetricsBlock(html);
+      return block !== null && /(?:^|[,{\s])tries\s*:/.test(block);
+    })();
+  if (emitsTries && !hasLiteralInit && !hasStartGameSet) {
+    errors.push(
+      "GEN-METRICS-TRIES-INIT: gameState does not initialize `tries: 1`. " +
+      "Per Fix 3, every game must set `gameState.tries = 1` at fresh-session boot (either in the gameState literal or inside startGame()). " +
+      "WRONG: omit the field; metrics.tries reads undefined. " +
+      "RIGHT: include `tries: 1` in gameState init OR `gameState.tries = 1;` in startGame()."
+    );
+  }
+}
+
+// GEN-METRICS-TRIES-INCREMENT (Fix 3) — every `gameState.lives -= 1` (or `lives--`) must be paired with `gameState.tries += 1`.
+{
+  // Find all lives-decrement sites and check for a nearby tries-increment.
+  const decrementRe = /gameState\s*\.\s*lives\s*(?:-=\s*1|--)/g;
+  let match;
+  const violations = [];
+  while ((match = decrementRe.exec(html)) !== null) {
+    const winStart = Math.max(0, match.index - 200);
+    const winEnd = Math.min(html.length, match.index + match[0].length + 200);
+    const window = html.slice(winStart, winEnd);
+    if (!/gameState\s*\.\s*tries\s*(?:\+=\s*1|\+\+)/.test(window)) {
+      violations.push(match.index);
+    }
+  }
+  if (violations.length > 0) {
+    errors.push(
+      "GEN-METRICS-TRIES-INCREMENT: found " + violations.length + " `gameState.lives -= 1` (or `lives--`) site(s) with no paired `gameState.tries += 1` (or `tries++`) within 200 chars. " +
+      "Per Fix 3, every life loss must increment the session-scoped tries counter. " +
+      "WRONG: `gameState.lives -= 1;` alone. " +
+      "RIGHT: `gameState.lives -= 1; gameState.tries += 1;` (adjacent). " +
+      "Formula: tries = 1 + total_lives_lost_in_session. Persists across Try Again. " +
+      "First violation offset: " + violations[0]
+    );
+  }
+}
+
 // ─── 7. Game state initialization ───────────────────────────────────────────
 const hasGameState =
   /gameState\s*=\s*\{/.test(html) ||
@@ -3589,6 +3936,7 @@ if (hasStartGame) {
       const end = Math.min(lines.length, lineNo + 5);
       const window = lines.slice(start, end).join('\n');
       const hidden =
+        /floatingBtn\s*\.\s*setMode\s*\(\s*null\s*\)/.test(window) ||
         /floatingBtn\s*\.\s*setMode\s*\(\s*['"]hidden['"]/.test(window) ||
         /floatingBtn\s*\.\s*destroy\s*\(/.test(window);
       if (!hidden) {
@@ -5330,9 +5678,11 @@ if (styleBlocks.length === 0) {
 }
 
 // ─── W13. GEN-RESTART-RESET: restartGame() must reset required gameState fields ──
-// Rule 42: restartGame() MUST reset ALL mutable gameState fields.
-// Confirmed missing-reset instances: quadratic-formula #546, find-triangle-side #549, associations #472.
-// Required fields: currentRound, score, lives (or totalLives), events, attempts.
+// Rule 42: restartGame() MUST reset mutable round-cycle gameState fields.
+// Per Fix 5 (2026-05): `attempts` is now SESSION-SCOPED — it persists across restartGame()
+// and is enforced by the companion negative rule GEN-RESTART-ATTEMPTS-PRESERVED below.
+// `tries` is also session-scoped — see GEN-RESTART-TRIES-PRESERVED.
+// Required-reset fields: currentRound, score, lives (or totalLives), events.
 // Only warn if restartGame IS defined — skip for games that don't have it.
 {
   const hasRestartGame = /function\s+restartGame\s*\(|(?:const|let|var)\s+restartGame\s*=/.test(html);
@@ -5360,17 +5710,76 @@ if (styleBlocks.length === 0) {
       if (!/gameState\s*\.\s*events\s*=/.test(restartBody)) {
         missingFields.push('events');
       }
-      // Check for attempts reset (= [] or similar)
-      if (!/gameState\s*\.\s*attempts\s*=/.test(restartBody)) {
-        missingFields.push('attempts');
-      }
+      // NOTE: `attempts` intentionally NOT checked — it is session-scoped per Fix 5.
+      // The companion rule GEN-RESTART-ATTEMPTS-PRESERVED actively FORBIDS attempts reset.
       if (missingFields.length > 0) {
         warnings.push(
           `WARNING [GEN-RESTART-RESET]: restartGame() missing state reset for: ${missingFields.join(', ')} — ` +
-            'GEN rule 42 requires resetting ALL mutable gameState fields. ' +
+            'restartGame() must reset mutable round-cycle fields. ' +
+            'Required: currentRound, score, lives, events. ' +
+            'SESSION-SCOPED (DO NOT RESET): attempts, tries, setIndex — see GEN-RESTART-ATTEMPTS-PRESERVED, GEN-RESTART-TRIES-PRESERVED. ' +
             'WRONG: function restartGame() { gameState.gameEnded = false; gameState.phase = "start"; syncDOMState(); showStartScreen(); } ' +
-            'RIGHT: function restartGame() { gameState.currentRound = 0; gameState.lives = gameState.totalLives; gameState.score = 0; gameState.events = []; gameState.attempts = []; gameState.gameEnded = false; gameState.phase = "start"; syncDOMState(); showStartScreen(); } ' +
-            'Confirmed 3 browser instances: quadratic-formula #546 (data-lives="2" at second game start), find-triangle-side #549, associations #472. (CR-032)'
+            'RIGHT: function restartGame() { gameState.currentRound = 0; gameState.lives = gameState.totalLives; gameState.score = 0; gameState.events = []; gameState.gameEnded = false; gameState.phase = "start"; syncDOMState(); showStartScreen(); }'
+        );
+      }
+    }
+  }
+}
+
+// ─── GEN-RESTART-TRIES-PRESERVED (Fix 3): tries is session-scoped; restartGame MUST NOT reset it ──
+// Companion to GEN-RESTART-RESET. `gameState.tries` is a counter that survives Try Again.
+{
+  const hasRestartGame = /function\s+restartGame\s*\(|(?:const|let|var)\s+restartGame\s*=/.test(html);
+  if (hasRestartGame) {
+    const restartFnMatch = html.match(
+      /(?:function\s+restartGame\s*\([^)]*\)|(?:const|let|var)\s+restartGame\s*=\s*(?:async\s+)?function\s*\([^)]*\)|(?:const|let|var)\s+restartGame\s*=\s*(?:async\s+)?\([^)]*\)\s*=>)\s*\{([\s\S]*?)(?=\n\s*(?:function\s+\w|(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?function|\}\s*\n\s*(?:function|const|let|var|\/\/\s*─|window\s*\.|\/\*)))/
+    );
+    if (restartFnMatch) {
+      const restartBody = restartFnMatch[1];
+      // Also include resetGameState if it's called from restartGame and defined inline
+      const resetFnMatch = html.match(
+        /(?:function\s+resetGameState\s*\([^)]*\)|(?:const|let|var)\s+resetGameState\s*=\s*(?:async\s+)?function\s*\([^)]*\)|(?:const|let|var)\s+resetGameState\s*=\s*(?:async\s+)?\([^)]*\)\s*=>)\s*\{([\s\S]*?)(?=\n\s*(?:function\s+\w|(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?function|\}\s*\n\s*(?:function|const|let|var|\/\/\s*─|window\s*\.|\/\*)))/
+      );
+      const combinedBody = restartBody + '\n' + (resetFnMatch ? resetFnMatch[1] : '');
+      // Match `gameState.tries =` BUT exclude `+=` and `-=` (those are increments, not resets)
+      if (/gameState\s*\.\s*tries\s*=(?![=+\-])/.test(combinedBody)) {
+        errors.push(
+          "GEN-RESTART-TRIES-PRESERVED: restartGame() / resetGameState() resets gameState.tries — " +
+          "`tries` is SESSION-SCOPED. It is the counter `1 + total_lives_lost_across_session` and MUST survive every Try Again. " +
+          "WRONG: function restartGame() { gameState.tries = 1; ... }. " +
+          "RIGHT: only `startGame()` (fresh-session boot) sets `gameState.tries = 1`; restartGame must NOT touch it. " +
+          "Increment happens in the wrong-answer branch via `gameState.tries += 1` paired with `gameState.lives -= 1`. " +
+          "See alfred/parts/PART-050.md § Session-scoped state preservation."
+        );
+      }
+    }
+  }
+}
+
+// ─── GEN-RESTART-ATTEMPTS-PRESERVED (Fix 5): attempts is session-scoped ──
+// `gameState.attempts` carries full session history across Try Again. Only startGame() may reset it.
+{
+  const hasRestartGame = /function\s+restartGame\s*\(|(?:const|let|var)\s+restartGame\s*=/.test(html);
+  if (hasRestartGame) {
+    const restartFnMatch = html.match(
+      /(?:function\s+restartGame\s*\([^)]*\)|(?:const|let|var)\s+restartGame\s*=\s*(?:async\s+)?function\s*\([^)]*\)|(?:const|let|var)\s+restartGame\s*=\s*(?:async\s+)?\([^)]*\)\s*=>)\s*\{([\s\S]*?)(?=\n\s*(?:function\s+\w|(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?function|\}\s*\n\s*(?:function|const|let|var|\/\/\s*─|window\s*\.|\/\*)))/
+    );
+    if (restartFnMatch) {
+      const restartBody = restartFnMatch[1];
+      const resetFnMatch = html.match(
+        /(?:function\s+resetGameState\s*\([^)]*\)|(?:const|let|var)\s+resetGameState\s*=\s*(?:async\s+)?function\s*\([^)]*\)|(?:const|let|var)\s+resetGameState\s*=\s*(?:async\s+)?\([^)]*\)\s*=>)\s*\{([\s\S]*?)(?=\n\s*(?:function\s+\w|(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?function|\}\s*\n\s*(?:function|const|let|var|\/\/\s*─|window\s*\.|\/\*)))/
+      );
+      const combinedBody = restartBody + '\n' + (resetFnMatch ? resetFnMatch[1] : '');
+      // `gameState.attempts = ...` direct assignment (e.g. `= []`); excludes `.push(...)` and `+=`
+      if (/gameState\s*\.\s*attempts\s*=(?![=+\-])/.test(combinedBody)) {
+        errors.push(
+          "GEN-RESTART-ATTEMPTS-PRESERVED: restartGame() / resetGameState() resets gameState.attempts — " +
+          "`attempts` is SESSION-SCOPED. The array contains the full session history including pre-Try-Again attempts and MUST survive restartGame(). " +
+          "Only startGame() (fresh-session boot, page load) may set `gameState.attempts = []`. " +
+          "WRONG: function restartGame() { gameState.attempts = []; ... }. " +
+          "RIGHT: leave attempts alone in restartGame; new attempts append to the existing array via recordAttempt(). " +
+          "round_number values may legitimately repeat in the final array — that's the intent (Try Again replays). " +
+          "See alfred/skills/data-contract/schemas/attempt-schema.md § Session-scoped."
         );
       }
     }

@@ -57,3 +57,22 @@ function recordAttempt(roundIndex, userInput, correct, metadata) {
 - `question_id` must be stable across sessions for the same question content, so the gauge step can compare performance on identical questions.
 - `misconception_tag` values come from the spec's misconception taxonomy. The game maps wrong-answer choices to tags (e.g., choosing additive instead of multiplicative reasoning).
 - Games may add extra fields to the attempt object. Extra fields are preserved (forward compatibility). Required fields must never be omitted.
+
+## Unit asymmetry
+
+`time_since_start_of_game` and `response_time_ms` are **MILLISECONDS** (raw `Date.now() - …`). `attempt_timestamp` is **EPOCH MILLISECONDS**. These are the per-attempt time fields.
+
+Note the contrast with `game_complete.data.metrics.time`, which is **SECONDS** (`Math.round((Date.now() - gameState.startTime) / 1000)`). The same payload mixes units across fields — see [`postmessage-schema.md` § Time unit asymmetry](./postmessage-schema.md#time-unit-asymmetry).
+
+## Session-scoped — `attempts` persists across Try Again
+
+`gameState.attempts` is session-scoped: it accumulates across every `restartGame()` / Try Again within the same iframe load. Only `startGame()` (fresh page load) resets it.
+
+Consequence: multiple records in the array may share the same `round_number` for multi-round games that went through a game-over → Try Again loop. Consumers should treat the array as ordered attempt history, NOT as a map keyed by round.
+
+- `is_retry: false` marks the FIRST attempt of any `round_number` across the entire session.
+- `is_retry: true` marks every replay — both within-round retries (standalone Try Again with lives remaining) and post-restart replays (multi-round Try Again from the Game Over screen).
+
+For per-round correctness, use the canonical `deriveRoundCorrectness(attempts, totalRounds)` helper documented in [`postmessage-schema.md` § Correctness fields](./postmessage-schema.md#correctness-fields-correct-roundcorrectness) — it takes the LAST attempt per `round_number`, which is the natural "most-recent correctness" signal.
+
+Validator rule `GEN-RESTART-ATTEMPTS-PRESERVED` blocks any `gameState.attempts =` assignment in `restartGame()` / `resetGameState()`.
