@@ -283,7 +283,7 @@ const msg = window.__gameCompleteCapture;
       stars: <number 0-3>,        // integer
       attempts: <Array>,          // full gameState.attempts array
       duration_data: <object>,    // full gameState.duration_data object
-      totalLives: <number>,       // lives remaining (or null/omitted for non-lives games)
+      totalLives: <number>,       // INITIAL life budget (count at first render); NOT remaining. Remaining = totalLives - (tries - 1).
       tries: <Array>,             // [{round: 1, correct: true}, ...]
     },
     completedAt: <number>         // epoch ms -- SIBLING of metrics, not inside metrics
@@ -303,7 +303,7 @@ const msg = window.__gameCompleteCapture;
 | `data.metrics.stars` | `number` | Integer 0-3 |
 | `data.metrics.attempts` | `Array` | Length > 0, each element has recordAttempt fields |
 | `data.metrics.duration_data` | `object` | Has `startTime`, `attempts`, `inActiveTime`, `totalInactiveTime` |
-| `data.metrics.totalLives` | `number` or `null` | Lives remaining at end (for lives games) |
+| `data.metrics.totalLives` | `number` or `null` | INITIAL life budget — count at first render (`gameState.totalLives`), NOT remaining. Remaining is derivable: `totalLives - (tries - 1)`. |
 | `data.metrics.tries` | `Array` | Each element has `round` (number) and `correct` (boolean) |
 | `data.completedAt` | `number` | Epoch ms (>1600000000000), is a sibling of `data.metrics` (NOT nested inside metrics) |
 

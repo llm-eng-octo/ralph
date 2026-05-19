@@ -2,6 +2,10 @@
 
 Companion to `p07-text-input.md`. This file defines the P7 interaction contract only; exact HTML attributes, font sizing, `visualViewport` handling, scroll margins, and CSS values are owned by the mobile skill.
 
+## `autoSubmit: true` fork
+
+If the spec declares `autoSubmit: true` ([PART-050 § `autoSubmit` spec flag](../../../../parts/PART-050.md#top-level-spec-flag--autosubmit)), behaviors 1, 2, and 5 below do NOT apply — there is no Submit button to wire, no keyboard to dismiss on submit, and no `.input-correct` / `.input-wrong` toggle from a submit handler. The input listener mutates `gameState` only; commit fires from a non-input path (timer expiry, drop, canvas). Canonical template lives in [code-patterns.md § `autoSubmit: true` input listener](../../../game-building/reference/code-patterns.md). Validator: `GEN-AUTOSUBMIT-NO-SUBMITTABLE`. Behaviors 3 (auto-focus) and 4 (auto-growing width) still apply — only the Submit pathway is absent.
+
 ## Required Behaviors
 
 Every P7 game must provide:

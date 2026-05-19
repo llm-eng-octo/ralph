@@ -15,16 +15,18 @@ When generating HTML from an approved spec + plan. The main generation step.
 
 ## Reads
 
-- `skills/game-archetypes.md` -- archetype profile (structure, interaction, scoring, screens, PART flags, defaults) -- **ALWAYS**
-- `skills/data-contract.md` -- gameState schema, recordAttempt schema, game_complete postMessage schema, syncDOM contract, trackEvent schema, handlePostMessage/game_ready protocol, validation rules -- **ALWAYS**
-- `skills/mobile/SKILL.md` -- viewport, touch targets, typography, safe areas, keyboard, orientation, gestures, performance, cross-browser, CSS variables -- **ALWAYS**
-- `skills/feedback/SKILL.md` -- behavioral feedback cases, await/fire-and-forget rules, priority table, FeedbackManager API (reference/feedbackmanager-api.md for CDN URLs and code), timing (reference/timing-and-blocking.md) -- **ALWAYS**
-- `skills/interaction/SKILL.md` -- 8 canonical interaction patterns (tap, chain, match, swipe, drag-path, drag-drop, input, toggle), event handling, touch specifics, state machines, guards, undo, hit detection (reference/patterns.md for full code, reference/touch-events.md for pointer events, reference/state-and-guards.md for state management) -- **ALWAYS**
-- `reference/flow-implementation.md` -- screen→component mapping + progress bar lifecycle + round loop pattern -- **ALWAYS**
-- `alfred/skills/game-planning/reference/default-flow.md` -- canonical flow diagram -- **ALWAYS**
-- [`alfred/parts/README.md`](../../parts/README.md) -- canonical PART catalog (every PART, name, purpose, mandatory/conditional flag). Use it to confirm which PARTs the spec/plan/archetype mandates before opening specific PART files. -- **ALWAYS**
-- `alfred/parts/PART-050.md` -- CDN FloatingButtonComponent API (submit/retry/next lifecycle, submittable-predicate contract) -- **WHEN the game flow has a Submit CTA**
-- `alfred/parts/PART-051.md` -- CDN AnswerComponentComponent API (post-feedback Correct Answers carousel, end-game stack, slide render-callback contract) -- **UNLESS spec declares `answerComponent: false`. NOTE: that flag is a CREATOR-ONLY opt-out — step 4 (Build) MUST NOT add it to spec.md to silence the validator, and the spec author at step 1 MUST NOT auto-default it. If a spec arrives at build with `answerComponent: false` lacking quoted creator opt-out language, the build is on a malformed spec and should be flagged, not patched.**
+- [skills/game-archetypes/SKILL.md](../game-archetypes/SKILL.md) -- archetype profile (structure, interaction, scoring, screens, PART flags, defaults) -- **ALWAYS**
+- [skills/data-contract/SKILL.md](../data-contract/SKILL.md) -- gameState schema, recordAttempt schema, game_complete postMessage schema, syncDOM contract, trackEvent schema, handlePostMessage/game_ready protocol, validation rules -- **ALWAYS**
+- [skills/mobile/SKILL.md](../mobile/SKILL.md) -- viewport, touch targets, typography, safe areas, keyboard, orientation, gestures, performance, cross-browser, CSS variables -- **ALWAYS**
+- [skills/feedback/SKILL.md](../feedback/SKILL.md) -- behavioral feedback cases, await/fire-and-forget rules, priority table, FeedbackManager API ([reference/feedbackmanager-api.md](../feedback/reference/feedbackmanager-api.md) for CDN URLs and code), timing ([reference/timing-and-blocking.md](../feedback/reference/timing-and-blocking.md)) -- **ALWAYS**
+- [skills/interaction/SKILL.md](../interaction/SKILL.md) -- canonical interaction patterns, event handling, touch specifics, state machines, guards, undo, hit detection ([reference/patterns/](../interaction/reference/patterns/) for full code, [reference/touch-events.md](../interaction/reference/touch-events.md) for pointer events, [reference/state-and-guards.md](../interaction/reference/state-and-guards.md) for state management) -- **ALWAYS**
+- [skills/game-planning/reference/shapes.md](../game-planning/reference/shapes.md) -- canonical source: shape definitions, decision matrix, creator-only flags -- **ALWAYS**
+- [reference/flow-implementation.md](reference/flow-implementation.md) -- screen→component mapping + progress bar lifecycle + round loop pattern -- **ALWAYS**
+- [alfred/skills/game-planning/reference/multi-round-flow.md](../game-planning/reference/multi-round-flow.md) -- canonical Shape 2 (Multi-round) flow diagram -- **ALWAYS**
+- [alfred/skills/game-planning/reference/standalone-flow.md](../game-planning/reference/standalone-flow.md) -- canonical Shape 1 (Standalone) flow diagram -- **ALWAYS**
+- [alfred/parts/README.md](../../parts/README.md) -- canonical PART catalog (every PART, name, purpose, mandatory/conditional flag). Use it to confirm which PARTs the spec/plan/archetype mandates before opening specific PART files. -- **ALWAYS**
+- [alfred/parts/PART-050.md](../../parts/PART-050.md) -- CDN FloatingButtonComponent API (submit/retry/next lifecycle, submittable-predicate contract) -- **WHEN the game flow has a Submit CTA**
+- [alfred/parts/PART-051.md](../../parts/PART-051.md) -- CDN AnswerComponentComponent API (post-feedback Correct Answers carousel, end-game stack, slide render-callback contract) -- **UNLESS spec declares `answerComponent: false`. NOTE: that flag is a CREATOR-ONLY opt-out — step 4 (Build) MUST NOT add it to spec.md to silence the validator, and the spec author at step 1 MUST NOT auto-default it. If a spec arrives at build with `answerComponent: false` lacking quoted creator opt-out language, the build is on a malformed spec and should be flagged, not patched.**
 
 ## Input
 
@@ -88,7 +90,7 @@ Write the document structure following [html-template.md](html-template.md). Thi
 
 ### Step 3: Build the JavaScript
 
-Implement the flow code inline per [flow-implementation.md](reference/flow-implementation.md) — it provides the screen→component mapping, progress bar lifecycle, and round loop pattern derived from `pre-generation/game-flow.md` and `alfred/skills/game-planning/reference/default-flow.md`.
+Implement the flow code inline per [flow-implementation.md](reference/flow-implementation.md) — it provides the screen→component mapping, progress bar lifecycle, and round loop pattern derived from `pre-generation/game-flow.md` and `alfred/skills/game-planning/reference/multi-round-flow.md`.
 
 Follow the exact function order from [code-patterns.md](reference/code-patterns.md) for everything else. All 24 code sections must be implemented with the exact signatures and behaviors documented there. Key sections: gameState, syncDOM, handlePostMessage, recordAttempt, trackEvent, endGame, FeedbackManager integration (preload, sound.play, playDynamicFeedback), getRounds, getStars, startGame, resetGame, answer handler, init sequence.
 
@@ -249,6 +251,34 @@ Before outputting, verify against every check:
 ### Step 9: Output
 
 Write the complete `index.html` file. No placeholder comments. No TODO markers. Every function fully implemented. Every fallback round fully populated with real math content matching the spec.
+
+### Step 10: State-machine integrity report (MANDATORY for flag-conditional games)
+
+For any spec flag that materially changes the FloatingButton / Preview / AnswerComponent / commit state machine, the build report MUST include a phase-by-phase enumeration table that the sub-agent fills in BEFORE handing back. The table forces the sub-agent to write down (and therefore notice) any contradiction between the spec flag and the code emitted.
+
+Trigger flags (run the report for every flag whose value is the non-default form):
+
+| Flag | Default | Triggers state-machine report when |
+|---|---|---|
+| `autoSubmit` | `false` | `true` |
+| `floatingButton` | `true` | `false` |
+| `previewScreen` | `true` | `false` |
+| `answerComponent` | `true` | `false` |
+| `roundMountNarration` | `false` | `true` |
+
+Required table shape for each triggered flag:
+
+```
+### State-machine compliance report — `<flag>: <non-default-value>`
+
+| Call site (file:line) | Phase | API call | Resulting mode | Compliant? |
+|---|---|---|---|---|
+| index.html:NNN | gameplay-input | floatingBtn.setSubmittable(...) | submit | ❌ violates GEN-AUTOSUBMIT-NO-SUBMITTABLE |
+| index.html:NNN | endGame beat 5 | floatingBtn.setMode('next') | next | ✓ |
+| ... | ... | ... | ... | ... |
+```
+
+The sub-agent enumerates EVERY `setMode` / `setSubmittable` / `show()` / `hide()` call site, names the phase it fires in, and confirms compliance with the flag's contract. If any row is non-compliant the sub-agent fixes the HTML and re-runs the table BEFORE submitting Step 4 output. The report sits in the Step 4 hand-off to Step 5.
 
 ---
 

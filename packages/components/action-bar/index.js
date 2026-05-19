@@ -139,6 +139,18 @@
     this._preloadStarAssets();
     this._initSentry();
 
+    // Signal to the parent that our `message` listener is now registered and
+    // ready to receive `game_init`. The parent (e.g. claude-harness's
+    // WorksheetRunner) uses this to time the game_init post — otherwise the
+    // game's `game_ready` fires before this constructor runs and any game_init
+    // posted in response misses the listener, leaving the header at its
+    // hard-coded "0/3" default.
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "actionbar_ready" }, "*");
+      }
+    } catch (e) { /* ignore */ }
+
     console.log("[ActionBar] Initialized");
   }
 

@@ -10,10 +10,10 @@ Exact output format for all 5 plan documents -- each section below is the templa
 
 ## Flow Diagram
 
-[ASCII diagram copied VERBATIM from reference/default-flow.md (Shape 2) or reference/shapes.md (Shape 1 / Shape 3), with any additive customization deltas from reference/flow-gallery.md applied in place.]
+[ASCII diagram copied VERBATIM from [multi-round-flow.md](multi-round-flow.md) (Shape 2), [standalone-flow.md](standalone-flow.md) (Shape 1), or [shapes.md § Sectioned](shapes.md#sectioned) (Shape 3), with any additive customization deltas from [flow-gallery.md](flow-gallery.md) applied in place.]
 
 Rules:
-- Must match the canonical diagram from default-flow.md or shapes.md. Hand-invented flows are not allowed.
+- Must match the canonical diagram from multi-round-flow.md, standalone-flow.md, or shapes.md. Hand-invented flows are not allowed.
 - Customizations appear as ADDITIVE edits only: inserted steps, added conditional branches, or a single relabeled transition — never a wholesale rewrite.
 - Every screen that exists in the game appears in this diagram.
 - Every transition is labeled with what triggers it (tap, timer expiry, lives=0, all rounds done).

@@ -258,7 +258,7 @@ function renderAnswerForRound(round, container) {
 
 ## Standalone lifecycle
 
-Standalone (`totalRounds: 1`) flow. The FloatingButton-side beats live in [PART-050 § Standalone lifecycle](PART-050.md#standalone-lifecycle); AnswerComponent's role is beat 4.
+Standalone (`totalRounds: 1`) flow — see [shapes.md § Decision Matrix](../skills/game-planning/reference/shapes.md#decision-matrix) for the full shape definition and [standalone-flow.md](../skills/game-planning/reference/standalone-flow.md) for the canonical diagram. The FloatingButton-side beats live in [PART-050 § Standalone lifecycle](PART-050.md#standalone-lifecycle); AnswerComponent's role is beat 4.
 
 1. Page load → `new AnswerComponentComponent(...)` → component hidden.
 2. Preview state → component hidden.

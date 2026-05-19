@@ -1,6 +1,6 @@
-# Default Multi-Round Flow
+# Multi-Round Flow (Shape 2)
 
-This is the canonical multi-round default. Every rounds-based spec starts from this diagram and applies customizations on top — never a rewrite. If the user description has no rounds and is a single question, use Shape 1 (Standalone) from `shapes.md` instead.
+This is the canonical multi-round flow. Every rounds-based spec (`totalRounds > 1`) starts from this diagram and applies customizations on top — never a rewrite. If the user description is a single question (`totalRounds: 1`), use [Shape 1 — Standalone](standalone-flow.md) instead. Shape definitions, decision matrix, and per-shape feature scope live in [shapes.md](shapes.md).
 
 ```
 ┌──────────┐  tap   ┌──────────┐  tap   ┌──────────────┐  auto   ┌────────────┐

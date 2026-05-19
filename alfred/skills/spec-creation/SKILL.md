@@ -18,8 +18,10 @@ When a creator provides a game description (1-10 sentences) and a new spec.md ne
 - `game-archetypes.md` — ALWAYS — 10 archetype profiles (structure + interaction + scoring + feedback combinations). Includes constraint #8 (FloatingButton is flow-driven and overrides the per-archetype PART flag list — any flow with a Submit / Check / Done / Commit CTA mandates PART-050 at build time).
 - `pedagogy.md` — ON-DEMAND — Bloom level mapping, misconception design principles (load when assigning Bloom level or generating misconception tags)
 - `data-contract.md` — ON-DEMAND — recordAttempt schema, game_complete schema, required fields (load when building fallbackContent structure)
-- alfred/skills/game-planning/reference/default-flow.md -- canonical multi-round default; copy verbatim into spec's ## Flow when any rounds-based game is described -- ALWAYS
-- alfred/skills/game-planning/reference/flow-gallery.md -- 16 customization patterns to apply on top of the default; consulted when the user description triggers a deviation -- WHEN CUSTOMIZATION TRIGGERED
+- [alfred/skills/game-planning/reference/shapes.md](../game-planning/reference/shapes.md) -- canonical source: shape definitions, decision matrix, creator-only flags -- ALWAYS
+- [alfred/skills/game-planning/reference/standalone-flow.md](../game-planning/reference/standalone-flow.md) -- canonical Shape 1 (Standalone) diagram; copy verbatim into spec's `## Flow` for single-question games -- ALWAYS
+- [alfred/skills/game-planning/reference/multi-round-flow.md](../game-planning/reference/multi-round-flow.md) -- canonical Shape 2 (Multi-round) diagram; copy verbatim into spec's `## Flow` when any rounds-based game is described -- ALWAYS
+- [alfred/skills/game-planning/reference/flow-gallery.md](../game-planning/reference/flow-gallery.md) -- 16 customization patterns to apply on top of the default; consulted when the user description triggers a deviation -- WHEN CUSTOMIZATION TRIGGERED
 
 ## Input
 
@@ -99,7 +101,7 @@ Stars in the platform ActionBar represent **overall game performance**, awarded 
 
 ## Flow
 
-[Final ASCII flow diagram. Start from default-flow.md (or Shape 1 Standalone from shapes.md for single-question games), then apply customizations from user description.]
+[Final ASCII flow diagram. Start from [multi-round-flow.md](../game-planning/reference/multi-round-flow.md) (or [standalone-flow.md](../game-planning/reference/standalone-flow.md) for single-question games), then apply customizations from user description.]
 
 **Shape:** [Multi-round (default) | Standalone | Multi-round + customizations]
 **Changes from default:**
@@ -172,13 +174,13 @@ Each round in `rounds[]` MUST carry an `answer` payload that the AnswerComponent
 
 For a **standalone game with N evaluated answers** (`totalRounds: 1`), use an `answers: [...]` array on the single round instead of `answer:`.]
 
-**Round-set cycling — MANDATORY for multi-round games (validator: GEN-ROUNDSETS-MIN-3).** The `rounds` array is round-set-cycled at runtime. A student plays Set A on first attempt, Set B after Try Again / Play Again, Set C on the next restart, then back to A. The spec MUST author all three sets so the build step copies them verbatim into `fallbackContent`.
+**Round-set cycling — MANDATORY for multi-round games** (validator: [GEN-ROUNDSETS-MIN-3](../game-building/reference/static-validation-rules.md#shape-enforcement)). The `rounds` array is round-set-cycled at runtime: a student plays Set A on first attempt, Set B after Try Again / Play Again, Set C on the next restart, then back to A. The spec MUST author all three sets so the build step copies them verbatim into `fallbackContent`.
 
 - `rounds.length === totalRounds × 3` (or more) — NOT `totalRounds`. Three sets of `totalRounds` rounds each.
 - Every round object carries a `set: 'A' | 'B' | 'C'` key. Mixed tagged/untagged rounds fail the validator.
 - `id` values globally unique across sets — prefix convention `A_r1_…`, `B_r1_…`, `C_r1_…`.
 - Parallel difficulty across sets — Set A's Round 1 ≈ Set B's Round 1 ≈ Set C's Round 1 in difficulty so each retry maintains the same learning load.
-- Standalone games (`totalRounds: 1`) are exempt — single round, no cycling needed.
+- **Standalone games (`totalRounds: 1`) are EXEMPT** — ship a single round with no `set` key. See [shapes.md § Decision Matrix](../game-planning/reference/shapes.md#decision-matrix) for the full per-shape feature scope.
 
 Example (10 rounds × 3 sets = 30 round objects):
 ```js
@@ -302,8 +304,9 @@ Field rules:
 - `roundMountNarration: true` is the only opted-in shape. `false` and absent are equivalent (default OFF).
 - Only meaningful for `totalRounds: 1`. Setting it on a multi-round spec is a no-op (multi-round always allows mount narration when the round has a `questionTTS`); spec-review WARNs in that case.
 - When `true`, every round (here, the single round) MUST carry a non-empty `questionTTS` AND a paired `questionSubtitle` — the `<X>TTS` ↔ `<X>Subtitle` pairing rule (see § 5e-i / `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO`) applies. Spec-review FAILs if the flag is `true` but a paired field is missing or empty.
+- **Multi-answer standalone scope:** when a standalone game ships `answers: [...]` with N>1 evaluated answers (one round, N carousel slides — see [PART-051](../../parts/PART-051.md)), `roundMountNarration: true` plays ONLY the round-level `questionTTS` on mount. Per-slide narration is rendered inside each AnswerComponent slide's `render()` function (creator-authored DOM — e.g. a play button calling `FeedbackManager.playDynamicFeedback(...)`), NOT at mount. There is no first-class per-answer TTS field in the spec.
 
-The build agent reads `roundMountNarration` directly: when `false` (or absent) on a standalone spec, the build emits NO `playDynamicFeedback` call inside `renderRound()`; when `true`, the build emits the canonical fire-and-forget call.
+The build agent reads `roundMountNarration` directly: when `false` (or absent) on a standalone spec, the build emits NO `playDynamicFeedback` call inside `renderRound()`; when `true`, the build emits the canonical fire-and-forget call using `round.questionTTS` (singular).
 
 ### Suggestions section
 
@@ -362,9 +365,9 @@ If the input matches multiple archetypes, choose the one that best fits the prim
 ### Step 2.5: Pick the flow shape
 
 - Scan the description for rounds / questions / lives / stages / sections.
-- **No rounds, single question, one-shot:** use Shape 1 Standalone from `alfred/skills/game-planning/reference/shapes.md`. Copy that mini-diagram verbatim into `## Flow`. Skip Step 2.6.
-- **Anything rounds-based (default case):** copy the full ASCII diagram from `alfred/skills/game-planning/reference/default-flow.md` verbatim into the spec's `## Flow` section. This is the base.
-- **Sectioned (`sections` or explicit groupings):** use default-flow.md as base, then Step 2.6 will layer the section-intro delta.
+- **No rounds, single question, one-shot:** use Shape 1 Standalone. Copy the diagram verbatim from [standalone-flow.md](../game-planning/reference/standalone-flow.md) into `## Flow`. Skip Step 2.6.
+- **Anything rounds-based (default case):** copy the full ASCII diagram from [multi-round-flow.md](../game-planning/reference/multi-round-flow.md) verbatim into the spec's `## Flow` section. This is the base.
+- **Sectioned (`sections` or explicit groupings):** use multi-round-flow.md as base, then Step 2.6 will layer the section-intro delta.
 - Never hand-roll a flow diagram. Always start from one of these canonical bases.
 - Record the pick on the `**Shape:**` line of the `## Flow` section.
 

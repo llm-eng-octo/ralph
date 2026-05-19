@@ -1045,9 +1045,10 @@ Data about the full play session, not just individual attempts.
 | stars (0-3) | Rating |
 | attempts (array) | Full attempt history |
 | duration_data | Timing breakdown |
-| totalLives | Lives remaining |
-| tries (array) | Per-round attempt counts |
-| per_round_accuracy | Array of correct/incorrect per round — identifies difficulty spikes |
+| totalLives | INITIAL life budget (count at first render); NOT remaining. Remaining = totalLives - (tries - 1). |
+| tries (integer ≥ 1) | Session-wide counter = `1 + total_lives_lost_across_session`. Persists across Try Again. |
+| correct (boolean) | Overall correctness — passthrough of `endGame(correct)` arg. |
+| roundCorrectness (boolean[]) | Per-round correctness, length `totalRounds` — replaces the earlier per_round_accuracy idea. |
 
 **Questions:**
 

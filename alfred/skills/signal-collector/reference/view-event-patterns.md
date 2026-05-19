@@ -62,6 +62,8 @@ function loadRound(roundNumber) {
 - `'timer_reshuffle'` — content changed by timer (auto-advancing games)
 - `'user_action'` — content changed by student interaction
 
+**Standalone games (`totalRounds: 1`) behave identically.** The `progress: { current: 1, total: 1 }` shape is the expected payload for the single round — downstream consumers handle it the same as any other progress event. No standalone-specific event payload variant exists. If the standalone uses `answers: [...]` carousel with N>1 slides, each slide reveal can emit its own `visual_update` event using `current: slideIndex + 1, total: answers.length` if per-slide gauging is needed; that is a creator-authored signal, not a built-in event.
+
 ---
 
 ## Pattern: Visual Update (Cell/Option Selection)

@@ -2166,6 +2166,353 @@ if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
   }
 }
 
+// ─── game_complete METRICS rules (Fix 1, 2, 3) ─────────────────────────────
+// Source of truth: alfred/skills/data-contract/schemas/game-complete.schema.json
+//
+// These rules inspect the `metrics: { … }` block inside the game_complete postMessage.
+// They share a helper to locate the block and another to extract a named field's
+// right-hand-side expression.
+
+function _extractGameCompleteMetricsBlock(src) {
+  // Find the game_complete postMessage and pull out its `metrics: { ... }` value.
+  // Returns null if not found or unparseable.
+  const gcStart = src.search(/postMessage\s*\(\s*\{[^}]*['"]game_complete['"]/);
+  if (gcStart === -1) return null;
+  // From gcStart forward, scan for `metrics:` then balance braces.
+  const metricsKey = src.indexOf('metrics:', gcStart);
+  if (metricsKey === -1) return null;
+  // Find the opening `{` after `metrics:`.
+  let i = metricsKey + 'metrics:'.length;
+  while (i < src.length && src[i] !== '{') i++;
+  if (i >= src.length) return null;
+  // Balance braces (naively — string-aware would be nicer but regex-based callers compensate).
+  let depth = 0;
+  const startBlock = i;
+  for (; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        return src.slice(startBlock + 1, i); // body without surrounding braces
+      }
+    }
+  }
+  return null;
+}
+
+function _extractMetricsField(block, fieldName) {
+  // Locate `fieldName:` at top level of the metrics block and return the value expression
+  // up to the next sibling key or the end of the block. Trims trailing comma.
+  if (!block) return null;
+  const re = new RegExp('(?:^|[,{\\s])' + fieldName + '\\s*:\\s*');
+  const m = block.match(re);
+  if (!m) return null;
+  let i = m.index + m[0].length;
+  // Read the expression: balance nesting until we hit a top-level `,` or end of block.
+  let depth = 0;
+  let inString = false;
+  let stringChar = '';
+  let start = i;
+  for (; i < block.length; i++) {
+    const c = block[i];
+    if (inString) {
+      if (c === '\\') { i++; continue; }
+      if (c === stringChar) inString = false;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') { inString = true; stringChar = c; continue; }
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth--;
+    else if (c === ',' && depth === 0) break;
+    if (depth < 0) break;
+  }
+  return block.slice(start, i).trim();
+}
+
+// GEN-METRICS-CORRECT-PRESENT — metrics block must contain `correct:` and `roundCorrectness:` keys.
+{
+  if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
+    const block = _extractGameCompleteMetricsBlock(html);
+    if (block !== null) {
+      const hasCorrect = /(?:^|[,{\s])correct\s*:/.test(block);
+      const hasRoundCorrectness = /(?:^|[,{\s])roundCorrectness\s*:/.test(block);
+      if (!hasCorrect) {
+        errors.push(
+          "GEN-METRICS-CORRECT-PRESENT: game_complete metrics block is missing the `correct:` field. " +
+          "Required per Fix 1. `correct: boolean` is the overall game correctness (PASSTHROUGH of endGame(correct) arg). " +
+          "Add `correct: correct` (or `correct: true` for feedback-only games) to the metrics object."
+        );
+      }
+      if (!hasRoundCorrectness) {
+        errors.push(
+          "GEN-METRICS-CORRECT-PRESENT: game_complete metrics block is missing the `roundCorrectness:` field. " +
+          "Required per Fix 1. `roundCorrectness: boolean[]` length `totalRounds`, derived from gameState.attempts. " +
+          "Add `roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds)` to the metrics object."
+        );
+      }
+    }
+  }
+}
+
+// GEN-METRICS-CORRECT-PASSTHROUGH — metrics.correct must be a passthrough (identifier, literal true, or gameState.<x>).
+// Forbidden: derived expressions like `accuracy === 100`, `finalAttempt.correct`, `attempts[…].correct`.
+{
+  if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
+    const block = _extractGameCompleteMetricsBlock(html);
+    const correctExpr = _extractMetricsField(block, 'correct');
+    if (correctExpr !== null) {
+      const trimmed = correctExpr.replace(/\s+/g, ' ').trim();
+      const allowedShapes = [
+        /^[A-Za-z_$][\w$]*$/,                          // bare identifier (e.g., `correct`, `won`)
+        /^true$/,                                       // literal true (feedback-only)
+        /^false$/,                                      // literal false (rare but allowed)
+        /^gameState\s*\.\s*[A-Za-z_$][\w$]*$/,         // gameState.<name>
+        /^!!\s*[A-Za-z_$][\w$]*$/                      // !!coerced identifier
+      ];
+      const isAllowed = allowedShapes.some(re => re.test(trimmed));
+      const isForbidden =
+        /\baccuracy\s*===?\s*100\b/.test(trimmed) ||
+        /\bfinalAttempt\s*\.\s*correct\b/.test(trimmed) ||
+        /\battempts\s*\[/.test(trimmed) ||
+        /\bgameState\s*\.\s*attempts\s*\[/.test(trimmed);
+      if (isForbidden || !isAllowed) {
+        errors.push(
+          "GEN-METRICS-CORRECT-PASSTHROUGH: metrics.correct expression `" + trimmed + "` is not a passthrough. " +
+          "Per Fix 1, `correct` MUST be the argument passed into endGame(correct) — not derived. " +
+          "Allowed: bare identifier (`correct`, `won`), literal `true`/`false`, `gameState.<name>`, `!!<name>`. " +
+          "Forbidden: `accuracy === 100`, `finalAttempt.correct`, `attempts[attempts.length - 1].correct`, or any expression that recomputes correctness. " +
+          "Update endGame to accept a `correct` arg and pass it through to metrics.correct."
+        );
+      }
+    }
+  }
+}
+
+// GEN-ENDGAME-CORRECT-ARG — endGame() declaration must accept a single parameter; calls must pass an argument.
+{
+  // Find the endGame declaration. Accept `function endGame(<param>)`, `async function endGame(<param>)`,
+  // or `var endGame = async (<param>) =>`. Param name doesn't have to be "correct" but a param must exist.
+  const declMatch = html.match(/(?:async\s+)?function\s+endGame\s*\(\s*([A-Za-z_$][\w$]*)?\s*[,)]/);
+  const arrowMatch = html.match(/(?:const|let|var)\s+endGame\s*=\s*(?:async\s+)?\(\s*([A-Za-z_$][\w$]*)?\s*[,)]/);
+  const hasParam = (declMatch && declMatch[1]) || (arrowMatch && arrowMatch[1]);
+  const hasEndGameDecl = !!(declMatch || arrowMatch);
+  if (hasEndGameDecl && !hasParam) {
+    errors.push(
+      "GEN-ENDGAME-CORRECT-ARG: endGame() declaration takes no parameters. " +
+      "Per Fix 1, endGame must accept a `correct` argument (the overall correctness boolean) that flows through to metrics.correct. " +
+      "Standalone: Submit handler passes its evaluation. " +
+      "Multi-round evaluating: caller passes `gameState.lives > 0 && gameState.stars > 0` (or `false` on lives-zero). " +
+      "Feedback-only: caller hardcodes `endGame(true)`. " +
+      "Update declaration to `function endGame(correct) { … }` and every call site to pass a value."
+    );
+  }
+  // Also flag no-arg `endGame()` invocations outside the declaration (excluding `endGame(false)` etc.).
+  // Match `endGame()` with empty parens, NOT inside a comment or string.
+  const noArgCalls = html.match(/\bendGame\s*\(\s*\)/g);
+  if (noArgCalls) {
+    errors.push(
+      "GEN-ENDGAME-CORRECT-ARG: " + noArgCalls.length + " call(s) to `endGame()` with no argument. " +
+      "Per Fix 1, every call site must pass the correctness boolean. " +
+      "Replace `endGame()` with `endGame(true)` / `endGame(false)` / `endGame(correctExpr)` depending on the path."
+    );
+  }
+}
+
+// GEN-METRICS-ROUND-CORRECTNESS-DERIVED — roundCorrectness should be built by the canonical helper.
+{
+  if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
+    const block = _extractGameCompleteMetricsBlock(html);
+    const rcExpr = _extractMetricsField(block, 'roundCorrectness');
+    if (rcExpr !== null) {
+      const trimmed = rcExpr.replace(/\s+/g, ' ').trim();
+      // Permit canonical helper call OR an inline equivalent that walks attempts.
+      const usesHelper = /\bderiveRoundCorrectness\s*\(/.test(trimmed);
+      // Also permit `gameState.attempts.map(…)` patterns (inline derivation) — soft check.
+      const looksInline = /attempts\s*\.\s*(?:map|reduce|filter)\b/.test(trimmed);
+      if (!usesHelper && !looksInline) {
+        warnings.push(
+          "WARNING [GEN-METRICS-ROUND-CORRECTNESS-DERIVED]: roundCorrectness expression `" + trimmed + "` does not call `deriveRoundCorrectness(...)`. " +
+          "Use the canonical helper from code-patterns.md to avoid drift: " +
+          "`roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds)`."
+        );
+      }
+    }
+  }
+}
+
+// GEN-METRICS-TIME-UNIT (Fix 2) — metrics.time must be in SECONDS, not milliseconds.
+// PASS if the expression includes `/ 1000` or `Math.round(`, OR references an upstream variable assigned with `/ 1000`.
+// ERROR if the expression is raw `Date.now() - <var>` with no /1000.
+{
+  if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
+    const block = _extractGameCompleteMetricsBlock(html);
+    const timeExpr = _extractMetricsField(block, 'time');
+    if (timeExpr !== null) {
+      const trimmed = timeExpr.replace(/\s+/g, ' ').trim();
+      // Skip degenerate cases
+      if (trimmed === '0' || trimmed === '0.0') {
+        // intentionally pass — no time tracking
+      } else {
+        const hasDivision = /\/\s*1000\b/.test(trimmed) || /Math\.round\s*\(/.test(trimmed) || /Math\.floor\s*\(/.test(trimmed);
+        const isRawDateNowMinus = /\bDate\.now\s*\(\s*\)\s*-/.test(trimmed) && !hasDivision;
+        if (isRawDateNowMinus) {
+          errors.push(
+            "GEN-METRICS-TIME-UNIT: metrics.time expression `" + trimmed + "` emits MILLISECONDS but the contract requires SECONDS. " +
+            "Per Fix 2, use `Math.round((Date.now() - gameState.startTime) / 1000)`. " +
+            "Note the unit asymmetry in the same payload: attempts[].time_since_start_of_game and response_time_ms are ms; metrics.time is seconds. " +
+            "The JSON Schema's `time` upper bound (86400 = 24 hours) catches the same bug at runtime. " +
+            "See alfred/skills/data-contract/schemas/postmessage-schema.md § Time unit asymmetry."
+          );
+        } else if (!hasDivision) {
+          // Identifier — try to trace upstream within ~600 chars before the metrics block.
+          const idMatch = trimmed.match(/^([A-Za-z_$][\w$]*)$/);
+          if (idMatch) {
+            const varName = idMatch[1];
+            // Look in the 1500 chars BEFORE the game_complete postMessage for an assignment `var <varName> = ...`.
+            const gcIdx = html.search(/postMessage\s*\(\s*\{[^}]*['"]game_complete['"]/);
+            if (gcIdx > 0) {
+              const window = html.slice(Math.max(0, gcIdx - 1500), gcIdx);
+              const assignRe = new RegExp('(?:var|let|const)\\s+' + varName + '\\s*=\\s*([^;\\n]+)');
+              const m = window.match(assignRe);
+              if (m) {
+                const rhs = m[1];
+                const rhsHasDivision = /\/\s*1000\b/.test(rhs) || /Math\.round\s*\(/.test(rhs) || /Math\.floor\s*\(/.test(rhs);
+                const rhsIsRawDateNow = /\bDate\.now\s*\(\s*\)\s*-/.test(rhs);
+                if (rhsIsRawDateNow && !rhsHasDivision) {
+                  errors.push(
+                    "GEN-METRICS-TIME-UNIT: metrics.time reads `" + varName + "` which is assigned `" + rhs.trim() + "` (raw milliseconds). " +
+                    "Per Fix 2, divide by 1000 in the assignment: `var " + varName + " = Math.round((Date.now() - gameState.startTime) / 1000);`"
+                  );
+                }
+                // else: passes (rhs has /1000) or unrelated — silent OK
+              } else {
+                warnings.push(
+                  "WARNING [GEN-METRICS-TIME-UNIT]: metrics.time reads identifier `" + varName + "` whose assignment is not traceable in the 1500 chars before the postMessage. " +
+                  "Confirm the value is in SECONDS (Math.round((Date.now() - startTime) / 1000))."
+                );
+              }
+            }
+          }
+          // Non-identifier non-division — opaque expression; emit a warning rather than failing.
+          else {
+            warnings.push(
+              "WARNING [GEN-METRICS-TIME-UNIT]: metrics.time expression `" + trimmed + "` does not visibly divide by 1000. " +
+              "Per Fix 2, confirm the value is in SECONDS. Canonical form: `Math.round((Date.now() - gameState.startTime) / 1000)`."
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
+// GEN-METRICS-TRIES-SCALAR (Fix 3) — metrics.tries must be a scalar integer, not an array.
+{
+  if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
+    const block = _extractGameCompleteMetricsBlock(html);
+    const triesExpr = _extractMetricsField(block, 'tries');
+    if (triesExpr !== null) {
+      const trimmed = triesExpr.replace(/\s+/g, ' ').trim();
+      // Forbidden shapes: array literal `[...]`, name traceable to `var x = []`.
+      const isArrayLiteral = /^\[/.test(trimmed);
+      const isMapCall = /\.\s*map\s*\(|\.\s*filter\s*\(|\.\s*reduce\s*\(/.test(trimmed);
+      if (isArrayLiteral || isMapCall) {
+        errors.push(
+          "GEN-METRICS-TRIES-SCALAR: metrics.tries expression `" + trimmed + "` is an array shape. " +
+          "Per Fix 3, `tries` is an INTEGER counter (>= 1), NOT an array. Formula: tries = 1 + total_lives_lost_in_session. " +
+          "Use `tries: gameState.tries` (read from the session-scoped counter). " +
+          "Worked examples: 3 lives no losses → 1; lose 1 → 2; lose all 3 → Try Again → complete → 4. " +
+          "See alfred/skills/data-contract/schemas/postmessage-schema.md § tries — counter semantics."
+        );
+      } else {
+        // Check if the identifier traces back to an array literal upstream.
+        const idMatch = trimmed.match(/^([A-Za-z_$][\w$]*)$/);
+        if (idMatch) {
+          const varName = idMatch[1];
+          const assignRe = new RegExp('(?:var|let|const)\\s+' + varName + '\\s*=\\s*([^;\\n]+)');
+          const gcIdx = html.search(/postMessage\s*\(\s*\{[^}]*['"]game_complete['"]/);
+          if (gcIdx > 0) {
+            const window = html.slice(Math.max(0, gcIdx - 1500), gcIdx);
+            const m = window.match(assignRe);
+            if (m && /^\s*\[/.test(m[1])) {
+              errors.push(
+                "GEN-METRICS-TRIES-SCALAR: metrics.tries reads `" + varName + "` which is assigned `" + m[1].trim() + "` (array). " +
+                "Per Fix 3, `tries` is an integer counter. Replace with `tries: gameState.tries`."
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// GEN-METRICS-TRIES-INIT (Fix 3) — gameState initializer / startGame() must set tries: 1.
+{
+  // Either: `gameState = { ..., tries: 1, ... }` literal init, OR `gameState.tries = 1` set inside startGame body.
+  // Use a brace-balanced scan so nested `{}` inside the literal (e.g. `duration_data: {}`) doesn't truncate the match.
+  const hasLiteralInit = (() => {
+    const start = html.search(/gameState\s*=\s*\{/);
+    if (start === -1) return false;
+    const openIdx = html.indexOf('{', start);
+    let depth = 0;
+    for (let i = openIdx; i < html.length; i++) {
+      const ch = html[i];
+      if (ch === '{') depth++;
+      else if (ch === '}') { depth--; if (depth === 0) {
+        const body = html.slice(openIdx + 1, i);
+        return /(?:^|[,{\s])tries\s*:\s*1\b/.test(body);
+      } }
+    }
+    return false;
+  })();
+  const hasStartGameSet = /function\s+startGame\s*\(/.test(html) &&
+    (() => {
+      const m = html.match(/function\s+startGame\s*\([^)]*\)\s*\{([\s\S]*?)\n\}/);
+      return m && /gameState\s*\.\s*tries\s*=\s*1\b/.test(m[1]);
+    })();
+  // Only fire when game_complete with `tries:` field is present (so we know this is a game emitting metrics)
+  const emitsTries = /postMessage/.test(html) && /['"]game_complete['"]/.test(html) &&
+    (() => {
+      const block = _extractGameCompleteMetricsBlock(html);
+      return block !== null && /(?:^|[,{\s])tries\s*:/.test(block);
+    })();
+  if (emitsTries && !hasLiteralInit && !hasStartGameSet) {
+    errors.push(
+      "GEN-METRICS-TRIES-INIT: gameState does not initialize `tries: 1`. " +
+      "Per Fix 3, every game must set `gameState.tries = 1` at fresh-session boot (either in the gameState literal or inside startGame()). " +
+      "WRONG: omit the field; metrics.tries reads undefined. " +
+      "RIGHT: include `tries: 1` in gameState init OR `gameState.tries = 1;` in startGame()."
+    );
+  }
+}
+
+// GEN-METRICS-TRIES-INCREMENT (Fix 3) — every `gameState.lives -= 1` (or `lives--`) must be paired with `gameState.tries += 1`.
+{
+  // Find all lives-decrement sites and check for a nearby tries-increment.
+  const decrementRe = /gameState\s*\.\s*lives\s*(?:-=\s*1|--)/g;
+  let match;
+  const violations = [];
+  while ((match = decrementRe.exec(html)) !== null) {
+    const winStart = Math.max(0, match.index - 200);
+    const winEnd = Math.min(html.length, match.index + match[0].length + 200);
+    const window = html.slice(winStart, winEnd);
+    if (!/gameState\s*\.\s*tries\s*(?:\+=\s*1|\+\+)/.test(window)) {
+      violations.push(match.index);
+    }
+  }
+  if (violations.length > 0) {
+    errors.push(
+      "GEN-METRICS-TRIES-INCREMENT: found " + violations.length + " `gameState.lives -= 1` (or `lives--`) site(s) with no paired `gameState.tries += 1` (or `tries++`) within 200 chars. " +
+      "Per Fix 3, every life loss must increment the session-scoped tries counter. " +
+      "WRONG: `gameState.lives -= 1;` alone. " +
+      "RIGHT: `gameState.lives -= 1; gameState.tries += 1;` (adjacent). " +
+      "Formula: tries = 1 + total_lives_lost_in_session. Persists across Try Again. " +
+      "First violation offset: " + violations[0]
+    );
+  }
+}
+
 // ─── 7. Game state initialization ───────────────────────────────────────────
 const hasGameState =
   /gameState\s*=\s*\{/.test(html) ||
@@ -3028,7 +3375,100 @@ if (hasStartGame) {
     }
   }
 
-  // (4) 5e0-FLOATING-BUTTON-DUP — no custom Submit/Retry/Next/Check/Done/Commit
+  // (4) GEN-AUTOSUBMIT-NO-SUBMITTABLE — when spec.autoSubmit: true, the gameplay
+  //     code MUST NOT call setSubmittable(<anything except false>), setMode('submit'),
+  //     or floatingBtn.show(). Those would re-show the Submit button despite the
+  //     creator's opt-in to auto-evaluation. This is the INVERSE of the skip blocks
+  //     above (skip ≠ forbid). The allowed hide calls — setSubmittable(false),
+  //     setMode(null), hide() — remain available for the commit path to dismiss
+  //     transient state.
+  if (specOptOuts.autoSubmit === true) {
+    const autoSubmitViolations = [];
+    // Flag setSubmittable(<anything except literal false>).
+    const ssCallRe = /\.setSubmittable\s*\(/g;
+    let ssm;
+    while ((ssm = ssCallRe.exec(html)) !== null) {
+      const start = ssm.index + ssm[0].length;
+      let depth = 1;
+      let i = start;
+      while (i < html.length && depth > 0) {
+        const ch = html[i];
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+        if (depth === 0) break;
+        i++;
+      }
+      const arg = html.slice(start, i).trim();
+      if (arg === 'false') continue; // explicit hide is fine
+      autoSubmitViolations.push('setSubmittable(' + arg.slice(0, 60) + ')');
+      if (autoSubmitViolations.length >= 5) break;
+    }
+    // Flag setMode('submit') literal.
+    const smSubmitRe = /\.setMode\s*\(\s*['"]submit['"]\s*\)/g;
+    let smm;
+    while ((smm = smSubmitRe.exec(html)) !== null) {
+      autoSubmitViolations.push("setMode('submit')");
+      if (autoSubmitViolations.length >= 5) break;
+    }
+    // Flag floatingBtn.show() (equivalent to setMode('submit')).
+    const showRe = /\b(?:floatingBtn|floatingButton)\s*\.\s*show\s*\(\s*\)/g;
+    let shm;
+    while ((shm = showRe.exec(html)) !== null) {
+      autoSubmitViolations.push('floatingBtn.show()');
+      if (autoSubmitViolations.length >= 5) break;
+    }
+    if (autoSubmitViolations.length > 0) {
+      errors.push(
+        'ERROR [GEN-AUTOSUBMIT-NO-SUBMITTABLE]: spec declares `autoSubmit: true` but the build emitted ' +
+          autoSubmitViolations.length + ' call(s) that would re-show the Submit button: ' +
+          autoSubmitViolations.join('; ') + '. ' +
+          'Under autoSubmit:true the input handler MUST mutate gameState only — the commit handler ' +
+          '(timer onEnd, drop callback, canvas commit) calls endGame(correct) directly. ' +
+          'Allowed hide calls remain available: setSubmittable(false), setMode(null), hide(). ' +
+          'See PART-050 § Top-level spec flag — autoSubmit, code-patterns.md § autoSubmit input-listener template. ' +
+          '(GEN-AUTOSUBMIT-NO-SUBMITTABLE)'
+      );
+    }
+  }
+
+  // (4.5) GEN-FLOATING-BUTTON-MODE-STRING — setMode(...) accepts exactly four args:
+  //       'submit' | 'retry' | 'next' | null. Anything else (setMode('hidden'),
+  //       setMode(''), setMode(undefined), setMode('done')) is a silent no-op —
+  //       the component's switch falls through and the visible state never changes.
+  //       Catches regressions where the build emits string args that LOOK reasonable
+  //       but don't trigger a mode transition.
+  {
+    const allowedModeArgs = new Set([
+      "'submit'", '"submit"',
+      "'retry'", '"retry"',
+      "'next'", '"next"',
+      'null'
+    ]);
+    const modeRe = /\.setMode\s*\(\s*([^)]+?)\s*\)/g;
+    const modeViolations = [];
+    let mm;
+    while ((mm = modeRe.exec(html)) !== null) {
+      const rawArg = mm[1].trim();
+      // Only check literal args. Non-literal (variable / property access / function call)
+      // can't be statically resolved — skip to avoid false positives.
+      if (!/^(?:['"].*['"]|null|undefined)$/.test(rawArg)) continue;
+      if (allowedModeArgs.has(rawArg)) continue;
+      modeViolations.push('setMode(' + rawArg.slice(0, 40) + ')');
+      if (modeViolations.length >= 5) break;
+    }
+    if (modeViolations.length > 0) {
+      errors.push(
+        'ERROR [GEN-FLOATING-BUTTON-MODE-STRING]: floatingBtn.setMode(...) accepts only ' +
+          "'submit' / 'retry' / 'next' / null. Found " + modeViolations.length + ' invalid literal(s): ' +
+          modeViolations.join(', ') + '. ' +
+          "Common mistake: setMode('hidden') / setMode('') / setMode(undefined) are silent no-ops — the " +
+          "component's switch falls through and the visible state never changes. Use setMode(null) to hide. " +
+          '(PART-050 § States, GEN-FLOATING-BUTTON-MODE-STRING)'
+      );
+    }
+  }
+
+  // (5) 5e0-FLOATING-BUTTON-DUP — no custom Submit/Retry/Next/Check/Done/Commit
   //     button anywhere in the source when FloatingButton is also in use. We
   //     scan the same attributes as GEN-FLOATING-BUTTON-MISSING (id / class /
   //     data-testid / aria-label / innerText) with the same reserved-word list.
@@ -3496,6 +3936,7 @@ if (hasStartGame) {
       const end = Math.min(lines.length, lineNo + 5);
       const window = lines.slice(start, end).join('\n');
       const hidden =
+        /floatingBtn\s*\.\s*setMode\s*\(\s*null\s*\)/.test(window) ||
         /floatingBtn\s*\.\s*setMode\s*\(\s*['"]hidden['"]/.test(window) ||
         /floatingBtn\s*\.\s*destroy\s*\(/.test(window);
       if (!hidden) {
@@ -3527,9 +3968,12 @@ if (hasStartGame) {
   // "double-Next" / "TS with Next button" regressions (GEN-FLOATING-BUTTON-
   // TS-CTA-FORBIDDEN).
   //
-  // Scope: fires only when FloatingButton is in use AND totalRounds === 1 AND
-  // source references TransitionScreen (`new TransitionScreenComponent(` OR
-  // `transitionScreen.show(`). Auto-skips for games in the allowlist.
+  // Scope: fires when totalRounds === 1 AND source references TransitionScreen
+  // (`new TransitionScreenComponent(` OR `transitionScreen.show(`). Predicate is
+  // shape-only — independent of FloatingButton flag. Standalone forbids TS
+  // categorically; `floatingButton: false` changes only the end-CTA shape
+  // (PART-022 inline button), not the screen vocabulary. Auto-skips for games
+  // in the allowlist.
   const isStandalone = specContext.totalRounds === 1;
   const usesTransitionScreen =
     /\bnew\s+TransitionScreenComponent\s*\(/.test(html) ||
@@ -3537,8 +3981,10 @@ if (hasStartGame) {
   if (isStandalone && usesTransitionScreen) {
     errors.push(
       'ERROR [GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN]: Spec declares totalRounds=1 (Shape 1 Standalone) ' +
-        'AND FloatingButton is used, but the source references TransitionScreen (either `new TransitionScreenComponent(` ' +
+        'but the source references TransitionScreen (either `new TransitionScreenComponent(` ' +
         'or `transitionScreen.show(`). Standalone games have a single round — there is nothing to transition between. ' +
+        'The TS prohibition applies REGARDLESS of `floatingButton` flag: even when `floatingButton: false`, the ' +
+        'end-CTA is a PART-022 inline button, not a TransitionScreen. ' +
         'The inline feedback panel rendered in #gameContent (worked-example, stars, message) is the canonical ' +
         'end-of-game display for Shape 1. ' +
         'CORRECT STANDALONE FLOW (PART-050 "Next flow — standalone variant"): ' +
@@ -4398,6 +4844,28 @@ if (hasStartGame) {
     );
   }
 
+  // ─── GEN-FLOATING-BUTTON-RETRY-FORBIDDEN-1-LIFE ───────────────────────────
+  // Inverse of GEN-FLOATING-BUTTON-RETRY-STANDALONE: when the spec declares
+  // `totalRounds: 1` AND `totalLives === 1`, registering an `on('retry', ...)`
+  // handler is a contradiction — the player has no spare lives to retry into.
+  // The end-state UI for wrong+lives=0 on a 1-life standalone is AnswerComponent
+  // (reveal the solution) followed by Next, NOT Try Again. Catches the
+  // "builder defensively wires retry on a 1-life game" regression.
+  // Auto-skipped when `spec.autoSubmit: true` (no Retry button by design).
+  const hasOneLife = typeof specContext.totalLives === 'number' && specContext.totalLives === 1;
+  if (specContext.autoSubmit !== true && isStandalone && hasOneLife && registersOnRetry) {
+    errors.push(
+      'ERROR [GEN-FLOATING-BUTTON-RETRY-FORBIDDEN-1-LIFE]: Spec declares totalRounds=1 AND totalLives=1 ' +
+        '(single-question, single-life standalone) but the source registers floatingBtn.on(\'retry\', ...). ' +
+        'A 1-life game has no spare lives to retry into — the wrong-answer end-state is AnswerComponent ' +
+        '(reveal the solution) → Next, never Try Again. ' +
+        'REMOVE the on(\'retry\', ...) handler and any `floatingBtn.setMode(\'retry\')` call in the wrong-answer ' +
+        'branch of the submit handler. The wrong-answer branch should route directly to endGame(false) which ' +
+        'plays feedback, posts game_complete, reveals AnswerComponent (gated on !correct), then setMode(\'next\'). ' +
+        '(PART-050 § Standalone lifecycle, GEN-FLOATING-BUTTON-RETRY-FORBIDDEN-1-LIFE)'
+    );
+  }
+
   // ─── GEN-FLOATING-BUTTON-RETRY-LIVES-RESET ────────────────────────────────
   // When on('retry', ...) IS registered, its handler body MUST NOT reset
   // gameState.lives. The whole point of Try Again is to USE the already-
@@ -4472,6 +4940,111 @@ if (hasStartGame) {
           '(PART-050 § Try Again lifecycle, GEN-FLOATING-BUTTON-RETRY-NO-SUBMITTABLE)'
       );
     }
+  }
+})();
+
+// ─── GEN-PREVIEW-DESTROY-VIA-NEXT-ONLY ──────────────────────────────────────
+// Per PART-039 § Destruction: `previewScreen.destroy()` MUST be called only
+// from inside a `floatingBtn.on('next', ...)` handler — both shapes (standalone
+// AND multi-round). Direct calls from `endGame()`, screen handlers, anywhere
+// else are forbidden. The preview wrapper is persistent through every game
+// phase; tearing it down before Next results in flicker / lost state / mid-
+// audio teardown.
+//
+// Predicate: each `previewScreen.destroy()` call site must be lexically within
+// a `floatingBtn.on('next', function(...) {...})` (or arrow-fn) body. Heuristic:
+// for each destroy call, walk back to find the nearest enclosing `function (`
+// boundary; require that the function declaration is the second arg of a
+// `floatingBtn.on('next',` call. Conservative: if the AST shape is too dynamic
+// to detect (destroy called via helper), the rule is silent (false negatives
+// OK — fail open).
+(function checkPreviewDestroyViaNextOnly() {
+  // Two valid patterns:
+  // (A) Inline: floatingBtn.on('next', function() { ... previewScreen.destroy() ... })
+  // (B) Named handler: function handleNext() { ... previewScreen.destroy() ... }
+  //     ... floatingBtn.on('next', handleNext)
+  //
+  // Collect named-handler identifiers first by scanning all `on('next', <ident>)` registrations.
+  const nextHandlerNames = new Set();
+  const nextHandlerRe = /\bfloatingBtn\s*\.\s*on\s*\(\s*['"]next['"]\s*,\s*([A-Za-z_$][\w$]*)\s*\)/g;
+  let hm;
+  while ((hm = nextHandlerRe.exec(html)) !== null) {
+    nextHandlerNames.add(hm[1]);
+  }
+
+  const destroyRe = /previewScreen\s*\.\s*destroy\s*\(/g;
+  let m;
+  while ((m = destroyRe.exec(html)) !== null) {
+    const callIdx = m.index;
+    // First, check if the destroy is lexically inside an inline on('next', function(){...}).
+    const windowStart = Math.max(0, callIdx - 6000);
+    const slice = html.slice(windowStart, callIdx);
+    const inlineRe = /\bfloatingBtn\s*\.\s*on\s*\(\s*['"]next['"]\s*,\s*(?:async\s+)?function\b/g;
+    let lastInline = -1, im;
+    while ((im = inlineRe.exec(slice)) !== null) {
+      lastInline = im.index + im[0].length;
+    }
+    if (lastInline >= 0) {
+      // Check balance from the first `{` after lastInline through callIdx.
+      const between = slice.slice(lastInline);
+      const firstBraceRel = between.indexOf('{');
+      if (firstBraceRel >= 0) {
+        let depth = 1;
+        let i = firstBraceRel + 1, stillInside = true;
+        while (i < between.length) {
+          const c = between[i];
+          if (c === '{') depth++;
+          else if (c === '}') { depth--; if (depth === 0) { stillInside = false; break; } }
+          i++;
+        }
+        if (stillInside) continue; // inside inline handler — OK
+      }
+    }
+    // Second, check if the destroy is inside a named function whose name is
+    // registered as the on('next') handler. Walk backward looking for the
+    // nearest enclosing `function NAME(` or `async function NAME(` or
+    // `var NAME = function` or `const NAME = (...)=>` declaration.
+    if (nextHandlerNames.size > 0) {
+      // Find the nearest `function NAME(` opening before callIdx and check the
+      // function body contains callIdx.
+      const fnRe = /(?:^|[^\w$])(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g;
+      let inHandler = false;
+      let lastFn;
+      while ((lastFn = fnRe.exec(slice)) !== null) {
+        const fnName = lastFn[1];
+        if (!nextHandlerNames.has(fnName)) continue;
+        // Find function body opening brace after this match.
+        const after = slice.slice(lastFn.index + lastFn[0].length);
+        const braceRel = after.indexOf('{');
+        if (braceRel < 0) continue;
+        const bodyStartAbs = windowStart + lastFn.index + lastFn[0].length + braceRel;
+        // Balance braces from bodyStartAbs to find body end.
+        let depth = 1, i = bodyStartAbs + 1;
+        let bodyEndAbs = -1;
+        while (i < html.length) {
+          const c = html[i];
+          if (c === '{') depth++;
+          else if (c === '}') { depth--; if (depth === 0) { bodyEndAbs = i; break; } }
+          i++;
+        }
+        if (bodyEndAbs > callIdx && bodyStartAbs < callIdx) {
+          inHandler = true;
+          break;
+        }
+      }
+      if (inHandler) continue;
+    }
+    // Neither inline-in-handler nor inside-named-handler — flag.
+    warnings.push(
+      'WARNING [GEN-PREVIEW-DESTROY-VIA-NEXT-ONLY]: previewScreen.destroy() may be called outside the ' +
+        'floatingBtn.on(\'next\', ...) handler — could not statically confirm. Common false-positive cause: ' +
+        'destroy lives in a named helper function (e.g. `handleNextFromFloatingButton`) which is CALLED from ' +
+        'the on(\'next\') handler but not registered directly. If your destroy is reachable only via Next, ' +
+        'this warning is benign. Per PART-039 § Destruction, the preview wrapper must be torn down only when ' +
+        'Next is tapped — never from endGame(), screen handlers, or anywhere else. Both shapes (standalone ' +
+        'and multi-round) follow this rule identically. Severity downgraded to warning until static call-graph ' +
+        'analysis is implemented. (PART-039 § Destruction, GEN-PREVIEW-DESTROY-VIA-NEXT-ONLY)'
+    );
   }
 })();
 
@@ -4574,6 +5147,88 @@ if (hasStartGame) {
         'callback was found. The timer expiry path must hide FloatingButton — define an `onEnd` callback ' +
         'on the TimerComponent constructor that hides Submit (see PART-050 § Mandatory rules § 4). ' +
         '(PART-050 § Mandatory rules § 4, GEN-FLOATING-BUTTON-TIMEOUT-HIDE)'
+    );
+  }
+})();
+
+// ─── GEN-STANDALONE-SINGLE-ROUND ────────────────────────────────────────────
+// Standalone games (`totalRounds: 1`) MUST ship exactly one round in
+// `fallbackContent.rounds`. Multi-round games use round-set cycling
+// (GEN-ROUNDSETS-MIN-3) which requires `rounds.length === totalRounds × sets`.
+// Standalone bypasses that rule (by convention — no `set` keys), so nothing
+// catches the silent-iterate-N bug where a builder declares `totalRounds: 1`
+// but seeds 2 round objects. The round loop iterates twice, the second round
+// is never displayed in the expected single-question flow, and lives accounting
+// breaks. This rule enforces the structural invariant.
+(function checkStandaloneSingleRound() {
+  if (specContext.totalRounds !== 1) return; // multi-round handled by GEN-ROUNDSETS-MIN-3
+  // Parse fallbackContent.rounds array length — reuse the same parsing approach
+  // as GEN-ROUNDSETS-MIN-3 (find `fallbackContent = {`, find `rounds:`, count
+  // top-level `{` blocks in the array literal).
+  const fbMatch = /(?:const|let|var)\s+fallbackContent\s*=\s*\{/.exec(html);
+  if (!fbMatch) return; // no fallback — different rule handles that
+  const objStart = fbMatch.index + fbMatch[0].length - 1;
+  let depth = 0, objEnd = -1, i = objStart;
+  while (i < html.length) {
+    const c = html[i];
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) { objEnd = i; break; } }
+    i++;
+  }
+  if (objEnd < 0) return;
+  const fbBody = html.slice(objStart, objEnd + 1);
+  const roundsMatch = /\brounds\s*:\s*\[/.exec(fbBody);
+  if (!roundsMatch) return;
+  const arrStart = roundsMatch.index + roundsMatch[0].length - 1;
+  let bdepth = 0, arrEnd = -1, j = arrStart;
+  while (j < fbBody.length) {
+    const c = fbBody[j];
+    if (c === '[') bdepth++;
+    else if (c === ']') { bdepth--; if (bdepth === 0) { arrEnd = j; break; } }
+    j++;
+  }
+  if (arrEnd < 0) return;
+  const arrBody = fbBody.slice(arrStart + 1, arrEnd);
+  // Count top-level `{` (each round object). Use balanced brace scanning.
+  let roundCount = 0, kdepth = 0;
+  for (let k = 0; k < arrBody.length; k++) {
+    const c = arrBody[k];
+    if (c === '{') { if (kdepth === 0) roundCount++; kdepth++; }
+    else if (c === '}') kdepth--;
+  }
+  if (roundCount > 1) {
+    errors.push(
+      'ERROR [GEN-STANDALONE-SINGLE-ROUND]: Spec declares totalRounds=1 (Shape 1 Standalone) but ' +
+        'fallbackContent.rounds contains ' + roundCount + ' round objects — exactly 1 is required. ' +
+        'Standalone games have a single evaluated question; a multi-element rounds array causes the round loop ' +
+        'to iterate more than once and breaks lives accounting / game_complete payload semantics. ' +
+        'Fix: collapse the array to a single round object, OR change the spec to multi-round (totalRounds > 1) ' +
+        'and add round-set cycling per GEN-ROUNDSETS-MIN-3. ' +
+        '(shapes.md § Decision Matrix, GEN-STANDALONE-SINGLE-ROUND)'
+    );
+  }
+})();
+
+// ─── GEN-STANDALONE-NO-PROGRESS-BAR ─────────────────────────────────────────
+// Standalone games (`totalRounds: 1`) MUST NOT instantiate ProgressBarComponent
+// at all. Per shapes.md § Decision Matrix, the progress bar is forbidden on
+// Shape 1 — it conveys round-by-round progression which has no meaning when
+// there is only one round. Even subsequent `progressBar.hide()` doesn't help:
+// the component costs DOM and confuses the layout (preview header is the only
+// chrome). Catches builders who instantiate-then-hide out of habit.
+(function checkStandaloneNoProgressBar() {
+  if (specContext.totalRounds !== 1) return;
+  const usesProgressBar = /\bnew\s+ProgressBarComponent\s*\(/.test(html);
+  if (usesProgressBar) {
+    errors.push(
+      'ERROR [GEN-STANDALONE-NO-PROGRESS-BAR]: Spec declares totalRounds=1 (Shape 1 Standalone) but ' +
+        '`new ProgressBarComponent(...)` is in source. Standalone games have no round-by-round progression — ' +
+        'the progress bar conveys no information and must not be instantiated. Even if subsequently hidden ' +
+        'via progressBar.hide(), the component costs DOM and conflicts with the absent-progress-bar invariant ' +
+        '(shapes.md § Decision Matrix). Fix: remove the ProgressBarComponent instantiation, remove the ' +
+        'progressBar: true entry from ScreenLayout.inject() slots, and remove the typeof ProgressBarComponent ' +
+        'check from waitForPackages(). ' +
+        '(shapes.md § Decision Matrix, GEN-STANDALONE-NO-PROGRESS-BAR)'
     );
   }
 })();
@@ -5023,9 +5678,11 @@ if (styleBlocks.length === 0) {
 }
 
 // ─── W13. GEN-RESTART-RESET: restartGame() must reset required gameState fields ──
-// Rule 42: restartGame() MUST reset ALL mutable gameState fields.
-// Confirmed missing-reset instances: quadratic-formula #546, find-triangle-side #549, associations #472.
-// Required fields: currentRound, score, lives (or totalLives), events, attempts.
+// Rule 42: restartGame() MUST reset mutable round-cycle gameState fields.
+// Per Fix 5 (2026-05): `attempts` is now SESSION-SCOPED — it persists across restartGame()
+// and is enforced by the companion negative rule GEN-RESTART-ATTEMPTS-PRESERVED below.
+// `tries` is also session-scoped — see GEN-RESTART-TRIES-PRESERVED.
+// Required-reset fields: currentRound, score, lives (or totalLives), events.
 // Only warn if restartGame IS defined — skip for games that don't have it.
 {
   const hasRestartGame = /function\s+restartGame\s*\(|(?:const|let|var)\s+restartGame\s*=/.test(html);
@@ -5053,17 +5710,76 @@ if (styleBlocks.length === 0) {
       if (!/gameState\s*\.\s*events\s*=/.test(restartBody)) {
         missingFields.push('events');
       }
-      // Check for attempts reset (= [] or similar)
-      if (!/gameState\s*\.\s*attempts\s*=/.test(restartBody)) {
-        missingFields.push('attempts');
-      }
+      // NOTE: `attempts` intentionally NOT checked — it is session-scoped per Fix 5.
+      // The companion rule GEN-RESTART-ATTEMPTS-PRESERVED actively FORBIDS attempts reset.
       if (missingFields.length > 0) {
         warnings.push(
           `WARNING [GEN-RESTART-RESET]: restartGame() missing state reset for: ${missingFields.join(', ')} — ` +
-            'GEN rule 42 requires resetting ALL mutable gameState fields. ' +
+            'restartGame() must reset mutable round-cycle fields. ' +
+            'Required: currentRound, score, lives, events. ' +
+            'SESSION-SCOPED (DO NOT RESET): attempts, tries, setIndex — see GEN-RESTART-ATTEMPTS-PRESERVED, GEN-RESTART-TRIES-PRESERVED. ' +
             'WRONG: function restartGame() { gameState.gameEnded = false; gameState.phase = "start"; syncDOMState(); showStartScreen(); } ' +
-            'RIGHT: function restartGame() { gameState.currentRound = 0; gameState.lives = gameState.totalLives; gameState.score = 0; gameState.events = []; gameState.attempts = []; gameState.gameEnded = false; gameState.phase = "start"; syncDOMState(); showStartScreen(); } ' +
-            'Confirmed 3 browser instances: quadratic-formula #546 (data-lives="2" at second game start), find-triangle-side #549, associations #472. (CR-032)'
+            'RIGHT: function restartGame() { gameState.currentRound = 0; gameState.lives = gameState.totalLives; gameState.score = 0; gameState.events = []; gameState.gameEnded = false; gameState.phase = "start"; syncDOMState(); showStartScreen(); }'
+        );
+      }
+    }
+  }
+}
+
+// ─── GEN-RESTART-TRIES-PRESERVED (Fix 3): tries is session-scoped; restartGame MUST NOT reset it ──
+// Companion to GEN-RESTART-RESET. `gameState.tries` is a counter that survives Try Again.
+{
+  const hasRestartGame = /function\s+restartGame\s*\(|(?:const|let|var)\s+restartGame\s*=/.test(html);
+  if (hasRestartGame) {
+    const restartFnMatch = html.match(
+      /(?:function\s+restartGame\s*\([^)]*\)|(?:const|let|var)\s+restartGame\s*=\s*(?:async\s+)?function\s*\([^)]*\)|(?:const|let|var)\s+restartGame\s*=\s*(?:async\s+)?\([^)]*\)\s*=>)\s*\{([\s\S]*?)(?=\n\s*(?:function\s+\w|(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?function|\}\s*\n\s*(?:function|const|let|var|\/\/\s*─|window\s*\.|\/\*)))/
+    );
+    if (restartFnMatch) {
+      const restartBody = restartFnMatch[1];
+      // Also include resetGameState if it's called from restartGame and defined inline
+      const resetFnMatch = html.match(
+        /(?:function\s+resetGameState\s*\([^)]*\)|(?:const|let|var)\s+resetGameState\s*=\s*(?:async\s+)?function\s*\([^)]*\)|(?:const|let|var)\s+resetGameState\s*=\s*(?:async\s+)?\([^)]*\)\s*=>)\s*\{([\s\S]*?)(?=\n\s*(?:function\s+\w|(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?function|\}\s*\n\s*(?:function|const|let|var|\/\/\s*─|window\s*\.|\/\*)))/
+      );
+      const combinedBody = restartBody + '\n' + (resetFnMatch ? resetFnMatch[1] : '');
+      // Match `gameState.tries =` BUT exclude `+=` and `-=` (those are increments, not resets)
+      if (/gameState\s*\.\s*tries\s*=(?![=+\-])/.test(combinedBody)) {
+        errors.push(
+          "GEN-RESTART-TRIES-PRESERVED: restartGame() / resetGameState() resets gameState.tries — " +
+          "`tries` is SESSION-SCOPED. It is the counter `1 + total_lives_lost_across_session` and MUST survive every Try Again. " +
+          "WRONG: function restartGame() { gameState.tries = 1; ... }. " +
+          "RIGHT: only `startGame()` (fresh-session boot) sets `gameState.tries = 1`; restartGame must NOT touch it. " +
+          "Increment happens in the wrong-answer branch via `gameState.tries += 1` paired with `gameState.lives -= 1`. " +
+          "See alfred/parts/PART-050.md § Session-scoped state preservation."
+        );
+      }
+    }
+  }
+}
+
+// ─── GEN-RESTART-ATTEMPTS-PRESERVED (Fix 5): attempts is session-scoped ──
+// `gameState.attempts` carries full session history across Try Again. Only startGame() may reset it.
+{
+  const hasRestartGame = /function\s+restartGame\s*\(|(?:const|let|var)\s+restartGame\s*=/.test(html);
+  if (hasRestartGame) {
+    const restartFnMatch = html.match(
+      /(?:function\s+restartGame\s*\([^)]*\)|(?:const|let|var)\s+restartGame\s*=\s*(?:async\s+)?function\s*\([^)]*\)|(?:const|let|var)\s+restartGame\s*=\s*(?:async\s+)?\([^)]*\)\s*=>)\s*\{([\s\S]*?)(?=\n\s*(?:function\s+\w|(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?function|\}\s*\n\s*(?:function|const|let|var|\/\/\s*─|window\s*\.|\/\*)))/
+    );
+    if (restartFnMatch) {
+      const restartBody = restartFnMatch[1];
+      const resetFnMatch = html.match(
+        /(?:function\s+resetGameState\s*\([^)]*\)|(?:const|let|var)\s+resetGameState\s*=\s*(?:async\s+)?function\s*\([^)]*\)|(?:const|let|var)\s+resetGameState\s*=\s*(?:async\s+)?\([^)]*\)\s*=>)\s*\{([\s\S]*?)(?=\n\s*(?:function\s+\w|(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?function|\}\s*\n\s*(?:function|const|let|var|\/\/\s*─|window\s*\.|\/\*)))/
+      );
+      const combinedBody = restartBody + '\n' + (resetFnMatch ? resetFnMatch[1] : '');
+      // `gameState.attempts = ...` direct assignment (e.g. `= []`); excludes `.push(...)` and `+=`
+      if (/gameState\s*\.\s*attempts\s*=(?![=+\-])/.test(combinedBody)) {
+        errors.push(
+          "GEN-RESTART-ATTEMPTS-PRESERVED: restartGame() / resetGameState() resets gameState.attempts — " +
+          "`attempts` is SESSION-SCOPED. The array contains the full session history including pre-Try-Again attempts and MUST survive restartGame(). " +
+          "Only startGame() (fresh-session boot, page load) may set `gameState.attempts = []`. " +
+          "WRONG: function restartGame() { gameState.attempts = []; ... }. " +
+          "RIGHT: leave attempts alone in restartGame; new attempts append to the existing array via recordAttempt(). " +
+          "round_number values may legitimately repeat in the final array — that's the intent (Try Again replays). " +
+          "See alfred/skills/data-contract/schemas/attempt-schema.md § Session-scoped."
         );
       }
     }

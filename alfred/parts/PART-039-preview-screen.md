@@ -253,6 +253,29 @@ Do NOT call `setupGame()` from `restartGame()` if `setupGame()` ends with `showP
 
 ---
 
+## Destruction {#destruction}
+
+**Canonical rule (both shapes — standalone AND multi-round):** `previewScreen.destroy()` MUST be called exactly once, from inside a `floatingBtn.on('next', ...)` handler, AFTER the `next_ended` postMessage. Direct calls from `endGame()`, screen handlers, `onCorrect` / `onWrong`, or any other location are forbidden.
+
+Why: the preview wrapper owns the ActionBar header (`#previewStar`, `#previewScore`, `#previewQuestionLabel`) — the DOM target of the `show_star` end-of-game animation. Destroying the wrapper before Next is tapped tears down the header mid-animation, leaves the player on a flicker, or interrupts the final audio. Routing destruction through the Next handler guarantees the header stays mounted for the full end-screen view.
+
+Validator: `GEN-PREVIEW-DESTROY-VIA-NEXT-ONLY` (see [static-validation-rules.md § Shape Enforcement](../skills/game-building/reference/static-validation-rules.md#shape-enforcement)).
+
+Canonical wiring:
+
+```js
+floatingBtn.on('next', function () {
+  window.parent.postMessage({ type: 'next_ended' }, '*');
+  if (answerComponent) answerComponent.destroy();
+  if (previewScreen) previewScreen.destroy();
+  floatingBtn.destroy();
+});
+```
+
+Order matters: post `next_ended` first (host needs it before the iframe tears down); then destroy AnswerComponent, preview, floating button.
+
+---
+
 ## Component Boundary (CRITICAL)
 
 PreviewScreenComponent owns its internal DOM. Game code operates only within `#gameContent` and its children; the CDN manages preview visibility via `switchToGame()` (internal, called by `skip()` / timer-complete) and `destroy()` (once, in the end-of-game Next-click handler).
