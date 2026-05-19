@@ -20,8 +20,11 @@ Per **PART-010** (Event Tracking). See `parts/PART-010.md`.
 
 Alfred requires these canonical events:
 - `game_start` — with totalRounds
-- `game_end` — with score, lives, stars, rounds_played
 - `answer_submitted` — with round, correct, response_time_ms
+- `attempt_complete` — with correct, score, stars. Fires AFTER `recordAttempt(...)` for the terminal answer and BEFORE the post-submit SFX/TTS chain. Paired with the `attempt_complete` postMessage (see PART-008 § attempt_complete + `postmessage-schema.md` § attempt_complete).
+- `game_end` — with correct, score, stars. Fires in `endGame()` AFTER the feedback chain, paired with the `game_complete` postMessage.
+
+`attempt_complete` and `game_end` bracket the post-submit feedback chain: `attempt_complete` is the "input done, host may preload" signal, `game_end` is the "session cleanup" signal.
 
 ## Debug Functions
 

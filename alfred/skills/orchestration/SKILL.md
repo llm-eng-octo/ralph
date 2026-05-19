@@ -184,7 +184,7 @@ PreviewScreen wiring (slot, instantiation, destroy ordering, restart behavior) i
 - **AnswerComponent wiring + end-game chain** (standalone 5-beat orchestrator; multi-round Victory Celebration hand-off; single-stage Next handler) are fully specified in [PART-050](../parts/PART-050.md) and [PART-051](../parts/PART-051.md). Follow both — do not re-derive.
 - **Round mount narration** (CASE 3 — fire-and-forget question TTS inside `renderRound()`) is shape-conditional. Multi-round: emit the canonical `if (round.questionTTS) { FeedbackManager.playDynamicFeedback(...).catch(...); }` block (no-op when the round lacks `questionTTS`). Standalone: emit ONLY when the spec sets `roundMountNarration: true` (creator-quoted opt-in). See [feedback/SKILL.md § CASE 3](../skills/feedback/SKILL.md) and [spec-creation § Optional roundMountNarration flag](../skills/spec-creation/SKILL.md).
 
-Wire all required platform integrations (recordAttempt, game_complete, FeedbackManager).
+Wire all required platform integrations (recordAttempt, attempt_complete, game_complete, FeedbackManager). `attempt_complete` is the host-preload-hook postMessage that fires AFTER `recordAttempt(...)` for the terminal answer and BEFORE the post-submit SFX/TTS chain — see PART-008 and `postmessage-schema.md`.
 
 Save the file and tell me the path.
 
@@ -195,7 +195,7 @@ Read alfred/skills/game-building/reference/static-validation-rules.md
 Run THREE deterministic checks:
 
 1. Contract validation — follow the procedure in data-contract/SKILL.md.
-   Covers: gameState, recordAttempt, postMessage (game_ready/game_init/game_complete),
+   Covers: gameState, recordAttempt, postMessage (game_ready/game_init/attempt_complete/game_complete),
    syncDOM attributes.
 
 2. Static validation — run `node alfred/scripts/validate-static.js <game-html-path>` and
@@ -233,7 +233,7 @@ Test the game across all 5 categories:
 2. Mechanics (correct/wrong answers, scoring, lives)
 3. Level progression (rounds advance, difficulty changes)
 4. Edge cases (rapid clicks, replay state, browser resize)
-5. Contract (recordAttempt fires, game_complete fires, data schema valid)
+5. Contract (recordAttempt fires, attempt_complete fires BEFORE the post-submit SFX/TTS chain on the terminal answer, game_complete fires from endGame, data schema valid)
 
 For each failure:
 - Fix the issue in the HTML

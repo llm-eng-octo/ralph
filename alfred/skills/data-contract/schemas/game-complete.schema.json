@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "alfred/game-complete",
   "title": "game_complete postMessage payload",
-  "description": "Canonical shape of the game_complete message sent from a game iframe to its parent harness. SOURCE OF TRUTH for the contract; markdown docs in the same directory mirror this schema.",
+  "description": "Canonical shape of the game_complete message sent from a game iframe to its parent harness. SOURCE OF TRUTH for the contract; markdown docs in the same directory mirror this schema. The companion attempt_complete message (see attempt-complete.schema.json) reuses $defs/metrics and $defs/previewResult from this file — the two payloads MUST stay field-by-field identical except for the type discriminator and the per-message-instant timestamps (data.metrics.time and data.completedAt).",
   "type": "object",
   "required": ["type", "data"],
   "additionalProperties": true,

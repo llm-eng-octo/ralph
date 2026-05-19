@@ -117,7 +117,8 @@ Per PART-009. Game-building rules:
 
 ### trackEvent
 Per PART-010. Game-building rules:
-- Canonical events that MUST fire: `game_start`, `game_end`, `answer_submitted`, `round_complete`.
+- Canonical events that MUST fire: `game_start`, `answer_submitted`, `round_complete`, `attempt_complete`, `game_end`.
+- `attempt_complete` and `game_end` bracket the post-submit feedback chain — `attempt_complete` fires right after `recordAttempt(...)` for the terminal answer (BEFORE SFX/TTS), `game_end` fires in `endGame()` (AFTER SFX/TTS). See PART-008 § attempt_complete + PART-010.
 - See `parts/PART-010.md` for event schemas.
 
 ### endGame
@@ -134,36 +135,59 @@ Per PART-011. Game-building rules:
 - The `correct` argument is a PASSTHROUGH to `metrics.correct` — never derived from `accuracy` or `attempts[last]`. Validator `GEN-METRICS-CORRECT-PASSTHROUGH` enforces this.
 - See `parts/PART-011.md` and `parts/PART-050.md` for full code and metrics fields.
 
-### postGameComplete (canonical snippet + time unit + correctness fields)
+### buildEndPayload + postAttemptComplete + postGameComplete (shared-builder pattern)
 
-Canonical builder for the `game_complete` postMessage. **Source of truth for shape:** [`alfred/skills/data-contract/schemas/game-complete.schema.json`](../../data-contract/schemas/game-complete.schema.json).
+Canonical builders for the two end-of-game postMessages. **Source of truth for shape:** [`alfred/skills/data-contract/schemas/game-complete.schema.json`](../../data-contract/schemas/game-complete.schema.json) (and [`attempt-complete.schema.json`](../../data-contract/schemas/attempt-complete.schema.json), which reuses the same `$defs`).
+
+**Rule: both messages MUST be built from one shared `buildEndPayload(correct)` helper** so they cannot drift field-by-field. Inlining two parallel payload objects is forbidden — `attempt_complete.data.metrics` and `game_complete.data.metrics` must match for every field except `time` and `completedAt` (which legitimately differ because each message timestamps itself at its own firing instant).
 
 ```javascript
-function postGameComplete(correct) {
+// Shared payload builder — used by BOTH postAttemptComplete and postGameComplete.
+// Re-reads gameState at call time so each message captures its own timestamp.
+function buildEndPayload(correct) {
   // metrics.time is in SECONDS. The other time fields in the payload are MILLISECONDS — see
   // the unit asymmetry note in postmessage-schema.md and attempt-schema.md.
   var totalTime = gameState.startTime
     ? Math.round((Date.now() - gameState.startTime) / 1000)
     : 0;
 
-  window.parent.postMessage({
-    type: 'game_complete',
-    data: {
-      metrics: {
-        accuracy: getAccuracy(),                                            // integer 0-100
-        time: totalTime,                                                    // INTEGER SECONDS
-        stars: getStars(),                                                  // 0-3
-        attempts: gameState.attempts,                                       // session-scoped; survives Try Again
-        duration_data: gameState.duration_data,
-        totalLives: gameState.totalLives,                                   // INITIAL life budget (count at first render); NOT remaining. Remaining = totalLives - (tries - 1).
-        tries: gameState.tries,                                             // INTEGER counter ≥ 1; NOT an array
-        correct: correct,                                                   // PASSTHROUGH of endGame(correct) arg
-        roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds)
-      },
-      completedAt: Date.now(),                                              // EPOCH MILLISECONDS
-      previewResult: gameState.previewResult || null
-    }
-  }, '*');
+  return {
+    metrics: {
+      accuracy: getAccuracy(),                                              // integer 0-100
+      time: totalTime,                                                      // INTEGER SECONDS at this firing instant
+      stars: getStars(),                                                    // 0-3
+      attempts: gameState.attempts,                                         // session-scoped; survives Try Again
+      duration_data: gameState.duration_data,
+      totalLives: gameState.totalLives,                                     // INITIAL life budget (count at first render); NOT remaining. Remaining = totalLives - (tries - 1).
+      tries: gameState.tries,                                               // INTEGER counter ≥ 1; NOT an array
+      correct: correct,                                                     // PASSTHROUGH of endGame(correct) arg
+      roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds)
+    },
+    completedAt: Date.now(),                                                // EPOCH MILLISECONDS at this firing instant
+    previewResult: gameState.previewResult || null
+  };
+}
+
+// Host preload hook. Fire IMMEDIATELY after recordAttempt(...) for the terminal answer,
+// BEFORE the post-submit SFX/TTS chain. See PART-008 § attempt_complete and PART-050
+// (standalone Beat 0 / multi-round per-round submit handler) for the firing-point rules.
+function postAttemptComplete(correct) {
+  var payload = { type: 'attempt_complete', data: buildEndPayload(correct) };
+  try { window.parent.postMessage(payload, '*'); } catch (e) {}
+  try { window.postMessage(payload, '*'); } catch (e) {}
+  try { trackEvent('attempt_complete', {
+    correct: !!correct,
+    score: gameState.score,
+    stars: gameState.stars
+  }); } catch (e) {}
+}
+
+// End-of-game signal. Fire from endGame() AFTER the feedback chain. Continues to be the
+// authoritative carrier of signal_event_count / signal_metadata (sealed by SignalCollector).
+function postGameComplete(correct) {
+  var payload = { type: 'game_complete', data: buildEndPayload(correct) };
+  try { window.parent.postMessage(payload, '*'); } catch (e) {}
+  try { window.postMessage(payload, '*'); } catch (e) {}
 }
 
 // Canonical per-round correctness helper. Walks the attempts array and takes the LAST attempt
@@ -452,6 +476,7 @@ Per PART-050. Game-building rules:
   **Standalone (`totalRounds: 1`) — NO TransitionScreen.** The inline feedback panel in `#gameContent` IS the end-of-game display. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks TransitionScreen usage in standalone.
   ```js
   async function endGame(correct) {
+    postAttemptComplete(correct);                                     // 0. host preload hook — BEFORE any await
     await FeedbackManager.play(correct ? 'correct' : 'incorrect');   // 1. await feedback
     renderInlineFeedbackPanel(correct);                               // 2. update #gameContent
     window.parent.postMessage({ type: 'game_complete', data: {...} }, '*');  // 3. post
@@ -598,7 +623,8 @@ Per PART-051. Game-building rules:
 - **Use the `.mathai-answer-stack` and `.mathai-answer-row` utility classes** (provided by the component, no game CSS needed) to lay out multi-section answer views. The slide container itself is plain block flow with auto `> * + *` margins, so loose children get a 14 px rhythm by default; for richer layouts wrap content in `<div class="mathai-answer-stack">` (vertical column with `gap`) and use `<div class="mathai-answer-row">` for horizontal chip groups. Avoid emitting tightly-packed sibling `<div>`s with no wrapper — they default to centred block flow but games that need horizontal grouping or richer spacing should use the helpers. See PART-051 § "Layout helpers".
 - **End-game multi-round chain (REQUIRED — supersedes the FloatingButton "Multi-round lifecycle" pattern when AnswerComponent is in use):** the [Victory Celebration screen](../../../parts/PART-050.md#canonical-names) (yay + `show_star` animation) plays FIRST, hands off to AnswerComponent via its `onMounted` setTimeout, and the floating Next is single-stage exit. `answerComponent.show(...)` MUST NOT appear inside `endGame()`. **Function-name canon:** `showWinConfirmation()` is the optional button-gated pre-screen with Claim Stars; `showVictoryCelebration()` is the celebration with sound + animation. Legacy code may use `showVictory()` / `showStarsCollected()` — these names still work but new builds emit the canonical names.
   ```js
-  async function endGame(/* called after the final round resolves */) {
+  async function endGame(correct /* called after the final round resolves */) {
+    postAttemptComplete(correct);                                           // 0. host preload hook — BEFORE any await
     await FeedbackManager.play(/* final round */);                          // 1. await feedback
     window.parent.postMessage({ type: 'game_complete', data: {...} }, '*'); // 2. post game_complete
     if (gameState.stars > 0) showWinConfirmation(); else showGameOver();    // 3. route to Win Confirmation / Game Over
@@ -670,6 +696,7 @@ Per PART-051. Game-building rules:
 - **End-game standalone chain:**
   ```js
   async function endGame(correct) {
+    postAttemptComplete(correct);                                             // 0. host preload hook — BEFORE any await
     await FeedbackManager.play(correct ? 'correct' : 'incorrect');           // 1. await feedback
     renderInlineFeedbackPanel(correct);                                       // 2. inline panel in #gameContent
     window.parent.postMessage({ type: 'game_complete', data: {...} }, '*');  // 3. post
@@ -810,12 +837,13 @@ The core game loop MUST follow this order:
 3. `recordAttempt()` (per PART-009 -- all 12 fields)
 4. `trackEvent('answer_submitted', ...)` (per PART-010)
 5. Update internal `score`/`lives` counters and call `syncDOM()`. Do NOT touch the ActionBar header here — the header is locked at boot by `game_init.data.score` and updated only by the end-of-game `show_star` celebration. `setScore` and `setQuestionLabel` are not part of the public API.
-6. Visual feedback (selected-wrong/selected-correct classes, correct-reveal)
-7. FeedbackManager audio (per `skills/feedback/SKILL.md`):
+6. **Terminal-answer detection + `attempt_complete`.** Compute `isLastRound` / `isGameOver` (the same flags the round-complete branch reads). If EITHER is true, this is the terminal answer of the session — call `postAttemptComplete(correct)` here, BEFORE the visual feedback / SFX / TTS chain. The host uses this signal to start preloading the next worksheet item while the celebration plays. Standalone games (`totalRounds: 1`) fire on every submit (each submit is terminal — either correct, or wrong with `lives → 0`). Feedback-only games pass `correct: true`. See PART-008 § attempt_complete and `postmessage-schema.md` § attempt_complete. Forbidden between `recordAttempt(...)` and `postAttemptComplete(...)`: any `await`, any `setTimeout`, any `transitionScreen.show()`, any audio call.
+7. Visual feedback (selected-wrong/selected-correct classes, correct-reveal)
+8. FeedbackManager audio (per `skills/feedback/SKILL.md`):
    - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → then **AWAIT** `try { await FeedbackManager.playDynamicFeedback({audio_content: round.<X>TTS, subtitle: round.<X>Subtitle, sticker}); } catch(e){}`. SFX awaited (~1.5s floor) for predictable visual flash; TTS awaited so the explanation finishes BEFORE round advance — without await, the subtitle/audio paints over the next round's transition. Package bounds TTS resolution at 3 s (API timeout) / 60 s (streaming) so it can never freeze the game indefinitely; `try/catch` swallows rejection so a network failure still advances. **Subtitle pairing rule:** `subtitle` MUST come from a paired authored field on the same round object (`<X>TTS` ↔ `<X>Subtitle` convention; see spec-creation/SKILL.md § 5e-i). NEVER hard-code a generic literal like `'Great job!'` or `'Try again!'` while `audio_content` reads `round.<X>TTS` — that strands students who can't hear the audio. **Side-effect ordering rule:** the chain is strictly `SFX-await → TTS-await → advance` in source order. Any side-effect that advances the game lifecycle — `setMode('next' / 'retry')`, `nextRound()`, `endGame()`, `showStarsCollected()`, `answerComponent.show()`, `transitionScreen.hide()`, `floatingBtn.destroy()`, `window.postMessage({type:'show_star',...})` — MUST appear AFTER the awaited `playDynamicFeedback` line. Placing any side-effect between the awaited SFX and the awaited TTS (or before the awaited SFX) means it executes while audio is still in flight. Validators: `GEN-FEEDBACK-TTS-AWAIT` (await), `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO` (subtitle pairing), `GEN-FEEDBACK-ORDER` (side-effect ordering).
    - **Multi-step mid-round match:** `FeedbackManager.sound.play(id, {sticker}).catch(...)` — fire-and-forget. NO dynamic TTS, NO subtitle. SFX + sticker only.
    - Last-life wrong: ALWAYS play wrong SFX (awaited, Promise.all 1500ms min) BEFORE endGame(false) — never skip
-8. **Advance to next round** via `renderRound()` / `loadRound()` / `endGame()`. For the default path (advance after correct, advance after wrong with predicate-driven retry), DO NOT set `isProcessing = false` here and DO NOT re-enable inputs in the handler after audio. `renderRound()` / `loadRound()` is the source of truth for this path: it sets `isProcessing = false`, removes `.dnd-disabled`, re-enables inputs (buttons, voice input), resumes the timer, clears marks, and resets state for the new round.
+9. **Advance to next round** via `renderRound()` / `loadRound()` / `endGame()`. For the default path (advance after correct, advance after wrong with predicate-driven retry), DO NOT set `isProcessing = false` here and DO NOT re-enable inputs in the handler after audio. `renderRound()` / `loadRound()` is the source of truth for this path: it sets `isProcessing = false`, removes `.dnd-disabled`, re-enables inputs (buttons, voice input), resumes the timer, clears marks, and resets state for the new round.
 
    **Exception paths** — these re-enable in the handler itself (no `renderRound()` between submit and next playable state):
    - **Standalone Try Again** (`spec.totalRounds: 1` + `totalLives > 1`) — `on('retry')` handler re-enables. See § Try Again flow above.
@@ -1116,11 +1144,16 @@ function showAnswerCarousel() {
 
 **End-state UI = AnswerComponent (PART-051) + FloatingButton mode + header `show_star`.** The puzzle grid stays rendered in `#gameContent` unchanged; AnswerComponent reveals the solution carousel below; FloatingButton drives the advance/retry CTA. **Do NOT render an inline body-card** ("Puzzle solved!" / "Try again!" / "Game over!" with sticker + title + subtitle) — that duplicates AnswerComponent and visually mimics a Victory/Game-Over TransitionScreen that standalone games are forbidden from rendering. Validators: `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` (no `transitionScreen.show()`) + `GEN-STANDALONE-END-PANEL-FORBIDDEN` (no `gameContent.innerHTML = '<...>'` inside endGame / onCorrect / onWrong).
 
-**Step ordering is enforced by `GEN-FEEDBACK-ORDER`.** Each of the 5 steps below has a PERMITTED-calls list (see PART-050 § Standalone variant) and validator flags any call placed in the wrong beat. Common regression: `answerComponent.show()` placed in Step 2 (between `postGameComplete` and awaited TTS) — the carousel slides in mid-narration. The audio chain is strictly `SFX-await → game_complete SYNC → TTS-await → reveal side-effects (show_star, answerComponent.show) → setMode-deferred-via-setTimeout`. Source order matters; the validator does not reason about runtime semantics — it checks where calls appear in the file.
+**Step ordering is enforced by `GEN-FEEDBACK-ORDER`.** Each of the 6 steps below has a PERMITTED-calls list (see PART-050 § Standalone variant) and validator flags any call placed in the wrong beat. Common regression: `answerComponent.show()` placed in Step 2 (between `postGameComplete` and awaited TTS) — the carousel slides in mid-narration. The audio chain is strictly `attempt_complete SYNC → SFX-await → game_complete SYNC → TTS-await → reveal side-effects (show_star, answerComponent.show) → setMode-deferred-via-setTimeout`. Source order matters; the validator does not reason about runtime semantics — it checks where calls appear in the file.
 
 ```javascript
 // CORRECT — puzzle stays, AnswerComponent reveals solution, FloatingButton advances.
 async function endStandaloneGame(result) {
+  // Step 0 — attempt_complete SYNC. Host preload hook; MUST be the very first beat,
+  // before any await / audio call. recordAttempt(...) already ran in the submit handler
+  // upstream, so the metrics payload is complete. See PART-008 § attempt_complete.
+  postAttemptComplete(result.correct);
+
   // Step 1 — SFX awaited (~1.5 s floor).
   try {
     await safePlaySound(
@@ -1242,6 +1275,11 @@ floatingBtn.on('next', function() {
 // FloatingButton on('next', ...) handler (above) so the ActionBar header and
 // #previewStar stay mounted long enough for the async show_star animation to
 // land. Calling destroy() inside endGame() synchronously kills the animation.
+//
+// attempt_complete is NOT fired here. It is fired upstream by the submit handler
+// (or per-round handler) immediately after recordAttempt(...) and BEFORE the
+// awaited SFX/TTS chain that runs en route to endGame(). See § Answer Handler
+// Sequence step 6 and PART-008 § attempt_complete.
 function endGame(correct) {
   if (gameState.gameEnded) return;
   gameState.gameEnded = true;
