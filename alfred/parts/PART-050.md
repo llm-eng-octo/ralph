@@ -370,17 +370,34 @@ Per-round (non-final) submit handler awaits SFX + TTS, then auto-advances. There
 End-of-game beats (final round resolves):
 
 1. `await FeedbackManager.play(...)` for the final round.
-2. `window.parent.postMessage({ type: 'game_complete', data: {...} }, '*')`.
-3. `if (gameState.stars > 0) showWinConfirmation();` (or skip directly to `showVictoryCelebration()` if no Win Confirmation gate). On lives exhausted: `showGameOver()` (no AnswerComponent).
+2. `window.parent.postMessage({ type: 'game_complete', data: {...} }, '*')`. The metrics block includes `correct: correct` (passthrough of the `endGame` argument) and `roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds)`.
+3. `if (correct) showWinConfirmation();` (or skip directly to `showVictoryCelebration()` if no Win Confirmation gate). Else: `showGameOver()` (no AnswerComponent).
 4. Win Confirmation's `Claim Stars` button calls `showVictoryCelebration()`.
 5. Victory Celebration's `onMounted` plays `victory_sound_effect`, posts `show_star`, and via `setTimeout` calls a `showAnswerCarousel()` that calls `answerComponent.show({ slides })` + `floatingBtn.setMode('next')`. The Victory Celebration TS stays mounted (`persist: true`).
 6. Player taps Next → single-stage exit ([rule 11](#mandatory-rules)).
 
+**Computing `correct` at the call site.** Multi-round `endGame` takes a `correct` argument that the metrics payload reads directly. The caller computes it:
+
+- **Final-round-resolves path** (post-eval correct OR wrong-with-lives-remaining cleared, all rounds done): `endGame(gameState.lives > 0 && gameState.stars > 0)`. "Player reached the end without lives exhausted AND earned at least one star." A player who lost some lives but completed all rounds with at least one star is `correct: true`.
+- **Lives-zero branch** (wrong + lives === 0 mid-game, routing to Game Over): `endGame(false)`.
+- **Feedback-only multi-round games** (no correctness evaluation, no stars logic): `endGame(true)` hardcoded; see § Feedback-only games below.
+
 ```js
-async function endGame() {
+async function endGame(correct) {
   await FeedbackManager.play(/* final round */);
-  window.parent.postMessage({ type: 'game_complete', data: { /* metrics */ } }, '*');
-  if (gameState.stars > 0) {
+  window.parent.postMessage({
+    type: 'game_complete',
+    data: {
+      metrics: {
+        // ...
+        correct: correct,
+        roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds),
+        // ...
+      },
+      completedAt: Date.now()
+    }
+  }, '*');
+  if (correct) {
     showWinConfirmation();    // optional; or call showVictoryCelebration() directly
   } else {
     showGameOver();
@@ -442,6 +459,43 @@ floatingBtn.on('next', function () {
 
 **`spec.autoShowStar: false`.** When the author wires their own `show_star` postMessage (e.g. from a `Claim Stars` action), set `autoShowStar: false` to suppress the generator-emitted default. ActionBar dedupes identical payloads within 500 ms, so an unintentional double-fire is safe. The Next-reveal `setTimeout` delay shortens to 300 ms when `autoShowStar: false` (no star animation to wait for); the default 1100 ms applies when the animation fires.
 
+## Feedback-only games (cross-shape)
+
+Some games don't evaluate answers — the player provides input, receives feedback, and moves on. These games have no correct/wrong notion, no stars logic, and typically no lives. **`metrics.correct` is `true` by definition** for every such game, regardless of shape.
+
+This axis is **orthogonal to the standalone/multi-round shape axis**. A feedback-only game can be `totalRounds: 1` (single feedback question) or `totalRounds > 1` (sequence of feedback questions). The wiring is identical in either case:
+
+1. **Caller hardcodes `endGame(true)`.** Whether the call site is the standalone Submit handler or the multi-round final-round router, it passes `true`.
+2. **Every `recordAttempt(...)` uses `correct: true`.** There is no wrong-answer branch — the game does not evaluate.
+3. **Resulting payload:** `metrics.correct === true`, `metrics.roundCorrectness === [true, true, …]` (length `totalRounds`).
+
+No new spec flag is needed; this falls out of how the game's Submit handler is wired. The spec author opts into the feedback-only shape by:
+
+- Not setting `totalLives` (or setting `totalLives: 1` and never decrementing).
+- Not wiring any wrong-answer / life-decrement branch.
+- Recording every attempt with `correct: true`.
+- Calling `endGame(true)` at the end of the (single or last) round.
+
+The validator rule `GEN-METRICS-CORRECT-PASSTHROUGH` permits the literal `true` as the `metrics.correct` value — that's the canonical form for feedback-only games. `GEN-ENDGAME-CORRECT-ARG` is satisfied by `endGame(true)`.
+
+## Session-scoped state preservation
+
+When a multi-round game reaches Game Over and the player taps Try Again, `restartGame()` runs. Several `gameState` fields are **session-scoped** — they survive `restartGame()` and accumulate across the entire iframe session. The same rule applies to standalone games that ship a `restartGame()` entry point (e.g. invoked by replay tests or a Play Again button).
+
+| Field | Init | Preserved across `restartGame()`? |
+|---|---|---|
+| `setIndex` | `0` in initializer | Yes — rotates `(setIndex + 1) % sets.length` BEFORE `resetGameState()`. |
+| `tries` | `1` in initializer | Yes — incremented in the wrong-answer / life-decrement branch (above), never reset by `restartGame()`. |
+| `attempts` | `[]` in `startGame()` | Yes — full attempt history accumulates across replays. `round_number` values may repeat in the array; `is_retry: true` flags replays. |
+
+Validator rules enforcing this:
+
+- `GEN-RESTART-RESET` (existing) — required-reset fields list excludes `setIndex`, `tries`, `attempts`.
+- `GEN-RESTART-TRIES-PRESERVED` — `restartGame()` body MUST NOT contain `gameState.tries\s*=`.
+- `GEN-RESTART-ATTEMPTS-PRESERVED` — `restartGame()` body MUST NOT contain `gameState.attempts\s*=`.
+
+Consumers reading `game_complete.data.metrics.attempts` should treat the array as ordered session history, not as a map keyed by round. See [`postmessage-schema.md` § `metrics.attempts` — session-scoped](../skills/data-contract/schemas/postmessage-schema.md).
+
 ## Try Again lifecycle
 
 **Scope:** Two UX variants. Pick one per game.
@@ -459,7 +513,7 @@ Why standalone needs an explicit retry button: in standalone the single round IS
 Beats:
 
 1. Submit click → wrong.
-2. **(mandatory)** `gameState.lives -= 1`; `recordAttempt({correct: false, is_retry: (gameState.retryCount || 0) > 0, ...})`.
+2. **(mandatory)** `gameState.lives -= 1`; `gameState.tries += 1` (paired with the lives decrement; see § Session-scoped state preservation below); `recordAttempt({correct: false, is_retry: (gameState.retryCount || 0) > 0, ...})`.
 3. `await FeedbackManager.play('incorrect')`.
 4. Branch on `gameState.lives`:
    - `> 0` → `floatingBtn.setMode('retry')`. Do NOT flip `isProcessing` / `.dnd-disabled` here — the retry handler is the source of truth.
@@ -469,6 +523,7 @@ Beats:
 ```js
 // Inside the wrong-answer branch of on('submit'):
 gameState.lives -= 1;
+gameState.tries += 1;                                                                // session-scoped counter
 gameState.attempts.push({ correct: false, is_retry: (gameState.retryCount || 0) > 0 /* ... */ });
 await FeedbackManager.play('incorrect');
 
@@ -498,7 +553,7 @@ floatingBtn.on('retry', function () {
 
 **Button label persistence (both shapes):** the retry button label is **stable `"Try Again"` across all retries**. Do NOT call `floatingBtn.setLabels({retry: ...})` mid-game to vary it (e.g. `"Last try!"` on the final retry, `"Retry 2 of 3"`). Per-retry label variation is out of scope — pick one label at game start (default `"Try Again"`, or a creator-quoted override emitted once via the initial `setLabels(...)` call) and keep it for the lifetime of the game. Varying the label per retry has no design intent in the canonical lifecycle and breaks the "stable button label" invariant the player relies on.
 
-**Must reset / re-enable:** `gameState.isProcessing = false`; `boardEl.classList.remove('dnd-disabled')` (P6); `voiceInput.enable()` (P17); `timer.resume()` (PART-006); clear input value (unless `retryPreservesInput: true`); clear inline feedback DOM. **Must NOT reset:** `gameState.lives` (already decremented), `gameState.attempts`, `gameState.score`, `gameState.retryCount`. ([rule 6](#mandatory-rules), [GEN-FLOATING-BUTTON-RETRY-LIVES-RESET](../skills/game-building/reference/static-validation-rules.md))
+**Must reset / re-enable:** `gameState.isProcessing = false`; `boardEl.classList.remove('dnd-disabled')` (P6); `voiceInput.enable()` (P17); `timer.resume()` (PART-006); clear input value (unless `retryPreservesInput: true`); clear inline feedback DOM. **Must NOT reset:** `gameState.lives` (already decremented), `gameState.attempts`, `gameState.tries`, `gameState.score`, `gameState.retryCount`, `gameState.setIndex` — all session-scoped (see § Session-scoped state preservation below and [data-contract/SKILL.md § Session-scoped fields](../skills/data-contract/SKILL.md)). ([rule 6](#mandatory-rules), [GEN-FLOATING-BUTTON-RETRY-LIVES-RESET](../skills/game-building/reference/static-validation-rules.md))
 
 ### Multi-round explicit-retry-button variant (`spec.roundRetryButton: true`)
 
@@ -507,7 +562,7 @@ Why opt-in: the default multi-round wrong-with-lives UX is predicate-driven (no 
 Beats:
 
 1. Submit click → wrong, lives remaining.
-2. `gameState.lives -= 1`; `recordAttempt(...)`.
+2. `gameState.lives -= 1`; `gameState.tries += 1` (paired with the lives decrement; session-scoped); `recordAttempt(...)`.
 3. `await FeedbackManager.play('incorrect')`.
 4. `floatingBtn.setMode('retry')`. Do NOT flip `isProcessing` / `.dnd-disabled` here — the retry handler delegates to `renderRound(currentRound)` which is the source of truth.
 5. Player taps Try Again → handler triggers same-round re-render.
@@ -515,6 +570,7 @@ Beats:
 ```js
 // Inside the wrong-answer branch of on('submit'):
 gameState.lives -= 1;
+gameState.tries += 1;
 await FeedbackManager.play('incorrect');
 
 if (gameState.lives > 0) {

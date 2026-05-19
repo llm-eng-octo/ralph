@@ -249,6 +249,19 @@ All rules in this block auto-skip when the spec declares `answerComponent: false
 | GEN-PM-READY | `game_ready` postMessage not found | error | data-contract | Covered |
 | 5b-GAME-INIT | handlePostMessage + game_init but `gameState.phase = 'playing'` missing | error | data-contract, game-building (code-patterns) | Covered |
 
+## game_complete Metrics (Fix 1, 2, 3)
+
+| Rule ID | Check | Severity | Alfred Skill | Status |
+|---------|-------|----------|--------------|--------|
+| GEN-METRICS-CORRECT-PRESENT | `game_complete` metrics block does not contain both `correct:` and `roundCorrectness:` keys | error | data-contract, game-building (code-patterns) | Added |
+| GEN-METRICS-CORRECT-PASSTHROUGH | `metrics.correct` value is a derived expression (`accuracy === 100`, `finalAttempt.correct`, `attempts[…].correct`) instead of a passthrough identifier, literal `true`, or `gameState.<name>` | error | data-contract | Added |
+| GEN-ENDGAME-CORRECT-ARG | `endGame` function does not declare a single parameter, or call site invokes `endGame()` with no argument | error | data-contract, game-building (code-patterns) | Added |
+| GEN-METRICS-ROUND-CORRECTNESS-DERIVED | `metrics.roundCorrectness` is not built via the canonical `deriveRoundCorrectness(...)` helper | warning | data-contract, game-building (code-patterns) | Added |
+| GEN-METRICS-TIME-UNIT | `metrics.time` expression uses raw `Date.now() - <var>` with no `/ 1000` conversion (emits milliseconds, contract says seconds) | error | data-contract, game-building (code-patterns) | Added |
+| GEN-METRICS-TRIES-SCALAR | `metrics.tries` value is an array literal `[` or a name traceable to an array literal (must be scalar integer per Fix 3) | error | data-contract, game-building (code-patterns) | Added |
+| GEN-METRICS-TRIES-INIT | `gameState` initializer / `startGame()` does not set `tries: 1` | error | data-contract, game-building (code-patterns) | Added |
+| GEN-METRICS-TRIES-INCREMENT | `gameState.lives -= 1` (or `lives--`) without paired `gameState.tries += 1` (or `tries++`) within ~200 chars in the same function | error | data-contract, game-building (code-patterns) | Added |
+
 ## gameState
 
 | Rule ID | Check | Severity | Alfred Skill | Status |
@@ -283,7 +296,9 @@ All rules in this block auto-skip when the spec declares `answerComponent: false
 
 | Rule ID | Check | Severity | Alfred Skill | Status |
 |---------|-------|----------|--------------|--------|
-| GEN-RESTART-RESET | restartGame() missing state reset for required fields | warning | game-building (code-patterns) | Covered |
+| GEN-RESTART-RESET | restartGame() missing state reset for required fields (`phase`, `currentRound`, `score`, `events`). **Updated by Fix 5: `attempts` REMOVED from required-reset list — it is session-scoped.** | warning | game-building (code-patterns) | Covered |
+| GEN-RESTART-TRIES-PRESERVED | `restartGame()` / `resetGameState()` body contains `gameState.tries\s*=` (session-scoped field MUST NOT be reset) | error | data-contract, game-building (code-patterns) | Added |
+| GEN-RESTART-ATTEMPTS-PRESERVED | `restartGame()` / `resetGameState()` body contains `gameState.attempts\s*=` (session-scoped — only `startGame()` resets it) | error | data-contract, game-building (code-patterns) | Added |
 | 5i-STARTGAME-SYNC | startGame() contains setTimeout (must be synchronous) | error | game-building (code-patterns) | Covered |
 | GEN-WORKED-EXAMPLE-TEARDOWN | Worked-example dismiss handler does not re-enable buttons | warning | game-building (code-patterns) | Added |
 | GEN-CORRECT-ANSWER-EXPOSURE | Round uses correct-answer field but gameState.correctAnswer never set | warning | game-building (code-patterns), data-contract | Added |

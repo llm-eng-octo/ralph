@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "alfred/game-complete",
+  "title": "game_complete postMessage payload",
+  "description": "Canonical shape of the game_complete message sent from a game iframe to its parent harness. SOURCE OF TRUTH for the contract; markdown docs in the same directory mirror this schema.",
+  "type": "object",
+  "required": ["type", "data"],
+  "additionalProperties": true,
+  "properties": {
+    "type": { "const": "game_complete" },
+    "data": {
+      "type": "object",
+      "required": ["metrics", "completedAt"],
+      "additionalProperties": true,
+      "properties": {
+        "metrics": { "$ref": "#/$defs/metrics" },
+        "completedAt": {
+          "type": "integer",
+          "description": "Epoch milliseconds at which the game ended. Use Date.now()."
+        },
+        "previewResult": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/previewResult" }
+          ],
+          "description": "Populated when the preview was interactive (any setPreviewData() call during preview). See PART-039."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "metrics": {
+      "type": "object",
+      "required": [
+        "accuracy",
+        "time",
+        "stars",
+        "attempts",
+        "duration_data",
+        "totalLives",
+        "tries",
+        "correct",
+        "roundCorrectness"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "accuracy": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Integer percentage 0-100. Never a 0.0-1.0 float."
+        },
+        "time": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400,
+          "description": "Total game duration in SECONDS (not milliseconds). Compute as Math.round((Date.now() - gameState.startTime) / 1000). The 86400 upper bound (24 hours) is a sanity cap; values above this almost certainly indicate a missing /1000 conversion."
+        },
+        "stars": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3,
+          "description": "Stars awarded 0-3."
+        },
+        "attempts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/attempt" },
+          "description": "Session-scoped attempt history. Accumulates across Try Again / restartGame() within the same iframe load. Multi-round games that went through Try Again may have multiple records with the same round_number; is_retry distinguishes them. See attempt-schema.md."
+        },
+        "duration_data": {
+          "type": "object",
+          "description": "Per-round timing breakdown. Shape per game; consumers treat as opaque telemetry."
+        },
+        "totalLives": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "INITIAL life budget — count of lives the player had when the question first rendered (gameState.totalLives, set at game start, never decremented). NOT the remaining count. Remaining is derivable: remaining = totalLives - (tries - 1)."
+        },
+        "tries": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Integer counter = 1 + total_lives_lost_across_session. Initialized to 1 at startGame; incremented by 1 every time a life is lost (wrong-answer, timeout, etc.). PERSISTS across Try Again / restartGame() — does NOT reset. See postmessage-schema.md § tries — counter semantics."
+        },
+        "correct": {
+          "type": "boolean",
+          "description": "Overall game correctness. PASSTHROUGH of the `correct` argument to endGame(correct). Standalone: Submit handler's evaluation. Multi-round evaluating games: (gameState.lives > 0 && gameState.stars > 0). Feedback-only games: hardcoded true."
+        },
+        "roundCorrectness": {
+          "type": "array",
+          "items": { "type": "boolean" },
+          "description": "Per-round correctness, length totalRounds. Derived from gameState.attempts: walk the array and take the LAST attempt per round_number. Standalone: length-1 array equals [correct]. Multi-round: length totalRounds. Missing rounds default to false for evaluating games; feedback-only games never have missing rounds because every recordAttempt(...) uses correct: true."
+        }
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "required": [
+        "attempt_timestamp",
+        "time_since_start_of_game",
+        "input_of_user",
+        "correct",
+        "round_number",
+        "question_id",
+        "correct_answer",
+        "response_time_ms",
+        "misconception_tag",
+        "difficulty_level",
+        "is_retry",
+        "metadata"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "attempt_timestamp": { "type": "integer", "description": "Epoch ms at submission." },
+        "time_since_start_of_game": { "type": "integer", "minimum": 0, "description": "MILLISECONDS from startTime. Note unit asymmetry vs metrics.time (seconds)." },
+        "input_of_user": { "description": "Raw submission. Game-specific shape." },
+        "correct": { "type": "boolean", "description": "Whether the answer matched the correct answer. Feedback-only games always use true." },
+        "round_number": { "type": "integer", "minimum": 1, "description": "1-indexed. May repeat across the array if the player went through Try Again." },
+        "question_id": { "type": "string" },
+        "correct_answer": {},
+        "response_time_ms": { "type": "integer", "minimum": 0, "description": "MILLISECONDS from round mount to submission." },
+        "misconception_tag": { "type": ["string", "null"] },
+        "difficulty_level": { "type": "number" },
+        "is_retry": { "type": "boolean", "description": "true if a re-attempt of the same round_number (within-round retry or post-restart replay)." },
+        "metadata": { "type": "object" }
+      }
+    },
+    "previewResult": {
+      "type": "object",
+      "required": ["duration"],
+      "additionalProperties": true,
+      "properties": {
+        "duration": { "type": "integer", "minimum": 0, "description": "Milliseconds the preview was visible." },
+        "skippedRepeat": { "type": "boolean" },
+        "interactions": { "type": "object" }
+      }
+    }
+  }
+}
