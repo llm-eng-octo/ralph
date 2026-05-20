@@ -39,10 +39,11 @@ When gameState.lives > 0, the game MUST implement a `game_over` or `gameover` ph
 | File | Contents |
 |------|----------|
 | [game-complete.schema.json](schemas/game-complete.schema.json) | **SOURCE OF TRUTH** — canonical JSON Schema for the `game_complete` payload. Markdown docs mirror it; when they disagree the schema wins. |
+| [attempt-complete.schema.json](schemas/attempt-complete.schema.json) | Sibling schema for the `attempt_complete` host-preload-hook postMessage. Reuses `$defs/metrics` and `$defs/previewResult` from `game-complete.schema.json` via `$ref` — the two payloads MUST stay field-by-field identical except for the `type` discriminator and the per-message-instant timestamps. |
 | [game-complete.schema.md](schemas/game-complete.schema.md) | Companion prose doc with embedded schema + per-field reference. |
 | [gamestate-schema.md](schemas/gamestate-schema.md) | Full gameState schema with all required + conditional fields |
 | [attempt-schema.md](schemas/attempt-schema.md) | recordAttempt with all 12 fields + implementation pattern |
-| [postmessage-schema.md](schemas/postmessage-schema.md) | game_complete nested structure, game_ready, game_init, dual-path |
+| [postmessage-schema.md](schemas/postmessage-schema.md) | game_ready, game_init, attempt_complete, game_complete nested structure, dual-path firing, shared `buildEndPayload(correct)` helper |
 | [syncdom-events.md](schemas/syncdom-events.md) | syncDOM contract, trackEvent, debug functions, SignalCollector, FeedbackManager audio |
 | [validation-rules.md](schemas/validation-rules.md) | Build-time + runtime validation rules with rule IDs |
 
@@ -91,7 +92,7 @@ Check all 12 fields are present in the attempt object. See [attempt-schema.md](s
 
 ### Step 3: Validate postMessage schemas
 
-Check `game_ready`, `game_init` handler, and `game_complete` with nested `data` structure. `game_ready` must follow the canonical boot order — see [PART-008 § Boot ordering](../../parts/PART-008.md#boot-ordering). Schema details in [postmessage-schema.md](schemas/postmessage-schema.md).
+Check `game_ready`, `game_init` handler, `attempt_complete` (host preload hook — fires AFTER `recordAttempt(...)` for the terminal answer and BEFORE the post-submit SFX/TTS chain), and `game_complete` (fires from `endGame()` after the feedback chain) with nested `data` structure. `game_ready` must follow the canonical boot order — see [PART-008 § Boot ordering](../../parts/PART-008.md#boot-ordering). `attempt_complete.data` and `game_complete.data` MUST share a single `buildEndPayload(correct)` helper so the metrics fields cannot drift. See [postmessage-schema.md](schemas/postmessage-schema.md).
 
 ### Step 4: Validate syncDOM
 
@@ -132,10 +133,13 @@ Apply build-time static checks and note rule IDs for failures. See [validation-r
 
 1. **Sending `game_ready` outside the canonical boot order.** See [PART-008 § Boot ordering](../../parts/PART-008.md#boot-ordering) for the rule and the canonical bug shape.
 2. **Setting gameState.phase after other logic in game_init handler.** Test harness times out.
-3. **Guarding game_complete behind a victory check.** Game-over sessions must also send `game_complete`.
+3. **Guarding game_complete behind a victory check.** Game-over sessions must also send `game_complete`. The same dual-path rule applies to `attempt_complete` — fire on BOTH the last-round-correct path AND the lives→0 path.
 4. **Using `document.body` for data attributes instead of `#app`.** Test harness reads `#app[data-phase]`.
 5. **Sending game_complete with flat structure instead of nested `data`.** Platform reads `event.data.data.metrics`.
 6. **Omitting syncDOM after phase/score/lives changes.** Stale attributes = test failures.
 7. **Using `attempt_number` instead of `round_number`.** Taxonomy requires `round_number` (1-indexed).
 8. **Returning accuracy as a float (0.0-1.0) instead of integer (0-100).**
 9. **Recording recordAttempt without `response_time_ms`.** Requires tracking `gameState.roundStartTime`.
+10. **Firing `attempt_complete` from inside `endGame()` (after the SFX/TTS chain).** Defeats the entire purpose — the host gets the signal at the same time as `game_complete`, with no preload head start. `attempt_complete` MUST fire from the submit handler (or per-round handler) immediately after the terminal `recordAttempt(...)`, BEFORE any awaited audio.
+11. **Building `attempt_complete.data` and `game_complete.data` from two parallel inline objects.** Guarantees drift. Use a single `buildEndPayload(correct)` helper that both `postAttemptComplete()` and `postGameComplete()` call.
+12. **Calling `signalCollector.seal()` from the `attempt_complete` path.** `seal()` belongs in `endGame()` exactly once per session. `attempt_complete` either omits `signal_event_count`/`signal_metadata` or reports the in-flight count; the sealed snapshot stays on `game_complete`.

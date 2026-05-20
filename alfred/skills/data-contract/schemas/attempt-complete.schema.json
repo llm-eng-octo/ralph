@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "alfred/attempt-complete",
+  "title": "attempt_complete postMessage payload",
+  "description": "Canonical shape of the attempt_complete message sent from a game iframe to its parent harness. Fires AFTER recordAttempt(...) for the terminal answer and BEFORE the post-submit SFX/TTS chain, so the host can preload the next worksheet item before game_complete arrives. Payload shape is structurally identical to game_complete (data.metrics fields are field-by-field equal except for time/completedAt, which are timestamped at this message's own firing instant). See parts/PART-008.md § attempt_complete and schemas/postmessage-schema.md § attempt_complete.",
+  "type": "object",
+  "required": ["type", "data"],
+  "additionalProperties": true,
+  "properties": {
+    "type": { "const": "attempt_complete" },
+    "data": {
+      "type": "object",
+      "required": ["metrics", "completedAt"],
+      "additionalProperties": true,
+      "description": "Mirrors game_complete.data — see alfred/game-complete#/properties/data. Use the same buildEndPayload(correct) helper for both messages so they cannot drift.",
+      "properties": {
+        "metrics": { "$ref": "game-complete.schema.json#/$defs/metrics" },
+        "completedAt": {
+          "type": "integer",
+          "description": "Epoch milliseconds at the instant attempt_complete fired. Will be earlier than game_complete.data.completedAt by however long the post-submit SFX + TTS chain takes (~1.5–3 s typical)."
+        },
+        "previewResult": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "game-complete.schema.json#/$defs/previewResult" }
+          ]
+        }
+      }
+    }
+  }
+}

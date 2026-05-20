@@ -2,6 +2,8 @@
 
 The JSON Schema at [`game-complete.schema.json`](./game-complete.schema.json) is the **canonical definition** of the `game_complete` postMessage payload. Every other markdown doc in `alfred/` (postmessage-schema.md, data-contract/SKILL.md, PART-008.md) mirrors this schema. When they disagree, the JSON Schema wins.
 
+> **Sibling: `attempt_complete`.** The [`attempt-complete.schema.json`](./attempt-complete.schema.json) message reuses this file's `$defs/metrics` and `$defs/previewResult` via `$ref`. The two payloads are field-by-field identical except for the `type` discriminator and the per-message-instant timestamps (`data.metrics.time`, `data.completedAt`). Build both messages from the same `buildEndPayload(correct)` helper. See [`postmessage-schema.md` § attempt_complete](./postmessage-schema.md) for firing-point rules and PART-008 § attempt_complete for the host contract.
+
 ## Why a JSON Schema
 
 Three competing markdown definitions historically caused drift (`tries` shape, `time` unit, missing correctness fields). A single machine-readable schema:

@@ -1,8 +1,8 @@
 # postMessage Schema
 
-Per **PART-008** (PostMessage Protocol). See `parts/PART-008.md` for the full protocol — game_ready, game_init, game_complete message formats.
+Per **PART-008** (PostMessage Protocol). See `parts/PART-008.md` for the full protocol — game_ready, game_init, attempt_complete, game_complete message formats.
 
-> **Single source of truth:** [`game-complete.schema.json`](./game-complete.schema.json) (with prose companion [`game-complete.schema.md`](./game-complete.schema.md)) is the canonical machine-readable definition of the `game_complete` payload. This file mirrors it in prose — when in doubt, the JSON Schema wins.
+> **Single source of truth:** [`game-complete.schema.json`](./game-complete.schema.json) (with prose companion [`game-complete.schema.md`](./game-complete.schema.md)) is the canonical machine-readable definition of the `game_complete` payload. **`attempt_complete` mirrors the same payload shape** (different `type` const, identical `data` block) — when in doubt, the JSON Schema wins.
 
 ## Alfred-specific rules (cross-PART, not in PART-008 alone)
 
@@ -43,6 +43,95 @@ Per GEN-PHASE-INIT: `gameState.phase = 'gameplay'` must be the VERY FIRST LINE i
 ### Dual-path firing (GEN-PM-DUAL-PATH)
 
 game_complete MUST fire on BOTH paths: `endGame(false)` (all rounds done → results) AND `endGame(true)` (lives exhausted → game_over). A single endGame function handles both.
+
+### attempt_complete — host preload hook (CRITICAL)
+
+`attempt_complete` is an additive outbound postMessage whose only purpose is to let the host begin preloading the next worksheet item the instant the player's input can no longer change the outcome. It fires earlier than `game_complete` (which is gated behind the post-submit SFX + TTS chain inside `endGame()`), so the host gets a 1.5–3 s+ head start to warm the next iframe.
+
+`attempt_complete` does NOT replace `game_complete`. Both messages fire every session; hosts may listen to either or both.
+
+```javascript
+window.parent.postMessage({
+  type: 'attempt_complete',
+  data: {
+    metrics: {
+      // Structurally identical to game_complete.data.metrics — see § Required metrics fields below.
+      accuracy: 67,
+      time: 12,                                                            // SECONDS at the instant of firing — NOT the final endGame() timestamp
+      stars: 2,
+      attempts: gameState.attempts,                                        // session-scoped
+      duration_data: gameState.duration_data,
+      totalLives: gameState.totalLives,                                    // INITIAL budget
+      tries: gameState.tries,
+      correct: correct,                                                    // PASSTHROUGH of the value the submit handler will pass to endGame()
+      roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds)
+    },
+    completedAt: Date.now(),                                               // EPOCH MS at firing — will be < game_complete's completedAt
+    previewResult: gameState.previewResult || null
+  }
+}, '*');
+window.postMessage(/* same payload */, '*');                               // mirror to in-frame listeners
+```
+
+**Firing point — non-negotiable.** Fire IMMEDIATELY after `recordAttempt(...)` for the terminal answer, BEFORE the first beat of the post-submit feedback chain (SFX, TTS, `show_star`, `transitionScreen.show`, `endGame()`). The terminal answer is:
+
+| Game shape | Terminal answer | Where the call sits |
+|---|---|---|
+| **Standalone (`totalRounds: 1`), evaluating** | Submit on a correct answer OR submit that drives `gameState.lives` to 0. | Submit handler, right after `recordAttempt(...)`. Followed by `endGame(correct)` which runs the standalone 5-beat orchestrator. |
+| **Multi-round (`totalRounds > 1`), evaluating** | Submit on the final round (with `gameState.lives > 0`) OR submit anywhere in the session that drives `gameState.lives` to 0. | Per-round submit handler, right after `recordAttempt(...)` + score/lives mutation + `syncDOM()`. The branch that detects `isLastRound || isGameOver` is the call site. |
+| **Feedback-only (any shape)** | Last `recordAttempt(...)` of the session. | Same as the evaluating equivalent. `correct` is hardcoded `true` (matches `endGame(true)` for feedback-only). |
+
+**Payload parity rule (CRITICAL).** `attempt_complete.data.metrics` and `game_complete.data.metrics` MUST be field-by-field identical for every field except `time` (timestamped at each message's own firing instant) and `data.completedAt` (same). Use a shared `buildEndPayload(correct)` helper rather than two parallel inline objects:
+
+```javascript
+function buildEndPayload(correct) {
+  var totalAttempts = gameState.attempts.length;
+  var correctCount = 0;
+  for (var i = 0; i < totalAttempts; i++) if (gameState.attempts[i].correct) correctCount++;
+  var accuracy = totalAttempts > 0 ? Math.round((correctCount / totalAttempts) * 100) : 0;
+  gameState.stars = getStars();
+  return {
+    metrics: {
+      accuracy: accuracy,
+      time: Math.round((Date.now() - gameState.startTime) / 1000),
+      stars: gameState.stars,
+      attempts: gameState.attempts,
+      duration_data: gameState.duration_data,
+      totalLives: gameState.totalLives,
+      tries: gameState.tries,
+      correct: correct,
+      roundCorrectness: deriveRoundCorrectness(gameState.attempts, gameState.totalRounds)
+    },
+    completedAt: Date.now(),
+    previewResult: gameState.previewResult || null
+  };
+}
+
+function postAttemptComplete(correct) {
+  var payload = { type: 'attempt_complete', data: buildEndPayload(correct) };
+  try { window.parent.postMessage(payload, '*'); } catch (e) {}
+  try { window.postMessage(payload, '*'); } catch (e) {}
+}
+
+function postGameComplete(correct) {
+  var payload = { type: 'game_complete', data: buildEndPayload(correct) };
+  try { window.parent.postMessage(payload, '*'); } catch (e) {}
+  try { window.postMessage(payload, '*'); } catch (e) {}
+}
+```
+
+Both senders also call `trackEvent('attempt_complete', { correct, score, stars })` / `trackEvent('game_end', { correct, score, stars })` at their respective firing points (PART-010).
+
+**SignalCollector interaction.** `signalCollector.seal()` belongs in `endGame()`, NOT in the `attempt_complete` path. Either omit `signal_event_count` / `signal_metadata` from `attempt_complete` (recommended — the host can read them later from `game_complete`), or include the in-flight count (not the sealed snapshot). The sealed values stay authoritative on `game_complete`.
+
+**Dual-path firing for attempt_complete (mirrors GEN-PM-DUAL-PATH).** `attempt_complete` MUST fire on BOTH evaluating paths — victory (last-round correct) AND game-over (lives → 0). A standalone game with `totalLives: 1` whose only branch is `endGame(true)` on correct OR `endGame(false)` on wrong: both branches must post `attempt_complete` before the SFX-await.
+
+**What NOT to put between `recordAttempt(...)` and `postAttemptComplete(...)`:**
+- `await FeedbackManager.sound.play(...)` — defeats the purpose; the host loses its preload window.
+- `await FeedbackManager.playDynamicFeedback(...)` — same.
+- `transitionScreen.show(...)` — same.
+- `endGame(...)` — must be AFTER the awaited SFX/TTS chain on standalone (PART-050 Beat 2 places `game_complete` between SFX and TTS; `attempt_complete` lives strictly before Beat 1).
+- A `setTimeout` debounce — synchronous-only between `recordAttempt` and `postAttemptComplete`.
 
 ### Required metrics fields
 

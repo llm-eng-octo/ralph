@@ -7,7 +7,7 @@
 - `handlePostMessage` filters for `event.data.type === 'game_init'`, then calls `setupGame()`
 - If PART-042: on `game_init`, configure SignalCollector with `signalConfig.flushUrl` and call `startFlushing()`
 
-### Boot ordering {#boot-ordering}
+### Boot ordering
 
 **Single canonical source for the `game_ready` emission rule.** Every doc that touches boot order links here rather than restating.
 

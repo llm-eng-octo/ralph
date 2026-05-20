@@ -888,7 +888,11 @@
     }
 
     return {
+      ensure: function () {
+        ensureAudioContext();
+      },
       resume: async function () {
+        ensureAudioContext();
         if (ctx) await ctx.resume();
       },
       isReady: function () {
@@ -994,6 +998,25 @@
   SoundManager.prototype.unlock = async function (options) {
     options = options || {};
     if (this.unlocked) return true;
+
+    // Probe: if the browser already permits playback (e.g. parent harness has
+    // user activation and the iframe was granted allow="autoplay"), the
+    // AudioContext will reach state "running" without any popup. Skip the
+    // popup in that case — works for both same-origin and cross-origin
+    // iframes since it relies on the browser's autoplay decision rather than
+    // navigator.userActivation (which doesn't cross origins).
+    try {
+      await this.audioKit.resume();
+      if (this.audioKit.isReady()) {
+        this.unlocked = true;
+        this.unlockAttempted = true;
+        console.log("[AudioKit] Audio unlocked via autoplay probe");
+        return true;
+      }
+    } catch (_) {
+      // Fall through to popup flow
+    }
+
     if (this.config.autoShowPermissionPopup && options.showPopup !== false) {
       var needsInteraction = !this.canPlayAudio();
       if (needsInteraction) {
