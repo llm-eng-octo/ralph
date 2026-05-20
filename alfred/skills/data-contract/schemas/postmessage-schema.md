@@ -283,7 +283,7 @@ window.postMessage({ type: 'show_star', data: { count: 3 } }, '*');
 
 | Message | Target | Consumer |
 |---|---|---|
-| `game_ready` | `window.parent` | host iframe harness |
+| `game_ready` | `window.parent` | host iframe harness — emit per canonical boot order, see [PART-008 § Boot ordering](../../../parts/PART-008.md#boot-ordering). |
 | `game_complete` | `window.parent` | host iframe harness |
 | `next_ended` | `window.parent` | host iframe harness |
 | `WORKSHEET_BACK` | `window.parent` | host iframe harness |

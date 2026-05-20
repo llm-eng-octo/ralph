@@ -4,4 +4,4 @@
 **Key rules:**
 - `setupGame()` must set `gameState.isActive = true`, `gameState.startTime = Date.now()`
 - Must fire `trackEvent('game_start', 'game')` at start of `setupGame()`
-- Must send `window.parent.postMessage({ type: 'game_ready' }, '*')` after registering message listener
+- Must send `window.parent.postMessage({ type: 'game_ready' }, '*')` according to the canonical boot order — see [PART-008 § Boot ordering](./PART-008.md#boot-ordering).

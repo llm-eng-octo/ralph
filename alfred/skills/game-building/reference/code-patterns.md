@@ -765,16 +765,31 @@ phase change, score change, lives change, round advance. At minimum 3 calls (GEN
 
 ### Initialization Sequence
 
+Canonical boot order is defined in [PART-008 § Boot ordering](../../../parts/PART-008.md#boot-ordering). Reference shape:
+
 ```javascript
-// 1. Register listener FIRST (so game_init is not missed)
-window.addEventListener('message', handlePostMessage);
-// 2. Signal ready AFTER listener
-window.parent.postMessage({ type: 'game_ready' }, '*');
-// 3. Wait for CDN packages, then init
-waitForPackages().then(function() {
-  initVisibilityTracker();
-  syncDOM();
-  render();
+document.addEventListener('DOMContentLoaded', async function () {
+  try {
+    // 1. Block on CDN packages first
+    await waitForPackages();
+
+    // 2. Construct every component (FeedbackManager, SignalCollector, ScreenLayout,
+    //    ProgressBar, TransitionScreen, PreviewScreen, FloatingButton, AnswerComponent, ...)
+    //    See html-template.md § DOMContentLoaded 16-step sequence for the canonical list.
+    await FeedbackManager.init();
+    // ... new SignalCollector(...), ScreenLayout.inject(...), new ProgressBarComponent(...), etc.
+
+    // 3. Register the message listener AFTER components are ready
+    window.addEventListener('message', handlePostMessage);
+
+    // 4. ONLY NOW signal ready — harness will respond with game_init
+    window.parent.postMessage({ type: 'game_ready' }, '*');
+
+    // 5. Boot
+    setupGame();
+  } catch (e) {
+    console.error('[init] ' + e.message);
+  }
 });
 ```
 
