@@ -8,7 +8,9 @@ These checks run on the raw HTML string before any browser execution. They use r
 |---------|---------------|-----|----------|
 | GEN-PM-001 | `game_complete` postMessage uses exact type string | Regex: `/postMessage.*game_complete/` | CRITICAL |
 | GEN-PM-DUAL-PATH | `game_complete` fires on both victory and game-over | Checks postMessage is not inside victory-only if-block | CRITICAL |
-| GEN-PM-READY | `game_ready` postMessage exists | Regex: `/postMessage\s*\(\s*\{[^}]*['"]game_ready['"][^}]*\}/` | CRITICAL |
+| GEN-PM-READY | `game_ready` postMessage exists | Regex: `/postMessage\s*\(\s*\{[^}]*['"]game_ready['"][^}]*\}/`. Rule defined in [PART-008 § Boot ordering](../../../parts/PART-008.md#boot-ordering). | CRITICAL |
+| GEN-PM-READY-AFTER-WAITFOR | Every `game_ready` site sits in the post-`waitForPackages()` region; a message listener (any callback shape) is registered in-region before each site; `game_ready` does not appear inside any `.catch(...)` recovery body. Rule defined in [PART-008 § Boot ordering](../../../parts/PART-008.md#boot-ordering). | Locates the boundary (either `await waitForPackages()` or `waitForPackages().then(...)`), iterates all `game_ready` matches via `matchAll`, and checks in-region + listener-before-ready + not-in-`.catch`. | CRITICAL |
+| GEN-PM-READY-BEFORE-SETUPGAME | `setupGame()` runs AFTER the last `game_ready` postMessage. Rule defined in [PART-008 § Boot ordering](../../../parts/PART-008.md#boot-ordering). | Asserts the first `setupGame()` call site appears after the last `game_ready` postMessage site in source order. | CRITICAL |
 | GEN-PHASE-INIT | `#app` initial `data-phase` matches `gameState.phase` init | Extracts both values via regex, compares | CRITICAL |
 | GEN-PHASE-SEQUENCE | endGame sets `gameState.phase` BEFORE calling syncDOM | Checks assignment appears before syncDOM call in endGame body | STANDARD |
 | GEN-PHASE-MCQ | At least 3 syncDOM calls exist | Counts `syncDOMState()` or `syncDOM()` occurrences | STANDARD |

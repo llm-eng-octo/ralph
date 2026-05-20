@@ -24,7 +24,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 4. Create other components (timer, visibility tracker, etc.)
   // ...
 
-  // 5. Register message listener BEFORE game_ready
+  // 5. Register message listener, then signal ready — both AFTER every component constructor.
+  //    Canonical boot order: alfred/parts/PART-008.md § Boot ordering.
   window.addEventListener('message', handlePostMessage);
   window.parent.postMessage({ type: 'game_ready' }, '*');
 
@@ -40,7 +41,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 **Ordering constraints:**
 - `waitForPackages()` must resolve before `new SignalCollector()`
 - `FeedbackManager.init()` must complete before game starts
-- Message listener must be registered before `game_ready` postMessage
+- `game_ready` follows the canonical boot order — see [PART-008 § Boot ordering](../../../parts/PART-008.md#boot-ordering).
 - `flushUrl` and `playId` are NOT set here — they come from signalConfig
 
 ---

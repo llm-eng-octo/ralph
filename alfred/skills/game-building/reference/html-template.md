@@ -79,7 +79,7 @@ The exact document structure every game must follow. Do not deviate from the ele
     /* 19. showResults (populate #results-screen directly, NOT via transitionScreen) */
     /* 20. restartGame (reset ALL fields including game-specific, re-instantiate SignalCollector) */
 
-    /* ====== DOMContentLoaded -- 15-step init sequence ====== */
+    /* ====== DOMContentLoaded -- 16-step init sequence ====== */
     document.addEventListener('DOMContentLoaded', async function() {
       try {
         /* 1.  await waitForPackages() */
@@ -209,7 +209,7 @@ The `DOMContentLoaded` handler runs 16 steps in order (see template above). Crit
 2. `FeedbackManager.init()` must be awaited -- but do NOT call `unlock()` after it
 3. `ScreenLayout.inject()` must run before any DOM insertion into `#gameContent`. `slots.previewScreen: true` is MANDATORY -- every game has a preview screen
 4. `PreviewScreenComponent` is instantiated AFTER `ScreenLayout.inject()` with only `{ slotId: 'mathai-preview-slot' }` -- do NOT pass `autoInject`, `gameContentId`, `questionLabel`, `score`, or `showStar`
-5. PostMessage listener registered BEFORE `game_ready` sent -- prevents race condition
+5. PostMessage listener + `game_ready` follow the canonical boot order — see [PART-008 § Boot ordering](../../../parts/PART-008.md#boot-ordering).
 6. Entire init block wrapped in try/catch
 7. `setupGame()` is the last call. **DOMContentLoaded MUST NOT show a TransitionScreen before `setupGame()`** — no `Let's go!`, no `Start`, no `Welcome` screen before preview. The PreviewScreen **is** the first user-facing content. Any `transitionScreen.show(...)` invocation inside DOMContentLoaded, ahead of `setupGame()`, is a bug (5e0-DOMCL-TRANSITION).
 8. `setupGame()` must (a) render the full round DOM into `#gameContent` then (b) call `previewScreen.show(...)` as its last step. Reversing this order produces an empty preview area when `showGameOnPreview: true`
