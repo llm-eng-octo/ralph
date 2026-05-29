@@ -2151,17 +2151,77 @@ if (/postMessage/.test(html) && /['"]game_complete['"]/.test(html)) {
   }
 }
 
-// GEN-PM-READY (T1): game_ready postMessage MUST be sent after initialization
-// The parent harness waits for { type: 'game_ready' } before sending game_init with content.
-// Without this, the harness never sends content and the game falls back to hardcoded test data.
+// ─── PostMessage ordering rules (GEN-PM-READY family) ───────────────────────
+// Source of truth for the rule: alfred/parts/PART-008.md § Boot ordering.
+// Canonical order inside DOMContentLoaded:
+//   await waitForPackages() → new XComponent(...) ×N →
+//   addEventListener('message', …) → postMessage({type:'game_ready'},'*') → setupGame()
+//
+// Three rules in this family:
+//   1. GEN-PM-READY                  — game_ready postMessage exists at all
+//   2. GEN-PM-READY-AFTER-WAITFOR    — every game_ready site sits in the post-waitForPackages region;
+//                                      a message listener is registered in-region before each site;
+//                                      no game_ready sits inside a .catch(...) body
+//   3. GEN-PM-READY-BEFORE-SETUPGAME — setupGame() runs only AFTER game_ready is posted
+//
+// Helper: mask // line comments and /* … */ block comments with spaces so structural
+// regex matches (e.g. setupGame()) don't false-positive inside narrative comments.
+// Position-preserving — string indices stay valid against the original html.
+function _maskComments(src) {
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    const nxt = src[i + 1];
+    if (ch === '/' && nxt === '/') {
+      const end = src.indexOf('\n', i);
+      const stop = end === -1 ? src.length : end;
+      out += ' '.repeat(stop - i);
+      i = stop;
+      continue;
+    }
+    if (ch === '/' && nxt === '*') {
+      const end = src.indexOf('*/', i + 2);
+      const stop = end === -1 ? src.length : end + 2;
+      out += ' '.repeat(stop - i);
+      i = stop;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
+// Helper: locate a balanced (...) block following a callback like `.then(` or `.catch(`.
+// Returns { start, end } indices inclusive of the parens, or null if unbalanced.
+function _balancedParenBlock(src, openParenIdx) {
+  if (src[openParenIdx] !== '(') return null;
+  let depth = 0;
+  let inString = null;
+  for (let i = openParenIdx; i < src.length; i++) {
+    const ch = src[i];
+    if (inString) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === inString) inString = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') { inString = ch; continue; }
+    if (ch === '(') depth++;
+    else if (ch === ')') { depth--; if (depth === 0) return { start: openParenIdx, end: i }; }
+  }
+  return null;
+}
+
+// 1. GEN-PM-READY: game_ready postMessage MUST exist.
+//    The parent harness waits for { type: 'game_ready' } before sending game_init with content.
 {
   const hasGameReady = /postMessage\s*\(\s*\{[^}]*['"]game_ready['"][^}]*\}/.test(html);
   if (!hasGameReady) {
     errors.push(
       "GEN-PM-READY: window.parent.postMessage({ type: 'game_ready' }, '*') not found — " +
       "every game MUST send game_ready after initialization so the parent harness knows to send game_init with content. " +
-      "Place it inside DOMContentLoaded, AFTER window.addEventListener('message', handlePostMessage). " +
-      "(PART-008 mandatory requirement)"
+      "(see alfred/parts/PART-008.md § Boot ordering)"
     );
   }
 }
@@ -2301,6 +2361,202 @@ const _bootCodeOnly = maskBoot(html, true);    // comments AND strings blanked (
     }
   }
 }
+
+// 2. GEN-PM-READY-AFTER-WAITFOR: every game_ready site must sit in the post-waitForPackages region;
+//    a message listener must be registered in-region before each site;
+//    game_ready must NOT appear inside any .catch(...) body.
+//    Operates on a comment-masked view of the source so prose mentions of game_ready /
+//    setupGame inside // or /* … */ comments don't false-positive.
+{
+  const src = _maskComments(html);
+  const readyRegex = /postMessage\s*\(\s*\{[^}]*['"]game_ready['"][^}]*\}\s*,\s*['"]\*['"]\s*\)/g;
+  const readyMatches = [...src.matchAll(readyRegex)];
+
+  if (readyMatches.length > 0) {
+    // Locate the waitForPackages boundary — either `await waitForPackages()` or `waitForPackages().then(`.
+    const awaitMatch = src.match(/await\s+waitForPackages\s*\(\s*\)/);
+    const thenMatch = src.match(/waitForPackages\s*\(\s*\)\s*\.then\s*\(/);
+
+    let waitBoundaryIdx = -1;
+    let thenBlockEnd = -1;
+    let usesThenForm = false;
+
+    if (thenMatch) {
+      const openParenIdx = thenMatch.index + thenMatch[0].length - 1;
+      const block = _balancedParenBlock(src, openParenIdx);
+      if (block) {
+        usesThenForm = true;
+        thenBlockEnd = block.end;
+        waitBoundaryIdx = thenMatch.index;
+      }
+    }
+    if (awaitMatch && (waitBoundaryIdx === -1 || awaitMatch.index < waitBoundaryIdx)) {
+      waitBoundaryIdx = awaitMatch.index;
+      usesThenForm = false;
+      thenBlockEnd = -1;
+    }
+
+    // Find every .catch(...) body that hangs off the same waitForPackages chain.
+    const catchBlocks = [];
+    {
+      const catchRegex = /waitForPackages\s*\(\s*\)[^;]*?\.catch\s*\(/g;
+      let m;
+      while ((m = catchRegex.exec(src)) !== null) {
+        const openParenIdx = m.index + m[0].length - 1;
+        const block = _balancedParenBlock(src, openParenIdx);
+        if (block) catchBlocks.push(block);
+      }
+      // Also catch a bare `.catch(` immediately after the same `.then(...)` we already found.
+      if (usesThenForm) {
+        const tailCatchRegex = /\.catch\s*\(/g;
+        let cm;
+        tailCatchRegex.lastIndex = thenBlockEnd;
+        while ((cm = tailCatchRegex.exec(src)) !== null) {
+          // Only consider .catch() in the immediate chain (within 200 chars of the .then end, allowing whitespace).
+          if (cm.index - thenBlockEnd > 200) break;
+          const openParenIdx = cm.index + cm[0].length - 1;
+          const block = _balancedParenBlock(src, openParenIdx);
+          if (block) { catchBlocks.push(block); break; }
+        }
+      }
+    }
+
+    if (waitBoundaryIdx === -1) {
+      errors.push(
+        "GEN-PM-READY-AFTER-WAITFOR: game_ready postMessage exists but no `await waitForPackages()` " +
+        "or `waitForPackages().then(...)` boundary was found — the game cannot guarantee components " +
+        "are wired before signalling ready. (see alfred/parts/PART-008.md § Boot ordering)"
+      );
+    } else {
+      // Track whether any individual game_ready site is in-region; we report at most one
+      // "outside region" error and one "inside .catch" error to keep noise down even if
+      // a single bug shape produces multiple matches.
+      let reportedOutside = false;
+      let reportedCatch = false;
+
+      for (const rm of readyMatches) {
+        const readyIdx = rm.index;
+
+        // Catch-body check first — a game_ready inside .catch is always a bug.
+        const inCatch = catchBlocks.some(b => readyIdx > b.start && readyIdx < b.end);
+        if (inCatch && !reportedCatch) {
+          errors.push(
+            "GEN-PM-READY-AFTER-WAITFOR: window.parent.postMessage({ type: 'game_ready' }, '*') appears inside a " +
+            "waitForPackages().catch(...) recovery body. Recovery paths MUST NOT impersonate readiness — " +
+            "the game is in a degraded state and the harness must not be told to send game_init. " +
+            "(see alfred/parts/PART-008.md § Boot ordering)"
+          );
+          reportedCatch = true;
+          continue;
+        }
+
+        const inRegion = usesThenForm
+          ? (readyIdx > waitBoundaryIdx && thenBlockEnd > 0 && readyIdx < thenBlockEnd)
+          : (readyIdx > waitBoundaryIdx);
+
+        if (!inRegion && !reportedOutside) {
+          errors.push(
+            "GEN-PM-READY-AFTER-WAITFOR: window.parent.postMessage({ type: 'game_ready' }, '*') is emitted " +
+            "OUTSIDE the post-waitForPackages() region — components are still uninstantiated when the harness " +
+            "replies with game_init, which then crashes setupGame() on undefined refs. " +
+            "(see alfred/parts/PART-008.md § Boot ordering)"
+          );
+          reportedOutside = true;
+        }
+      }
+
+      // Listener-ordering subcheck: a `message` listener must be registered in the same post-wait region
+      // and before the first in-region game_ready. The callback can be any expression — named, anonymous,
+      // arrow, or member access — so we anchor on the comma after the 'message' literal.
+      const listenerRegex = /addEventListener\s*\(\s*['"]message['"]\s*,/g;
+      const listenerMatches = [...src.matchAll(listenerRegex)];
+      const firstInRegionReady = readyMatches.find(rm => {
+        const i = rm.index;
+        if (catchBlocks.some(b => i > b.start && i < b.end)) return false;
+        return usesThenForm
+          ? (i > waitBoundaryIdx && thenBlockEnd > 0 && i < thenBlockEnd)
+          : (i > waitBoundaryIdx);
+      });
+      if (firstInRegionReady) {
+        const readyIdx = firstInRegionReady.index;
+        const hasInRegionListenerBeforeReady = listenerMatches.some(lm => {
+          const i = lm.index;
+          const inRegion = usesThenForm
+            ? (i > waitBoundaryIdx && thenBlockEnd > 0 && i < thenBlockEnd)
+            : (i > waitBoundaryIdx);
+          return inRegion && i < readyIdx;
+        });
+        if (listenerMatches.length > 0 && !hasInRegionListenerBeforeReady) {
+          errors.push(
+            "GEN-PM-READY-AFTER-WAITFOR: window.addEventListener('message', …) must sit in the post-waitForPackages() " +
+            "region AND before the game_ready postMessage. " +
+            "(see alfred/parts/PART-008.md § Boot ordering)"
+          );
+        }
+      }
+    }
+  }
+}
+
+// 3. GEN-PM-READY-BEFORE-SETUPGAME: within the bootstrap path (the post-waitForPackages
+//    region inside DOMContentLoaded), setupGame() must run AFTER the last game_ready
+//    postMessage. We deliberately scope to in-region call sites only — handlePostMessage,
+//    restartGame, and other handlers defined elsewhere in the file may legitimately call
+//    setupGame() at any time, and their source position is unrelated to the boot order.
+//    Operates on a comment-masked view so `// 16. setupGame() — direct call` doesn't false-positive.
+{
+  const src = _maskComments(html);
+  const readyRegex = /postMessage\s*\(\s*\{[^}]*['"]game_ready['"][^}]*\}\s*,\s*['"]\*['"]\s*\)/g;
+  const readyMatches = [...src.matchAll(readyRegex)];
+  const setupCallRegex = /(?<![A-Za-z0-9_$.])setupGame\s*\(\s*\)/g;
+  const setupCalls = [...src.matchAll(setupCallRegex)];
+
+  if (readyMatches.length > 0 && setupCalls.length > 0) {
+    // Recompute the boundary locally so this block is independent of (2).
+    const awaitMatch = src.match(/await\s+waitForPackages\s*\(\s*\)/);
+    const thenMatch = src.match(/waitForPackages\s*\(\s*\)\s*\.then\s*\(/);
+    let waitBoundaryIdx = -1;
+    let thenBlockEnd = -1;
+    let usesThenForm = false;
+    if (thenMatch) {
+      const openParenIdx = thenMatch.index + thenMatch[0].length - 1;
+      const block = _balancedParenBlock(src, openParenIdx);
+      if (block) {
+        usesThenForm = true;
+        thenBlockEnd = block.end;
+        waitBoundaryIdx = thenMatch.index;
+      }
+    }
+    if (awaitMatch && (waitBoundaryIdx === -1 || awaitMatch.index < waitBoundaryIdx)) {
+      waitBoundaryIdx = awaitMatch.index;
+      usesThenForm = false;
+      thenBlockEnd = -1;
+    }
+
+    const inRegion = (i) => usesThenForm
+      ? (i > waitBoundaryIdx && thenBlockEnd > 0 && i < thenBlockEnd)
+      : (waitBoundaryIdx !== -1 && i > waitBoundaryIdx);
+
+    if (waitBoundaryIdx !== -1) {
+      const inRegionReady = readyMatches.filter(m => inRegion(m.index));
+      const inRegionSetup = setupCalls.filter(m => inRegion(m.index));
+
+      if (inRegionReady.length > 0 && inRegionSetup.length > 0) {
+        const lastReadyIdx = inRegionReady[inRegionReady.length - 1].index;
+        const firstSetupIdx = inRegionSetup[0].index;
+        if (firstSetupIdx < lastReadyIdx) {
+          errors.push(
+            "GEN-PM-READY-BEFORE-SETUPGAME: inside the bootstrap path, setupGame() runs before " +
+            "game_ready is posted — the harness will reply with game_init against a game that is " +
+            "already advancing. Move setupGame() to AFTER the game_ready postMessage. " +
+            "(see alfred/parts/PART-008.md § Boot ordering)"
+          );
+        }
+      }
+    }
+  }
+}
+// ─── end PostMessage ordering rules ──────────────────────────────────────────
 
 // ─── game_complete METRICS rules (Fix 1, 2, 3) ─────────────────────────────
 // Source of truth: alfred/skills/data-contract/schemas/game-complete.schema.json

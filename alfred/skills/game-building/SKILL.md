@@ -295,7 +295,7 @@ The sub-agent enumerates EVERY `setMode` / `setSubmittable` / `show()` / `hide()
 5. **CRITICAL** -- `gameState` MUST be assigned to `window.gameState` -- test harness reads it directly.
 6. **CRITICAL** -- `syncDOM` MUST target `#app` -- test harness reads `#app[data-phase]`. Never use `document.body`.
 7. **CRITICAL** -- `gameState.phase = 'playing'` must be the VERY FIRST LINE in the `game_init` handler.
-8. **CRITICAL** -- `game_ready` MUST be sent AFTER the message listener is registered. Sending it before means `game_init` is lost.
+8. **CRITICAL** -- `game_ready` MUST follow the canonical boot order: `await waitForPackages()` → `new XComponent(...)` ×N → `addEventListener('message', …)` → `postMessage({type:'game_ready'},'*')` → `setupGame()`. See [PART-008 § Boot ordering](../../parts/PART-008.md#boot-ordering).
 9. **CRITICAL** -- `game_complete` MUST fire on BOTH victory and game-over paths.
 10. **CRITICAL** -- `completedAt` is a sibling of `metrics` inside `data`, not nested inside `metrics`.
 11. **ADVISORY** -- Games may add extra fields (forward compatibility). Required fields must never be omitted.

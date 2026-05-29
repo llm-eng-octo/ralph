@@ -83,7 +83,8 @@ const res = await fetch(CORE_API_URL + '/api/games/register', {
       estimatedTime: 300,
       minGrade: '<from spec>',
       maxGrade: '<from spec>',
-      type: 'practice'
+      type: 'practice',
+      maxStars: '<from spec — the Star denominator (y); default 3>'
     },
     capabilities: {
       tracks: ['accuracy', 'time', 'stars'],
@@ -101,6 +102,8 @@ const body = await res.json();
 ```
 
 Extract `publishedGameId` and `artifactUrl` from the response.
+
+`maxStars` is REQUIRED by `register_game` (the Core API rejects with `400 MISSING_MAXSTARS` when it's missing or not a non-negative number). Source it from the spec's "Star denominator (`y`)" line — default 3 when the spec doesn't declare a non-default value (per spec-creation rule for `y`). It is read back by `create_worksheet`/`edit_worksheet` to default any block referencing this gameId, so a wrong value here silently caps every future worksheet that uses this game.
 
 **On failure:** If registration returns non-2xx, stop deployment. Log the full error response. Do not proceed to content set creation -- without a registered game, content sets have nowhere to attach. Report the failure to the creator with the exact API error.
 
@@ -226,7 +229,7 @@ After registration, the game is live at its `artifactUrl`. Verify it actually wo
 |---------|-------------|--------|
 | Page does not load (non-200) | Registration failed silently, or CDN propagation delay | Wait 30 seconds and retry. If still failing, check `artifactUrl` manually. |
 | JS errors on load | CDN package incompatibility or missing dependency | Do NOT deploy content sets. Return to game-building with the error. This is a game bug, not a deployment bug. |
-| game_ready does not fire | postMessage listener not registered, or init crash before game_ready | Do NOT deploy content sets. Return to game-building. Check for errors that crash before the listener is set up. |
+| game_ready does not fire | Listener not registered, init crash before `game_ready`, OR boot-order violation (see [PART-008 § Boot ordering](../../parts/PART-008.md#boot-ordering)) — harness sends `game_init` against undefined refs and `setupGame()` crashes silently | Do NOT deploy content sets. Return to game-building. Verify validators in the `GEN-PM-READY*` family passed in Step 5. |
 | Viewport wrong | Missing or malformed viewport meta tag | Minor issue. Log as warning. Game is playable but may render incorrectly on mobile. |
 | White screen / CDN failure | CDN package URL changed or is down | Check CDN status. If CDN is down, this is not a game bug -- wait and retry. If URL changed, update the game HTML. |
 

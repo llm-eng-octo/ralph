@@ -92,7 +92,7 @@ Check all 12 fields are present in the attempt object. See [attempt-schema.md](s
 
 ### Step 3: Validate postMessage schemas
 
-Check `game_ready`, `game_init` handler, `attempt_complete` (host preload hook — fires AFTER `recordAttempt(...)` for the terminal answer and BEFORE the post-submit SFX/TTS chain), and `game_complete` (fires from `endGame()` after the feedback chain) with nested `data` structure. `attempt_complete.data` and `game_complete.data` MUST share a single `buildEndPayload(correct)` helper so the metrics fields cannot drift. See [postmessage-schema.md](schemas/postmessage-schema.md).
+Check `game_ready`, `game_init` handler, `attempt_complete` (host preload hook — fires AFTER `recordAttempt(...)` for the terminal answer and BEFORE the post-submit SFX/TTS chain), and `game_complete` (fires from `endGame()` after the feedback chain) with nested `data` structure. `game_ready` must follow the canonical boot order — see [PART-008 § Boot ordering](../../parts/PART-008.md#boot-ordering). `attempt_complete.data` and `game_complete.data` MUST share a single `buildEndPayload(correct)` helper so the metrics fields cannot drift. See [postmessage-schema.md](schemas/postmessage-schema.md).
 
 ### Step 4: Validate syncDOM
 
@@ -131,7 +131,7 @@ Apply build-time static checks and note rule IDs for failures. See [validation-r
 
 ## Anti-patterns
 
-1. **Sending game_ready before registering the message listener.** Platform sends `game_init` immediately -- content is lost.
+1. **Sending `game_ready` outside the canonical boot order.** See [PART-008 § Boot ordering](../../parts/PART-008.md#boot-ordering) for the rule and the canonical bug shape.
 2. **Setting gameState.phase after other logic in game_init handler.** Test harness times out.
 3. **Guarding game_complete behind a victory check.** Game-over sessions must also send `game_complete`. The same dual-path rule applies to `attempt_complete` — fire on BOTH the last-round-correct path AND the lives→0 path.
 4. **Using `document.body` for data attributes instead of `#app`.** Test harness reads `#app[data-phase]`.

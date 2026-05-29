@@ -762,7 +762,7 @@ Cross-reference: `GEN-FEEDBACK-RUN-SEQUENCE`, `feedback/reference/feedbackmanage
 - [ ] VisibilityTracker `onInactive`/`onResume` fire `trackEvent('game_paused'/'game_resumed')`
 - [ ] CSS variables use `--mathai-*` prefix consistently — not `--game-*` or `--stack-*`
 - [ ] If using ScreenLayout (PART-025), do NOT also write manual HTML from PART-021 (double-nested layout)
-- [ ] `window.parent.postMessage({ type: 'game_ready' }, '*')` sent AFTER `window.addEventListener('message', handlePostMessage)` — parent harness waits for this before sending content
+- [ ] `window.parent.postMessage({ type: 'game_ready' }, '*')` follows the canonical boot order — see [PART-008 § Boot ordering](./PART-008.md#boot-ordering). Anti-pattern (the harness/iframe race): listener + `game_ready` on the outer `DOMContentLoaded` body while constructors sit inside `waitForPackages().then(...)`; `game_ready` fires synchronously, harness replies with `game_init`, `setupGame()` crashes on undefined refs.
 - [ ] If `<video>` present: has `controls`, `playsinline`, `controlsList="nofullscreen"` — no `autoplay`
 - [ ] If `<video>` present: wrapper has `background: white` (not black), no forced `aspect-ratio`
 - [ ] No custom lives / hearts DOM or custom heart renderer when `ProgressBarComponent` has `totalLives >= 1` — ProgressBar owns the lives strip (validator rule `5e0-LIVES-DUP-FORBIDDEN`; PART-023; PART-026 Anti-Pattern 33)
