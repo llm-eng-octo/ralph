@@ -74,8 +74,10 @@ setTimeout(function() {
   gameState.totalRounds = fallbackContent.rounds.length;
   setupGame();
   startGame();
-}, 2000);
+}, 30000);  // 30s, NOT 2s — see "Fallback delay" note below
 ```
+
+**Fallback delay — use `30000` (30s), never `2000`.** This timer's missing-class branch is what renders the user-visible "Game failed to load — please refresh." error, and it runs in the iframe too (the `window.self !== window.top` gate only blocks the *self-boot* half, not the error half). A 2s deadline declares failure while the shared CDN packages are still legitimately loading — common on slow mobile networks and in fresh Playwright browsers (CDN cold-start is 30–120s; this is the same reason `waitForPackages()` uses a 120s+ timeout). Use 30s so a slow-but-healthy load is not misreported as a failure. Trade-off accepted: in true standalone mode (preview/Playwright with no host `game_init`) the self-boot now waits up to 30s before booting on `fallbackContent` — tests that need an immediate start should send `game_init` rather than rely on the fallback.
 
 **Why CRITICAL:** Without this, the game is untestable locally and unrenderable in standalone preview. This bug appeared in THREE Alfred-built games before being corrected.
 
