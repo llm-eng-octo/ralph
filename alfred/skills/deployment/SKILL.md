@@ -61,6 +61,34 @@ Read the game's `index.html` and extract the content structure the game expects 
 
 **Validation:** The fallbackContent object itself must validate against the generated schema. If it does not, the schema is wrong.
 
+### Step 1.5: Author the `llm_readable` game description
+
+Write an elaborate, plain-language description of the game so a downstream LLM
+(report generation) can understand exactly what the student played **without
+seeing the HTML**. Derive it from the spec (`spec.md`) and the game HTML. It is
+stored on the game row (`core.games.llm_readable`, JSONB) and surfaced by the
+worksheet `syncState` API (`worksheet_llm_readable_json`) for report generation.
+
+Produce a JSON object with this shape — be specific and concrete, describing the
+game's **actual** mechanics, not generic filler:
+
+```json
+{
+  "summary": "<1-2 sentences: what the game is and what it teaches>",
+  "concepts": ["<the math concepts / skills practised>"],
+  "how_it_works": "<step-by-step gameplay: what the student sees, what they do, the core interaction, and any rounds / timers / lives / hints>",
+  "skills_assessed": ["<the abilities the game actually measures, e.g. mental addition, factor recognition, speed under time pressure>"],
+  "scoring": "<how stars/score are earned, and what separates a high score from a low one>",
+  "example_round": "<one concrete worked example of a single question/round, with the actual numbers and answer>"
+}
+```
+
+Keep it factual and grounded in the real game — do **not** invent mechanics the
+game does not have. This object is passed as `llmReadable` in the register call
+below. (It is optional on the API; if you genuinely cannot describe the game,
+omit it rather than fabricating — but for a normal pipeline run it should always
+be generated.)
+
 ### Step 2: Register the game via Core API
 
 Call the Core API to register the game. This creates the game entity, uploads the HTML artifact, and returns a publishedGameId + artifactUrl.
@@ -91,6 +119,7 @@ const res = await fetch(CORE_API_URL + '/api/games/register', {
       provides: ['score', 'stars']
     },
     inputSchema: '<generated schema from step 1>',
+    llmReadable: '<llm_readable object from step 1.5>',
     artifactContent: '<full HTML string>',
     publishedBy: 'alfred-pipeline'
   })
