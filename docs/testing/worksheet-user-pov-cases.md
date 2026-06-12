@@ -92,7 +92,7 @@ what happens when you tap. Use it to confirm a worksheet *feels* 100% working.
 | GAMEPLAY-01 | Both | Header & prompt | I can see the **question prompt** (text/image), the **question/round number** ("Q1", "1/3"), and my **running ⭐ score** |
 | GAMEPLAY-02 | Both | Hearts — multi-life question | If the question has **more than one life**, a heart indicator shows how many I have left (count matches the question's config) and drops by one on each wrong answer |
 | GAMEPLAY-02b | Both | Hearts — single-life question | If the question has **only one life**, **no heart icon appears in the header bar** |
-| GAMEPLAY-02c | Both | Heart placement | The heart indicator shows either **in the header bar**, or — for **round-based questions** — as a **row of hearts** within the question |
+| GAMEPLAY-02c | Both | Heart placement | The heart indicator shows either **in the header bar**, or — for **round-based questions** — as a **row of hearts** within the question not both |
 | GAMEPLAY-03 | Both | Primary button | A clear action button (e.g. **"Submit & check"**) is present |
 | GAMEPLAY-05 | Both | Timer | If the question is timed, a **timer is visible and counting** |
 
