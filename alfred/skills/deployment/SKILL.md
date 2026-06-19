@@ -61,33 +61,44 @@ Read the game's `index.html` and extract the content structure the game expects 
 
 **Validation:** The fallbackContent object itself must validate against the generated schema. If it does not, the schema is wrong.
 
-### Step 1.5: Author the `llm_readable` game description
+### Step 1.5: Author the `llm_readable` game brief
 
-Write an elaborate, plain-language description of the game so a downstream LLM
-(report generation) can understand exactly what the student played **without
-seeing the HTML**. Derive it from the spec (`spec.md`) and the game HTML. It is
-stored on the game row (`core.games.llm_readable`, JSONB) and surfaced by the
-worksheet `syncState` API (`worksheet_llm_readable_json`) for report generation.
+Write a JSON brief that lets **any LLM fully understand this game and its
+questions without ever seeing its HTML** — detailed enough that, reading only
+your brief, it could **reconstruct a faithful, representative question/round** of
+the game. This is general-purpose game understanding: report generation, content
+generation, tutoring, analytics, and evaluation are all consumers, so don't tune
+the brief to any single one. Derive it from the spec (`spec.md`) and the game
+HTML. It is stored on the game row (`core.games.llm_readable`, JSONB) and
+surfaced by the worksheet `syncState` API (`worksheet_llm_readable_json`).
 
-Produce a JSON object with this shape — be specific and concrete, describing the
-game's **actual** mechanics, not generic filler:
+**There is no fixed schema.** Pick whatever JSON structure best describes *this*
+game — invent the keys and nesting that fit its mechanics. Do not force every
+game into the same shape; a drag-and-drop sorting game and a timed mental-math
+drill should look different.
 
-```json
-{
-  "summary": "<1-2 sentences: what the game is and what it teaches>",
-  "concepts": ["<the math concepts / skills practised>"],
-  "how_it_works": "<step-by-step gameplay: what the student sees, what they do, the core interaction, and any rounds / timers / lives / hints>",
-  "skills_assessed": ["<the abilities the game actually measures, e.g. mental addition, factor recognition, speed under time pressure>"],
-  "scoring": "<how stars/score are earned, and what separates a high score from a low one>",
-  "example_round": "<one concrete worked example of a single question/round, with the actual numbers and answer>"
-}
-```
+Be exhaustive and concrete. Whatever structure you choose, the brief should make
+the following recoverable:
 
-Keep it factual and grounded in the real game — do **not** invent mechanics the
-game does not have. This object is passed as `llmReadable` in the register call
-below. (It is optional on the API; if you genuinely cannot describe the game,
-omit it rather than fabricating — but for a normal pipeline run it should always
-be generated.)
+- **What it is** — the game in 1–2 sentences and the concepts/skills it teaches.
+- **What the player sees and does** — the core interaction, screens, rounds,
+  lives, timers, hints.
+- **How questions are generated** — the rules a new round obeys: number ranges
+  and constraints, how pairs/options/distractors are chosen, difficulty
+  progression across rounds/levels/sets. This is what makes reconstruction
+  possible — be precise about the generation logic, not just the surface.
+- **Scoring** — how stars/score are earned and what separates a high score from
+  a low one.
+- **Misconceptions / error types** the game tracks, if any (e.g. the `kind` tags
+  on distractors).
+- **At least one fully worked example round** — actual numbers, the correct
+  answer, and why the distractors are wrong.
+
+**Hard rules:** describe only what the game *actually* does — never invent
+mechanics it doesn't have. **Litmus test:** a competent LLM reading only this
+object should be able to author a new round indistinguishable from the game's
+real ones. This object is passed as `llmReadable` in the register call below.
+(It is optional on the API, but every normal pipeline run must generate it.)
 
 ### Step 2: Register the game via Core API
 
