@@ -303,9 +303,51 @@ PUBLISH_RESULT:
 }
 ```
 
+## Updating an already-registered game (iteration / re-deploy)
+
+When a game **already has a `publishedGameId`** (a prior deploy, or the iteration skill handing back a fixed build), do **not** call `register_game` again — that creates a second game entity. Use `update_game`, and **keep the `llm_readable` brief in sync with the change**.
+
+### The golden rule
+
+`llm_readable` is the only description of the game that downstream consumers (report generation, content generation, tutoring, analytics, evaluation) ever see — they never read the HTML. So **whenever the served game changes, the brief must change with it.** The Core API now enforces this on the two paths that change the served game: a version bump and an in-place `artifactUrl` swap both **reject without a fresh `llmReadable`**. Honour it as a process rule, not just an API constraint.
+
+### `llm_readable` is replaced wholesale — read before you write
+
+`update_game` does **not** merge the brief. It overwrites `core.games.llm_readable` with exactly the object you send, so a partial object silently drops every field you omit. To change one part of the brief you must send the **complete** updated object. That means the update is always **read → modify → write**:
+
+1. **READ** — call `get_game` with the `gameId`. It returns the game's current `llmReadable` (plus `metadata`, `version`, `artifactUrl`). This is how you know the existing brief.
+
+   ```
+   mcp__mathai-core__get_game({ gameId: "<publishedGameId>" })
+   // → { id, name, version, metadata, tags, isActive, artifactUrl, llmReadable }
+   ```
+
+2. **MODIFY** — diff what actually changed in the game (the rebuilt HTML / the spec edit that triggered this iteration) against the brief you just read, then edit that JSON object:
+   - **No change** to what the brief describes (e.g. a tag or `isActive` flip, a copy tweak that doesn't touch mechanics/content rules) → leave the brief alone; don't pass `llmReadable` at all.
+   - **Minimal change** (e.g. a number range widened, one distractor rule adjusted) → edit just those fields in the object you read; keep everything else byte-for-byte.
+   - **Drastic change** (new mechanic, new round generation logic, changed scoring) → rewrite the affected sections. Re-apply the Step 1.5 litmus test: a competent LLM reading only the new brief could author a round indistinguishable from the game's real ones.
+
+   Describe only what the game *actually* does now — never carry forward a mechanic the edit removed, and never invent one it didn't add.
+
+3. **WRITE** — call `update_game` with the **complete** edited brief. Pick the mode that matches the change:
+
+   | What changed | Call |
+   |---|---|
+   | Brief only (no code change), or metadata/tags | `update_game({ gameId, llmReadable, /* + metadata/tags if any */ })` — in-place |
+   | Game code rebuilt to a new HTML file | `update_game({ gameId, newVersion, gameArtifactPath, changelog, llmReadable })` — version bump; **`llmReadable` required** |
+   | Pointing at a different already-hosted HTML | `update_game({ gameId, artifactUrl, llmReadable })` — **`llmReadable` required** |
+
+### Rules and edge cases
+
+- **`null` / omitted both mean "no change."** Passing `llmReadable: null` does **not** clear the brief — the existing one is left untouched. A brief cannot be cleared via `update_game`; that's intentional (you should never have a registered game with no brief).
+- **A version bump or `artifactUrl` change without `llmReadable` is rejected** (`400 MISSING_LLM_READABLE`). If you hit this, you skipped the READ/MODIFY steps — go back and refresh the brief.
+- **`upload_game_folder` is the one path the API can't gate.** Re-uploading `index.html` to an already-registered game's path changes the served game with no `update_game` call. The response returns a `warning` when this happens; treat it as a hard prompt to run the read-modify-write flow above and `update_game` with a refreshed brief.
+- **Content sets** are orthogonal to the brief. If the *content generation rules* changed, update the brief; if you also need new content, regenerate content sets per Steps 3–4. A pure content-set change with an unchanged game usually needs **no** brief update.
+
 ## Constraints
 
 - **CRITICAL — Never deploy a game that has not passed game-testing and game-review.** Deployment is the final step, not a shortcut.
+- **CRITICAL — On a re-deploy, never call `register_game` for an existing `publishedGameId`.** Use `update_game`, and refresh `llm_readable` via the read-modify-write flow whenever the served game changes.
 - **CRITICAL — Never skip the default content set.** It is the only guaranteed-working content. Without it, the game link may render nothing.
 - **CRITICAL — Never skip the health check.** A registered game that does not load is worse than no game -- it erodes trust.
 - **CRITICAL — All content must be mathematically correct.** A content set with a wrong answer is worse than no content set. Double-check every `correct_answer` field.
@@ -347,3 +389,15 @@ PUBLISH_RESULT:
   **Good:** Deployer reads the validation errors, fixes the content set JSON to include `misconception_tag` on every distractor, re-validates locally, and retries the upload.
 
 - **Deploying a game with zero content sets.** The game link format requires a contentSetId. Without at least one valid content set, the link goes nowhere.
+
+- **Sending a partial `llm_readable` to `update_game`, expecting a merge.**
+
+  **Bad:** The round count changed from 9 to 10, so you call `update_game({ gameId, llmReadable: { scoring: { rounds: 10 } } })`. The brief is overwritten with just that fragment — the concepts, generation rules, worked example, and everything else are gone.
+
+  **Good:** `get_game` the current brief, change the rounds field inside the object you read, then pass the **whole** updated object back to `update_game`.
+
+- **Re-running the build and `upload_game_folder` without refreshing the brief.**
+
+  **Bad:** You fix a mechanic, overwrite `index.html` via `upload_game_folder`, see the success response, and move on. The served game changed; `llm_readable` still describes the old mechanic, and downstream consumers now lie about the game.
+
+  **Good:** Heed the `warning` in the upload response (or prefer a version bump): `get_game` → edit the brief for the new mechanic → `update_game` with the refreshed `llmReadable`.
